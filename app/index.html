@@ -128,7 +128,11 @@
 
       <div class="panel-row">
         <button id="add-user-btn" class="btn btn-secondary">+ Add User</button>
+        <button id="users-export-btn" class="btn btn-secondary">⬇ Export CSV</button>
+        <button id="users-import-btn" class="btn btn-secondary">⬆ Import CSV</button>
+        <input id="users-import-file" type="file" accept=".csv" class="hidden" />
       </div>
+      <div id="users-import-summary" class="muted-text hidden"></div>
     </section>
 
     <!-- ===== ADMIN: Master Contact ===== -->
@@ -136,7 +140,11 @@
       <div class="panel-row">
         <input id="contacts-search" type="search" placeholder="Search name or phone…" class="search-input" />
         <button id="add-contact-btn" class="btn btn-secondary">+ Add Contact</button>
+        <button id="contacts-export-btn" class="btn btn-secondary">⬇ Export CSV</button>
+        <button id="contacts-import-btn" class="btn btn-secondary">⬆ Import CSV</button>
+        <input id="contacts-import-file" type="file" accept=".csv" class="hidden" />
       </div>
+      <div id="contacts-import-summary" class="muted-text hidden"></div>
       <div class="table-wrap">
         <table class="data-table" id="contacts-table">
           <thead>
@@ -174,6 +182,7 @@
             <select id="analytics-event-select"><option value="">All events</option></select>
           </label>
           <button id="analytics-run-btn" class="btn btn-primary">View</button>
+          <button id="analytics-export-btn" class="btn btn-secondary">⬇ Export CSV</button>
         </div>
       </div>
 
@@ -229,6 +238,7 @@
             <select id="reception-analytics-event-select"></select>
           </label>
           <button id="reception-analytics-run-btn" class="btn btn-primary">View</button>
+          <button id="reception-analytics-export-btn" class="btn btn-secondary">⬇ Export CSV</button>
         </div>
       </div>
 

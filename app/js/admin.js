@@ -1,6 +1,10 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, formatPhone, escapeHtml } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, downloadCSV, exportTableToCSV, parseCSV } from "./utils.js";
 import { STORAGE_BUCKET } from "./config.js";
+
+function todayStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 let eventsCache = [];
 let usersCache = [];
@@ -55,6 +59,7 @@ export async function initUsers() {
   wireAssignButton(eventSelect, tagFilterGroup);
   wireAddUserModal();
   wireAddEventModal();
+  wireUsersImportExport();
 }
 
 let addEventModalWired = false;
@@ -204,8 +209,18 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
         .eq("calling_purpose", eventCode)
         .or("admin_tag.is.null,admin_tag.neq.Don't Call");
       if (tagFilters.length) query = query.in("admin_tag", tagFilters);
-      const { data: pool, error: poolErr } = await query;
+      const { data: rawPool, error: poolErr } = await query;
       if (poolErr) throw poolErr;
+
+      // defensive de-dup: never process the same contact twice in one run
+      // (e.g. if a future query change or a race with the auto-assign trigger
+      // ever surfaces the same id twice).
+      const seenIds = new Set();
+      const pool = (rawPool || []).filter((c) => {
+        if (seenIds.has(c.id)) return false;
+        seenIds.add(c.id);
+        return true;
+      });
 
       // 4. eligible users — re-fetch fresh, since usersCache can be stale if a
       // limit/auto-assign checkbox was toggled without a page reload since then.
@@ -223,7 +238,7 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       const remaining = [];
 
       // 4a. core-cultivated contacts go to their cultivator first (counts toward their limit)
-      for (const c of pool || []) {
+      for (const c of pool) {
         if (c.core_cultivation && byName[c.core_cultivation]) {
           rows.push({ contact_id: c.id, user_name: c.core_cultivation, event_code: eventCode });
           assignedCount[c.core_cultivation]++;
@@ -232,30 +247,22 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
         }
       }
 
-      // 4b. limited users fill their remaining capacity first
-      const limited = eligible.filter((u) => u.call_limit != null);
-      const unlimited = eligible.filter((u) => u.call_limit == null);
-      let idx = 0;
-      for (const u of limited) {
-        const capacity = u.call_limit - assignedCount[u.user_name];
-        for (let i = 0; i < capacity && idx < remaining.length; i++) {
-          rows.push({ contact_id: remaining[idx].id, user_name: u.user_name, event_code: eventCode });
-          assignedCount[u.user_name]++;
-          idx++;
-        }
-      }
-
-      // 4c. leftover split equally among unlimited users
-      const leftover = remaining.slice(idx);
+      // 4b. everyone else: give each contact to whichever eligible user
+      // currently has the fewest, skipping anyone already at their call
+      // limit — a fair round-robin rather than maxing out limited users
+      // first. This way call_limit acts as a ceiling, not a fill priority:
+      // e.g. 9 contacts across a 5-limit, a 4-limit, and an unlimited user
+      // split 3/3/3, not 5/4/0 — and as more contacts arrive, the capped
+      // users stop at exactly 5 and 4 while the unlimited one absorbs the rest.
+      const capOf = (u) => (u.call_limit == null ? Infinity : u.call_limit);
       let unassignedCount = 0;
-      if (unlimited.length) {
-        leftover.forEach((c, i) => {
-          const u = unlimited[i % unlimited.length];
-          rows.push({ contact_id: c.id, user_name: u.user_name, event_code: eventCode });
-          assignedCount[u.user_name]++;
-        });
-      } else {
-        unassignedCount = leftover.length;
+      for (const c of remaining) {
+        const candidates = eligible.filter((u) => assignedCount[u.user_name] < capOf(u));
+        if (!candidates.length) { unassignedCount++; continue; }
+        candidates.sort((a, b) => assignedCount[a.user_name] - assignedCount[b.user_name]);
+        const pick = candidates[0];
+        rows.push({ contact_id: c.id, user_name: pick.user_name, event_code: eventCode });
+        assignedCount[pick.user_name]++;
       }
 
       if (rows.length) {
@@ -339,9 +346,86 @@ function wireAddUserModal() {
   };
 }
 
+function pickField(row, ...names) {
+  for (const n of names) {
+    const key = Object.keys(row).find((k) => k.toLowerCase().trim() === n.toLowerCase());
+    if (key && row[key] !== "") return row[key];
+  }
+  return "";
+}
+
+let usersImportExportWired = false;
+function wireUsersImportExport() {
+  if (usersImportExportWired) return;
+  usersImportExportWired = true;
+
+  document.getElementById("users-export-btn").addEventListener("click", async () => {
+    const { data: users } = await supabase.from("users").select("user_name,login_pw,role,call_limit,auto_assign").order("user_name");
+    const { data: assignments } = await supabase.from("assignments").select("user_name");
+    const counts = {};
+    (assignments || []).forEach((a) => { counts[a.user_name] = (counts[a.user_name] || 0) + 1; });
+    const rows = [["User Name", "Login PW", "Role", "Call Limit", "Assigned Count", "Auto Assign"]];
+    (users || []).forEach((u) => {
+      rows.push([u.user_name, u.login_pw, u.role, u.call_limit ?? "", counts[u.user_name] || 0, u.auto_assign ? "Yes" : "No"]);
+    });
+    downloadCSV(`nrg-users-${todayStamp()}.csv`, rows);
+  });
+
+  const fileInput = document.getElementById("users-import-file");
+  const summaryEl = document.getElementById("users-import-summary");
+  document.getElementById("users-import-btn").addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const records = parseCSV(await file.text());
+    fileInput.value = "";
+    if (!records.length) {
+      showToast("No rows found in that file.", "error");
+      return;
+    }
+
+    let skipped = 0;
+    const byName = new Map(); // de-dupe within the file itself — last row for a name wins
+    records.forEach((row) => {
+      const user_name = pickField(row, "User Name", "Name");
+      const login_pw = pickField(row, "Login PW", "Phone", "Password");
+      if (!user_name || !login_pw) { skipped++; return; }
+      const roleRaw = pickField(row, "Role", "User Status");
+      const role = ["Admin", "Reception"].includes(roleRaw) ? roleRaw : "User";
+      const limitRaw = pickField(row, "Call Limit", "Call Limit By Admin");
+      const limitParsed = limitRaw === "" ? null : parseInt(limitRaw, 10);
+      const autoRaw = pickField(row, "Auto Assign", "Auto Assign Status");
+      byName.set(user_name, {
+        user_name,
+        login_pw,
+        role,
+        call_limit: (limitParsed === null || Number.isNaN(limitParsed)) ? null : limitParsed,
+        auto_assign: /^(yes|true|1)$/i.test(autoRaw || "true"),
+      });
+    });
+
+    const payload = Array.from(byName.values());
+    if (!payload.length) {
+      showToast("No valid rows to import (need at least User Name + Login PW).", "error");
+      return;
+    }
+    const { error } = await supabase.from("users").upsert(payload, { onConflict: "user_name" });
+    if (error) {
+      showToast("Import failed: " + error.message, "error");
+      return;
+    }
+    summaryEl.textContent = `Imported ${payload.length} user(s).` + (skipped ? ` Skipped ${skipped} row(s) missing a name or phone.` : "");
+    summaryEl.classList.remove("hidden");
+    showToast("Users imported", "success");
+    renderUsersTable();
+  });
+}
+
 /* ======================= MASTER CONTACT ======================= */
 
 let contactsSearchWired = false;
+let lastContactsData = [];
+let lastCallCounts = {};
 
 export async function initContacts() {
   await loadEvents();
@@ -350,6 +434,7 @@ export async function initContacts() {
   wireAddContactModal();
   wireContactInfoModal();
   wireAdminReviewModal();
+  wireContactsImportExport();
 }
 
 const WS_ADMIN_OPTIONS = ["NA", "W", "S"];
@@ -457,6 +542,9 @@ async function renderContactsTable(searchTerm = "") {
       openAdminReviewModal(e.target.dataset.id, e.target.dataset.name, e.target.dataset.review);
     });
   });
+
+  lastContactsData = data;
+  lastCallCounts = callCounts;
 }
 
 const INFO_MODAL_TITLES = { sessions: "Session Attendance", calls: "Calling History", reviews: "User Reviews" };
@@ -588,6 +676,79 @@ function wireContactsSearch() {
   input.addEventListener("input", () => {
     clearTimeout(t);
     t = setTimeout(() => renderContactsTable(input.value.trim()), 300);
+  });
+}
+
+const CONTACT_CSV_HEADERS = [
+  "S No", "Name", "Mob No", "W/S", "Sessions", "Calls", "Admin Tag",
+  "Core Cultivation", "Calling Purpose", "PG Name", "Profession", "Company Name", "Admin Remarks",
+];
+
+let contactsImportExportWired = false;
+function wireContactsImportExport() {
+  if (contactsImportExportWired) return;
+  contactsImportExportWired = true;
+
+  document.getElementById("contacts-export-btn").addEventListener("click", () => {
+    const rows = [CONTACT_CSV_HEADERS];
+    lastContactsData.forEach((c, i) => {
+      rows.push([
+        c.s_no ?? i + 1, c.name, c.mob_no, c.ws || "NA", c.sessions_count, lastCallCounts[c.mob_no] || 0,
+        c.admin_tag || "", c.core_cultivation || "", c.calling_purpose || "",
+        c.pg_name || "", c.profession || "", c.company_name || "", c.admin_remarks || "",
+      ]);
+    });
+    downloadCSV(`nrg-master-contact-${todayStamp()}.csv`, rows);
+  });
+
+  const fileInput = document.getElementById("contacts-import-file");
+  const summaryEl = document.getElementById("contacts-import-summary");
+  document.getElementById("contacts-import-btn").addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const records = parseCSV(await file.text());
+    fileInput.value = "";
+    if (!records.length) {
+      showToast("No rows found in that file.", "error");
+      return;
+    }
+
+    let skipped = 0;
+    const byMob = new Map(); // de-dupe within the file itself — last row for a phone number wins
+    records.forEach((row) => {
+      const name = pickField(row, "Name");
+      const mobRaw = pickField(row, "Mob No", "Phone", "Mobile", "Mobile Number");
+      const mob_no = mobRaw.replace(/\D/g, "");
+      if (!name || mob_no.length !== 10) { skipped++; return; }
+      byMob.set(mob_no, {
+        mob_no,
+        name,
+        ws: WS_ADMIN_OPTIONS.includes(pickField(row, "W/S")) ? pickField(row, "W/S") : "NA",
+        admin_tag: pickField(row, "Admin Tag") || null,
+        core_cultivation: pickField(row, "Core Cultivation") || null,
+        calling_purpose: pickField(row, "Calling Purpose") || null,
+        pg_name: pickField(row, "PG Name") || null,
+        profession: pickField(row, "Profession") || null,
+        company_name: pickField(row, "Company Name") || null,
+        admin_remarks: pickField(row, "Admin Remarks", "Admin Remakrs") || null,
+      });
+    });
+
+    const payload = Array.from(byMob.values());
+    if (!payload.length) {
+      showToast("No valid rows to import (need at least Name + a 10-digit Mob No).", "error");
+      return;
+    }
+    const { error } = await supabase.from("contacts").upsert(payload, { onConflict: "mob_no" });
+    if (error) {
+      showToast("Import failed: " + error.message, "error");
+      return;
+    }
+    summaryEl.textContent = `Imported ${payload.length} contact(s).` + (skipped ? ` Skipped ${skipped} row(s) missing a name or valid 10-digit phone.` : "");
+    summaryEl.classList.remove("hidden");
+    showToast("Contacts imported", "success");
+    renderContactsTable(document.getElementById("contacts-search").value.trim());
   });
 }
 
@@ -743,6 +904,25 @@ export async function initAnalytics() {
   if (!analyticsWired) {
     analyticsWired = true;
     document.getElementById("analytics-run-btn").addEventListener("click", run);
+    document.getElementById("analytics-export-btn").addEventListener("click", () => {
+      const readTable = (tableEl) => {
+        const rows = [Array.from(tableEl.querySelectorAll("thead th")).map((th) => th.textContent.trim())];
+        tableEl.querySelectorAll("tbody tr").forEach((tr) => {
+          rows.push(Array.from(tr.children).map((td) => td.textContent.trim()));
+        });
+        return rows;
+      };
+      const rows = [
+        [`Calls Made: ${document.getElementById("analytics-total-calls").textContent}`],
+        [],
+        ["By Event"], ...readTable(document.getElementById("analytics-by-event-body").closest("table")),
+        [],
+        ["Currently Assigned Contacts"], ...readTable(document.getElementById("analytics-assigned-body").closest("table")),
+        [],
+        ["Core Cultivation Health"], ...readTable(document.getElementById("analytics-cultivation-body").closest("table")),
+      ];
+      downloadCSV(`nrg-analytics-${todayStamp()}.csv`, rows);
+    });
   }
   if (userSelect.value) run();
 }
@@ -895,6 +1075,10 @@ export async function initReceptionAnalytics() {
   if (!receptionAnalyticsWired) {
     receptionAnalyticsWired = true;
     document.getElementById("reception-analytics-run-btn").addEventListener("click", run);
+    document.getElementById("reception-analytics-export-btn").addEventListener("click", () => {
+      const table = document.getElementById("reception-analytics-attendance-body").closest("table");
+      exportTableToCSV(table, `nrg-reception-analytics-${todayStamp()}.csv`);
+    });
   }
   run();
 }
