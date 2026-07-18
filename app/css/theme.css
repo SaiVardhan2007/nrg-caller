@@ -67,6 +67,9 @@ body {
 .field.inline span { margin-bottom: 0; white-space: nowrap; }
 .field.checkbox { display: flex; align-items: center; gap: 8px; }
 .field.checkbox span { margin: 0; }
+.tag-check-group { flex-wrap: wrap; row-gap: 6px; }
+.tag-check { display: flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 500; white-space: nowrap; }
+.tag-check input { width: auto; }
 .field-error { color: var(--danger); font-size: 13px; margin: -8px 0 14px; }
 .field-warning { color: var(--warning); font-size: 13px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; }
 

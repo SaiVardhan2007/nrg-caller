@@ -144,6 +144,19 @@ function syncBodyText(sheet) {
   });
 }
 
+// current_event / tag_filter are single global settings, mirrored onto row 2
+// of Admin Page (the "Calling Purpose" / "Admin tag" columns), same idea as
+// message_text living in Body Text!E3.
+function syncAdminGlobalSetting(key, value) {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_ADMIN);
+  if (!sheet) return;
+  const map = headerMap(sheet);
+  const header = key === 'current_event' ? 'Calling Purpose' : 'Admin tag';
+  const col = map[header];
+  if (!col) return;
+  sheet.getRange(2, col).setValue(value);
+}
+
 /* ============ OUTBOUND: Supabase change -> this Sheet ============ */
 /* Called by a Supabase Database Webhook (pg_net) on insert/update. */
 
@@ -159,6 +172,8 @@ function doPost(e) {
       upsertSheetRow(SHEET_CONTACTS, 'Mob No', record.mob_no, mapContactToRow(record));
     } else if (table === 'settings' && record.key === 'message_text') {
       SpreadsheetApp.getActive().getSheetByName(SHEET_BODY_TEXT).getRange(MESSAGE_CELL).setValue(record.value);
+    } else if (table === 'settings' && (record.key === 'current_event' || record.key === 'tag_filter')) {
+      syncAdminGlobalSetting(record.key, record.value);
     } else if (table === 'call_responses') {
       appendSheetRow(SHEET_CALL_RESPONSES, mapCallResponseToRow(record));
     } else if (table === 'session_attendance') {

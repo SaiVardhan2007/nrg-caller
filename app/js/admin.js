@@ -32,16 +32,22 @@ async function setSetting(key, value) {
 
 /* ======================= USERS & ASSIGNMENT ======================= */
 
+function getCheckedTags(tagFilterGroup) {
+  return Array.from(tagFilterGroup.querySelectorAll("input:checked")).map((cb) => cb.value);
+}
+
 export async function initUsers() {
   await loadEvents();
   const eventSelect = document.getElementById("event-select");
-  const tagFilterSelect = document.getElementById("tag-filter-select");
+  const tagFilterGroup = document.getElementById("tag-filter-group");
   const currentEvent = await getSetting("current_event");
   fillEventSelect(eventSelect, currentEvent);
-  tagFilterSelect.value = (await getSetting("tag_filter")) || "";
+
+  const savedTags = ((await getSetting("tag_filter")) || "").split(",").map((t) => t.trim()).filter(Boolean);
+  tagFilterGroup.querySelectorAll("input").forEach((cb) => { cb.checked = savedTags.includes(cb.value); });
 
   await renderUsersTable();
-  wireAssignButton(eventSelect, tagFilterSelect);
+  wireAssignButton(eventSelect, tagFilterGroup);
   wireAddUserModal();
 }
 
@@ -113,7 +119,7 @@ async function renderUsersTable() {
   });
 }
 
-function wireAssignButton(eventSelect, tagFilterSelect) {
+function wireAssignButton(eventSelect, tagFilterGroup) {
   const btn = document.getElementById("assign-btn");
   const summary = document.getElementById("assign-summary");
   btn.onclick = async () => {
@@ -121,9 +127,9 @@ function wireAssignButton(eventSelect, tagFilterSelect) {
     btn.textContent = "Assigning…";
     try {
       const eventCode = eventSelect.value;
-      const tagFilter = tagFilterSelect.value;
+      const tagFilters = getCheckedTags(tagFilterGroup);
       await setSetting("current_event", eventCode);
-      await setSetting("tag_filter", tagFilter);
+      await setSetting("tag_filter", tagFilters.join(","));
 
       // 1. wipe previous temporary assignments (event switch clears the board)
       await supabase.from("assignments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
@@ -136,7 +142,7 @@ function wireAssignButton(eventSelect, tagFilterSelect) {
         .select("id,core_cultivation,admin_tag")
         .eq("calling_purpose", eventCode)
         .or("admin_tag.is.null,admin_tag.neq.Don't Call");
-      if (tagFilter) query = query.eq("admin_tag", tagFilter);
+      if (tagFilters.length) query = query.in("admin_tag", tagFilters);
       const { data: pool, error: poolErr } = await query;
       if (poolErr) throw poolErr;
 

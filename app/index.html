@@ -87,16 +87,13 @@
             <span>Current Event</span>
             <select id="event-select"></select>
           </label>
-          <label class="field inline">
+          <div class="field inline tag-check-group" id="tag-filter-group">
             <span>Admin Tag Filter</span>
-            <select id="tag-filter-select">
-              <option value="">All tags</option>
-              <option value="Janata">Janata</option>
-              <option value="Call">Call</option>
-              <option value="Core">Core</option>
-              <option value="Assigned">Assigned</option>
-            </select>
-          </label>
+            <label class="tag-check"><input type="checkbox" value="Janata" /> Janata</label>
+            <label class="tag-check"><input type="checkbox" value="Call" /> Call</label>
+            <label class="tag-check"><input type="checkbox" value="Core" /> Core</label>
+            <label class="tag-check"><input type="checkbox" value="Assigned" /> Assigned</label>
+          </div>
           <button id="assign-btn" class="btn btn-primary">Assign Contacts</button>
         </div>
         <p id="assign-summary" class="muted-text"></p>
