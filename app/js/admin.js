@@ -129,7 +129,7 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       const eventCode = eventSelect.value;
       const tagFilters = getCheckedTags(tagFilterGroup);
       await setSetting("current_event", eventCode);
-      await setSetting("tag_filter", tagFilters.join(","));
+      await setSetting("tag_filter", tagFilters.join(", "));
 
       // 1. snapshot the outgoing round's per-user counts before wiping, so
       // admin analytics can still answer "how many did X get assigned last

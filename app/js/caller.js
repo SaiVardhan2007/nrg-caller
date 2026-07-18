@@ -92,6 +92,7 @@ export async function init(user) {
 
   await loadAndRenderCards();
   wireOthersModal();
+  wireReviewModal();
   wireHistoryModal();
   subscribeRealtime();
 }
@@ -99,7 +100,7 @@ export async function init(user) {
 async function loadAndRenderCards() {
   const { data: assignments, error } = await supabase
     .from("assignments")
-    .select("id,status,submitted_at,contact_id,contacts(id,name,mob_no,ws,sessions_count)")
+    .select("id,status,submitted_at,contact_id,contacts(id,name,mob_no,ws,sessions_count,core_cultivation)")
     .eq("user_name", currentUser.user_name)
     .eq("event_code", currentEventCode);
 
@@ -243,7 +244,15 @@ function wireCard(assignments) {
       refreshSubmitButton(card, assignmentId);
     });
 
-    card.querySelector(".row-submit-btn").addEventListener("click", () => submitCard(card, assignmentId, contactId, c));
+    card.querySelector(".row-submit-btn").addEventListener("click", () => {
+      const status = card.querySelector(".status-select").value;
+      if (status === "Others") {
+        // the Others flow already collected mandatory detail when it was selected; that text is the review.
+        submitCard(card, assignmentId, contactId, c, card.querySelector(".status-select").dataset.othersText || "");
+        return;
+      }
+      openReviewModal(card, assignmentId, contactId, c, !!c.core_cultivation);
+    });
 
     card.querySelector(".calls-link").addEventListener("click", (e) => {
       openHistoryModal(e.target.dataset.mob, e.target.dataset.name);
@@ -251,11 +260,11 @@ function wireCard(assignments) {
   });
 }
 
-async function submitCard(card, assignmentId, contactId, contact) {
+async function submitCard(card, assignmentId, contactId, contact, review) {
   const statusSelect = card.querySelector(".status-select");
   const submitBtn = card.querySelector(".row-submit-btn");
   const status = statusSelect.value;
-  const addl = status === "Others" ? statusSelect.dataset.othersText || "" : null;
+  const addl = review || null;
 
   submitBtn.disabled = true;
   submitBtn.textContent = "Saving…";
@@ -351,6 +360,50 @@ function wireOthersModal() {
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") document.getElementById("others-confirm").click();
     if (e.key === "Escape") document.getElementById("others-cancel").click();
+  });
+}
+
+let pendingReview = null;
+
+function openReviewModal(card, assignmentId, contactId, contact, mandatory) {
+  pendingReview = { card, assignmentId, contactId, contact, mandatory };
+  document.getElementById("review-input").value = "";
+  document.getElementById("review-error").classList.add("hidden");
+  document.getElementById("review-skip").classList.toggle("hidden", mandatory);
+  document.getElementById("review-title").textContent = mandatory ? "Review required" : "Add a review";
+  document.getElementById("review-hint").textContent = mandatory
+    ? `${contact.name} is under core cultivation — please leave a short note so nothing gets missed.`
+    : "Optional — add any notes about this call.";
+  document.getElementById("review-modal").classList.add("active");
+  setTimeout(() => document.getElementById("review-input").focus(), 60);
+}
+
+function wireReviewModal() {
+  const modal = document.getElementById("review-modal");
+  const input = document.getElementById("review-input");
+  const errorEl = document.getElementById("review-error");
+
+  document.getElementById("review-skip").onclick = () => {
+    if (!pendingReview) return;
+    modal.classList.remove("active");
+    const { card, assignmentId, contactId, contact } = pendingReview;
+    pendingReview = null;
+    submitCard(card, assignmentId, contactId, contact, "");
+  };
+  document.getElementById("review-confirm").onclick = () => {
+    if (!pendingReview) return;
+    if (pendingReview.mandatory && !input.value.trim()) {
+      errorEl.textContent = "A review is required for this contact.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    modal.classList.remove("active");
+    const { card, assignmentId, contactId, contact } = pendingReview;
+    pendingReview = null;
+    submitCard(card, assignmentId, contactId, contact, input.value.trim());
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.ctrlKey) document.getElementById("review-confirm").click();
   });
 }
 

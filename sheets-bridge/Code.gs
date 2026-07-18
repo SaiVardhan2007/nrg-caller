@@ -178,7 +178,11 @@ function syncAdminGlobalSetting(key, value) {
   const header = key === 'current_event' ? 'Calling Purpose' : 'Admin tag';
   const col = map[header];
   if (!col) return;
-  sheet.getRange(2, col).setValue(value);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  const rowCount = lastRow - 1;
+  const values = new Array(rowCount).fill([value]);
+  sheet.getRange(2, col, rowCount, 1).setValues(values);
 }
 
 /* ============ OUTBOUND: Supabase change -> this Sheet ============ */
