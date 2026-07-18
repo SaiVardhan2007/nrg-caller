@@ -14,9 +14,8 @@ export async function init(user) {
     supabase.from("settings").select("value").eq("key", "current_event").single(),
   ]);
   const sessionSelect = document.getElementById("reception-session-name");
-  sessionSelect.innerHTML = (events || []).map((e) => `<option value="${e.name}">${e.name}</option>`).join("");
-  const defaultEvent = (events || []).find((e) => e.code === eventSetting?.value);
-  if (defaultEvent) sessionSelect.value = defaultEvent.name;
+  sessionSelect.innerHTML = (events || []).map((e) => `<option value="${e.code}">${e.code}</option>`).join("");
+  if (eventSetting?.value) sessionSelect.value = eventSetting.value;
 
   if (wired) return;
   wired = true;

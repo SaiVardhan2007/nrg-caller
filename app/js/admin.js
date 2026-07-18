@@ -1,6 +1,5 @@
 import { supabase } from "./supabaseClient.js";
 import { showToast, formatPhone, escapeHtml, downloadCSV, exportTableToCSV, parseCSV } from "./utils.js";
-import { STORAGE_BUCKET } from "./config.js";
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
@@ -831,42 +830,10 @@ function wireAddContactModal() {
 
 export async function initMessage() {
   const textEl = document.getElementById("message-text");
-  const previewWrap = document.getElementById("poster-preview-wrap");
-  const previewImg = document.getElementById("poster-preview");
   const errorEl = document.getElementById("message-error");
   errorEl.classList.add("hidden");
 
   textEl.value = (await getSetting("message_text")) || "";
-  const posterUrl = await getSetting("poster_url");
-  if (posterUrl) {
-    previewImg.src = posterUrl;
-    previewWrap.classList.remove("hidden");
-  } else {
-    previewWrap.classList.add("hidden");
-  }
-
-  document.getElementById("poster-upload").onchange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const path = `posters/${Date.now()}_${file.name}`;
-    const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { upsert: true });
-    if (error) {
-      errorEl.textContent = "Poster upload failed: " + error.message;
-      errorEl.classList.remove("hidden");
-      return;
-    }
-    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-    await setSetting("poster_url", data.publicUrl);
-    previewImg.src = data.publicUrl;
-    previewWrap.classList.remove("hidden");
-    showToast("Poster uploaded", "success");
-  };
-
-  document.getElementById("poster-remove-btn").onclick = async () => {
-    await setSetting("poster_url", "");
-    previewWrap.classList.add("hidden");
-    previewImg.src = "";
-  };
 
   document.getElementById("save-message-btn").onclick = async () => {
     await setSetting("message_text", textEl.value);
@@ -927,6 +894,17 @@ export async function initAnalytics() {
   if (userSelect.value) run();
 }
 
+// same categorization used on the caller's own stats bar, so the numbers agree across the app
+const ANALYTICS_POSITIVE = ["joining the session", "will try to attend"];
+const ANALYTICS_NEGATIVE = ["don't call him again", "wrong number", "out of network coverage", "shifted to home town"];
+const ANALYTICS_PENDING = ["not done", "yet to call", ""];
+function callOutcomeCategory(remarks) {
+  const s = (remarks || "").toLowerCase();
+  if (ANALYTICS_NEGATIVE.includes(s)) return "negative";
+  if (ANALYTICS_POSITIVE.includes(s)) return "positive";
+  return "pending";
+}
+
 let analyticsRequestId = 0;
 
 async function runAnalytics(userName, fromDate, toDate, eventFilter) {
@@ -942,15 +920,22 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   const currentEventCode = await getSetting("current_event");
   if (isStale()) return;
 
-  // total calls made in the selected range
-  let callsQuery = supabase.from("call_responses").select("id", { count: "exact", head: true });
+  // total calls made in the selected range, broken down by outcome
+  let callsQuery = supabase.from("call_responses").select("remarks");
   if (!isAll) callsQuery = callsQuery.eq("caller_name", userName);
   if (fromTs) callsQuery = callsQuery.gte("ts", fromTs);
   if (toTs) callsQuery = callsQuery.lte("ts", toTs);
   if (eventFilter) callsQuery = callsQuery.eq("event_code", eventFilter);
-  const { count: totalCalls } = await callsQuery;
+  const { data: callsInRange } = await callsQuery;
   if (isStale()) return;
-  document.getElementById("analytics-total-calls").textContent = totalCalls ?? 0;
+  const outcomeCounts = { positive: 0, negative: 0, pending: 0 };
+  (callsInRange || []).forEach((r) => {
+    outcomeCounts[callOutcomeCategory(r.remarks)]++;
+  });
+  document.getElementById("analytics-total-calls").textContent = (callsInRange || []).length;
+  document.getElementById("analytics-positive-calls").textContent = outcomeCounts.positive;
+  document.getElementById("analytics-negative-calls").textContent = outcomeCounts.negative;
+  document.getElementById("analytics-pending-calls").textContent = outcomeCounts.pending;
 
   // by-event: assigned (live for current event, historical rounds otherwise) / called / left
   // "called" is scoped to the same from/to range as the Calls Made card above,

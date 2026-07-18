@@ -188,6 +188,9 @@
 
       <div class="stats-bar">
         <div class="stat"><span id="analytics-total-calls" class="stat-num">0</span><span class="stat-label">Calls Made</span></div>
+        <div class="stat stat-positive"><span id="analytics-positive-calls" class="stat-num">0</span><span class="stat-label">Positive</span></div>
+        <div class="stat stat-negative"><span id="analytics-negative-calls" class="stat-num">0</span><span class="stat-label">Negative</span></div>
+        <div class="stat stat-pending"><span id="analytics-pending-calls" class="stat-num">0</span><span class="stat-label">Pending</span></div>
       </div>
 
       <div class="panel">
@@ -265,14 +268,6 @@
           <span>Current Message (sent by all callers)</span>
           <textarea id="message-text" rows="5" placeholder="Use {name} to insert the contact's name"></textarea>
         </label>
-        <label class="field">
-          <span>Poster Image (optional)</span>
-          <input id="poster-upload" type="file" accept="image/*" />
-        </label>
-        <div id="poster-preview-wrap" class="poster-preview-wrap hidden">
-          <img id="poster-preview" class="poster-preview" alt="Poster preview" />
-          <button id="poster-remove-btn" class="btn btn-link">Remove poster</button>
-        </div>
         <button id="save-message-btn" class="btn btn-primary">Save Message</button>
         <div id="message-error" class="field-error hidden"></div>
       </div>
@@ -285,7 +280,10 @@
         <div class="stat"><span id="stat-positive" class="stat-num">0</span><span class="stat-label">Positive</span></div>
         <div class="stat"><span id="stat-pending" class="stat-num">0</span><span class="stat-label">Pending</span></div>
       </div>
-      <div id="caller-event-title" class="section-title"></div>
+      <div class="caller-title-row">
+        <div id="caller-event-title" class="section-title"></div>
+        <button id="caller-refresh-btn" class="btn btn-secondary btn-refresh" type="button">↻ Refresh</button>
+      </div>
       <div id="caller-cards" class="cards-list">
         <p class="loading-row">Loading your assigned contacts…</p>
       </div>
@@ -442,18 +440,6 @@
     <div class="modal-actions">
       <button id="review-skip" class="btn btn-secondary">Skip</button>
       <button id="review-confirm" class="btn btn-primary">Submit</button>
-    </div>
-  </div>
-</div>
-
-<div id="others-modal" class="modal">
-  <div class="modal-box">
-    <h3>Please specify</h3>
-    <label class="field"><span>Details</span><input id="others-input" type="text" /></label>
-    <div id="others-error" class="field-error hidden"></div>
-    <div class="modal-actions">
-      <button id="others-cancel" class="btn btn-secondary">Cancel</button>
-      <button id="others-confirm" class="btn btn-primary">OK</button>
     </div>
   </div>
 </div>

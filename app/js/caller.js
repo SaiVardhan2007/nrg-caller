@@ -1,6 +1,5 @@
 import { supabase } from "./supabaseClient.js";
 import { formatPhone, telHref, waHref, showToast, escapeHtml } from "./utils.js";
-import { STORAGE_BUCKET } from "./config.js";
 
 const STATUS_DEFAULT = "Not Done";
 const STATUS_OPTIONS = [
@@ -26,14 +25,6 @@ const POSITIVE = ["joining the session", "will try to attend"];
 const PENDING = ["not done", "yet to call", ""];
 const NEGATIVE = ["don't call him again", "wrong number", "out of network coverage", "shifted to home town"];
 const WS_OPTIONS = ["NA", "W", "S"];
-const AVATAR_GRADIENTS = [
-  "linear-gradient(135deg,#059669,#047857)",
-  "linear-gradient(135deg,#d97706,#b45309)",
-  "linear-gradient(135deg,#4f46e5,#4338ca)",
-  "linear-gradient(135deg,#0891b2,#0e7490)",
-  "linear-gradient(135deg,#db2777,#be185d)",
-  "linear-gradient(135deg,#65a30d,#4d7c0f)",
-];
 
 function statusCategory(status) {
   const s = (status || "").toLowerCase();
@@ -42,24 +33,11 @@ function statusCategory(status) {
   return "neutral";
 }
 
-function avatarGradient(name) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
-}
-
-function initials(name) {
-  const parts = String(name || "").trim().split(/\s+/);
-  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
-
 const cardState = new Map(); // assignment.id -> { called, sent, submitted, lastStatus }
 let currentEventCode = "";
 let currentEventName = "";
-let posterUrl = "";
 let messageText = "";
 let currentUser = null;
-let othersTargetAssignmentId = null;
 
 const SKELETON_CARD = `
   <div class="call-card skeleton-card">
@@ -76,14 +54,12 @@ export async function init(user) {
   const listEl = document.getElementById("caller-cards");
   listEl.innerHTML = SKELETON_CARD.repeat(3);
 
-  const [{ data: eventRow }, { data: msgRow }, { data: posterRow }] = await Promise.all([
+  const [{ data: eventRow }, { data: msgRow }] = await Promise.all([
     supabase.from("settings").select("value").eq("key", "current_event").single(),
     supabase.from("settings").select("value").eq("key", "message_text").single(),
-    supabase.from("settings").select("value").eq("key", "poster_url").single(),
   ]);
   currentEventCode = eventRow?.value || "";
   messageText = msgRow?.value || "";
-  posterUrl = posterRow?.value || "";
 
   const { data: eventInfo } = await supabase.from("events").select("name").eq("code", currentEventCode).single();
   currentEventName = eventInfo?.name || currentEventCode;
@@ -91,10 +67,25 @@ export async function init(user) {
   document.getElementById("dash-event-name").textContent = currentEventName;
 
   await loadAndRenderCards();
-  wireOthersModal();
   wireReviewModal();
   wireHistoryModal();
+  wireRefreshButton();
   subscribeRealtime();
+}
+
+let refreshWired = false;
+function wireRefreshButton() {
+  if (refreshWired) return;
+  refreshWired = true;
+  const btn = document.getElementById("caller-refresh-btn");
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = "Refreshing…";
+    await loadAndRenderCards();
+    btn.disabled = false;
+    btn.textContent = original;
+  });
 }
 
 async function loadAndRenderCards() {
@@ -121,12 +112,31 @@ async function loadAndRenderCards() {
     }
   });
 
-  listEl.innerHTML = assignments.map((a) => renderCard(a)).join("");
+  const mobNos = assignments.map((a) => a.contacts.mob_no);
+  const { data: weekCalls } = await supabase
+    .from("call_responses")
+    .select("mob_no")
+    .in("mob_no", mobNos)
+    .gte("ts", startOfWeek().toISOString());
+  const weekCallCounts = {};
+  (weekCalls || []).forEach((r) => { weekCallCounts[r.mob_no] = (weekCallCounts[r.mob_no] || 0) + 1; });
+
+  listEl.innerHTML = assignments.map((a) => renderCard(a, weekCallCounts[a.contacts.mob_no] || 0)).join("");
   wireCard(assignments);
   updateStatsBar(assignments);
 }
 
-function renderCard(a) {
+function startOfWeek() {
+  const d = new Date();
+  const day = d.getDay(); // 0 = Sun ... 6 = Sat
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
+function renderCard(a, weekCallCount) {
   const c = a.contacts;
   const st = cardState.get(a.id);
   const submittedLabel = st.submitted && st.lastStatus === a.status;
@@ -134,14 +144,16 @@ function renderCard(a) {
   return `
     <div class="call-card" data-assignment-id="${a.id}" data-contact-id="${c.id}">
       <div class="call-card-row1">
-        <span class="call-card-avatar" style="background:${avatarGradient(c.name)}">${initials(c.name)}</span>
-        <span class="call-card-name">${escapeHtml(c.name)}</span>
-        <select class="ws-select">
+        <select class="ws-select" data-ws="${c.ws || "NA"}">
           ${WS_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
         </select>
+        <span class="call-card-name">${escapeHtml(c.name)}</span>
       </div>
       <div class="call-card-row2">
-        <button class="calls-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📋 Sessions: ${c.sessions_count}</button>
+        <div class="card-badges">
+          <button class="calls-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📋 Sessions: ${c.sessions_count}</button>
+          <button class="calls-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📞 This week: ${weekCallCount}</button>
+        </div>
         <a class="phone-pill" href="${telHref(c.mob_no)}">📞 ${formatPhone(c.mob_no)}</a>
       </div>
       <div class="call-card-row3">
@@ -203,6 +215,7 @@ function wireCard(assignments) {
     refreshSubmitButton(card, assignmentId);
 
     card.querySelector(".ws-select").addEventListener("change", async (e) => {
+      e.target.dataset.ws = e.target.value;
       await supabase.from("contacts").update({ ws: e.target.value }).eq("id", contactId);
     });
 
@@ -212,59 +225,39 @@ function wireCard(assignments) {
     });
 
     card.querySelector(".status-select").addEventListener("change", (e) => {
-      if (e.target.value === "Others") {
-        othersTargetAssignmentId = assignmentId;
-        document.getElementById("others-input").value = "";
-        document.getElementById("others-error").classList.add("hidden");
-        document.getElementById("others-modal").classList.add("active");
-        setTimeout(() => document.getElementById("others-input").focus(), 60);
-      }
       e.target.classList.remove("status-positive", "status-negative", "status-neutral");
       e.target.classList.add(`status-${statusCategory(e.target.value)}`);
+      if (e.target.value && e.target.value !== STATUS_DEFAULT) {
+        const mandatory = e.target.value === "Others" || !!c.core_cultivation;
+        openReviewModal(card, assignmentId, c, mandatory);
+      }
       refreshSubmitButton(card, assignmentId);
     });
 
-    card.querySelector(".send-btn").addEventListener("click", async () => {
+    card.querySelector(".send-btn").addEventListener("click", () => {
       const text = (messageText || "").replace(/\{name\}/g, c.name);
-      if (posterUrl && navigator.canShare && navigator.share) {
-        try {
-          const resp = await fetch(posterUrl);
-          const blob = await resp.blob();
-          const file = new File([blob], "poster.jpg", { type: blob.type });
-          if (navigator.canShare({ files: [file] })) {
-            await navigator.share({ files: [file], text });
-            cardState.get(assignmentId).sent = true;
-            refreshSubmitButton(card, assignmentId);
-            return;
-          }
-        } catch { /* fall through to wa.me link */ }
-      }
       window.open(waHref(c.mob_no, text), "_blank");
       cardState.get(assignmentId).sent = true;
       refreshSubmitButton(card, assignmentId);
     });
 
     card.querySelector(".row-submit-btn").addEventListener("click", () => {
-      const status = card.querySelector(".status-select").value;
-      if (status === "Others") {
-        // the Others flow already collected mandatory detail when it was selected; that text is the review.
-        submitCard(card, assignmentId, contactId, c, card.querySelector(".status-select").dataset.othersText || "");
-        return;
-      }
-      openReviewModal(card, assignmentId, contactId, c, !!c.core_cultivation);
+      submitCard(card, assignmentId, contactId, c);
     });
 
-    card.querySelector(".calls-link").addEventListener("click", (e) => {
-      openHistoryModal(e.target.dataset.mob, e.target.dataset.name);
+    card.querySelectorAll(".calls-link").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        openHistoryModal(e.target.dataset.mob, e.target.dataset.name);
+      });
     });
   });
 }
 
-async function submitCard(card, assignmentId, contactId, contact, review) {
+async function submitCard(card, assignmentId, contactId, contact) {
   const statusSelect = card.querySelector(".status-select");
   const submitBtn = card.querySelector(".row-submit-btn");
   const status = statusSelect.value;
-  const addl = review || null;
+  const addl = statusSelect.dataset.review || null;
 
   submitBtn.disabled = true;
   submitBtn.textContent = "Saving…";
@@ -331,49 +324,24 @@ function updateStatsBarFromDom() {
   document.getElementById("stat-pending").textContent = pending;
 }
 
-function wireOthersModal() {
-  const modal = document.getElementById("others-modal");
-  const input = document.getElementById("others-input");
-  const errorEl = document.getElementById("others-error");
-
-  document.getElementById("others-cancel").onclick = () => {
-    modal.classList.remove("active");
-    if (othersTargetAssignmentId) {
-      const card = document.querySelector(`.call-card[data-assignment-id="${othersTargetAssignmentId}"]`);
-      if (card) card.querySelector(".status-select").value = STATUS_DEFAULT;
-    }
-  };
-  document.getElementById("others-confirm").onclick = () => {
-    if (!input.value.trim()) {
-      errorEl.textContent = "Details are mandatory — please type something.";
-      errorEl.classList.remove("hidden");
-      return;
-    }
-    const card = document.querySelector(`.call-card[data-assignment-id="${othersTargetAssignmentId}"]`);
-    if (card) {
-      const sel = card.querySelector(".status-select");
-      sel.dataset.othersText = input.value.trim();
-      refreshSubmitButton(card, othersTargetAssignmentId);
-    }
-    modal.classList.remove("active");
-  };
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") document.getElementById("others-confirm").click();
-    if (e.key === "Escape") document.getElementById("others-cancel").click();
-  });
-}
-
+// Fires the moment a status is picked (any status, not just "Others"), mirroring
+// how "Others" used to work on its own. Mandatory for "Others" or a core-cultivated
+// contact (no Skip shown, Cancel reverts the status pick); optional otherwise
+// (Skip keeps the status but records no comment).
 let pendingReview = null;
 
-function openReviewModal(card, assignmentId, contactId, contact, mandatory) {
-  pendingReview = { card, assignmentId, contactId, contact, mandatory };
+function openReviewModal(card, assignmentId, contact, mandatory) {
+  pendingReview = { card, assignmentId, mandatory };
   document.getElementById("review-input").value = "";
   document.getElementById("review-error").classList.add("hidden");
-  document.getElementById("review-skip").classList.toggle("hidden", mandatory);
+  document.getElementById("review-skip").textContent = mandatory ? "Cancel" : "Skip";
+  document.getElementById("review-confirm").textContent = mandatory ? "Submit" : "Save";
   document.getElementById("review-title").textContent = mandatory ? "Review required" : "Add a review";
   document.getElementById("review-hint").textContent = mandatory
-    ? `${contact.name} is under core cultivation — please leave a short note so nothing gets missed.`
-    : "Optional — add any notes about this call.";
+    ? (contact.core_cultivation
+        ? `${contact.name} is under core cultivation — please leave a short note so nothing gets missed.`
+        : "Please add a short note about what happened.")
+    : "Optional — add any notes about this call, or skip.";
   document.getElementById("review-modal").classList.add("active");
   setTimeout(() => document.getElementById("review-input").focus(), 60);
 }
@@ -385,22 +353,32 @@ function wireReviewModal() {
 
   document.getElementById("review-skip").onclick = () => {
     if (!pendingReview) return;
+    const { card, assignmentId, mandatory } = pendingReview;
     modal.classList.remove("active");
-    const { card, assignmentId, contactId, contact } = pendingReview;
     pendingReview = null;
-    submitCard(card, assignmentId, contactId, contact, "");
+    const statusSelect = card.querySelector(".status-select");
+    if (mandatory) {
+      // Cancel: back out of the status pick entirely, same as the old Others-cancel behavior.
+      statusSelect.value = STATUS_DEFAULT;
+      statusSelect.classList.remove("status-positive", "status-negative", "status-neutral");
+      statusSelect.classList.add("status-neutral");
+    } else {
+      statusSelect.dataset.review = "";
+    }
+    refreshSubmitButton(card, assignmentId);
   };
   document.getElementById("review-confirm").onclick = () => {
     if (!pendingReview) return;
     if (pendingReview.mandatory && !input.value.trim()) {
-      errorEl.textContent = "A review is required for this contact.";
+      errorEl.textContent = "A review is required for this response.";
       errorEl.classList.remove("hidden");
       return;
     }
+    const { card, assignmentId } = pendingReview;
     modal.classList.remove("active");
-    const { card, assignmentId, contactId, contact } = pendingReview;
     pendingReview = null;
-    submitCard(card, assignmentId, contactId, contact, input.value.trim());
+    card.querySelector(".status-select").dataset.review = input.value.trim();
+    refreshSubmitButton(card, assignmentId);
   };
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.ctrlKey) document.getElementById("review-confirm").click();
