@@ -190,6 +190,16 @@ function wireAssignButton(eventSelect, tagFilterSelect) {
         if (insErr) throw insErr;
       }
 
+      // assignments has no Sheets webhook of its own, so mirror each user's count
+      // onto their `users` row — that table already syncs to Admin Page on update.
+      await Promise.all(
+        usersCache
+          .filter((u) => u.role === "User")
+          .map((u) =>
+            supabase.from("users").update({ assigned_count: assignedCount[u.user_name] || 0 }).eq("id", u.id)
+          )
+      );
+
       summary.textContent = `Assigned ${rows.length} contact(s) across ${eligible.length} caller(s).` +
         (unassignedCount ? ` ${unassignedCount} left unassigned (no eligible unlimited user).` : "");
       showToast("Contacts assigned successfully! 🎉", "success");

@@ -13,9 +13,12 @@ create table if not exists users (
   role        text not null default 'User' check (role in ('User','Admin','Reception')),
   call_limit  int,                          -- null = no limit
   auto_assign boolean not null default true,
+  assigned_count int not null default 0,    -- mirrors "No of Call Assigned by Automation" in Sheets
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+
+alter table users add column if not exists assigned_count int not null default 0;
 
 -- Sheet: Master Contact
 create table if not exists contacts (

@@ -179,6 +179,7 @@ function mapUserToRow(r) {
     'Login PW': r.login_pw,
     'User Status': r.role,
     'Call Limit By Admin': r.call_limit === null || r.call_limit === undefined ? '' : r.call_limit,
+    'No of Call Assigned by Automation': r.assigned_count === null || r.assigned_count === undefined ? 0 : r.assigned_count,
     'Auto Assign Status': r.auto_assign ? 'Yes' : 'No',
   };
 }
@@ -228,35 +229,53 @@ function mapCollectionToRow(r) {
   };
 }
 
-function upsertSheetRow(sheetName, keyHeader, keyValue, valuesByHeader) {
-  const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
-  if (!sheet) return;
-  const map = headerMap(sheet);
-  const keyCol = map[keyHeader];
-  const lastRow = sheet.getLastRow();
-  let targetRow = -1;
-
-  if (lastRow >= 2 && keyCol) {
-    const keyValues = sheet.getRange(2, keyCol, lastRow - 1, 1).getValues();
-    for (let i = 0; i < keyValues.length; i++) {
-      if (String(keyValues[i][0]).trim() === String(keyValue).trim()) { targetRow = i + 2; break; }
-    }
+// Supabase fires one webhook per changed row, and several can land at nearly
+// the same moment (e.g. a bulk insert). Without a lock, two concurrent calls
+// can both read the same "next empty row" and overwrite each other. A script
+// lock forces them to take turns, so getLastRow() is always accurate.
+function withLock(fn) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    return fn();
+  } finally {
+    lock.releaseLock();
   }
-  if (targetRow === -1) targetRow = lastRow + 1;
+}
 
-  Object.keys(valuesByHeader).forEach((header) => {
-    const col = map[header];
-    if (col) sheet.getRange(targetRow, col).setValue(valuesByHeader[header]);
+function upsertSheetRow(sheetName, keyHeader, keyValue, valuesByHeader) {
+  withLock(() => {
+    const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
+    if (!sheet) return;
+    const map = headerMap(sheet);
+    const keyCol = map[keyHeader];
+    const lastRow = sheet.getLastRow();
+    let targetRow = -1;
+
+    if (lastRow >= 2 && keyCol) {
+      const keyValues = sheet.getRange(2, keyCol, lastRow - 1, 1).getValues();
+      for (let i = 0; i < keyValues.length; i++) {
+        if (String(keyValues[i][0]).trim() === String(keyValue).trim()) { targetRow = i + 2; break; }
+      }
+    }
+    if (targetRow === -1) targetRow = lastRow + 1;
+
+    Object.keys(valuesByHeader).forEach((header) => {
+      const col = map[header];
+      if (col) sheet.getRange(targetRow, col).setValue(valuesByHeader[header]);
+    });
   });
 }
 
 function appendSheetRow(sheetName, valuesByHeader) {
-  const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
-  if (!sheet) return;
-  const map = headerMap(sheet);
-  const row = sheet.getLastRow() + 1;
-  Object.keys(valuesByHeader).forEach((header) => {
-    const col = map[header];
-    if (col) sheet.getRange(row, col).setValue(valuesByHeader[header]);
+  withLock(() => {
+    const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
+    if (!sheet) return;
+    const map = headerMap(sheet);
+    const row = sheet.getLastRow() + 1;
+    Object.keys(valuesByHeader).forEach((header) => {
+      const col = map[header];
+      if (col) sheet.getRange(row, col).setValue(valuesByHeader[header]);
+    });
   });
 }
