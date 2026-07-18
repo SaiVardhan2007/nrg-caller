@@ -60,6 +60,7 @@
     <button class="admin-tab" data-target="admin-contacts-section">Master Contact</button>
     <button class="admin-tab" data-target="admin-message-section">Message</button>
     <button class="admin-tab" data-target="admin-analytics-section">Analytics</button>
+    <button class="admin-tab" data-target="admin-reception-analytics-section">Reception</button>
   </nav>
 
   <!-- ---- User dashboard ---- -->
@@ -94,6 +95,7 @@
             <span>Current Event</span>
             <select id="event-select"></select>
           </label>
+          <button id="add-event-btn" type="button" class="btn btn-secondary">+ Add Event</button>
           <div class="field inline tag-check-group" id="tag-filter-group">
             <span>Admin Tag Filter</span>
             <label class="tag-check"><input type="checkbox" value="Janata" /> Janata</label>
@@ -141,11 +143,11 @@
             <tr>
               <th>S.No</th><th>Name</th><th>Phone</th><th>W/S</th><th>Sessions</th><th>Calls</th>
               <th>Admin Tag</th><th>Core Cultivation</th><th>Calling Purpose</th>
-              <th>User Reviews</th><th>Admin Review</th><th></th>
+              <th>User Reviews</th><th>Admin Review</th>
             </tr>
           </thead>
           <tbody id="contacts-table-body">
-            <tr><td colspan="12" class="loading-row">Loading contacts…</td></tr>
+            <tr><td colspan="11" class="loading-row">Loading contacts…</td></tr>
           </tbody>
         </table>
       </div>
@@ -193,7 +195,7 @@
         <h3 class="section-title">Currently Assigned Contacts</h3>
         <div class="table-wrap">
           <table class="data-table">
-            <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Called?</th></tr></thead>
+            <thead><tr><th>Caller</th><th>Name</th><th>Phone</th><th>Status</th><th>Called?</th></tr></thead>
             <tbody id="analytics-assigned-body"></tbody>
           </table>
         </div>
@@ -203,8 +205,44 @@
         <h3 class="section-title">Core Cultivation Health</h3>
         <div class="table-wrap">
           <table class="data-table">
-            <thead><tr><th>Name</th><th>Phone</th><th>Total Calls</th><th>Last Called</th></tr></thead>
+            <thead><tr><th>Cultivator</th><th>Name</th><th>Phone</th><th>Total Calls</th><th>Last Called</th></tr></thead>
             <tbody id="analytics-cultivation-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ADMIN: Reception Analytics ===== -->
+    <section id="admin-reception-analytics-section" class="page hidden">
+      <div class="panel">
+        <div class="panel-row">
+          <label class="field inline">
+            <span>From</span>
+            <input id="reception-analytics-from" type="date" />
+          </label>
+          <label class="field inline">
+            <span>To</span>
+            <input id="reception-analytics-to" type="date" />
+          </label>
+          <label class="field inline">
+            <span>Event</span>
+            <select id="reception-analytics-event-select"></select>
+          </label>
+          <button id="reception-analytics-run-btn" class="btn btn-primary">View</button>
+        </div>
+      </div>
+
+      <div class="stats-bar">
+        <div class="stat"><span id="reception-analytics-total-contacts" class="stat-num">0</span><span class="stat-label">Total Contacts (Event)</span></div>
+        <div class="stat"><span id="reception-analytics-attendance-count" class="stat-num">0</span><span class="stat-label">Attendance Marked</span></div>
+      </div>
+
+      <div class="panel">
+        <h3 class="section-title">Attendance in Range</h3>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Time</th><th>Name</th><th>Phone</th><th>Marked By</th></tr></thead>
+            <tbody id="reception-analytics-attendance-body"><tr><td colspan="4" class="loading-row">Pick a range above.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -254,7 +292,7 @@
           <div id="reception-sessions" class="reception-sessions"></div>
           <label class="field">
             <span>Session Name</span>
-            <input id="reception-session-name" type="text" placeholder="General Session" />
+            <select id="reception-session-name"></select>
           </label>
           <button id="mark-attendance-btn" class="btn btn-primary btn-block">🙏 Mark Attendance</button>
         </div>
@@ -316,6 +354,19 @@
 </div>
 
 <!-- ============ MODALS ============ -->
+<div id="add-event-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add Event</h3>
+    <label class="field"><span>Event Code (short, e.g. GIC)</span><input id="add-event-code" type="text" maxlength="10" /></label>
+    <label class="field"><span>Display Name</span><input id="add-event-name" type="text" /></label>
+    <div id="add-event-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="add-event-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="add-event-submit" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="add-user-modal" class="modal">
   <div class="modal-box">
     <h3 id="add-user-title">Add User</h3>

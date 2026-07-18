@@ -37,18 +37,62 @@ function getCheckedTags(tagFilterGroup) {
 }
 
 export async function initUsers() {
-  await loadEvents();
   const eventSelect = document.getElementById("event-select");
   const tagFilterGroup = document.getElementById("tag-filter-group");
-  const currentEvent = await getSetting("current_event");
-  fillEventSelect(eventSelect, currentEvent);
 
-  const savedTags = ((await getSetting("tag_filter")) || "").split(",").map((t) => t.trim()).filter(Boolean);
+  // these five round-trips are all independent — run them together instead
+  // of one after another, since that was adding ~2s to this page's load.
+  const [, currentEvent, tagFilterValue] = await Promise.all([
+    loadEvents(),
+    getSetting("current_event"),
+    getSetting("tag_filter"),
+    renderUsersTable(),
+  ]);
+  fillEventSelect(eventSelect, currentEvent);
+  const savedTags = (tagFilterValue || "").split(",").map((t) => t.trim()).filter(Boolean);
   tagFilterGroup.querySelectorAll("input").forEach((cb) => { cb.checked = savedTags.includes(cb.value); });
 
-  await renderUsersTable();
   wireAssignButton(eventSelect, tagFilterGroup);
   wireAddUserModal();
+  wireAddEventModal();
+}
+
+let addEventModalWired = false;
+function wireAddEventModal() {
+  if (addEventModalWired) return;
+  addEventModalWired = true;
+  const modal = document.getElementById("add-event-modal");
+
+  document.getElementById("add-event-btn").onclick = () => {
+    document.getElementById("add-event-code").value = "";
+    document.getElementById("add-event-name").value = "";
+    document.getElementById("add-event-error").classList.add("hidden");
+    modal.classList.add("active");
+  };
+  document.getElementById("add-event-cancel").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  document.getElementById("add-event-submit").onclick = async () => {
+    const code = document.getElementById("add-event-code").value.trim().toUpperCase();
+    const name = document.getElementById("add-event-name").value.trim();
+    const errorEl = document.getElementById("add-event-error");
+    if (!code || !name) {
+      errorEl.textContent = "Please enter both a code and a display name.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    const { error } = await supabase.from("events").insert({ code, name });
+    if (error) {
+      errorEl.textContent = error.message.includes("duplicate") ? "An event with this code already exists." : error.message;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    eventsLoaded = false;
+    await loadEvents();
+    fillEventSelect(document.getElementById("event-select"), code);
+    modal.classList.remove("active");
+    showToast("Event added", "success");
+  };
 }
 
 async function renderUsersTable() {
@@ -298,7 +342,6 @@ function wireAddUserModal() {
 /* ======================= MASTER CONTACT ======================= */
 
 let contactsSearchWired = false;
-let editingContactId = null;
 
 export async function initContacts() {
   await loadEvents();
@@ -309,9 +352,12 @@ export async function initContacts() {
   wireAdminReviewModal();
 }
 
+const WS_ADMIN_OPTIONS = ["NA", "W", "S"];
+const ADMIN_TAG_OPTIONS = ["", "Don't Call", "Janata", "Call", "Core", "Assigned"];
+
 async function renderContactsTable(searchTerm = "") {
   const tbody = document.getElementById("contacts-table-body");
-  tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Loading contacts…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Loading contacts…</td></tr>`;
 
   let query = supabase.from("contacts").select("*").order("s_no", { ascending: true, nullsFirst: false });
   if (searchTerm) {
@@ -319,41 +365,84 @@ async function renderContactsTable(searchTerm = "") {
   }
   const { data, error } = await query.limit(500);
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Could not load contacts.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Could not load contacts.</td></tr>`;
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="12" class="loading-row">No contacts found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">No contacts found.</td></tr>`;
     return;
   }
 
   const mobNos = data.map((c) => c.mob_no);
-  const { data: calls } = await supabase.from("call_responses").select("mob_no").in("mob_no", mobNos).limit(20000);
+  const [{ data: calls }, { data: userRows }] = await Promise.all([
+    supabase.from("call_responses").select("mob_no").in("mob_no", mobNos).limit(20000),
+    supabase.from("users").select("user_name").eq("role", "User").order("user_name"),
+    loadEvents(),
+  ]);
   const callCounts = {};
   (calls || []).forEach((r) => { callCounts[r.mob_no] = (callCounts[r.mob_no] || 0) + 1; });
 
   tbody.innerHTML = data.map((c, i) => `
     <tr data-id="${c.id}">
       <td data-label="S.No">${c.s_no ?? i + 1}</td>
-      <td data-label="Name">${escapeHtml(c.name)}</td>
-      <td data-label="Phone">${formatPhone(c.mob_no)}</td>
-      <td data-label="W/S">${c.ws || "NA"}</td>
+      <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(c.name)}" /></td>
+      <td data-label="Phone"><input class="inline-edit" data-field="mob_no" maxlength="10" value="${c.mob_no}" /></td>
+      <td data-label="W/S">
+        <select class="inline-edit" data-field="ws">
+          ${WS_ADMIN_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
+        </select>
+      </td>
       <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.sessions_count}</button></td>
       <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${callCounts[c.mob_no] || 0}</button></td>
-      <td data-label="Admin Tag">${escapeHtml(c.admin_tag || "")}</td>
-      <td data-label="Core Cultivation">${escapeHtml(c.core_cultivation || "")}</td>
-      <td data-label="Calling Purpose">${escapeHtml(c.calling_purpose || "")}</td>
+      <td data-label="Admin Tag">
+        <select class="inline-edit" data-field="admin_tag">
+          ${ADMIN_TAG_OPTIONS.map((t) => `<option value="${t}" ${t === (c.admin_tag || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="Core Cultivation">
+        <select class="inline-edit" data-field="core_cultivation">
+          <option value="">—</option>
+          ${(userRows || []).map((u) => `<option value="${u.user_name}" ${u.user_name === (c.core_cultivation || "") ? "selected" : ""}>${u.user_name}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="Calling Purpose">
+        <select class="inline-edit" data-field="calling_purpose">
+          <option value="">—</option>
+          ${eventsCache.map((e) => `<option value="${e.code}" ${e.code === (c.calling_purpose || "") ? "selected" : ""}>${e.code}</option>`).join("")}
+        </select>
+      </td>
       <td data-label="User Reviews"><button class="cell-chip info-link" data-kind="reviews" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">View</button></td>
       <td data-label="Admin Review"><button class="cell-chip admin-review-link" data-id="${c.id}" data-name="${escapeHtml(c.name)}" data-review="${escapeHtml(c.admin_remarks || "")}">${c.admin_remarks ? "✎ Edit" : "+ Add"}</button></td>
-      <td data-label=""><button class="btn btn-link edit-contact-btn">Edit</button></td>
     </tr>
   `).join("");
 
-  tbody.querySelectorAll(".edit-contact-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const id = e.target.closest("tr").dataset.id;
+  tbody.querySelectorAll(".inline-edit").forEach((el) => {
+    el.addEventListener("change", async (e) => {
+      const row = e.target.closest("tr");
+      const id = row.dataset.id;
+      const field = e.target.dataset.field;
       const contact = data.find((c) => c.id === id);
-      openContactModal(contact);
+      let value = e.target.value.trim();
+
+      if (field === "mob_no" && !/^[0-9]{10}$/.test(value)) {
+        showToast("Phone number must be exactly 10 digits.", "error");
+        e.target.value = contact.mob_no;
+        return;
+      }
+      if (field === "name" && !value) {
+        showToast("Name cannot be empty.", "error");
+        e.target.value = contact.name;
+        return;
+      }
+
+      const { error: updErr } = await supabase.from("contacts").update({ [field]: value || null }).eq("id", id);
+      if (updErr) {
+        showToast("Update failed: " + updErr.message, "error");
+        e.target.value = contact[field] ?? "";
+        return;
+      }
+      contact[field] = value || null;
+      showToast("Saved", "success");
     });
   });
 
@@ -423,35 +512,38 @@ function wireContactInfoModal() {
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 }
 
-async function openEventCallsModal(userName, eventCode, eventName, fromTs, toTs) {
+async function openEventCallsModal(userName, isAll, eventCode, eventName, fromTs, toTs) {
   const modal = document.getElementById("contact-info-modal");
   document.getElementById("contact-info-title").textContent = `${eventName} — Calls Made`;
-  document.getElementById("contact-info-sub").textContent = userName;
+  document.getElementById("contact-info-sub").textContent = isAll ? "All Users (Combined)" : userName;
   const thead = document.getElementById("contact-info-thead");
   const tbody = document.getElementById("contact-info-body");
-  thead.innerHTML = `<tr><th>Time</th><th>Contact</th><th>Phone</th><th>Status</th></tr>`;
+  const callerHeader = isAll ? "<th>Caller</th>" : "";
+  thead.innerHTML = `<tr><th>Time</th>${callerHeader}<th>Contact</th><th>Phone</th><th>Status</th></tr>`;
   tbody.innerHTML = `<tr><td class="loading-row">Loading…</td></tr>`;
   modal.classList.add("active");
 
   let query = supabase
     .from("call_responses")
-    .select("ts,contact_name,mob_no,remarks,addl_remarks")
-    .eq("caller_name", userName)
+    .select("ts,caller_name,contact_name,mob_no,remarks,addl_remarks")
     .eq("event_code", eventCode)
     .order("ts", { ascending: false });
+  if (!isAll) query = query.eq("caller_name", userName);
   if (fromTs) query = query.gte("ts", fromTs);
   if (toTs) query = query.lte("ts", toTs);
   const { data } = await query;
 
+  const colspan = isAll ? 5 : 4;
   tbody.innerHTML = (data && data.length)
     ? data.map((r) => `
         <tr>
           <td data-label="Time">${new Date(r.ts).toLocaleString()}</td>
+          ${isAll ? `<td data-label="Caller">${escapeHtml(r.caller_name)}</td>` : ""}
           <td data-label="Contact">${escapeHtml(r.contact_name || "")}</td>
           <td data-label="Phone">${formatPhone(r.mob_no)}</td>
           <td data-label="Status">${escapeHtml(r.remarks)}${r.addl_remarks ? " — " + escapeHtml(r.addl_remarks) : ""}</td>
         </tr>`).join("")
-    : `<tr><td colspan="4" class="loading-row">No calls made for this event in the selected range.</td></tr>`;
+    : `<tr><td colspan="${colspan}" class="loading-row">No calls made for this event in the selected range.</td></tr>`;
 }
 
 let adminReviewContactId = null;
@@ -509,22 +601,20 @@ async function populateContactModalDropdowns() {
   fillEventSelect(eventSelect);
 }
 
-function openContactModal(contact) {
-  editingContactId = contact ? contact.id : null;
-  document.getElementById("add-contact-title").textContent = contact ? "Edit Contact" : "Add Contact";
-  document.getElementById("add-contact-phone").value = contact ? contact.mob_no : "";
-  document.getElementById("add-contact-phone").disabled = !!contact;
-  document.getElementById("add-contact-name").value = contact ? contact.name : "";
-  document.getElementById("add-contact-pg").value = contact ? (contact.pg_name || "") : "";
-  document.getElementById("add-contact-profession").value = contact ? (contact.profession || "") : "";
-  document.getElementById("add-contact-company").value = contact ? (contact.company_name || "") : "";
+function openAddContactModal() {
+  document.getElementById("add-contact-phone").value = "";
+  document.getElementById("add-contact-phone").disabled = false;
+  document.getElementById("add-contact-name").value = "";
+  document.getElementById("add-contact-pg").value = "";
+  document.getElementById("add-contact-profession").value = "";
+  document.getElementById("add-contact-company").value = "";
   document.getElementById("add-contact-error").classList.add("hidden");
 
   populateContactModalDropdowns().then(() => {
-    document.getElementById("add-contact-ws").value = contact ? (contact.ws || "NA") : "NA";
-    document.getElementById("add-contact-tag").value = contact ? (contact.admin_tag || "") : "";
-    document.getElementById("add-contact-cultivator").value = contact ? (contact.core_cultivation || "") : "";
-    document.getElementById("add-contact-event").value = contact ? (contact.calling_purpose || "") : (eventsCache[0]?.code || "");
+    document.getElementById("add-contact-ws").value = "NA";
+    document.getElementById("add-contact-tag").value = "";
+    document.getElementById("add-contact-cultivator").value = "";
+    document.getElementById("add-contact-event").value = eventsCache[0]?.code || "";
   });
 
   document.getElementById("add-contact-modal").classList.add("active");
@@ -532,7 +622,7 @@ function openContactModal(contact) {
 
 function wireAddContactModal() {
   const modal = document.getElementById("add-contact-modal");
-  document.getElementById("add-contact-btn").onclick = () => openContactModal(null);
+  document.getElementById("add-contact-btn").onclick = openAddContactModal;
   document.getElementById("add-contact-cancel").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
@@ -561,12 +651,7 @@ function wireAddContactModal() {
 
     saving = true;
     document.getElementById("add-contact-submit").textContent = "Saving…";
-    let error;
-    if (editingContactId) {
-      ({ error } = await supabase.from("contacts").update(payload).eq("id", editingContactId));
-    } else {
-      ({ error } = await supabase.from("contacts").insert(payload));
-    }
+    const { error } = await supabase.from("contacts").insert(payload);
     saving = false;
     document.getElementById("add-contact-submit").textContent = "Save";
 
@@ -576,7 +661,7 @@ function wireAddContactModal() {
       return;
     }
     modal.classList.remove("active");
-    showToast("Contact saved", "success");
+    showToast("Contact added", "success");
     renderContactsTable(document.getElementById("contacts-search").value.trim());
   };
 }
@@ -641,7 +726,8 @@ export async function initAnalytics() {
   const toInput = document.getElementById("analytics-to");
 
   const { data: users } = await supabase.from("users").select("user_name").eq("role", "User").order("user_name");
-  userSelect.innerHTML = (users || []).map((u) => `<option value="${u.user_name}">${u.user_name}</option>`).join("");
+  userSelect.innerHTML = `<option value="__ALL__">All Users (Combined)</option>` +
+    (users || []).map((u) => `<option value="${u.user_name}">${u.user_name}</option>`).join("");
 
   eventSelect.innerHTML = `<option value="">All events</option>` +
     eventsCache.map((e) => `<option value="${e.code}">${e.name} (${e.code})</option>`).join("");
@@ -665,6 +751,7 @@ let analyticsRequestId = 0;
 
 async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   if (!userName) return;
+  const isAll = userName === "__ALL__";
   // guards against a slower, superseded call (e.g. the initial auto-run for
   // the default user) overwriting a faster, more recent one's results.
   const requestId = ++analyticsRequestId;
@@ -676,7 +763,8 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   if (isStale()) return;
 
   // total calls made in the selected range
-  let callsQuery = supabase.from("call_responses").select("id", { count: "exact", head: true }).eq("caller_name", userName);
+  let callsQuery = supabase.from("call_responses").select("id", { count: "exact", head: true });
+  if (!isAll) callsQuery = callsQuery.eq("caller_name", userName);
   if (fromTs) callsQuery = callsQuery.gte("ts", fromTs);
   if (toTs) callsQuery = callsQuery.lte("ts", toTs);
   if (eventFilter) callsQuery = callsQuery.eq("event_code", eventFilter);
@@ -688,12 +776,17 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   // "called" is scoped to the same from/to range as the Calls Made card above,
   // so the count here always matches what the click-through popup shows.
   const eventsToShow = eventFilter ? eventsCache.filter((e) => e.code === eventFilter) : eventsCache;
-  let rangedCallsQuery = supabase.from("call_responses").select("event_code").eq("caller_name", userName);
+  let rangedCallsQuery = supabase.from("call_responses").select("event_code");
+  if (!isAll) rangedCallsQuery = rangedCallsQuery.eq("caller_name", userName);
   if (fromTs) rangedCallsQuery = rangedCallsQuery.gte("ts", fromTs);
   if (toTs) rangedCallsQuery = rangedCallsQuery.lte("ts", toTs);
+  let liveAssignmentsQuery = supabase.from("assignments").select("event_code");
+  if (!isAll) liveAssignmentsQuery = liveAssignmentsQuery.eq("user_name", userName);
+  let roundsQuery = supabase.from("assignment_rounds").select("event_code,assigned_count");
+  if (!isAll) roundsQuery = roundsQuery.eq("user_name", userName);
   const [{ data: liveAssignments }, { data: rounds }, { data: rangedCalls }] = await Promise.all([
-    supabase.from("assignments").select("event_code").eq("user_name", userName),
-    supabase.from("assignment_rounds").select("event_code,assigned_count").eq("user_name", userName),
+    liveAssignmentsQuery,
+    roundsQuery,
     rangedCallsQuery,
   ]);
   if (isStale()) return;
@@ -717,58 +810,140 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
         <td data-label="Left">${left}</td>
       </tr>`;
   }).join("");
-  byEventBody.innerHTML = eventRows || `<tr><td colspan="4" class="loading-row">No data for this user yet.</td></tr>`;
+  byEventBody.innerHTML = eventRows || `<tr><td colspan="4" class="loading-row">No data yet.</td></tr>`;
   byEventBody.querySelectorAll("tr[data-event-code]").forEach((row) => {
     row.addEventListener("click", () => {
-      openEventCallsModal(userName, row.dataset.eventCode, row.dataset.eventName, fromTs, toTs);
+      openEventCallsModal(userName, isAll, row.dataset.eventCode, row.dataset.eventName, fromTs, toTs);
     });
   });
 
   // currently assigned contacts (always reflects the live/current round)
-  const { data: assignedContacts } = await supabase
-    .from("assignments")
-    .select("status,contacts(name,mob_no)")
-    .eq("user_name", userName)
-    .eq("event_code", currentEventCode);
+  let assignedQuery = supabase.from("assignments").select("user_name,status,contacts(name,mob_no)").eq("event_code", currentEventCode);
+  if (!isAll) assignedQuery = assignedQuery.eq("user_name", userName);
+  const { data: assignedContacts } = await assignedQuery;
   if (isStale()) return;
   const assignedBody = document.getElementById("analytics-assigned-body");
   assignedBody.innerHTML = (assignedContacts && assignedContacts.length)
     ? assignedContacts.map((a) => `
         <tr>
+          <td data-label="Caller">${escapeHtml(a.user_name)}</td>
           <td data-label="Name">${escapeHtml(a.contacts.name)}</td>
           <td data-label="Phone">${formatPhone(a.contacts.mob_no)}</td>
           <td data-label="Status">${escapeHtml(a.status)}</td>
           <td data-label="Called?">${a.status !== "Not Done" ? "✅" : "—"}</td>
         </tr>`).join("")
-    : `<tr><td colspan="4" class="loading-row">No contacts currently assigned.</td></tr>`;
+    : `<tr><td colspan="5" class="loading-row">No contacts currently assigned.</td></tr>`;
 
-  // core cultivation health: is this user actually calling the people cultivated to them?
-  const { data: cultivated } = await supabase.from("contacts").select("name,mob_no").eq("core_cultivation", userName);
+  // core cultivation health: is the cultivator actually calling the people cultivated to them?
+  let cultivatedQuery = supabase.from("contacts").select("name,mob_no,core_cultivation");
+  cultivatedQuery = isAll ? cultivatedQuery.not("core_cultivation", "is", null) : cultivatedQuery.eq("core_cultivation", userName);
+  const { data: cultivated } = await cultivatedQuery;
   if (isStale()) return;
   const cultivationBody = document.getElementById("analytics-cultivation-body");
   if (!cultivated || !cultivated.length) {
-    cultivationBody.innerHTML = `<tr><td colspan="4" class="loading-row">No contacts cultivated to this user.</td></tr>`;
+    cultivationBody.innerHTML = `<tr><td colspan="5" class="loading-row">No contacts cultivated${isAll ? "" : " to this user"}.</td></tr>`;
   } else {
     const mobNos = cultivated.map((c) => c.mob_no);
-    const { data: callHistory } = await supabase
-      .from("call_responses")
-      .select("mob_no,ts")
-      .eq("caller_name", userName)
-      .in("mob_no", mobNos)
-      .order("ts", { ascending: false });
+    let callHistoryQuery = supabase.from("call_responses").select("mob_no,caller_name,ts").in("mob_no", mobNos).order("ts", { ascending: false });
+    if (!isAll) callHistoryQuery = callHistoryQuery.eq("caller_name", userName);
+    const { data: callHistory } = await callHistoryQuery;
     if (isStale()) return;
+    // in All mode, each contact has its own designated cultivator, so tally
+    // calls per (contact, caller) pair rather than one flat per-contact count.
+    const keyOf = (mob, caller) => (isAll ? mob + "|" + caller : mob);
     const lastCalled = {};
     const totalCallsByMob = {};
     (callHistory || []).forEach((r) => {
-      totalCallsByMob[r.mob_no] = (totalCallsByMob[r.mob_no] || 0) + 1;
-      if (!lastCalled[r.mob_no]) lastCalled[r.mob_no] = r.ts;
+      const key = keyOf(r.mob_no, r.caller_name);
+      totalCallsByMob[key] = (totalCallsByMob[key] || 0) + 1;
+      if (!lastCalled[key]) lastCalled[key] = r.ts;
     });
-    cultivationBody.innerHTML = cultivated.map((c) => `
+    cultivationBody.innerHTML = cultivated.map((c) => {
+      const key = keyOf(c.mob_no, c.core_cultivation);
+      return `
       <tr>
+        <td data-label="Cultivator">${escapeHtml(c.core_cultivation || "")}</td>
         <td data-label="Name">${escapeHtml(c.name)}</td>
         <td data-label="Phone">${formatPhone(c.mob_no)}</td>
-        <td data-label="Total Calls">${totalCallsByMob[c.mob_no] || 0}</td>
-        <td data-label="Last Called">${lastCalled[c.mob_no] ? new Date(lastCalled[c.mob_no]).toLocaleDateString() : "Never called"}</td>
-      </tr>`).join("");
+        <td data-label="Total Calls">${totalCallsByMob[key] || 0}</td>
+        <td data-label="Last Called">${lastCalled[key] ? new Date(lastCalled[key]).toLocaleDateString() : "Never called"}</td>
+      </tr>`;
+    }).join("");
   }
+}
+
+/* ======================= RECEPTION ANALYTICS ======================= */
+
+let receptionAnalyticsWired = false;
+
+export async function initReceptionAnalytics() {
+  await loadEvents();
+  const eventSelect = document.getElementById("reception-analytics-event-select");
+  eventSelect.innerHTML = `<option value="">All events</option>` +
+    eventsCache.map((e) => `<option value="${e.code}">${e.name} (${e.code})</option>`).join("");
+
+  const fromInput = document.getElementById("reception-analytics-from");
+  const toInput = document.getElementById("reception-analytics-to");
+  if (!fromInput.value) {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    fromInput.value = d.toISOString().slice(0, 10);
+    toInput.value = new Date().toISOString().slice(0, 10);
+  }
+
+  const run = () => runReceptionAnalytics(eventSelect.value, fromInput.value, toInput.value);
+  if (!receptionAnalyticsWired) {
+    receptionAnalyticsWired = true;
+    document.getElementById("reception-analytics-run-btn").addEventListener("click", run);
+  }
+  run();
+}
+
+let receptionAnalyticsRequestId = 0;
+
+async function runReceptionAnalytics(eventCode, fromDate, toDate) {
+  const requestId = ++receptionAnalyticsRequestId;
+  const isStale = () => requestId !== receptionAnalyticsRequestId;
+
+  const fromTs = fromDate ? new Date(fromDate + "T00:00:00").toISOString() : null;
+  const toTs = toDate ? new Date(toDate + "T23:59:59").toISOString() : null;
+
+  // total contacts registered under this event — a pool size, not date-bounded
+  let contactsQuery = supabase.from("contacts").select("id", { count: "exact", head: true });
+  if (eventCode) contactsQuery = contactsQuery.eq("calling_purpose", eventCode);
+  const { count: totalContacts } = await contactsQuery;
+  if (isStale()) return;
+  document.getElementById("reception-analytics-total-contacts").textContent = totalContacts ?? 0;
+
+  // attendance in the selected range
+  let attendanceQuery = supabase.from("session_attendance").select("ts,name,mob_no,took_by").order("ts", { ascending: false });
+  if (fromTs) attendanceQuery = attendanceQuery.gte("ts", fromTs);
+  if (toTs) attendanceQuery = attendanceQuery.lte("ts", toTs);
+  const { data: attendance } = await attendanceQuery;
+  if (isStale()) return;
+
+  let rows = attendance || [];
+  if (eventCode) {
+    // session_attendance has no event_code of its own, so cross-reference
+    // against contacts.calling_purpose to scope it to the chosen event.
+    const mobNos = [...new Set(rows.map((r) => r.mob_no))];
+    const { data: eventContacts } = mobNos.length
+      ? await supabase.from("contacts").select("mob_no").eq("calling_purpose", eventCode).in("mob_no", mobNos)
+      : { data: [] };
+    if (isStale()) return;
+    const eventMobSet = new Set((eventContacts || []).map((c) => c.mob_no));
+    rows = rows.filter((r) => eventMobSet.has(r.mob_no));
+  }
+
+  document.getElementById("reception-analytics-attendance-count").textContent = rows.length;
+  const tbody = document.getElementById("reception-analytics-attendance-body");
+  tbody.innerHTML = rows.length
+    ? rows.map((r) => `
+        <tr>
+          <td data-label="Time">${new Date(r.ts).toLocaleString()}</td>
+          <td data-label="Name">${escapeHtml(r.name || "")}</td>
+          <td data-label="Phone">${formatPhone(r.mob_no)}</td>
+          <td data-label="Marked By">${escapeHtml(r.took_by)}</td>
+        </tr>`).join("")
+    : `<tr><td colspan="4" class="loading-row">No attendance marked in this range.</td></tr>`;
 }

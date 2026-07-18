@@ -8,6 +8,16 @@ let wired = false;
 export async function init(user) {
   currentUser = user;
   renderTodayList();
+
+  const [{ data: events }, { data: eventSetting }] = await Promise.all([
+    supabase.from("events").select("code,name").order("code"),
+    supabase.from("settings").select("value").eq("key", "current_event").single(),
+  ]);
+  const sessionSelect = document.getElementById("reception-session-name");
+  sessionSelect.innerHTML = (events || []).map((e) => `<option value="${e.name}">${e.name}</option>`).join("");
+  const defaultEvent = (events || []).find((e) => e.code === eventSetting?.value);
+  if (defaultEvent) sessionSelect.value = defaultEvent.name;
+
   if (wired) return;
   wired = true;
 
@@ -37,7 +47,6 @@ export async function init(user) {
     document.getElementById("reception-name").textContent = data.name;
     document.getElementById("reception-phone").textContent = formatPhone(data.mob_no);
     document.getElementById("reception-sessions").textContent = `Sessions attended: ${data.sessions_count}`;
-    document.getElementById("reception-session-name").value = "";
     resultEl.classList.remove("hidden");
   }, 1500);
 
