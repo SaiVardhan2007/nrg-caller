@@ -1,0 +1,3 @@
+export const SUPABASE_URL = "https://ppdtmtswbxckpzouavql.supabase.co";
+export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwZHRtdHN3Ynhja3B6b3VhdnFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMzkxNjksImV4cCI6MjA5OTkxNTE2OX0.c6Qlae6BQ0PzG9VWUmFflte3u3oJnLOo7onf3IWMxc0";
+export const STORAGE_BUCKET = "assets";

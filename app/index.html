@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>NRG Caller</title>
+<meta name="theme-color" content="#047857" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="css/theme.css" />
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login-view" class="screen">
+  <div class="login-card">
+    <div class="login-logo">🕉️</div>
+    <h1 class="login-title">NRG Caller</h1>
+    <p class="login-sub">Sign in to continue</p>
+    <form id="login-form" autocomplete="off">
+      <label class="field">
+        <span>User Name</span>
+        <input id="login-username" type="text" required autocomplete="username" />
+      </label>
+      <label class="field">
+        <span>Password</span>
+        <input id="login-password" type="password" required autocomplete="current-password" />
+      </label>
+      <div id="login-error" class="field-error hidden"></div>
+      <button id="login-submit" type="submit" class="btn btn-primary btn-block">
+        <span class="btn-label">Enter</span>
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app-view" class="screen hidden">
+
+  <header class="app-header">
+    <button id="back-btn" class="icon-btn hidden" aria-label="Back">←</button>
+    <div class="header-titles">
+      <div id="header-title" class="header-title">NRG Caller</div>
+      <div id="sync-status" class="sync-status"></div>
+    </div>
+    <div class="header-right">
+      <span id="user-name" class="user-chip"></span>
+      <span id="role-badge" class="role-badge hidden"></span>
+      <button id="logout-btn" class="icon-btn" aria-label="Logout">⎋</button>
+    </div>
+  </header>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- ---- Admin tabs ---- -->
+  <nav id="admin-tabs" class="admin-tabs hidden">
+    <button class="admin-tab active" data-target="admin-users-section">Users &amp; Assignment</button>
+    <button class="admin-tab" data-target="admin-contacts-section">Master Contact</button>
+    <button class="admin-tab" data-target="admin-message-section">Message</button>
+  </nav>
+
+  <!-- ---- User dashboard ---- -->
+  <div id="dashboard" class="dashboard hidden">
+    <div class="dashboard-cards">
+      <button class="dashboard-card" data-target="caller-section">
+        <span class="card-emoji">📞</span>
+        <span class="card-label">My Calls</span>
+        <span id="dash-event-name" class="card-sub"></span>
+      </button>
+      <button class="dashboard-card" data-target="reception-section">
+        <span class="card-emoji">🙏</span>
+        <span class="card-label">Reception</span>
+      </button>
+      <button class="dashboard-card" data-target="collection-section">
+        <span class="card-emoji">📇</span>
+        <span class="card-label">Contact Collection</span>
+      </button>
+    </div>
+  </div>
+
+  <main id="main-content" class="main-content">
+
+    <!-- ===== ADMIN: Users & Assignment ===== -->
+    <section id="admin-users-section" class="page hidden">
+      <div class="panel">
+        <div class="panel-row">
+          <label class="field inline">
+            <span>Current Event</span>
+            <select id="event-select"></select>
+          </label>
+          <label class="field inline">
+            <span>Admin Tag Filter</span>
+            <select id="tag-filter-select">
+              <option value="">All tags</option>
+              <option value="Janata">Janata</option>
+              <option value="Call">Call</option>
+              <option value="Core">Core</option>
+              <option value="Assigned">Assigned</option>
+            </select>
+          </label>
+          <button id="assign-btn" class="btn btn-primary">Assign Contacts</button>
+        </div>
+        <p id="assign-summary" class="muted-text"></p>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table" id="users-table">
+          <thead>
+            <tr>
+              <th>User Name</th>
+              <th>Role</th>
+              <th>Call Limit</th>
+              <th>Assigned Count</th>
+              <th>Auto Assign</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="users-table-body">
+            <tr><td colspan="6" class="loading-row">Loading users…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel-row">
+        <button id="add-user-btn" class="btn btn-secondary">+ Add User</button>
+      </div>
+    </section>
+
+    <!-- ===== ADMIN: Master Contact ===== -->
+    <section id="admin-contacts-section" class="page hidden">
+      <div class="panel-row">
+        <input id="contacts-search" type="search" placeholder="Search name or phone…" class="search-input" />
+        <button id="add-contact-btn" class="btn btn-secondary">+ Add Contact</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="contacts-table">
+          <thead>
+            <tr>
+              <th>S.No</th><th>Name</th><th>Phone</th><th>W/S</th><th>Sessions</th>
+              <th>Admin Tag</th><th>Core Cultivation</th><th>Calling Purpose</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="contacts-table-body">
+            <tr><td colspan="9" class="loading-row">Loading contacts…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== ADMIN: Message ===== -->
+    <section id="admin-message-section" class="page hidden">
+      <div class="panel">
+        <label class="field">
+          <span>Current Message (sent by all callers)</span>
+          <textarea id="message-text" rows="5" placeholder="Use {name} to insert the contact's name"></textarea>
+        </label>
+        <label class="field">
+          <span>Poster Image (optional)</span>
+          <input id="poster-upload" type="file" accept="image/*" />
+        </label>
+        <div id="poster-preview-wrap" class="poster-preview-wrap hidden">
+          <img id="poster-preview" class="poster-preview" alt="Poster preview" />
+          <button id="poster-remove-btn" class="btn btn-link">Remove poster</button>
+        </div>
+        <button id="save-message-btn" class="btn btn-primary">Save Message</button>
+        <div id="message-error" class="field-error hidden"></div>
+      </div>
+    </section>
+
+    <!-- ===== CALLER ===== -->
+    <section id="caller-section" class="page hidden">
+      <div class="stats-bar">
+        <div class="stat"><span id="stat-total" class="stat-num">0</span><span class="stat-label">Total</span></div>
+        <div class="stat"><span id="stat-positive" class="stat-num">0</span><span class="stat-label">Positive</span></div>
+        <div class="stat"><span id="stat-pending" class="stat-num">0</span><span class="stat-label">Pending</span></div>
+      </div>
+      <div id="caller-event-title" class="section-title"></div>
+      <div id="caller-cards" class="cards-list">
+        <p class="loading-row">Loading your assigned contacts…</p>
+      </div>
+    </section>
+
+    <!-- ===== RECEPTION ===== -->
+    <section id="reception-section" class="page hidden">
+      <div class="panel">
+        <input id="reception-search" type="tel" inputmode="numeric" placeholder="Enter 10-digit phone number…" class="search-input" />
+        <div id="reception-loader" class="loader-row hidden"><span class="btn-spinner"></span> Searching…</div>
+        <div id="reception-result" class="reception-result hidden">
+          <div id="reception-name" class="reception-name"></div>
+          <div id="reception-phone" class="reception-phone"></div>
+          <div id="reception-sessions" class="reception-sessions"></div>
+          <label class="field">
+            <span>Session Name</span>
+            <input id="reception-session-name" type="text" placeholder="General Session" />
+          </label>
+          <button id="mark-attendance-btn" class="btn btn-primary btn-block">🙏 Mark Attendance</button>
+        </div>
+        <div id="reception-not-found" class="reception-not-found hidden">
+          <p>No contact found with this number.</p>
+          <button id="reception-add-person-btn" class="btn btn-secondary">+ New Registration &amp; Attendance</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h3 class="section-title">Today's Attendance</h3>
+        <table class="data-table">
+          <thead><tr><th>Name</th><th>Phone</th><th>Time</th><th>Session</th></tr></thead>
+          <tbody id="reception-attendance-body">
+            <tr><td colspan="4" class="loading-row">No attendance marked today.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== CONTACT COLLECTION ===== -->
+    <section id="collection-section" class="page hidden">
+      <div class="panel">
+        <form id="collection-form" autocomplete="off">
+          <label class="field">
+            <span>Phone Number</span>
+            <input id="collection-phone" type="tel" inputmode="numeric" maxlength="10" required />
+          </label>
+          <div id="collection-duplicate" class="field-warning hidden"></div>
+          <label class="field">
+            <span>Name</span>
+            <input id="collection-name" type="text" required />
+          </label>
+          <label class="field">
+            <span>PG Name</span>
+            <input id="collection-pg" type="text" />
+          </label>
+          <label class="field">
+            <span>Profession</span>
+            <input id="collection-profession" type="text" />
+          </label>
+          <label class="field">
+            <span>Company Name</span>
+            <input id="collection-company" type="text" />
+          </label>
+          <label class="field">
+            <span>Remarks</span>
+            <textarea id="collection-remarks" rows="2"></textarea>
+          </label>
+          <button id="collection-submit" type="submit" class="btn btn-primary btn-block">Save Contact</button>
+        </form>
+      </div>
+      <div class="panel">
+        <h3 class="section-title">Collected by you today</h3>
+        <div id="collection-list" class="cards-list"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============ MODALS ============ -->
+<div id="add-user-modal" class="modal">
+  <div class="modal-box">
+    <h3 id="add-user-title">Add User</h3>
+    <label class="field"><span>User Name</span><input id="add-user-name" type="text" /></label>
+    <label class="field"><span>Phone (Password)</span><input id="add-user-phone" type="tel" maxlength="10" /></label>
+    <label class="field"><span>Role</span>
+      <select id="add-user-role"><option>User</option><option>Admin</option><option>Reception</option></select>
+    </label>
+    <label class="field"><span>Call Limit (blank = no limit)</span><input id="add-user-limit" type="number" min="0" /></label>
+    <label class="field checkbox"><input id="add-user-auto" type="checkbox" checked /><span>Auto Assign</span></label>
+    <div id="add-user-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="add-user-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="add-user-submit" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="add-contact-modal" class="modal">
+  <div class="modal-box">
+    <h3 id="add-contact-title">Add Contact</h3>
+    <label class="field"><span>Phone Number</span><input id="add-contact-phone" type="tel" maxlength="10" /></label>
+    <label class="field"><span>Name</span><input id="add-contact-name" type="text" /></label>
+    <label class="field"><span>PG Name</span><input id="add-contact-pg" type="text" /></label>
+    <label class="field"><span>Profession</span><input id="add-contact-profession" type="text" /></label>
+    <label class="field"><span>Company Name</span><input id="add-contact-company" type="text" /></label>
+    <label class="field"><span>W/S</span>
+      <select id="add-contact-ws"><option value="NA">NA</option><option value="W">W</option><option value="S">S</option></select>
+    </label>
+    <label class="field"><span>Admin Tag</span>
+      <select id="add-contact-tag">
+        <option value="">— none —</option>
+        <option value="Don't Call">Don't Call</option>
+        <option value="Janata">Janata</option>
+        <option value="Call">Call</option>
+        <option value="Core">Core</option>
+        <option value="Assigned">Assigned</option>
+      </select>
+    </label>
+    <label class="field"><span>Core Cultivation (user)</span>
+      <select id="add-contact-cultivator"><option value="">— none —</option></select>
+    </label>
+    <label class="field"><span>Calling Purpose (event)</span>
+      <select id="add-contact-event"></select>
+    </label>
+    <div id="add-contact-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="add-contact-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="add-contact-submit" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="others-modal" class="modal">
+  <div class="modal-box">
+    <h3>Please specify</h3>
+    <label class="field"><span>Details</span><input id="others-input" type="text" /></label>
+    <div id="others-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="others-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="others-confirm" class="btn btn-primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="history-modal" class="modal">
+  <div class="modal-box">
+    <h3 id="history-modal-title">Call History</h3>
+    <div id="history-contact-info" class="muted-text"></div>
+    <table class="data-table">
+      <thead><tr><th>Time</th><th>Status</th><th>Additional</th></tr></thead>
+      <tbody id="history-body"></tbody>
+    </table>
+    <div class="modal-actions">
+      <button id="history-close" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

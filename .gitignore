@@ -1,0 +1,6 @@
+.env
+node_modules/
+.DS_Store
+.claude/
+previous-app-js.md
+previous-google-apps-script-js.md
