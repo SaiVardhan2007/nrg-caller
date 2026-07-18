@@ -934,7 +934,6 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   });
   document.getElementById("analytics-total-calls").textContent = (callsInRange || []).length;
   document.getElementById("analytics-positive-calls").textContent = outcomeCounts.positive;
-  document.getElementById("analytics-negative-calls").textContent = outcomeCounts.negative;
   document.getElementById("analytics-pending-calls").textContent = outcomeCounts.pending;
 
   // by-event: assigned (live for current event, historical rounds otherwise) / called / left
@@ -1077,12 +1076,33 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
   const fromTs = fromDate ? new Date(fromDate + "T00:00:00").toISOString() : null;
   const toTs = toDate ? new Date(toDate + "T23:59:59").toISOString() : null;
 
-  // total contacts registered under this event — a pool size, not date-bounded
+  // overall contacts across every event — the full master contact pool, unfiltered
+  const { count: overallContacts } = await supabase.from("contacts").select("id", { count: "exact", head: true });
+  if (isStale()) return;
+  document.getElementById("reception-analytics-overall-contacts").textContent = overallContacts ?? 0;
+
+  // total contacts registered under the selected event — a pool size, not date-bounded
   let contactsQuery = supabase.from("contacts").select("id", { count: "exact", head: true });
   if (eventCode) contactsQuery = contactsQuery.eq("calling_purpose", eventCode);
   const { count: totalContacts } = await contactsQuery;
   if (isStale()) return;
   document.getElementById("reception-analytics-total-contacts").textContent = totalContacts ?? 0;
+  const eventLabel = eventCode ? (eventsCache.find((e) => e.code === eventCode)?.name || eventCode) : "All Events";
+  document.getElementById("reception-analytics-event-label").textContent = eventLabel;
+
+  // calls made / positive responses — from assignments, so each contact counts at most once per event
+  let assignmentsQuery = supabase.from("assignments").select("status");
+  if (eventCode) assignmentsQuery = assignmentsQuery.eq("event_code", eventCode);
+  const { data: assignmentsForCalls } = await assignmentsQuery;
+  if (isStale()) return;
+  let callsMade = 0;
+  let positive = 0;
+  (assignmentsForCalls || []).forEach((a) => {
+    if ((a.status || "Not Done") !== "Not Done") callsMade++;
+    if (callOutcomeCategory(a.status) === "positive") positive++;
+  });
+  document.getElementById("reception-analytics-calls-made").textContent = callsMade;
+  document.getElementById("reception-analytics-positive").textContent = positive;
 
   // attendance in the selected range
   let attendanceQuery = supabase.from("session_attendance").select("ts,name,mob_no,took_by").order("ts", { ascending: false });
