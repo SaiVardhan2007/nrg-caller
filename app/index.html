@@ -6,6 +6,9 @@
 <title>NRG Caller</title>
 <meta name="theme-color" content="#047857" />
 <link rel="manifest" href="manifest.json" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/theme.css" />
 </head>
 <body>
@@ -62,17 +65,20 @@
   <div id="dashboard" class="dashboard hidden">
     <div class="dashboard-cards">
       <button class="dashboard-card" data-target="caller-section">
-        <span class="card-emoji">📞</span>
+        <span class="card-icon-badge badge-tulsi"><span class="card-emoji">📞</span></span>
         <span class="card-label">My Calls</span>
         <span id="dash-event-name" class="card-sub"></span>
+        <span class="card-arrow">→</span>
       </button>
       <button class="dashboard-card" data-target="reception-section">
-        <span class="card-emoji">🙏</span>
+        <span class="card-icon-badge badge-saffron"><span class="card-emoji">🙏</span></span>
         <span class="card-label">Reception</span>
+        <span class="card-arrow">→</span>
       </button>
       <button class="dashboard-card" data-target="collection-section">
-        <span class="card-emoji">📇</span>
+        <span class="card-icon-badge badge-indigo"><span class="card-emoji">📇</span></span>
         <span class="card-label">Contact Collection</span>
+        <span class="card-arrow">→</span>
       </button>
     </div>
   </div>

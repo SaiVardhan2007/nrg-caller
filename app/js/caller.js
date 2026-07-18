@@ -24,7 +24,34 @@ const STATUS_OPTIONS = [
 ];
 const POSITIVE = ["joining the session", "will try to attend"];
 const PENDING = ["not done", "yet to call", ""];
+const NEGATIVE = ["don't call him again", "wrong number", "out of network coverage", "shifted to home town"];
 const WS_OPTIONS = ["NA", "W", "S"];
+const AVATAR_GRADIENTS = [
+  "linear-gradient(135deg,#059669,#047857)",
+  "linear-gradient(135deg,#d97706,#b45309)",
+  "linear-gradient(135deg,#4f46e5,#4338ca)",
+  "linear-gradient(135deg,#0891b2,#0e7490)",
+  "linear-gradient(135deg,#db2777,#be185d)",
+  "linear-gradient(135deg,#65a30d,#4d7c0f)",
+];
+
+function statusCategory(status) {
+  const s = (status || "").toLowerCase();
+  if (NEGATIVE.includes(s)) return "negative";
+  if (POSITIVE.includes(s)) return "positive";
+  return "neutral";
+}
+
+function avatarGradient(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
+}
+
+function initials(name) {
+  const parts = String(name || "").trim().split(/\s+/);
+  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
+}
 
 const cardState = new Map(); // assignment.id -> { called, sent, submitted, lastStatus }
 let currentEventCode = "";
@@ -34,10 +61,20 @@ let messageText = "";
 let currentUser = null;
 let othersTargetAssignmentId = null;
 
+const SKELETON_CARD = `
+  <div class="call-card skeleton-card">
+    <div class="call-card-row1">
+      <span class="skeleton skeleton-avatar"></span>
+      <span class="skeleton skeleton-line" style="width:40%"></span>
+    </div>
+    <div class="skeleton skeleton-line" style="width:70%;height:32px;border-radius:20px;"></div>
+  </div>
+`;
+
 export async function init(user) {
   currentUser = user;
   const listEl = document.getElementById("caller-cards");
-  listEl.innerHTML = `<p class="loading-row">Loading your assigned contacts…</p>`;
+  listEl.innerHTML = SKELETON_CARD.repeat(3);
 
   const [{ data: eventRow }, { data: msgRow }, { data: posterRow }] = await Promise.all([
     supabase.from("settings").select("value").eq("key", "current_event").single(),
@@ -92,27 +129,29 @@ function renderCard(a) {
   const c = a.contacts;
   const st = cardState.get(a.id);
   const submittedLabel = st.submitted && st.lastStatus === a.status;
+  const category = statusCategory(a.status);
   return `
     <div class="call-card" data-assignment-id="${a.id}" data-contact-id="${c.id}">
       <div class="call-card-row1">
+        <span class="call-card-avatar" style="background:${avatarGradient(c.name)}">${initials(c.name)}</span>
         <span class="call-card-name">${escapeHtml(c.name)}</span>
         <select class="ws-select">
           ${WS_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
         </select>
       </div>
       <div class="call-card-row2">
-        <button class="calls-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">Sessions: ${c.sessions_count}</button>
+        <button class="calls-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📋 Sessions: ${c.sessions_count}</button>
         <a class="phone-pill" href="${telHref(c.mob_no)}">📞 ${formatPhone(c.mob_no)}</a>
       </div>
       <div class="call-card-row3">
-        <select class="status-select">
+        <select class="status-select status-${category}">
           ${STATUS_OPTIONS.map((o) => `<option value="${o}" ${o === (a.status || STATUS_DEFAULT) ? "selected" : ""}>${o}</option>`).join("")}
         </select>
       </div>
       <div class="call-card-row4">
         <button class="btn btn-secondary send-btn">💬 Send Message</button>
         <button class="btn btn-primary row-submit-btn" ${submittedLabel ? "disabled" : "disabled"}>
-          ${submittedLabel ? "Submitted" : "Submit"}
+          ${submittedLabel ? "✓ Submitted" : "Submit"}
         </button>
       </div>
     </div>
@@ -127,7 +166,7 @@ function refreshSubmitButton(card, assignmentId) {
 
   if (st.submitted && status === st.lastStatus) {
     submitBtn.disabled = true;
-    submitBtn.textContent = "Submitted";
+    submitBtn.textContent = "✓ Submitted";
     return;
   }
   if (status === STATUS_DEFAULT) {
@@ -179,6 +218,8 @@ function wireCard(assignments) {
         document.getElementById("others-modal").classList.add("active");
         setTimeout(() => document.getElementById("others-input").focus(), 60);
       }
+      e.target.classList.remove("status-positive", "status-negative", "status-neutral");
+      e.target.classList.add(`status-${statusCategory(e.target.value)}`);
       refreshSubmitButton(card, assignmentId);
     });
 
