@@ -51,6 +51,17 @@ create table if not exists assignments (
   unique (contact_id, event_code)
 );
 
+-- No sheet: per-user assigned-count snapshot, taken right before each wipe so
+-- past rounds ("how many did this user get assigned last Rath Yatra") stay
+-- answerable for admin analytics even after assignments itself is cleared.
+create table if not exists assignment_rounds (
+  id              uuid primary key default gen_random_uuid(),
+  user_name       text not null,
+  event_code      text not null,
+  assigned_count  int not null default 0,
+  round_ended_at  timestamptz not null default now()
+);
+
 -- Sheet: Calling Responce (permanent log, one row per submit)
 create table if not exists call_responses (
   id           uuid primary key default gen_random_uuid(),
@@ -131,6 +142,7 @@ create trigger trg_attendance_bump after insert on session_attendance
 alter table users              enable row level security;
 alter table contacts           enable row level security;
 alter table assignments        enable row level security;
+alter table assignment_rounds  enable row level security;
 alter table call_responses     enable row level security;
 alter table session_attendance enable row level security;
 alter table contact_collection enable row level security;
@@ -139,7 +151,7 @@ alter table settings           enable row level security;
 
 do $$ declare t text;
 begin
-  foreach t in array array['users','contacts','assignments','call_responses',
+  foreach t in array array['users','contacts','assignments','assignment_rounds','call_responses',
                            'session_attendance','contact_collection','events','settings'] loop
     execute format('drop policy if exists app_all on %I', t);
     execute format('create policy app_all on %I for all to anon, authenticated using (true) with check (true)', t);

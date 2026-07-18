@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, formatPhone } from "./utils.js";
+import { showToast, formatPhone, escapeHtml } from "./utils.js";
 import { STORAGE_BUCKET } from "./config.js";
 
 let eventsCache = [];
@@ -131,10 +131,27 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       await setSetting("current_event", eventCode);
       await setSetting("tag_filter", tagFilters.join(","));
 
-      // 1. wipe previous temporary assignments (event switch clears the board)
+      // 1. snapshot the outgoing round's per-user counts before wiping, so
+      // admin analytics can still answer "how many did X get assigned last
+      // time" for an event after it's no longer the active one.
+      const { data: outgoing } = await supabase.from("assignments").select("user_name,event_code");
+      if (outgoing && outgoing.length) {
+        const outgoingCounts = {};
+        outgoing.forEach((a) => {
+          const key = a.user_name + "|" + a.event_code;
+          outgoingCounts[key] = (outgoingCounts[key] || 0) + 1;
+        });
+        const roundRows = Object.entries(outgoingCounts).map(([key, count]) => {
+          const [user_name, event_code] = key.split("|");
+          return { user_name, event_code, assigned_count: count };
+        });
+        await supabase.from("assignment_rounds").insert(roundRows);
+      }
+
+      // 2. wipe previous temporary assignments (event switch clears the board)
       await supabase.from("assignments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
 
-      // 2. fetch the pool for this event (minus Don't Call, optional tag filter)
+      // 3. fetch the pool for this event (minus Don't Call, optional tag filter)
       // admin_tag is nullable: a plain .neq() would silently drop untagged rows
       // (SQL NULL != 'x' is NULL, not true), so untagged contacts must be let through explicitly.
       let query = supabase
@@ -146,7 +163,7 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       const { data: pool, error: poolErr } = await query;
       if (poolErr) throw poolErr;
 
-      // 3. eligible users — re-fetch fresh, since usersCache can be stale if a
+      // 4. eligible users — re-fetch fresh, since usersCache can be stale if a
       // limit/auto-assign checkbox was toggled without a page reload since then.
       const { data: freshUsers, error: usersErr } = await supabase
         .from("users")
@@ -161,7 +178,7 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       const rows = [];
       const remaining = [];
 
-      // 3a. core-cultivated contacts go to their cultivator first (counts toward their limit)
+      // 4a. core-cultivated contacts go to their cultivator first (counts toward their limit)
       for (const c of pool || []) {
         if (c.core_cultivation && byName[c.core_cultivation]) {
           rows.push({ contact_id: c.id, user_name: c.core_cultivation, event_code: eventCode });
@@ -171,7 +188,7 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
         }
       }
 
-      // 3b. limited users fill their remaining capacity first
+      // 4b. limited users fill their remaining capacity first
       const limited = eligible.filter((u) => u.call_limit != null);
       const unlimited = eligible.filter((u) => u.call_limit == null);
       let idx = 0;
@@ -184,7 +201,7 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
         }
       }
 
-      // 3c. leftover split equally among unlimited users
+      // 4c. leftover split equally among unlimited users
       const leftover = remaining.slice(idx);
       let unassignedCount = 0;
       if (unlimited.length) {
@@ -288,11 +305,13 @@ export async function initContacts() {
   await renderContactsTable();
   wireContactsSearch();
   wireAddContactModal();
+  wireContactInfoModal();
+  wireAdminReviewModal();
 }
 
 async function renderContactsTable(searchTerm = "") {
   const tbody = document.getElementById("contacts-table-body");
-  tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Loading contacts…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Loading contacts…</td></tr>`;
 
   let query = supabase.from("contacts").select("*").order("s_no", { ascending: true, nullsFirst: false });
   if (searchTerm) {
@@ -300,24 +319,32 @@ async function renderContactsTable(searchTerm = "") {
   }
   const { data, error } = await query.limit(500);
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Could not load contacts.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Could not load contacts.</td></tr>`;
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">No contacts found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="loading-row">No contacts found.</td></tr>`;
     return;
   }
+
+  const mobNos = data.map((c) => c.mob_no);
+  const { data: calls } = await supabase.from("call_responses").select("mob_no").in("mob_no", mobNos).limit(20000);
+  const callCounts = {};
+  (calls || []).forEach((r) => { callCounts[r.mob_no] = (callCounts[r.mob_no] || 0) + 1; });
 
   tbody.innerHTML = data.map((c, i) => `
     <tr data-id="${c.id}">
       <td data-label="S.No">${c.s_no ?? i + 1}</td>
-      <td data-label="Name">${c.name}</td>
+      <td data-label="Name">${escapeHtml(c.name)}</td>
       <td data-label="Phone">${formatPhone(c.mob_no)}</td>
       <td data-label="W/S">${c.ws || "NA"}</td>
-      <td data-label="Sessions">${c.sessions_count}</td>
-      <td data-label="Admin Tag">${c.admin_tag || ""}</td>
-      <td data-label="Core Cultivation">${c.core_cultivation || ""}</td>
-      <td data-label="Calling Purpose">${c.calling_purpose || ""}</td>
+      <td data-label="Sessions"><button class="btn-link info-link" data-kind="sessions" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.sessions_count}</button></td>
+      <td data-label="Calls"><button class="btn-link info-link" data-kind="calls" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${callCounts[c.mob_no] || 0}</button></td>
+      <td data-label="Admin Tag">${escapeHtml(c.admin_tag || "")}</td>
+      <td data-label="Core Cultivation">${escapeHtml(c.core_cultivation || "")}</td>
+      <td data-label="Calling Purpose">${escapeHtml(c.calling_purpose || "")}</td>
+      <td data-label="User Reviews"><button class="btn-link info-link" data-kind="reviews" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">View</button></td>
+      <td data-label="Admin Review"><button class="btn-link admin-review-link" data-id="${c.id}" data-name="${escapeHtml(c.name)}" data-review="${escapeHtml(c.admin_remarks || "")}">${c.admin_remarks ? "✎ Edit" : "+ Add"}</button></td>
       <td data-label=""><button class="btn btn-link edit-contact-btn">Edit</button></td>
     </tr>
   `).join("");
@@ -329,6 +356,102 @@ async function renderContactsTable(searchTerm = "") {
       openContactModal(contact);
     });
   });
+
+  tbody.querySelectorAll(".info-link").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      openContactInfoModal(e.target.dataset.kind, e.target.dataset.mob, e.target.dataset.name);
+    });
+  });
+
+  tbody.querySelectorAll(".admin-review-link").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      openAdminReviewModal(e.target.dataset.id, e.target.dataset.name, e.target.dataset.review);
+    });
+  });
+}
+
+const INFO_MODAL_TITLES = { sessions: "Session Attendance", calls: "Calling History", reviews: "User Reviews" };
+
+async function openContactInfoModal(kind, mob, name) {
+  const modal = document.getElementById("contact-info-modal");
+  document.getElementById("contact-info-title").textContent = INFO_MODAL_TITLES[kind];
+  document.getElementById("contact-info-sub").textContent = `${name} · ${formatPhone(mob)}`;
+  const thead = document.getElementById("contact-info-thead");
+  const tbody = document.getElementById("contact-info-body");
+  thead.innerHTML = "";
+  tbody.innerHTML = `<tr><td class="loading-row">Loading…</td></tr>`;
+  modal.classList.add("active");
+
+  if (kind === "sessions") {
+    thead.innerHTML = `<tr><th>Time</th><th>Marked By</th></tr>`;
+    const { data } = await supabase.from("session_attendance").select("ts,took_by").eq("mob_no", mob).order("ts", { ascending: false });
+    tbody.innerHTML = (data && data.length)
+      ? data.map((r) => `<tr><td data-label="Time">${new Date(r.ts).toLocaleString()}</td><td data-label="Marked By">${escapeHtml(r.took_by)}</td></tr>`).join("")
+      : `<tr><td colspan="2" class="loading-row">No sessions attended yet.</td></tr>`;
+  } else if (kind === "calls") {
+    thead.innerHTML = `<tr><th>Time</th><th>Caller</th><th>Event</th><th>Status</th></tr>`;
+    const { data } = await supabase.from("call_responses").select("ts,caller_name,event_code,remarks,addl_remarks").eq("mob_no", mob).order("ts", { ascending: false });
+    tbody.innerHTML = (data && data.length)
+      ? data.map((r) => `
+          <tr>
+            <td data-label="Time">${new Date(r.ts).toLocaleString()}</td>
+            <td data-label="Caller">${escapeHtml(r.caller_name)}</td>
+            <td data-label="Event">${escapeHtml(r.event_code || "")}</td>
+            <td data-label="Status">${escapeHtml(r.remarks)}${r.addl_remarks ? " — " + escapeHtml(r.addl_remarks) : ""}</td>
+          </tr>`).join("")
+      : `<tr><td colspan="4" class="loading-row">No calls made yet.</td></tr>`;
+  } else if (kind === "reviews") {
+    thead.innerHTML = `<tr><th>Caller</th><th>What they said</th></tr>`;
+    const { data } = await supabase.from("call_responses").select("ts,caller_name,remarks,addl_remarks").eq("mob_no", mob).order("ts", { ascending: false });
+    const withNotes = (data || []).filter((r) => r.remarks || r.addl_remarks);
+    tbody.innerHTML = withNotes.length
+      ? withNotes.map((r) => `
+          <tr>
+            <td data-label="Caller">${escapeHtml(r.caller_name)} <span class="muted-text">(${new Date(r.ts).toLocaleDateString()})</span></td>
+            <td data-label="Said">${escapeHtml(r.addl_remarks || r.remarks)}</td>
+          </tr>`).join("")
+      : `<tr><td colspan="2" class="loading-row">No reviews from users yet.</td></tr>`;
+  }
+}
+
+function wireContactInfoModal() {
+  const modal = document.getElementById("contact-info-modal");
+  document.getElementById("contact-info-close").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+}
+
+let adminReviewContactId = null;
+
+function openAdminReviewModal(contactId, name, existingReview) {
+  adminReviewContactId = contactId;
+  document.getElementById("admin-review-sub").textContent = name;
+  document.getElementById("admin-review-text").value = existingReview || "";
+  document.getElementById("admin-review-error").classList.add("hidden");
+  document.getElementById("admin-review-modal").classList.add("active");
+}
+
+function wireAdminReviewModal() {
+  const modal = document.getElementById("admin-review-modal");
+  document.getElementById("admin-review-cancel").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  document.getElementById("admin-review-save").onclick = async () => {
+    const text = document.getElementById("admin-review-text").value.trim();
+    const btn = document.getElementById("admin-review-save");
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+    const { error } = await supabase.from("contacts").update({ admin_remarks: text || null }).eq("id", adminReviewContactId);
+    btn.disabled = false;
+    btn.textContent = "Save";
+    if (error) {
+      document.getElementById("admin-review-error").textContent = error.message;
+      document.getElementById("admin-review-error").classList.remove("hidden");
+      return;
+    }
+    modal.classList.remove("active");
+    showToast("Review saved", "success");
+    renderContactsTable(document.getElementById("contacts-search").value.trim());
+  };
 }
 
 function wireContactsSearch() {
@@ -469,4 +592,119 @@ export async function initMessage() {
     await setSetting("message_text", textEl.value);
     showToast("Message saved", "success");
   };
+}
+
+/* ======================= ANALYTICS ======================= */
+
+let analyticsWired = false;
+
+export async function initAnalytics() {
+  await loadEvents();
+  const userSelect = document.getElementById("analytics-user-select");
+  const eventSelect = document.getElementById("analytics-event-select");
+  const fromInput = document.getElementById("analytics-from");
+  const toInput = document.getElementById("analytics-to");
+
+  const { data: users } = await supabase.from("users").select("user_name").eq("role", "User").order("user_name");
+  userSelect.innerHTML = (users || []).map((u) => `<option value="${u.user_name}">${u.user_name}</option>`).join("");
+
+  eventSelect.innerHTML = `<option value="">All events</option>` +
+    eventsCache.map((e) => `<option value="${e.code}">${e.name} (${e.code})</option>`).join("");
+
+  if (!fromInput.value) {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    fromInput.value = d.toISOString().slice(0, 10);
+    toInput.value = new Date().toISOString().slice(0, 10);
+  }
+
+  const run = () => runAnalytics(userSelect.value, fromInput.value, toInput.value, eventSelect.value);
+  if (!analyticsWired) {
+    analyticsWired = true;
+    document.getElementById("analytics-run-btn").addEventListener("click", run);
+  }
+  if (userSelect.value) run();
+}
+
+async function runAnalytics(userName, fromDate, toDate, eventFilter) {
+  if (!userName) return;
+  const fromTs = fromDate ? new Date(fromDate + "T00:00:00").toISOString() : null;
+  const toTs = toDate ? new Date(toDate + "T23:59:59").toISOString() : null;
+  const currentEventCode = await getSetting("current_event");
+
+  // total calls made in the selected range
+  let callsQuery = supabase.from("call_responses").select("id", { count: "exact", head: true }).eq("caller_name", userName);
+  if (fromTs) callsQuery = callsQuery.gte("ts", fromTs);
+  if (toTs) callsQuery = callsQuery.lte("ts", toTs);
+  if (eventFilter) callsQuery = callsQuery.eq("event_code", eventFilter);
+  const { count: totalCalls } = await callsQuery;
+  document.getElementById("analytics-total-calls").textContent = totalCalls ?? 0;
+
+  // by-event: assigned (live for current event, historical rounds otherwise) / called / left
+  const eventsToShow = eventFilter ? eventsCache.filter((e) => e.code === eventFilter) : eventsCache;
+  const [{ data: liveAssignments }, { data: rounds }, { data: allCalls }] = await Promise.all([
+    supabase.from("assignments").select("event_code").eq("user_name", userName),
+    supabase.from("assignment_rounds").select("event_code,assigned_count").eq("user_name", userName),
+    supabase.from("call_responses").select("event_code").eq("caller_name", userName),
+  ]);
+  const liveCounts = {};
+  (liveAssignments || []).forEach((a) => { liveCounts[a.event_code] = (liveCounts[a.event_code] || 0) + 1; });
+  const roundTotals = {};
+  (rounds || []).forEach((r) => { roundTotals[r.event_code] = (roundTotals[r.event_code] || 0) + r.assigned_count; });
+  const callTotals = {};
+  (allCalls || []).forEach((c) => { if (c.event_code) callTotals[c.event_code] = (callTotals[c.event_code] || 0) + 1; });
+
+  const byEventBody = document.getElementById("analytics-by-event-body");
+  const eventRows = eventsToShow.map((e) => {
+    const assigned = e.code === currentEventCode ? (liveCounts[e.code] || 0) : (roundTotals[e.code] || 0);
+    const called = callTotals[e.code] || 0;
+    const left = Math.max(assigned - called, 0);
+    return `<tr><td data-label="Event">${escapeHtml(e.name)}</td><td data-label="Assigned">${assigned}</td><td data-label="Called">${called}</td><td data-label="Left">${left}</td></tr>`;
+  }).join("");
+  byEventBody.innerHTML = eventRows || `<tr><td colspan="4" class="loading-row">No data for this user yet.</td></tr>`;
+
+  // currently assigned contacts (always reflects the live/current round)
+  const { data: assignedContacts } = await supabase
+    .from("assignments")
+    .select("status,contacts(name,mob_no)")
+    .eq("user_name", userName)
+    .eq("event_code", currentEventCode);
+  const assignedBody = document.getElementById("analytics-assigned-body");
+  assignedBody.innerHTML = (assignedContacts && assignedContacts.length)
+    ? assignedContacts.map((a) => `
+        <tr>
+          <td data-label="Name">${escapeHtml(a.contacts.name)}</td>
+          <td data-label="Phone">${formatPhone(a.contacts.mob_no)}</td>
+          <td data-label="Status">${escapeHtml(a.status)}</td>
+          <td data-label="Called?">${a.status !== "Not Done" ? "✅" : "—"}</td>
+        </tr>`).join("")
+    : `<tr><td colspan="4" class="loading-row">No contacts currently assigned.</td></tr>`;
+
+  // core cultivation health: is this user actually calling the people cultivated to them?
+  const { data: cultivated } = await supabase.from("contacts").select("name,mob_no").eq("core_cultivation", userName);
+  const cultivationBody = document.getElementById("analytics-cultivation-body");
+  if (!cultivated || !cultivated.length) {
+    cultivationBody.innerHTML = `<tr><td colspan="4" class="loading-row">No contacts cultivated to this user.</td></tr>`;
+  } else {
+    const mobNos = cultivated.map((c) => c.mob_no);
+    const { data: callHistory } = await supabase
+      .from("call_responses")
+      .select("mob_no,ts")
+      .eq("caller_name", userName)
+      .in("mob_no", mobNos)
+      .order("ts", { ascending: false });
+    const lastCalled = {};
+    const totalCallsByMob = {};
+    (callHistory || []).forEach((r) => {
+      totalCallsByMob[r.mob_no] = (totalCallsByMob[r.mob_no] || 0) + 1;
+      if (!lastCalled[r.mob_no]) lastCalled[r.mob_no] = r.ts;
+    });
+    cultivationBody.innerHTML = cultivated.map((c) => `
+      <tr>
+        <td data-label="Name">${escapeHtml(c.name)}</td>
+        <td data-label="Phone">${formatPhone(c.mob_no)}</td>
+        <td data-label="Total Calls">${totalCallsByMob[c.mob_no] || 0}</td>
+        <td data-label="Last Called">${lastCalled[c.mob_no] ? new Date(lastCalled[c.mob_no]).toLocaleDateString() : "Never called"}</td>
+      </tr>`).join("");
+  }
 }

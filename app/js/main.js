@@ -22,6 +22,7 @@ const PAGE_TITLES = {
   "admin-users-section": "Users & Assignment",
   "admin-contacts-section": "Master Contact",
   "admin-message-section": "Message",
+  "admin-analytics-section": "Analytics",
   "caller-section": "My Calls",
   "reception-section": "Reception",
   "collection-section": "Contact Collection",
@@ -40,6 +41,7 @@ function showScreen(id) {
   if (id === "admin-users-section") Admin.initUsers(currentUser);
   if (id === "admin-contacts-section") Admin.initContacts(currentUser);
   if (id === "admin-message-section") Admin.initMessage(currentUser);
+  if (id === "admin-analytics-section") Admin.initAnalytics(currentUser);
 }
 
 function goDashboard() {

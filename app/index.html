@@ -59,6 +59,7 @@
     <button class="admin-tab active" data-target="admin-users-section">Users &amp; Assignment</button>
     <button class="admin-tab" data-target="admin-contacts-section">Master Contact</button>
     <button class="admin-tab" data-target="admin-message-section">Message</button>
+    <button class="admin-tab" data-target="admin-analytics-section">Analytics</button>
   </nav>
 
   <!-- ---- User dashboard ---- -->
@@ -138,14 +139,74 @@
         <table class="data-table" id="contacts-table">
           <thead>
             <tr>
-              <th>S.No</th><th>Name</th><th>Phone</th><th>W/S</th><th>Sessions</th>
-              <th>Admin Tag</th><th>Core Cultivation</th><th>Calling Purpose</th><th></th>
+              <th>S.No</th><th>Name</th><th>Phone</th><th>W/S</th><th>Sessions</th><th>Calls</th>
+              <th>Admin Tag</th><th>Core Cultivation</th><th>Calling Purpose</th>
+              <th>User Reviews</th><th>Admin Review</th><th></th>
             </tr>
           </thead>
           <tbody id="contacts-table-body">
-            <tr><td colspan="9" class="loading-row">Loading contacts…</td></tr>
+            <tr><td colspan="12" class="loading-row">Loading contacts…</td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- ===== ADMIN: Analytics ===== -->
+    <section id="admin-analytics-section" class="page hidden">
+      <div class="panel">
+        <div class="panel-row">
+          <label class="field inline">
+            <span>User</span>
+            <select id="analytics-user-select"></select>
+          </label>
+          <label class="field inline">
+            <span>From</span>
+            <input id="analytics-from" type="date" />
+          </label>
+          <label class="field inline">
+            <span>To</span>
+            <input id="analytics-to" type="date" />
+          </label>
+          <label class="field inline">
+            <span>Event</span>
+            <select id="analytics-event-select"><option value="">All events</option></select>
+          </label>
+          <button id="analytics-run-btn" class="btn btn-primary">View</button>
+        </div>
+      </div>
+
+      <div class="stats-bar">
+        <div class="stat"><span id="analytics-total-calls" class="stat-num">0</span><span class="stat-label">Calls Made</span></div>
+      </div>
+
+      <div class="panel">
+        <h3 class="section-title">By Event — Assigned / Called / Left</h3>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Event</th><th>Assigned</th><th>Called</th><th>Left</th></tr></thead>
+            <tbody id="analytics-by-event-body"><tr><td colspan="4" class="loading-row">Pick a user above.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 class="section-title">Currently Assigned Contacts</h3>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Called?</th></tr></thead>
+            <tbody id="analytics-assigned-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 class="section-title">Core Cultivation Health</h3>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Name</th><th>Phone</th><th>Total Calls</th><th>Last Called</th></tr></thead>
+            <tbody id="analytics-cultivation-body"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -316,6 +377,38 @@
     <div class="modal-actions">
       <button id="others-cancel" class="btn btn-secondary">Cancel</button>
       <button id="others-confirm" class="btn btn-primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="contact-info-modal" class="modal">
+  <div class="modal-box">
+    <h3 id="contact-info-title">Details</h3>
+    <div id="contact-info-sub" class="muted-text"></div>
+    <div class="table-wrap">
+      <table class="data-table" id="contact-info-table">
+        <thead id="contact-info-thead"></thead>
+        <tbody id="contact-info-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="contact-info-close" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="admin-review-modal" class="modal">
+  <div class="modal-box">
+    <h3>Admin Review</h3>
+    <div id="admin-review-sub" class="muted-text"></div>
+    <label class="field">
+      <span>Your private note about this contact</span>
+      <textarea id="admin-review-text" rows="5"></textarea>
+    </label>
+    <div id="admin-review-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="admin-review-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="admin-review-save" class="btn btn-primary">Save</button>
     </div>
   </div>
 </div>
