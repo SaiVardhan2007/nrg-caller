@@ -414,10 +414,44 @@ async function openContactInfoModal(kind, mob, name) {
   }
 }
 
+let contactInfoModalWired = false;
 function wireContactInfoModal() {
+  if (contactInfoModalWired) return;
+  contactInfoModalWired = true;
   const modal = document.getElementById("contact-info-modal");
   document.getElementById("contact-info-close").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+}
+
+async function openEventCallsModal(userName, eventCode, eventName, fromTs, toTs) {
+  const modal = document.getElementById("contact-info-modal");
+  document.getElementById("contact-info-title").textContent = `${eventName} — Calls Made`;
+  document.getElementById("contact-info-sub").textContent = userName;
+  const thead = document.getElementById("contact-info-thead");
+  const tbody = document.getElementById("contact-info-body");
+  thead.innerHTML = `<tr><th>Time</th><th>Contact</th><th>Phone</th><th>Status</th></tr>`;
+  tbody.innerHTML = `<tr><td class="loading-row">Loading…</td></tr>`;
+  modal.classList.add("active");
+
+  let query = supabase
+    .from("call_responses")
+    .select("ts,contact_name,mob_no,remarks,addl_remarks")
+    .eq("caller_name", userName)
+    .eq("event_code", eventCode)
+    .order("ts", { ascending: false });
+  if (fromTs) query = query.gte("ts", fromTs);
+  if (toTs) query = query.lte("ts", toTs);
+  const { data } = await query;
+
+  tbody.innerHTML = (data && data.length)
+    ? data.map((r) => `
+        <tr>
+          <td data-label="Time">${new Date(r.ts).toLocaleString()}</td>
+          <td data-label="Contact">${escapeHtml(r.contact_name || "")}</td>
+          <td data-label="Phone">${formatPhone(r.mob_no)}</td>
+          <td data-label="Status">${escapeHtml(r.remarks)}${r.addl_remarks ? " — " + escapeHtml(r.addl_remarks) : ""}</td>
+        </tr>`).join("")
+    : `<tr><td colspan="4" class="loading-row">No calls made for this event in the selected range.</td></tr>`;
 }
 
 let adminReviewContactId = null;
@@ -600,6 +634,7 @@ let analyticsWired = false;
 
 export async function initAnalytics() {
   await loadEvents();
+  wireContactInfoModal();
   const userSelect = document.getElementById("analytics-user-select");
   const eventSelect = document.getElementById("analytics-event-select");
   const fromInput = document.getElementById("analytics-from");
@@ -626,11 +661,19 @@ export async function initAnalytics() {
   if (userSelect.value) run();
 }
 
+let analyticsRequestId = 0;
+
 async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   if (!userName) return;
+  // guards against a slower, superseded call (e.g. the initial auto-run for
+  // the default user) overwriting a faster, more recent one's results.
+  const requestId = ++analyticsRequestId;
+  const isStale = () => requestId !== analyticsRequestId;
+
   const fromTs = fromDate ? new Date(fromDate + "T00:00:00").toISOString() : null;
   const toTs = toDate ? new Date(toDate + "T23:59:59").toISOString() : null;
   const currentEventCode = await getSetting("current_event");
+  if (isStale()) return;
 
   // total calls made in the selected range
   let callsQuery = supabase.from("call_responses").select("id", { count: "exact", head: true }).eq("caller_name", userName);
@@ -638,30 +681,48 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   if (toTs) callsQuery = callsQuery.lte("ts", toTs);
   if (eventFilter) callsQuery = callsQuery.eq("event_code", eventFilter);
   const { count: totalCalls } = await callsQuery;
+  if (isStale()) return;
   document.getElementById("analytics-total-calls").textContent = totalCalls ?? 0;
 
   // by-event: assigned (live for current event, historical rounds otherwise) / called / left
+  // "called" is scoped to the same from/to range as the Calls Made card above,
+  // so the count here always matches what the click-through popup shows.
   const eventsToShow = eventFilter ? eventsCache.filter((e) => e.code === eventFilter) : eventsCache;
-  const [{ data: liveAssignments }, { data: rounds }, { data: allCalls }] = await Promise.all([
+  let rangedCallsQuery = supabase.from("call_responses").select("event_code").eq("caller_name", userName);
+  if (fromTs) rangedCallsQuery = rangedCallsQuery.gte("ts", fromTs);
+  if (toTs) rangedCallsQuery = rangedCallsQuery.lte("ts", toTs);
+  const [{ data: liveAssignments }, { data: rounds }, { data: rangedCalls }] = await Promise.all([
     supabase.from("assignments").select("event_code").eq("user_name", userName),
     supabase.from("assignment_rounds").select("event_code,assigned_count").eq("user_name", userName),
-    supabase.from("call_responses").select("event_code").eq("caller_name", userName),
+    rangedCallsQuery,
   ]);
+  if (isStale()) return;
   const liveCounts = {};
   (liveAssignments || []).forEach((a) => { liveCounts[a.event_code] = (liveCounts[a.event_code] || 0) + 1; });
   const roundTotals = {};
   (rounds || []).forEach((r) => { roundTotals[r.event_code] = (roundTotals[r.event_code] || 0) + r.assigned_count; });
   const callTotals = {};
-  (allCalls || []).forEach((c) => { if (c.event_code) callTotals[c.event_code] = (callTotals[c.event_code] || 0) + 1; });
+  (rangedCalls || []).forEach((c) => { if (c.event_code) callTotals[c.event_code] = (callTotals[c.event_code] || 0) + 1; });
 
   const byEventBody = document.getElementById("analytics-by-event-body");
   const eventRows = eventsToShow.map((e) => {
     const assigned = e.code === currentEventCode ? (liveCounts[e.code] || 0) : (roundTotals[e.code] || 0);
     const called = callTotals[e.code] || 0;
     const left = Math.max(assigned - called, 0);
-    return `<tr><td data-label="Event">${escapeHtml(e.name)}</td><td data-label="Assigned">${assigned}</td><td data-label="Called">${called}</td><td data-label="Left">${left}</td></tr>`;
+    return `
+      <tr class="clickable-row" data-event-code="${e.code}" data-event-name="${escapeHtml(e.name)}">
+        <td data-label="Event">${escapeHtml(e.name)}</td>
+        <td data-label="Assigned">${assigned}</td>
+        <td data-label="Called">${called}</td>
+        <td data-label="Left">${left}</td>
+      </tr>`;
   }).join("");
   byEventBody.innerHTML = eventRows || `<tr><td colspan="4" class="loading-row">No data for this user yet.</td></tr>`;
+  byEventBody.querySelectorAll("tr[data-event-code]").forEach((row) => {
+    row.addEventListener("click", () => {
+      openEventCallsModal(userName, row.dataset.eventCode, row.dataset.eventName, fromTs, toTs);
+    });
+  });
 
   // currently assigned contacts (always reflects the live/current round)
   const { data: assignedContacts } = await supabase
@@ -669,6 +730,7 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
     .select("status,contacts(name,mob_no)")
     .eq("user_name", userName)
     .eq("event_code", currentEventCode);
+  if (isStale()) return;
   const assignedBody = document.getElementById("analytics-assigned-body");
   assignedBody.innerHTML = (assignedContacts && assignedContacts.length)
     ? assignedContacts.map((a) => `
@@ -682,6 +744,7 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
 
   // core cultivation health: is this user actually calling the people cultivated to them?
   const { data: cultivated } = await supabase.from("contacts").select("name,mob_no").eq("core_cultivation", userName);
+  if (isStale()) return;
   const cultivationBody = document.getElementById("analytics-cultivation-body");
   if (!cultivated || !cultivated.length) {
     cultivationBody.innerHTML = `<tr><td colspan="4" class="loading-row">No contacts cultivated to this user.</td></tr>`;
@@ -693,6 +756,7 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
       .eq("caller_name", userName)
       .in("mob_no", mobNos)
       .order("ts", { ascending: false });
+    if (isStale()) return;
     const lastCalled = {};
     const totalCallsByMob = {};
     (callHistory || []).forEach((r) => {
