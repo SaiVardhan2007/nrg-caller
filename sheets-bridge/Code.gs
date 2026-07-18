@@ -51,7 +51,7 @@ function onEditInstallable(e) {
     if (row === 1) return; // header row edits ignored
 
     if (name === SHEET_ADMIN) syncAdminPageRow(sheet, row);
-    else if (name === SHEET_CONTACTS) syncMasterContactRow(sheet, row);
+    else if (name === SHEET_CONTACTS) syncMasterContactRow(sheet, row, e);
   } catch (err) {
     Logger.log('onEdit error: ' + err);
   }
@@ -108,12 +108,12 @@ function syncAdminPageRow(sheet, row) {
   }, 'user_name');
 }
 
-function syncMasterContactRow(sheet, row) {
+function syncMasterContactRow(sheet, row, e) {
   const map = headerMap(sheet);
   const mob = String(cellVal(sheet, row, map, 'Mob No') || '').replace(/\D/g, '');
   if (mob.length !== 10) return;
 
-  supabaseUpsert('contacts', {
+  const payload = {
     mob_no: mob,
     name: String(cellVal(sheet, row, map, 'Name') || '').trim(),
     pg_name: String(cellVal(sheet, row, map, 'PG Name') || '') || null,
@@ -124,7 +124,31 @@ function syncMasterContactRow(sheet, row) {
     admin_tag: String(cellVal(sheet, row, map, 'Admin tag') || '') || null,
     core_cultivation: String(cellVal(sheet, row, map, 'Core Cultivation') || '') || null,
     calling_purpose: String(cellVal(sheet, row, map, 'Calling Purpose') || '') || null,
-  }, 'mob_no');
+  };
+
+  // If this edit changed the Mob No cell itself, upserting under the new
+  // number would create a duplicate row instead of updating the existing
+  // contact (mob_no is the match key). Use the edit event's oldValue to
+  // find the existing row by its previous number and update it in place.
+  const editedMobNoCell = e && e.range.getColumn() === map['Mob No'];
+  const oldMob = editedMobNoCell && e.oldValue ? String(e.oldValue).replace(/\D/g, '') : '';
+  if (oldMob.length === 10 && oldMob !== mob) {
+    const cfg = getConfig();
+    if (!cfg.SUPABASE_URL || !cfg.SERVICE_KEY) return;
+    UrlFetchApp.fetch(cfg.SUPABASE_URL + '/rest/v1/contacts?mob_no=eq.' + oldMob, {
+      method: 'patch',
+      contentType: 'application/json',
+      headers: {
+        apikey: cfg.SERVICE_KEY,
+        Authorization: 'Bearer ' + cfg.SERVICE_KEY,
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+    });
+    return;
+  }
+
+  supabaseUpsert('contacts', payload, 'mob_no');
 }
 
 function syncBodyText(sheet) {
