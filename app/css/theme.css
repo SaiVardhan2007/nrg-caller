@@ -127,8 +127,20 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .btn-primary:hover:not(:disabled) { box-shadow: 0 5px 16px rgba(5,150,105,0.4); }
 .btn-secondary { background: var(--surface); color: var(--tulsi-dark); border: 1.5px solid var(--sandstone); }
 .btn-secondary:hover:not(:disabled) { border-color: var(--tulsi); background: rgba(5,150,105,0.05); }
-.btn-link { background: none; color: var(--tulsi-dark); text-decoration: underline; padding: 4px 6px; font-weight: 600; }
+.btn-link { background: none; border: none; color: var(--tulsi-dark); text-decoration: underline; padding: 4px 6px; font-weight: 600; font-family: inherit; cursor: pointer; }
 .btn-block { width: 100%; }
+
+/* small pill-style action buttons used inside table cells (counts, view, edit) */
+.cell-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; padding: 5px 12px; border-radius: 20px;
+  background: rgba(5,150,105,0.09); color: var(--tulsi-dark);
+  font-weight: 700; font-size: 13px; font-family: inherit;
+  border: none; cursor: pointer; white-space: nowrap;
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+.cell-chip:hover { background: rgba(5,150,105,0.18); }
+.cell-chip:active { transform: scale(0.94); }
 
 /* ============ APP SHELL ============ */
 .app-header {
@@ -173,6 +185,13 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .admin-tab.active { color: var(--tulsi-dark); border-bottom-color: var(--tulsi); }
 
 .main-content { padding: 16px; max-width: 900px; margin: 0 auto; }
+/* the admin table pages carry a lot more columns — give them more breathing room
+   without stretching the simpler card-based pages (caller/reception/collection). */
+.main-content:has(> #admin-contacts-section:not(.hidden)),
+.main-content:has(> #admin-users-section:not(.hidden)),
+.main-content:has(> #admin-analytics-section:not(.hidden)) {
+  max-width: 1280px;
+}
 
 /* ============ DASHBOARD ============ */
 .dashboard { padding: 28px 16px; max-width: 900px; margin: 0 auto; }

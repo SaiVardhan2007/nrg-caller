@@ -338,13 +338,13 @@ async function renderContactsTable(searchTerm = "") {
       <td data-label="Name">${escapeHtml(c.name)}</td>
       <td data-label="Phone">${formatPhone(c.mob_no)}</td>
       <td data-label="W/S">${c.ws || "NA"}</td>
-      <td data-label="Sessions"><button class="btn-link info-link" data-kind="sessions" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.sessions_count}</button></td>
-      <td data-label="Calls"><button class="btn-link info-link" data-kind="calls" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${callCounts[c.mob_no] || 0}</button></td>
+      <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.sessions_count}</button></td>
+      <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${callCounts[c.mob_no] || 0}</button></td>
       <td data-label="Admin Tag">${escapeHtml(c.admin_tag || "")}</td>
       <td data-label="Core Cultivation">${escapeHtml(c.core_cultivation || "")}</td>
       <td data-label="Calling Purpose">${escapeHtml(c.calling_purpose || "")}</td>
-      <td data-label="User Reviews"><button class="btn-link info-link" data-kind="reviews" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">View</button></td>
-      <td data-label="Admin Review"><button class="btn-link admin-review-link" data-id="${c.id}" data-name="${escapeHtml(c.name)}" data-review="${escapeHtml(c.admin_remarks || "")}">${c.admin_remarks ? "✎ Edit" : "+ Add"}</button></td>
+      <td data-label="User Reviews"><button class="cell-chip info-link" data-kind="reviews" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">View</button></td>
+      <td data-label="Admin Review"><button class="cell-chip admin-review-link" data-id="${c.id}" data-name="${escapeHtml(c.name)}" data-review="${escapeHtml(c.admin_remarks || "")}">${c.admin_remarks ? "✎ Edit" : "+ Add"}</button></td>
       <td data-label=""><button class="btn btn-link edit-contact-btn">Edit</button></td>
     </tr>
   `).join("");
