@@ -140,7 +140,13 @@ function wireAssignButton(eventSelect, tagFilterSelect) {
       const { data: pool, error: poolErr } = await query;
       if (poolErr) throw poolErr;
 
-      // 3. eligible users
+      // 3. eligible users — re-fetch fresh, since usersCache can be stale if a
+      // limit/auto-assign checkbox was toggled without a page reload since then.
+      const { data: freshUsers, error: usersErr } = await supabase
+        .from("users")
+        .select("id,user_name,role,call_limit,auto_assign");
+      if (usersErr) throw usersErr;
+      usersCache = freshUsers || [];
       const eligible = usersCache.filter((u) => u.role === "User" && u.auto_assign);
       const assignedCount = {};
       eligible.forEach((u) => { assignedCount[u.user_name] = 0; });
