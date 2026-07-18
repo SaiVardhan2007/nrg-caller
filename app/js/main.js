@@ -63,8 +63,12 @@ function wireNav() {
   document.querySelectorAll(".dashboard-card").forEach((card) => {
     card.addEventListener("click", () => {
       card.classList.add("clicked");
-      setTimeout(() => card.classList.remove("clicked"), 200);
-      setTimeout(() => enterSection(card.dataset.target), 120);
+      dashboard.classList.add("leaving");
+      setTimeout(() => {
+        card.classList.remove("clicked");
+        dashboard.classList.remove("leaving");
+        enterSection(card.dataset.target);
+      }, 240);
     });
   });
 

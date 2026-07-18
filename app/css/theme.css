@@ -196,40 +196,51 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 
 /* ============ DASHBOARD ============ */
-.dashboard { padding: 28px 16px; max-width: 900px; margin: 0 auto; }
-.dashboard-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+.dashboard {
+  padding: 28px 16px; max-width: 900px; margin: 0 auto;
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.4,0,0.2,1);
+}
+.dashboard.leaving { opacity: 0; transform: scale(0.97); pointer-events: none; }
+.dashboard-cards { display: flex; flex-direction: column; gap: 12px; }
 .dashboard-card {
   background: var(--surface);
-  border: 1px solid var(--sandstone);
-  border-radius: var(--card-radius);
-  padding: 26px 18px 20px;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  border: 1.5px solid var(--sandstone);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: 46px 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 14px;
+  width: 100%;
   cursor: pointer;
-  box-shadow: var(--shadow);
-  transition: transform 0.18s cubic-bezier(0.16,1,0.3,1), box-shadow 0.18s ease, border-color 0.18s ease;
-  position: relative;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s cubic-bezier(0.16,1,0.3,1), box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
   font-family: inherit;
+  text-align: left;
 }
-.dashboard-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--tulsi-light); }
-.dashboard-card.clicked { transform: scale(0.94); }
+.dashboard-card:hover { border-color: var(--tulsi-light); box-shadow: var(--shadow); background: rgba(5,150,105,0.03); }
+.dashboard-card:active, .dashboard-card.clicked { transform: scale(0.96); box-shadow: var(--shadow-sm); }
 .dashboard-card.disabled { opacity: 0.4; cursor: not-allowed; }
 .card-icon-badge {
-  width: 56px; height: 56px; border-radius: 16px;
+  grid-row: 1 / 3; grid-column: 1;
+  width: 46px; height: 46px; border-radius: 13px;
   display: flex; align-items: center; justify-content: center;
-  margin-bottom: 10px; font-size: 26px;
+  font-size: 22px; flex-shrink: 0;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,0.03);
 }
 .badge-tulsi { background: linear-gradient(135deg, #d1fae5, #a7f3d0); }
 .badge-saffron { background: linear-gradient(135deg, #fef3c7, #fde68a); }
 .badge-indigo { background: linear-gradient(135deg, #e0e7ff, #c7d2fe); }
-.card-emoji { font-size: 26px; line-height: 1; }
-.card-label { font-weight: 800; color: var(--tulsi-dark); font-size: 15px; }
-.card-sub { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+.card-emoji { font-size: 22px; line-height: 1; }
+.card-label { grid-row: 1; grid-column: 2; font-weight: 800; color: var(--tulsi-dark); font-size: 15px; }
+.card-sub { grid-row: 2; grid-column: 2; font-size: 12px; color: var(--text-muted); font-weight: 500; }
 .card-arrow {
-  position: absolute; top: 16px; right: 16px; color: var(--text-muted); opacity: 0;
-  transition: opacity 0.18s ease, transform 0.18s ease; font-size: 15px;
+  grid-row: 1 / 3; grid-column: 3;
+  color: var(--text-muted); opacity: 0.45;
+  transition: opacity 0.15s ease, transform 0.15s ease; font-size: 16px;
 }
-.dashboard-card:hover .card-arrow { opacity: 0.6; transform: translateX(2px); }
+.dashboard-card:hover .card-arrow { opacity: 0.8; transform: translateX(3px); }
 
 /* ============ PANELS / TABLES ============ */
 .panel { background: var(--surface); border: 1px solid var(--sandstone); border-radius: var(--card-radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow); }
@@ -404,17 +415,5 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   .panel-row { flex-direction: column; align-items: stretch; }
 }
 
-/* ============ DARK MODE ============ */
-@media (prefers-color-scheme: dark) {
-  :root { --cream: #131d18; --surface: #1c2a23; --text-main: #eef2ee; --text-muted: #98a69d; --sandstone: #2f3d35; }
-  body { background: #0f1713; }
-  .modal-box { background: var(--surface); }
-  .badge-tulsi { background: linear-gradient(135deg, #064e3b, #065f46); }
-  .badge-saffron { background: linear-gradient(135deg, #451a03, #78350f); }
-  .badge-indigo { background: linear-gradient(135deg, #1e1b4b, #312e81); }
-  .call-card.row-saved { background: #06281f; }
-  .status-select.status-positive { background: #06281f; }
-  .status-select.status-negative { background: #2a1414; }
-  .send-btn { background: #0d2818; color: #86efac; border-color: #14532d; }
-  .tag-check:has(input:checked) { background: rgba(5,150,105,0.18); }
-}
+/* Portal is intentionally light-mode only, regardless of the device's system
+   theme — a prior dark-mode media query used to override the palette here. */

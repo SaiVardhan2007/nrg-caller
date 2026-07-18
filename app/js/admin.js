@@ -441,7 +441,7 @@ const ADMIN_TAG_OPTIONS = ["", "Don't Call", "Janata", "Call", "Core", "Assigned
 
 async function renderContactsTable(searchTerm = "") {
   const tbody = document.getElementById("contacts-table-body");
-  tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Loading contacts…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Loading contacts…</td></tr>`;
 
   let query = supabase.from("contacts").select("*").order("s_no", { ascending: true, nullsFirst: false });
   if (searchTerm) {
@@ -449,11 +449,11 @@ async function renderContactsTable(searchTerm = "") {
   }
   const { data, error } = await query.limit(500);
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Could not load contacts.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Could not load contacts.</td></tr>`;
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">No contacts found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="loading-row">No contacts found.</td></tr>`;
     return;
   }
 
@@ -469,9 +469,10 @@ async function renderContactsTable(searchTerm = "") {
   tbody.innerHTML = data.map((c, i) => `
     <tr data-id="${c.id}">
       <td data-label="S.No">${c.s_no ?? i + 1}</td>
+      <td data-label="Time Stamp">${c.created_at ? new Date(c.created_at).toLocaleString() : ""}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(c.name)}" /></td>
       <td data-label="Phone"><input class="inline-edit" data-field="mob_no" maxlength="10" value="${c.mob_no}" /></td>
-      <td data-label="W/S">
+      <td data-label="Profession">
         <select class="inline-edit" data-field="ws">
           ${WS_ADMIN_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
         </select>
@@ -679,8 +680,8 @@ function wireContactsSearch() {
 }
 
 const CONTACT_CSV_HEADERS = [
-  "S No", "Name", "Mob No", "W/S", "Sessions", "Calls", "Admin Tag",
-  "Core Cultivation", "Calling Purpose", "PG Name", "Profession", "Company Name", "Admin Remarks",
+  "S No", "Time Stamp", "Name", "Mob No", "Profession", "Sessions", "Calls", "Admin Tag",
+  "Core Cultivation", "Calling Purpose", "PG Name", "Company Name", "Admin Remarks",
 ];
 
 let contactsImportExportWired = false;
@@ -692,9 +693,10 @@ function wireContactsImportExport() {
     const rows = [CONTACT_CSV_HEADERS];
     lastContactsData.forEach((c, i) => {
       rows.push([
-        c.s_no ?? i + 1, c.name, c.mob_no, c.ws || "NA", c.sessions_count, lastCallCounts[c.mob_no] || 0,
+        c.s_no ?? i + 1, c.created_at ? new Date(c.created_at).toLocaleString() : "", c.name, c.mob_no,
+        c.ws || "NA", c.sessions_count, lastCallCounts[c.mob_no] || 0,
         c.admin_tag || "", c.core_cultivation || "", c.calling_purpose || "",
-        c.pg_name || "", c.profession || "", c.company_name || "", c.admin_remarks || "",
+        c.pg_name || "", c.company_name || "", c.admin_remarks || "",
       ]);
     });
     downloadCSV(`nrg-master-contact-${todayStamp()}.csv`, rows);
@@ -723,12 +725,11 @@ function wireContactsImportExport() {
       byMob.set(mob_no, {
         mob_no,
         name,
-        ws: WS_ADMIN_OPTIONS.includes(pickField(row, "W/S")) ? pickField(row, "W/S") : "NA",
+        ws: WS_ADMIN_OPTIONS.includes(pickField(row, "Profession", "W/S")) ? pickField(row, "Profession", "W/S") : "NA",
         admin_tag: pickField(row, "Admin Tag") || null,
         core_cultivation: pickField(row, "Core Cultivation") || null,
         calling_purpose: pickField(row, "Calling Purpose") || null,
         pg_name: pickField(row, "PG Name") || null,
-        profession: pickField(row, "Profession") || null,
         company_name: pickField(row, "Company Name") || null,
         admin_remarks: pickField(row, "Admin Remarks", "Admin Remakrs") || null,
       });
@@ -766,7 +767,6 @@ function openAddContactModal() {
   document.getElementById("add-contact-phone").disabled = false;
   document.getElementById("add-contact-name").value = "";
   document.getElementById("add-contact-pg").value = "";
-  document.getElementById("add-contact-profession").value = "";
   document.getElementById("add-contact-company").value = "";
   document.getElementById("add-contact-error").classList.add("hidden");
 
@@ -801,7 +801,6 @@ function wireAddContactModal() {
       mob_no: phone,
       name,
       pg_name: document.getElementById("add-contact-pg").value.trim() || null,
-      profession: document.getElementById("add-contact-profession").value.trim() || null,
       company_name: document.getElementById("add-contact-company").value.trim() || null,
       ws: document.getElementById("add-contact-ws").value,
       admin_tag: document.getElementById("add-contact-tag").value || null,
