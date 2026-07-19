@@ -62,6 +62,7 @@ function enterSection(id) {
 function wireNav() {
   document.querySelectorAll(".dashboard-card").forEach((card) => {
     card.addEventListener("click", () => {
+      if (card.classList.contains("disabled")) return;
       card.classList.add("clicked");
       dashboard.classList.add("leaving");
       setTimeout(() => {
@@ -107,6 +108,11 @@ function renderForRole(user) {
     showScreen("reception-section");
   } else {
     adminTabs.classList.add("hidden");
+    // Soft-launch: testing Reception first, so My Calls and Contact
+    // Collection are disabled for regular Users until that's confirmed
+    // working. Remove these two lines to re-enable both.
+    document.querySelector('.dashboard-card[data-target="caller-section"]').classList.add("disabled");
+    document.querySelector('.dashboard-card[data-target="collection-section"]').classList.add("disabled");
     goDashboard();
   }
 }

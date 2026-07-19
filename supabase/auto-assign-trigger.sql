@@ -21,7 +21,7 @@ begin
   if cur_event is null or cur_event = '' or new.calling_purpose is distinct from cur_event then
     return new;
   end if;
-  if new.admin_tag = 'Don''t Call' then
+  if new.admin_tag = 'Don''t Call' or new.admin_tag = 'Coordinator' then
     return new;
   end if;
 

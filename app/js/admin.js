@@ -197,8 +197,10 @@ function distributePool(pool, eligible, assignedCount, byName, eventCode) {
   return { rows, unassignedCount };
 }
 
-// contacts matching this event + optional tag filter, minus Don't Call —
-// the same pool rule used by Assign, Rebalance, and (in SQL) the continuous trigger.
+// contacts matching this event + optional tag filter, minus Don't Call and
+// Coordinator (coordinators are tracked in Master Contact for attendance, but
+// never callable) — the same pool rule used by Assign, Rebalance, and (in SQL)
+// the continuous trigger.
 async function fetchEventContactPool(eventCode, tagFilters) {
   let query = supabase
     .from("contacts")
@@ -210,6 +212,7 @@ async function fetchEventContactPool(eventCode, tagFilters) {
   if (error) throw error;
   const seenIds = new Set();
   return (data || []).filter((c) => {
+    if (c.admin_tag === "Coordinator") return false;
     if (seenIds.has(c.id)) return false;
     seenIds.add(c.id);
     return true;
@@ -530,7 +533,7 @@ export async function initContacts() {
 }
 
 const WS_ADMIN_OPTIONS = ["NA", "W", "S"];
-const ADMIN_TAG_OPTIONS = ["", "Don't Call", "Janata", "Call", "Core", "Assigned"];
+const ADMIN_TAG_OPTIONS = ["", "Don't Call", "Coordinator", "Janata", "Call", "Core", "Assigned"];
 
 async function renderContactsTable(searchTerm = "") {
   const tbody = document.getElementById("contacts-table-body");
