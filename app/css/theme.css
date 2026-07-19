@@ -141,6 +141,8 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 .cell-chip:hover { background: rgba(5,150,105,0.18); }
 .cell-chip:active { transform: scale(0.94); }
+.cell-chip.danger { background: rgba(220,38,38,0.09); color: #dc2626; }
+.cell-chip.danger:hover { background: rgba(220,38,38,0.18); }
 
 /* ============ APP SHELL ============ */
 .app-header {

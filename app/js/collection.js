@@ -57,6 +57,7 @@ export async function init(user) {
       pg_name: document.getElementById("collection-pg").value.trim() || null,
       profession: document.getElementById("collection-profession").value.trim() || null,
       company_name: document.getElementById("collection-company").value.trim() || null,
+      gender: document.getElementById("collection-gender").value || null,
       remarks: document.getElementById("collection-remarks").value.trim() || null,
       collected_by: currentUser.user_name,
     });

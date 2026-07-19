@@ -150,13 +150,13 @@
         <table class="data-table" id="contacts-table">
           <thead>
             <tr>
-              <th>S.No</th><th>Time Stamp</th><th>Name</th><th>Phone</th><th>Profession</th><th>Sessions</th><th>Calls</th>
+              <th>S.No</th><th>Time Stamp</th><th>Name</th><th>Phone</th><th>Profession</th><th>Gender</th><th>Sessions</th><th>Calls</th>
               <th>Admin Tag</th><th>Core Cultivation</th><th>Calling Purpose</th>
               <th>User Reviews</th><th>Admin Review</th>
             </tr>
           </thead>
           <tbody id="contacts-table-body">
-            <tr><td colspan="12" class="loading-row">Loading contacts…</td></tr>
+            <tr><td colspan="13" class="loading-row">Loading contacts…</td></tr>
           </tbody>
         </table>
       </div>
@@ -257,8 +257,8 @@
         <h3 class="section-title">Attendance in Range</h3>
         <div class="table-wrap">
           <table class="data-table">
-            <thead><tr><th>Time</th><th>Name</th><th>Phone</th><th>Marked By</th></tr></thead>
-            <tbody id="reception-analytics-attendance-body"><tr><td colspan="4" class="loading-row">Pick a range above.</td></tr></tbody>
+            <thead><tr><th>Time</th><th>Name</th><th>Phone</th><th>Marked By</th><th class="no-export"></th></tr></thead>
+            <tbody id="reception-analytics-attendance-body"><tr><td colspan="5" class="loading-row">Pick a range above.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -317,6 +317,9 @@
             <label class="field"><span>Profession</span>
               <select id="reception-new-ws"><option value="NA">NA</option><option value="W">W</option><option value="S">S</option></select>
             </label>
+            <label class="field"><span>Gender</span>
+              <select id="reception-new-gender"><option value="">— select —</option><option value="Male">Male</option><option value="Female">Female</option></select>
+            </label>
             <label class="field"><span>Event</span>
               <select id="reception-new-event"></select>
             </label>
@@ -360,6 +363,10 @@
           <label class="field">
             <span>Company Name</span>
             <input id="collection-company" type="text" />
+          </label>
+          <label class="field">
+            <span>Gender</span>
+            <select id="collection-gender"><option value="">— select —</option><option value="Male">Male</option><option value="Female">Female</option></select>
           </label>
           <label class="field">
             <span>Remarks</span>
@@ -418,6 +425,9 @@
     <label class="field"><span>Company / College Name</span><input id="add-contact-company" type="text" /></label>
     <label class="field"><span>Profession</span>
       <select id="add-contact-ws"><option value="NA">NA</option><option value="W">W</option><option value="S">S</option></select>
+    </label>
+    <label class="field"><span>Gender</span>
+      <select id="add-contact-gender"><option value="">— select —</option><option value="Male">Male</option><option value="Female">Female</option></select>
     </label>
     <label class="field"><span>Admin Tag</span>
       <select id="add-contact-tag">

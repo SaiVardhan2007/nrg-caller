@@ -134,6 +134,7 @@ export async function init(user) {
         pg_name: document.getElementById("reception-new-pg").value.trim() || null,
         company_name: document.getElementById("reception-new-company").value.trim() || null,
         ws: document.getElementById("reception-new-ws").value,
+        gender: document.getElementById("reception-new-gender").value || null,
         calling_purpose: document.getElementById("reception-new-event").value || null,
       })
       .select("id,name,mob_no,sessions_count")

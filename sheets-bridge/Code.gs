@@ -168,6 +168,7 @@ function syncMasterContactRow(sheet, row, e) {
     profession: String(cellVal(sheet, row, map, 'Profession') || '') || null,
     company_name: String(cellVal(sheet, row, map, 'Company Name') || '') || null,
     ws: String(cellVal(sheet, row, map, 'W/S') || 'NA').trim() || 'NA',
+    gender: String(cellVal(sheet, row, map, 'Gender') || '').trim() || null,
     admin_remarks: String(cellVal(sheet, row, map, 'Admin Remakrs') || '') || null,
     admin_tag: String(cellVal(sheet, row, map, 'Admin tag') || '') || null,
     core_cultivation: String(cellVal(sheet, row, map, 'Core Cultivation') || '') || null,
@@ -283,6 +284,7 @@ function mapContactToRow(r) {
     'Profession': r.profession || '',
     'Company Name': r.company_name || '',
     'W/S': r.ws || 'NA',
+    'Gender': r.gender || '',
     'No of Sessions': r.sessions_count === null || r.sessions_count === undefined ? 0 : r.sessions_count,
     'Admin Remakrs': r.admin_remarks || '',
     'Admin tag': r.admin_tag || '',
@@ -315,6 +317,7 @@ function mapCollectionToRow(r) {
     'PG Name': r.pg_name || '',
     'Profession': r.profession || '',
     'Company Name': r.company_name || '',
+    'Gender': r.gender || '',
     'collected by': r.collected_by,
     'remarks': r.remarks || '',
   };

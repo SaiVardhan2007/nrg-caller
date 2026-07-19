@@ -6,8 +6,10 @@ it requires clicking inside your own Google account.
 
 ## 1. Add two columns to your Sheet first
 
-- **Master Contact**: add a column named exactly **`W/S`** (any position after
-  Company Name is fine).
+- **Master Contact**: add columns named exactly **`W/S`** and **`Gender`**
+  (any position after Company Name is fine).
+- **Contact collection**: add a column named exactly **`Gender`** (any
+  position is fine).
 - **Calling Responce**: add two columns named exactly **`Caller Name`** and
   **`Event`** (at the end is fine).
 

@@ -68,9 +68,9 @@ export function downloadCSV(filename, rows) {
 // used for read-only/computed views where there's no separate underlying data array to export from.
 export function exportTableToCSV(table, filename) {
   const rows = [];
-  rows.push(Array.from(table.querySelectorAll("thead th")).map((th) => th.textContent.trim()));
+  rows.push(Array.from(table.querySelectorAll("thead th:not(.no-export)")).map((th) => th.textContent.trim()));
   table.querySelectorAll("tbody tr").forEach((tr) => {
-    rows.push(Array.from(tr.children).map((td) => {
+    rows.push(Array.from(tr.children).filter((td) => !td.classList.contains("no-export")).map((td) => {
       const field = td.querySelector("input, select");
       if (field) return field.value;
       return td.textContent.trim();

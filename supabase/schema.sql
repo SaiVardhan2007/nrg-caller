@@ -30,6 +30,7 @@ create table if not exists contacts (
   profession       text,
   company_name     text,
   ws               text check (ws in ('W','S','NA')),
+  gender           text check (gender in ('Male','Female')),
   sessions_count   int not null default 0,      -- auto-maintained by trigger
   admin_remarks    text,
   admin_tag        text,                        -- Don't Call / Janata / Call / Core / Assigned
@@ -38,6 +39,8 @@ create table if not exists contacts (
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
+
+alter table contacts add column if not exists gender text check (gender in ('Male','Female'));
 
 -- No sheet: live assignment state (erased & rebuilt when admin switches event)
 create table if not exists assignments (
@@ -93,10 +96,13 @@ create table if not exists contact_collection (
   pg_name      text,
   profession   text,
   company_name text,
+  gender       text check (gender in ('Male','Female')),
   collected_by text not null,
   remarks      text,
   promoted     boolean not null default false   -- true once moved to Master Contact
 );
+
+alter table contact_collection add column if not exists gender text check (gender in ('Male','Female'));
 
 -- Event codes (dropdown source)
 create table if not exists events (
@@ -135,6 +141,17 @@ end $$;
 drop trigger if exists trg_attendance_bump on session_attendance;
 create trigger trg_attendance_bump after insert on session_attendance
   for each row execute function bump_sessions_count();
+
+-- attendance delete -> contacts.sessions_count - 1 (undo a mistaken mark)
+create or replace function unbump_sessions_count() returns trigger language plpgsql as $$
+begin
+  update contacts set sessions_count = greatest(sessions_count - 1, 0) where mob_no = old.mob_no;
+  return old;
+end $$;
+
+drop trigger if exists trg_attendance_unbump on session_attendance;
+create trigger trg_attendance_unbump after delete on session_attendance
+  for each row execute function unbump_sessions_count();
 
 -- ============ ROW LEVEL SECURITY ============
 -- Internal team tool: anon key may read/write app tables.

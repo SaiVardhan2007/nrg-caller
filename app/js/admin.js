@@ -524,6 +524,7 @@ export async function initContacts() {
 }
 
 const WS_ADMIN_OPTIONS = ["NA", "W", "S"];
+const GENDER_ADMIN_OPTIONS = ["", "Male", "Female"];
 const ADMIN_TAG_OPTIONS = ["", "Don't Call", "Coordinator", "Janata", "Call", "Core", "Assigned"];
 
 async function renderContactsTable(searchTerm = "") {
@@ -540,7 +541,7 @@ async function renderContactsTable(searchTerm = "") {
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="12" class="loading-row">No contacts found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" class="loading-row">No contacts found.</td></tr>`;
     return;
   }
 
@@ -562,6 +563,11 @@ async function renderContactsTable(searchTerm = "") {
       <td data-label="Profession">
         <select class="inline-edit" data-field="ws">
           ${WS_ADMIN_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="Gender">
+        <select class="inline-edit" data-field="gender">
+          ${GENDER_ADMIN_OPTIONS.map((o) => `<option value="${o}" ${o === (c.gender || "") ? "selected" : ""}>${o || "—"}</option>`).join("")}
         </select>
       </td>
       <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.sessions_count}</button></td>
@@ -785,7 +791,7 @@ function wireContactsSearch() {
 }
 
 const CONTACT_CSV_HEADERS = [
-  "S No", "Time Stamp", "Name", "Mob No", "Profession", "Sessions", "Calls", "Admin Tag",
+  "S No", "Time Stamp", "Name", "Mob No", "Profession", "Gender", "Sessions", "Calls", "Admin Tag",
   "Core Cultivation", "Calling Purpose", "PG Name", "Company Name", "Admin Remarks",
 ];
 
@@ -799,7 +805,7 @@ function wireContactsImportExport() {
     lastContactsData.forEach((c, i) => {
       rows.push([
         c.s_no ?? i + 1, c.created_at ? new Date(c.created_at).toLocaleString() : "", c.name, c.mob_no,
-        c.ws || "NA", c.sessions_count, lastCallCounts[c.mob_no] || 0,
+        c.ws || "NA", c.gender || "", c.sessions_count, lastCallCounts[c.mob_no] || 0,
         c.admin_tag || "", c.core_cultivation || "", c.calling_purpose || "",
         c.pg_name || "", c.company_name || "", c.admin_remarks || "",
       ]);
@@ -831,6 +837,7 @@ function wireContactsImportExport() {
         mob_no,
         name,
         ws: WS_ADMIN_OPTIONS.includes(pickField(row, "Profession", "W/S")) ? pickField(row, "Profession", "W/S") : "NA",
+        gender: ["Male", "Female"].includes(pickField(row, "Gender")) ? pickField(row, "Gender") : null,
         admin_tag: pickField(row, "Admin Tag") || null,
         core_cultivation: pickField(row, "Core Cultivation") || null,
         calling_purpose: pickField(row, "Calling Purpose") || null,
@@ -877,6 +884,7 @@ function openAddContactModal() {
 
   populateContactModalDropdowns().then(() => {
     document.getElementById("add-contact-ws").value = "NA";
+    document.getElementById("add-contact-gender").value = "";
     document.getElementById("add-contact-tag").value = "";
     document.getElementById("add-contact-cultivator").value = "";
     document.getElementById("add-contact-event").value = eventsCache[0]?.code || "";
@@ -908,6 +916,7 @@ function wireAddContactModal() {
       pg_name: document.getElementById("add-contact-pg").value.trim() || null,
       company_name: document.getElementById("add-contact-company").value.trim() || null,
       ws: document.getElementById("add-contact-ws").value,
+      gender: document.getElementById("add-contact-gender").value || null,
       admin_tag: document.getElementById("add-contact-tag").value || null,
       core_cultivation: document.getElementById("add-contact-cultivator").value || null,
       calling_purpose: document.getElementById("add-contact-event").value || null,
@@ -1210,7 +1219,7 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
   document.getElementById("reception-analytics-positive").textContent = positive;
 
   // attendance in the selected range
-  let attendanceQuery = supabase.from("session_attendance").select("ts,name,mob_no,took_by,event_code").order("ts", { ascending: false });
+  let attendanceQuery = supabase.from("session_attendance").select("id,ts,name,mob_no,took_by,event_code").order("ts", { ascending: false });
   if (fromTs) attendanceQuery = attendanceQuery.gte("ts", fromTs);
   if (toTs) attendanceQuery = attendanceQuery.lte("ts", toTs);
   if (eventCode) attendanceQuery = attendanceQuery.eq("event_code", eventCode);
@@ -1222,11 +1231,34 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
   const tbody = document.getElementById("reception-analytics-attendance-body");
   tbody.innerHTML = rows.length
     ? rows.map((r) => `
-        <tr>
+        <tr data-id="${r.id}">
           <td data-label="Time">${new Date(r.ts).toLocaleString()}</td>
           <td data-label="Name">${escapeHtml(r.name || "")}</td>
           <td data-label="Phone">${formatPhone(r.mob_no)}</td>
           <td data-label="Marked By">${escapeHtml(r.took_by)}</td>
+          <td class="no-export"><button class="cell-chip danger attendance-delete-btn" data-id="${r.id}" data-name="${escapeHtml(r.name || "")}">✕ Delete</button></td>
         </tr>`).join("")
-    : `<tr><td colspan="4" class="loading-row">No attendance marked in this range.</td></tr>`;
+    : `<tr><td colspan="5" class="loading-row">No attendance marked in this range.</td></tr>`;
+
+  tbody.querySelectorAll(".attendance-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm(`Delete this attendance record for ${btn.dataset.name || "this contact"}? This also reduces their session count by one.`)) return;
+      btn.disabled = true;
+      btn.textContent = "…";
+      const { error } = await supabase.from("session_attendance").delete().eq("id", btn.dataset.id);
+      if (error) {
+        showToast("Could not delete: " + error.message, "error");
+        btn.disabled = false;
+        btn.textContent = "✕ Delete";
+        return;
+      }
+      btn.closest("tr").remove();
+      const count = tbody.querySelectorAll("tr[data-id]").length;
+      document.getElementById("reception-analytics-attendance-count").textContent = count;
+      if (!count) {
+        tbody.innerHTML = `<tr><td colspan="5" class="loading-row">No attendance marked in this range.</td></tr>`;
+      }
+      showToast("Attendance record deleted", "success");
+    });
+  });
 }
