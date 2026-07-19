@@ -179,27 +179,19 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       await setSetting("current_event", eventCode);
       await setSetting("tag_filter", tagFilters.join(", "));
 
-      // 1. snapshot the outgoing round's per-user counts before wiping, so
-      // admin analytics can still answer "how many did X get assigned last
-      // time" for an event after it's no longer the active one.
-      const { data: outgoing } = await supabase.from("assignments").select("user_name,event_code");
-      if (outgoing && outgoing.length) {
-        const outgoingCounts = {};
-        outgoing.forEach((a) => {
-          const key = a.user_name + "|" + a.event_code;
-          outgoingCounts[key] = (outgoingCounts[key] || 0) + 1;
-        });
-        const roundRows = Object.entries(outgoingCounts).map(([key, count]) => {
-          const [user_name, event_code] = key.split("|");
-          return { user_name, event_code, assigned_count: count };
-        });
-        await supabase.from("assignment_rounds").insert(roundRows);
-      }
+      // 1. this event's existing assignments — never touched or wiped. They tell us
+      // (a) which contacts are already spoken for (skip them) and (b) each user's
+      // current load *for this event*, so caps and fairness account for contacts
+      // assigned earlier (by a previous click, or by the continuous auto-assign
+      // trigger) instead of starting every click from a blank slate.
+      const { data: existingForEvent, error: existingErr } = await supabase
+        .from("assignments")
+        .select("contact_id,user_name")
+        .eq("event_code", eventCode);
+      if (existingErr) throw existingErr;
+      const alreadyAssignedIds = new Set((existingForEvent || []).map((a) => a.contact_id));
 
-      // 2. wipe previous temporary assignments (event switch clears the board)
-      await supabase.from("assignments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-
-      // 3. fetch the pool for this event (minus Don't Call, optional tag filter)
+      // 2. fetch the pool for this event (minus Don't Call, optional tag filter)
       // admin_tag is nullable: a plain .neq() would silently drop untagged rows
       // (SQL NULL != 'x' is NULL, not true), so untagged contacts must be let through explicitly.
       let query = supabase
@@ -211,17 +203,18 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       const { data: rawPool, error: poolErr } = await query;
       if (poolErr) throw poolErr;
 
-      // defensive de-dup: never process the same contact twice in one run
-      // (e.g. if a future query change or a race with the auto-assign trigger
-      // ever surfaces the same id twice).
+      // defensive de-dup, and drop anything already assigned for this event —
+      // clicking Assign again should only ever pick up newly-added/newly-matching
+      // contacts, never reshuffle or duplicate what's already out with a caller.
       const seenIds = new Set();
       const pool = (rawPool || []).filter((c) => {
+        if (alreadyAssignedIds.has(c.id)) return false;
         if (seenIds.has(c.id)) return false;
         seenIds.add(c.id);
         return true;
       });
 
-      // 4. eligible users — re-fetch fresh, since usersCache can be stale if a
+      // 3. eligible users — re-fetch fresh, since usersCache can be stale if a
       // limit/auto-assign checkbox was toggled without a page reload since then.
       const { data: freshUsers, error: usersErr } = await supabase
         .from("users")
@@ -229,14 +222,19 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       if (usersErr) throw usersErr;
       usersCache = freshUsers || [];
       const eligible = usersCache.filter((u) => u.role === "User" && u.auto_assign);
+      // seed each user's count from their existing load for *this event* (not zero),
+      // so call_limit is a running cap across clicks, matching the SQL trigger's rule.
       const assignedCount = {};
       eligible.forEach((u) => { assignedCount[u.user_name] = 0; });
+      (existingForEvent || []).forEach((a) => {
+        if (a.user_name in assignedCount) assignedCount[a.user_name]++;
+      });
       const byName = Object.fromEntries(eligible.map((u) => [u.user_name, u]));
 
       const rows = [];
       const remaining = [];
 
-      // 4a. core-cultivated contacts go to their cultivator first (counts toward their limit)
+      // 3a. core-cultivated contacts go to their cultivator first (counts toward their limit)
       for (const c of pool) {
         if (c.core_cultivation && byName[c.core_cultivation]) {
           rows.push({ contact_id: c.id, user_name: c.core_cultivation, event_code: eventCode });
@@ -246,7 +244,7 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
         }
       }
 
-      // 4b. everyone else: give each contact to whichever eligible user
+      // 3b. everyone else: give each contact to whichever eligible user
       // currently has the fewest, skipping anyone already at their call
       // limit — a fair round-robin rather than maxing out limited users
       // first. This way call_limit acts as a ceiling, not a fill priority:
@@ -269,18 +267,22 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
         if (insErr) throw insErr;
       }
 
-      // assignments has no Sheets webhook of its own, so mirror each user's count
-      // onto their `users` row — that table already syncs to Admin Page on update.
+      // assignments has no Sheets webhook of its own, so mirror each user's total
+      // (across every event, not just this one) onto their `users` row — that
+      // table already syncs to the Sheet on update.
+      const { data: allAssignments } = await supabase.from("assignments").select("user_name");
+      const globalCounts = {};
+      (allAssignments || []).forEach((a) => { globalCounts[a.user_name] = (globalCounts[a.user_name] || 0) + 1; });
       await Promise.all(
         usersCache
           .filter((u) => u.role === "User")
           .map((u) =>
-            supabase.from("users").update({ assigned_count: assignedCount[u.user_name] || 0 }).eq("id", u.id)
+            supabase.from("users").update({ assigned_count: globalCounts[u.user_name] || 0 }).eq("id", u.id)
           )
       );
 
-      summary.textContent = `Assigned ${rows.length} contact(s) across ${eligible.length} caller(s).` +
-        (unassignedCount ? ` ${unassignedCount} left unassigned (no eligible unlimited user).` : "");
+      summary.textContent = `Assigned ${rows.length} new contact(s) across ${eligible.length} caller(s).` +
+        (unassignedCount ? ` ${unassignedCount} left unassigned (no eligible user under their limit).` : "");
       showToast("Contacts assigned successfully! 🎉", "success");
       await renderUsersTable();
     } catch (err) {
@@ -935,7 +937,10 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   document.getElementById("analytics-positive-calls").textContent = outcomeCounts.positive;
   document.getElementById("analytics-pending-calls").textContent = outcomeCounts.pending;
 
-  // by-event: assigned (live for current event, historical rounds otherwise) / called / left
+  // by-event: assigned / called / left. Assignments now persist across event
+  // switches (Assign Contacts is additive, never wipes), so "assigned" is just
+  // the live count for every event; assignment_rounds only still matters for
+  // events that were wiped by the old Assign behavior before that was fixed.
   // "called" is scoped to the same from/to range as the Calls Made card above,
   // so the count here always matches what the click-through popup shows.
   const eventsToShow = eventFilter ? eventsCache.filter((e) => e.code === eventFilter) : eventsCache;
@@ -962,7 +967,7 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
 
   const byEventBody = document.getElementById("analytics-by-event-body");
   const eventRows = eventsToShow.map((e) => {
-    const assigned = e.code === currentEventCode ? (liveCounts[e.code] || 0) : (roundTotals[e.code] || 0);
+    const assigned = (liveCounts[e.code] || 0) + (roundTotals[e.code] || 0);
     const called = callTotals[e.code] || 0;
     const left = Math.max(assigned - called, 0);
     return `
