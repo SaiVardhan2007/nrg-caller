@@ -76,11 +76,12 @@ create table if not exists call_responses (
 
 -- Sheet: Session Att
 create table if not exists session_attendance (
-  id      uuid primary key default gen_random_uuid(),
-  ts      timestamptz not null default now(),
-  mob_no  text not null,
-  name    text,
-  took_by text not null
+  id         uuid primary key default gen_random_uuid(),
+  ts         timestamptz not null default now(),
+  mob_no     text not null,
+  name       text,
+  took_by    text not null,
+  event_code text
 );
 
 -- Sheet: Contact collection

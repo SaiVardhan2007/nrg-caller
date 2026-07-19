@@ -38,30 +38,50 @@ function setup() {
 
 /**
  * Run this ONCE from the Apps Script editor after `setup()`. Installs a
- * time-based trigger that self-heals Master Contact every 5 minutes — a
+ * time-based trigger that self-heals every synced tab every minute — a
  * safety net for the per-row webhook below, which is fire-and-forget with no
- * retry: a bulk change (CSV import, or many rows edited/deleted at once in
- * Supabase directly) can fire more simultaneous webhook calls than Apps
- * Script's concurrency limit allows, silently dropping some. This also
- * removes rows for contacts deleted in Supabase, which the webhook can't do
- * (it only fires on insert/update, never delete).
+ * retry: two rows changing at nearly the same instant (e.g. a new contact
+ * registered in Reception inserts into `contacts` AND `session_attendance`
+ * within milliseconds) can fire more simultaneous webhook calls than Apps
+ * Script's concurrency limit allows, silently dropping one. This also
+ * removes Master Contact rows for contacts deleted in Supabase, which the
+ * webhook can't do (it only fires on insert/update, never delete).
+ *
+ * Note: Apps Script's time-based trigger service has no seconds-level
+ * option — `everyMinutes()` only accepts 1/5/10/15/30, so 1 minute is the
+ * fastest this backup trigger can run. Real-time changes still reach the
+ * Sheet within seconds via the doPost webhook below; this trigger only
+ * matters when a webhook call gets silently dropped.
  */
 function setupResyncTrigger() {
   ScriptApp.getProjectTriggers().forEach((t) => {
-    if (t.getHandlerFunction() === 'fullResyncMasterContact') ScriptApp.deleteTrigger(t);
+    if (t.getHandlerFunction() === 'fullResyncMasterContact' || t.getHandlerFunction() === 'fullResyncAll') {
+      ScriptApp.deleteTrigger(t);
+    }
   });
-  ScriptApp.newTrigger('fullResyncMasterContact')
+  ScriptApp.newTrigger('fullResyncAll')
     .timeBased()
-    .everyMinutes(5)
+    .everyMinutes(1)
     .create();
-  Logger.log('Full-resync time trigger installed (every 5 minutes).');
+  Logger.log('Full-resync time trigger installed (every 1 minute).');
 }
 
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('NRG Caller')
-    .addItem('Full Resync Master Contact (now)', 'fullResyncMasterContact')
+    .addItem('Full Resync All Sheets (now)', 'fullResyncAll')
     .addToUi();
+}
+
+// Resyncs Master Contact plus the three append-only log tabs from Supabase,
+// the source of truth for all of them. Safe to run anytime: every one of
+// these tabs is "app-managed only" per the setup doc, so clearing and
+// rewriting from Supabase never loses anything a human typed by hand.
+function fullResyncAll() {
+  fullResyncMasterContact();
+  fullResyncLogSheet('call_responses', SHEET_CALL_RESPONSES, mapCallResponseToRow, 'ts');
+  fullResyncLogSheet('session_attendance', SHEET_SESSION_ATT, mapAttendanceToRow, 'ts');
+  fullResyncLogSheet('contact_collection', SHEET_COLLECTION, mapCollectionToRow, 'ts');
 }
 
 /* ============ INBOUND: human edits this Sheet -> Supabase ============ */
@@ -284,7 +304,7 @@ function mapCallResponseToRow(r) {
 }
 
 function mapAttendanceToRow(r) {
-  return { 'Time stamp': r.ts, 'Mob No': r.mob_no, 'Name': r.name, 'took by': r.took_by };
+  return { 'Time stamp': r.ts, 'Mob No': r.mob_no, 'Name': r.name, 'took by': r.took_by, 'Event': r.event_code || '' };
 }
 
 function mapCollectionToRow(r) {
@@ -377,6 +397,52 @@ function fullResyncMasterContact() {
     const headers = Object.keys(map);
     const rows = records.map((r) => {
       const rowMap = mapContactToRow(r);
+      const arr = new Array(lastCol).fill('');
+      headers.forEach((h) => {
+        if (h in rowMap) arr[map[h] - 1] = rowMap[h];
+      });
+      return arr;
+    });
+    sheet.getRange(2, 1, rows.length, lastCol).setValues(rows);
+  });
+}
+
+// Shared by fullResyncAll() for the three append-only log tabs (Calling
+// Responce, Session Att, Contact collection): clears every data row and
+// rewrites it from the matching Supabase table, ordered oldest-first so the
+// Sheet reads the same as it always has (append order).
+function fullResyncLogSheet(table, sheetName, mapFn, orderCol) {
+  const cfg = getConfig();
+  if (!cfg.SUPABASE_URL || !cfg.SERVICE_KEY) {
+    Logger.log('Supabase credentials not set in Script Properties.');
+    return;
+  }
+  const resp = UrlFetchApp.fetch(
+    cfg.SUPABASE_URL + '/rest/v1/' + table + '?select=*&order=' + orderCol + '.asc',
+    {
+      method: 'get',
+      headers: { apikey: cfg.SERVICE_KEY, Authorization: 'Bearer ' + cfg.SERVICE_KEY },
+      muteHttpExceptions: true,
+    }
+  );
+  if (resp.getResponseCode() !== 200) {
+    Logger.log('Full resync fetch failed for ' + table + ': ' + resp.getContentText());
+    return;
+  }
+  const records = JSON.parse(resp.getContentText());
+
+  withLock(() => {
+    const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
+    if (!sheet) return;
+    const map = headerMap(sheet);
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
+    if (!records.length) return;
+
+    const headers = Object.keys(map);
+    const rows = records.map((r) => {
+      const rowMap = mapFn(r);
       const arr = new Array(lastCol).fill('');
       headers.forEach((h) => {
         if (h in rowMap) arr[map[h] - 1] = rowMap[h];

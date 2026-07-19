@@ -1210,25 +1210,14 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
   document.getElementById("reception-analytics-positive").textContent = positive;
 
   // attendance in the selected range
-  let attendanceQuery = supabase.from("session_attendance").select("ts,name,mob_no,took_by").order("ts", { ascending: false });
+  let attendanceQuery = supabase.from("session_attendance").select("ts,name,mob_no,took_by,event_code").order("ts", { ascending: false });
   if (fromTs) attendanceQuery = attendanceQuery.gte("ts", fromTs);
   if (toTs) attendanceQuery = attendanceQuery.lte("ts", toTs);
+  if (eventCode) attendanceQuery = attendanceQuery.eq("event_code", eventCode);
   const { data: attendance } = await attendanceQuery;
   if (isStale()) return;
 
-  let rows = attendance || [];
-  if (eventCode) {
-    // session_attendance has no event_code of its own, so cross-reference
-    // against contacts.calling_purpose to scope it to the chosen event.
-    const mobNos = [...new Set(rows.map((r) => r.mob_no))];
-    const { data: eventContacts } = mobNos.length
-      ? await supabase.from("contacts").select("mob_no").eq("calling_purpose", eventCode).in("mob_no", mobNos)
-      : { data: [] };
-    if (isStale()) return;
-    const eventMobSet = new Set((eventContacts || []).map((c) => c.mob_no));
-    rows = rows.filter((r) => eventMobSet.has(r.mob_no));
-  }
-
+  const rows = attendance || [];
   document.getElementById("reception-analytics-attendance-count").textContent = rows.length;
   const tbody = document.getElementById("reception-analytics-attendance-body");
   tbody.innerHTML = rows.length

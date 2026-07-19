@@ -79,11 +79,13 @@ export async function init(user) {
     btn.disabled = true;
     btn.textContent = "Marking…";
 
-    const sessionName = document.getElementById("reception-session-name").value.trim() || "General Session";
+    const eventCode = document.getElementById("reception-session-name").value.trim();
+    const sessionName = eventCode || "General Session";
     const { error } = await supabase.from("session_attendance").insert({
       mob_no: foundContact.mob_no,
       name: foundContact.name,
       took_by: currentUser.user_name,
+      event_code: eventCode || null,
     });
 
     marking = false;
@@ -148,11 +150,13 @@ export async function init(user) {
       return;
     }
 
-    const sessionName = document.getElementById("reception-session-name").value.trim() || "General Session";
+    const eventCode = document.getElementById("reception-new-event").value.trim();
+    const sessionName = eventCode || "General Session";
     const { error: attendErr } = await supabase.from("session_attendance").insert({
       mob_no: newContact.mob_no,
       name: newContact.name,
       took_by: currentUser.user_name,
+      event_code: eventCode || null,
     });
 
     saving = false;
