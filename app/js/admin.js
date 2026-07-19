@@ -168,25 +168,18 @@ async function renderUsersTable() {
   });
 }
 
-// fair-share core: core-cultivated contacts go to their cultivator first (if
-// eligible); everyone else goes to whichever eligible user currently has the
-// fewest, skipping anyone already at their call_limit. Ceiling, not fill
-// priority — e.g. 9 contacts across a 5-limit, a 4-limit, and an unlimited
-// user split 3/3/3, not 5/4/0. Mutates assignedCount as it goes.
-function distributePool(pool, eligible, assignedCount, byName, eventCode) {
-  const rows = [];
-  const remaining = [];
-  for (const c of pool) {
-    if (c.core_cultivation && byName[c.core_cultivation]) {
-      rows.push({ contact_id: c.id, user_name: c.core_cultivation, event_code: eventCode });
-      assignedCount[c.core_cultivation]++;
-    } else {
-      remaining.push(c);
-    }
-  }
+// fair-share core: every contact goes to whichever eligible user currently
+// has the fewest, skipping anyone already at their call_limit. Ceiling, not
+// fill priority — e.g. 9 contacts across a 5-limit, a 4-limit, and an
+// unlimited user split 3/3/3, not 5/4/0. Mutates assignedCount as it goes.
+// Core-cultivated contacts never reach this pool (see fetchEventContactPool)
+// — that link is admin-only, made by setting Core Cultivation in Master
+// Contact, never automatic.
+function distributePool(pool, eligible, assignedCount, eventCode) {
   const capOf = (u) => (u.call_limit == null ? Infinity : u.call_limit);
+  const rows = [];
   let unassignedCount = 0;
-  for (const c of remaining) {
+  for (const c of pool) {
     const candidates = eligible.filter((u) => assignedCount[u.user_name] < capOf(u));
     if (!candidates.length) { unassignedCount++; continue; }
     candidates.sort((a, b) => assignedCount[a.user_name] - assignedCount[b.user_name]);
@@ -197,10 +190,11 @@ function distributePool(pool, eligible, assignedCount, byName, eventCode) {
   return { rows, unassignedCount };
 }
 
-// contacts matching this event + optional tag filter, minus Don't Call and
+// contacts matching this event + optional tag filter, minus Don't Call,
 // Coordinator (coordinators are tracked in Master Contact for attendance, but
-// never callable) — the same pool rule used by Assign, Rebalance, and (in SQL)
-// the continuous trigger.
+// never callable), and anything with a Core Cultivation set (that link is
+// admin-only, never auto-assigned) — the same pool rule used by Assign,
+// Rebalance, and (in SQL) the continuous trigger.
 async function fetchEventContactPool(eventCode, tagFilters) {
   let query = supabase
     .from("contacts")
@@ -213,6 +207,7 @@ async function fetchEventContactPool(eventCode, tagFilters) {
   const seenIds = new Set();
   return (data || []).filter((c) => {
     if (c.admin_tag === "Coordinator") return false;
+    if (c.core_cultivation) return false;
     if (seenIds.has(c.id)) return false;
     seenIds.add(c.id);
     return true;
@@ -296,9 +291,7 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       (existingForEvent || []).forEach((a) => {
         if (a.user_name in assignedCount) assignedCount[a.user_name]++;
       });
-      const byName = Object.fromEntries(eligible.map((u) => [u.user_name, u]));
-
-      const { rows, unassignedCount } = distributePool(pool, eligible, assignedCount, byName, eventCode);
+      const { rows, unassignedCount } = distributePool(pool, eligible, assignedCount, eventCode);
       if (rows.length) {
         const { error: insErr } = await supabase.from("assignments").insert(rows);
         if (insErr) throw insErr;
@@ -364,9 +357,7 @@ function wireRebalanceButton(eventSelect, tagFilterGroup) {
       const assignedCount = {};
       eligible.forEach((u) => { assignedCount[u.user_name] = 0; });
       inProgress.forEach((a) => { if (a.user_name in assignedCount) assignedCount[a.user_name]++; });
-      const byName = Object.fromEntries(eligible.map((u) => [u.user_name, u]));
-
-      const { rows, unassignedCount } = distributePool(reshufflePool, eligible, assignedCount, byName, eventCode);
+      const { rows, unassignedCount } = distributePool(reshufflePool, eligible, assignedCount, eventCode);
       if (rows.length) {
         const { error: insErr } = await supabase.from("assignments").insert(rows);
         if (insErr) throw insErr;
@@ -623,6 +614,24 @@ async function renderContactsTable(searchTerm = "") {
         return;
       }
       contact[field] = value || null;
+
+      // Core Cultivation is never auto-assigned — setting it here *is* the
+      // manual assign action. Picking a user creates/moves the assignment to
+      // them; clearing it removes the assignment (their call disappears from
+      // that user's list, matching the cleared relationship).
+      if (field === "core_cultivation") {
+        if (value && contact.calling_purpose) {
+          const { error: assignErr } = await supabase
+            .from("assignments")
+            .upsert({ contact_id: id, user_name: value, event_code: contact.calling_purpose }, { onConflict: "contact_id,event_code" });
+          if (assignErr) showToast("Cultivation saved, but assigning failed: " + assignErr.message, "warning");
+        } else if (!value && contact.calling_purpose) {
+          await supabase.from("assignments").delete().eq("contact_id", id).eq("event_code", contact.calling_purpose);
+        } else if (value && !contact.calling_purpose) {
+          showToast("Cultivation saved, but this contact has no Calling Purpose to assign them for.", "warning");
+        }
+      }
+
       showToast("Saved", "success");
     });
   });

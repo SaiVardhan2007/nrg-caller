@@ -4,17 +4,17 @@
 -- matches the currently active event + tag filter, assign it right away
 -- instead of waiting for the next manual "Assign Contacts" click.
 --
--- Uses the same fair rule as the app's batch assign: core-cultivated
--- contacts go to their cultivator first (if eligible); otherwise the
--- contact goes to whichever eligible user currently has the fewest
--- assignments for this event, skipping anyone already at their call_limit.
+-- Core Cultivation is never touched by this trigger — that link is admin-only
+-- (set by choosing a Core Cultivation in Master Contact, which creates the
+-- assignment directly from the app). Otherwise the contact goes to whichever
+-- eligible user currently has the fewest assignments for this event, skipping
+-- anyone already at their call_limit.
 
 create or replace function auto_assign_new_contact() returns trigger language plpgsql as $$
 declare
   cur_event text;
   tag_filter_raw text;
   tag_list text[];
-  cultivator_ok boolean;
   target_user text;
 begin
   select value into cur_event from settings where key = 'current_event';
@@ -22,6 +22,9 @@ begin
     return new;
   end if;
   if new.admin_tag = 'Don''t Call' or new.admin_tag = 'Coordinator' then
+    return new;
+  end if;
+  if new.core_cultivation is not null then
     return new;
   end if;
 
@@ -36,17 +39,6 @@ begin
   -- already assigned for this event? nothing to do
   if exists (select 1 from assignments where contact_id = new.id and event_code = cur_event) then
     return new;
-  end if;
-
-  if new.core_cultivation is not null then
-    select true into cultivator_ok from users
-      where user_name = new.core_cultivation and role = 'User' and auto_assign = true
-      limit 1;
-    if cultivator_ok then
-      insert into assignments (contact_id, user_name, event_code) values (new.id, new.core_cultivation, cur_event)
-        on conflict (contact_id, event_code) do nothing;
-      return new;
-    end if;
   end if;
 
   select u.user_name into target_user
