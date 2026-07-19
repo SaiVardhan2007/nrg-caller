@@ -56,6 +56,7 @@ export async function initUsers() {
   tagFilterGroup.querySelectorAll("input").forEach((cb) => { cb.checked = savedTags.includes(cb.value); });
 
   wireAssignButton(eventSelect, tagFilterGroup);
+  wireRebalanceButton(eventSelect, tagFilterGroup);
   wireAddUserModal();
   wireAddEventModal();
   wireUsersImportExport();
@@ -167,6 +168,68 @@ async function renderUsersTable() {
   });
 }
 
+// fair-share core: core-cultivated contacts go to their cultivator first (if
+// eligible); everyone else goes to whichever eligible user currently has the
+// fewest, skipping anyone already at their call_limit. Ceiling, not fill
+// priority — e.g. 9 contacts across a 5-limit, a 4-limit, and an unlimited
+// user split 3/3/3, not 5/4/0. Mutates assignedCount as it goes.
+function distributePool(pool, eligible, assignedCount, byName, eventCode) {
+  const rows = [];
+  const remaining = [];
+  for (const c of pool) {
+    if (c.core_cultivation && byName[c.core_cultivation]) {
+      rows.push({ contact_id: c.id, user_name: c.core_cultivation, event_code: eventCode });
+      assignedCount[c.core_cultivation]++;
+    } else {
+      remaining.push(c);
+    }
+  }
+  const capOf = (u) => (u.call_limit == null ? Infinity : u.call_limit);
+  let unassignedCount = 0;
+  for (const c of remaining) {
+    const candidates = eligible.filter((u) => assignedCount[u.user_name] < capOf(u));
+    if (!candidates.length) { unassignedCount++; continue; }
+    candidates.sort((a, b) => assignedCount[a.user_name] - assignedCount[b.user_name]);
+    const pick = candidates[0];
+    rows.push({ contact_id: c.id, user_name: pick.user_name, event_code: eventCode });
+    assignedCount[pick.user_name]++;
+  }
+  return { rows, unassignedCount };
+}
+
+// contacts matching this event + optional tag filter, minus Don't Call —
+// the same pool rule used by Assign, Rebalance, and (in SQL) the continuous trigger.
+async function fetchEventContactPool(eventCode, tagFilters) {
+  let query = supabase
+    .from("contacts")
+    .select("id,core_cultivation,admin_tag")
+    .eq("calling_purpose", eventCode)
+    .or("admin_tag.is.null,admin_tag.neq.Don't Call");
+  if (tagFilters.length) query = query.in("admin_tag", tagFilters);
+  const { data, error } = await query;
+  if (error) throw error;
+  const seenIds = new Set();
+  return (data || []).filter((c) => {
+    if (seenIds.has(c.id)) return false;
+    seenIds.add(c.id);
+    return true;
+  });
+}
+
+// assignments has no Sheets webhook of its own, so mirror each user's total
+// (across every event, not just one) onto their `users` row — that table
+// already syncs to the Sheet on update.
+async function mirrorAssignedCounts(usersCache) {
+  const { data: allAssignments } = await supabase.from("assignments").select("user_name");
+  const globalCounts = {};
+  (allAssignments || []).forEach((a) => { globalCounts[a.user_name] = (globalCounts[a.user_name] || 0) + 1; });
+  await Promise.all(
+    usersCache
+      .filter((u) => u.role === "User")
+      .map((u) => supabase.from("users").update({ assigned_count: globalCounts[u.user_name] || 0 }).eq("id", u.id))
+  );
+}
+
 function wireAssignButton(eventSelect, tagFilterGroup) {
   const btn = document.getElementById("assign-btn");
   const summary = document.getElementById("assign-summary");
@@ -176,14 +239,36 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
     try {
       const eventCode = eventSelect.value;
       const tagFilters = getCheckedTags(tagFilterGroup);
+
+      // switching to a different event than whatever was last active clears the
+      // board (snapshotting outgoing counts first for historical analytics) —
+      // a deliberate reset, distinct from re-clicking Assign for the *same*
+      // event, which stays additive below and never touches existing rows.
+      const previousEvent = await getSetting("current_event");
+      if (previousEvent && previousEvent !== eventCode) {
+        const { data: outgoing } = await supabase.from("assignments").select("user_name,event_code");
+        if (outgoing && outgoing.length) {
+          const outgoingCounts = {};
+          outgoing.forEach((a) => {
+            const key = a.user_name + "|" + a.event_code;
+            outgoingCounts[key] = (outgoingCounts[key] || 0) + 1;
+          });
+          const roundRows = Object.entries(outgoingCounts).map(([key, count]) => {
+            const [user_name, event_code] = key.split("|");
+            return { user_name, event_code, assigned_count: count };
+          });
+          await supabase.from("assignment_rounds").insert(roundRows);
+        }
+        await supabase.from("assignments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      }
+
       await setSetting("current_event", eventCode);
       await setSetting("tag_filter", tagFilters.join(", "));
 
-      // 1. this event's existing assignments — never touched or wiped. They tell us
-      // (a) which contacts are already spoken for (skip them) and (b) each user's
-      // current load *for this event*, so caps and fairness account for contacts
-      // assigned earlier (by a previous click, or by the continuous auto-assign
-      // trigger) instead of starting every click from a blank slate.
+      // this event's existing assignments (empty right after a switch-reset
+      // above) tell us which contacts are already spoken for, and each user's
+      // current load for this event, so a repeat click for the same event only
+      // ever tops up — never reshuffles what's already out with a caller.
       const { data: existingForEvent, error: existingErr } = await supabase
         .from("assignments")
         .select("contact_id,user_name")
@@ -191,30 +276,9 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       if (existingErr) throw existingErr;
       const alreadyAssignedIds = new Set((existingForEvent || []).map((a) => a.contact_id));
 
-      // 2. fetch the pool for this event (minus Don't Call, optional tag filter)
-      // admin_tag is nullable: a plain .neq() would silently drop untagged rows
-      // (SQL NULL != 'x' is NULL, not true), so untagged contacts must be let through explicitly.
-      let query = supabase
-        .from("contacts")
-        .select("id,core_cultivation,admin_tag")
-        .eq("calling_purpose", eventCode)
-        .or("admin_tag.is.null,admin_tag.neq.Don't Call");
-      if (tagFilters.length) query = query.in("admin_tag", tagFilters);
-      const { data: rawPool, error: poolErr } = await query;
-      if (poolErr) throw poolErr;
+      const pool = (await fetchEventContactPool(eventCode, tagFilters)).filter((c) => !alreadyAssignedIds.has(c.id));
 
-      // defensive de-dup, and drop anything already assigned for this event —
-      // clicking Assign again should only ever pick up newly-added/newly-matching
-      // contacts, never reshuffle or duplicate what's already out with a caller.
-      const seenIds = new Set();
-      const pool = (rawPool || []).filter((c) => {
-        if (alreadyAssignedIds.has(c.id)) return false;
-        if (seenIds.has(c.id)) return false;
-        seenIds.add(c.id);
-        return true;
-      });
-
-      // 3. eligible users — re-fetch fresh, since usersCache can be stale if a
+      // eligible users — re-fetch fresh, since usersCache can be stale if a
       // limit/auto-assign checkbox was toggled without a page reload since then.
       const { data: freshUsers, error: usersErr } = await supabase
         .from("users")
@@ -231,55 +295,13 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       });
       const byName = Object.fromEntries(eligible.map((u) => [u.user_name, u]));
 
-      const rows = [];
-      const remaining = [];
-
-      // 3a. core-cultivated contacts go to their cultivator first (counts toward their limit)
-      for (const c of pool) {
-        if (c.core_cultivation && byName[c.core_cultivation]) {
-          rows.push({ contact_id: c.id, user_name: c.core_cultivation, event_code: eventCode });
-          assignedCount[c.core_cultivation]++;
-        } else {
-          remaining.push(c);
-        }
-      }
-
-      // 3b. everyone else: give each contact to whichever eligible user
-      // currently has the fewest, skipping anyone already at their call
-      // limit — a fair round-robin rather than maxing out limited users
-      // first. This way call_limit acts as a ceiling, not a fill priority:
-      // e.g. 9 contacts across a 5-limit, a 4-limit, and an unlimited user
-      // split 3/3/3, not 5/4/0 — and as more contacts arrive, the capped
-      // users stop at exactly 5 and 4 while the unlimited one absorbs the rest.
-      const capOf = (u) => (u.call_limit == null ? Infinity : u.call_limit);
-      let unassignedCount = 0;
-      for (const c of remaining) {
-        const candidates = eligible.filter((u) => assignedCount[u.user_name] < capOf(u));
-        if (!candidates.length) { unassignedCount++; continue; }
-        candidates.sort((a, b) => assignedCount[a.user_name] - assignedCount[b.user_name]);
-        const pick = candidates[0];
-        rows.push({ contact_id: c.id, user_name: pick.user_name, event_code: eventCode });
-        assignedCount[pick.user_name]++;
-      }
-
+      const { rows, unassignedCount } = distributePool(pool, eligible, assignedCount, byName, eventCode);
       if (rows.length) {
         const { error: insErr } = await supabase.from("assignments").insert(rows);
         if (insErr) throw insErr;
       }
 
-      // assignments has no Sheets webhook of its own, so mirror each user's total
-      // (across every event, not just this one) onto their `users` row — that
-      // table already syncs to the Sheet on update.
-      const { data: allAssignments } = await supabase.from("assignments").select("user_name");
-      const globalCounts = {};
-      (allAssignments || []).forEach((a) => { globalCounts[a.user_name] = (globalCounts[a.user_name] || 0) + 1; });
-      await Promise.all(
-        usersCache
-          .filter((u) => u.role === "User")
-          .map((u) =>
-            supabase.from("users").update({ assigned_count: globalCounts[u.user_name] || 0 }).eq("id", u.id)
-          )
-      );
+      await mirrorAssignedCounts(usersCache);
 
       summary.textContent = `Assigned ${rows.length} new contact(s) across ${eligible.length} caller(s).` +
         (unassignedCount ? ` ${unassignedCount} left unassigned (no eligible user under their limit).` : "");
@@ -290,6 +312,75 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
     } finally {
       btn.disabled = false;
       btn.textContent = "Assign Contacts";
+    }
+  };
+}
+
+function wireRebalanceButton(eventSelect, tagFilterGroup) {
+  const btn = document.getElementById("rebalance-btn");
+  const summary = document.getElementById("assign-summary");
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = "Rebalancing…";
+    try {
+      const eventCode = eventSelect.value;
+      const tagFilters = getCheckedTags(tagFilterGroup);
+
+      const eligiblePool = await fetchEventContactPool(eventCode, tagFilters);
+
+      const { data: existing, error: existingErr } = await supabase
+        .from("assignments")
+        .select("id,contact_id,user_name,status")
+        .eq("event_code", eventCode);
+      if (existingErr) throw existingErr;
+
+      // only ever touch contacts nobody has acted on yet — a caller's status
+      // (anything but the untouched default) means they've started or
+      // finished, so that contact stays exactly where it is.
+      const untouched = (existing || []).filter((a) => (a.status || "Not Done") === "Not Done");
+      const inProgress = (existing || []).filter((a) => (a.status || "Not Done") !== "Not Done");
+
+      if (untouched.length) {
+        const { error: delErr } = await supabase.from("assignments").delete().in("id", untouched.map((a) => a.id));
+        if (delErr) throw delErr;
+      }
+
+      // redistribute: every eligible contact except the ones left alone above
+      // (already-untouched assignments plus any not-yet-assigned contacts).
+      const inProgressIds = new Set(inProgress.map((a) => a.contact_id));
+      const reshufflePool = eligiblePool.filter((c) => !inProgressIds.has(c.id));
+
+      const { data: freshUsers, error: usersErr } = await supabase
+        .from("users")
+        .select("id,user_name,role,call_limit,auto_assign");
+      if (usersErr) throw usersErr;
+      usersCache = freshUsers || [];
+      const eligible = usersCache.filter((u) => u.role === "User" && u.auto_assign);
+      // seed from in-progress/completed load only — those still count toward
+      // the cap, but the freed-up untouched slots don't (they're up for grabs).
+      const assignedCount = {};
+      eligible.forEach((u) => { assignedCount[u.user_name] = 0; });
+      inProgress.forEach((a) => { if (a.user_name in assignedCount) assignedCount[a.user_name]++; });
+      const byName = Object.fromEntries(eligible.map((u) => [u.user_name, u]));
+
+      const { rows, unassignedCount } = distributePool(reshufflePool, eligible, assignedCount, byName, eventCode);
+      if (rows.length) {
+        const { error: insErr } = await supabase.from("assignments").insert(rows);
+        if (insErr) throw insErr;
+      }
+
+      await mirrorAssignedCounts(usersCache);
+
+      summary.textContent = `Rebalanced ${rows.length} not-yet-called contact(s) across ${eligible.length} caller(s). ` +
+        `${inProgress.length} already in-progress/completed left untouched.` +
+        (unassignedCount ? ` ${unassignedCount} left unassigned (no eligible user under their limit).` : "");
+      showToast("Rebalanced successfully! ⚖", "success");
+      await renderUsersTable();
+    } catch (err) {
+      showToast("Rebalance failed: " + err.message, "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "⚖ Rebalance Unfinished";
     }
   };
 }
@@ -937,10 +1028,8 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   document.getElementById("analytics-positive-calls").textContent = outcomeCounts.positive;
   document.getElementById("analytics-pending-calls").textContent = outcomeCounts.pending;
 
-  // by-event: assigned / called / left. Assignments now persist across event
-  // switches (Assign Contacts is additive, never wipes), so "assigned" is just
-  // the live count for every event; assignment_rounds only still matters for
-  // events that were wiped by the old Assign behavior before that was fixed.
+  // by-event: assigned (live for the current event, historical rounds otherwise —
+  // switching events snapshots the outgoing round then clears the board) / called / left.
   // "called" is scoped to the same from/to range as the Calls Made card above,
   // so the count here always matches what the click-through popup shows.
   const eventsToShow = eventFilter ? eventsCache.filter((e) => e.code === eventFilter) : eventsCache;
@@ -967,7 +1056,7 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
 
   const byEventBody = document.getElementById("analytics-by-event-body");
   const eventRows = eventsToShow.map((e) => {
-    const assigned = (liveCounts[e.code] || 0) + (roundTotals[e.code] || 0);
+    const assigned = e.code === currentEventCode ? (liveCounts[e.code] || 0) : (roundTotals[e.code] || 0);
     const called = callTotals[e.code] || 0;
     const left = Math.max(assigned - called, 0);
     return `
