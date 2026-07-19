@@ -309,7 +309,20 @@
         </div>
         <div id="reception-not-found" class="reception-not-found hidden">
           <p>No contact found with this number.</p>
-          <button id="reception-add-person-btn" class="btn btn-secondary">+ New Registration &amp; Attendance</button>
+          <button id="reception-add-person-btn" class="btn btn-secondary">+ Register New Person</button>
+          <form id="reception-new-contact-form" class="hidden">
+            <label class="field"><span>Name</span><input id="reception-new-name" type="text" required /></label>
+            <label class="field"><span>PG / Flat Name</span><input id="reception-new-pg" type="text" /></label>
+            <label class="field"><span>Company / College Name</span><input id="reception-new-company" type="text" /></label>
+            <label class="field"><span>Profession</span>
+              <select id="reception-new-ws"><option value="NA">NA</option><option value="W">W</option><option value="S">S</option></select>
+            </label>
+            <label class="field"><span>Event</span>
+              <select id="reception-new-event"></select>
+            </label>
+            <div id="reception-new-error" class="field-error hidden"></div>
+            <button id="reception-new-submit" type="submit" class="btn btn-primary btn-block">Save &amp; Mark Attendance</button>
+          </form>
         </div>
       </div>
       <div class="panel">

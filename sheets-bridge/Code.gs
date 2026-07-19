@@ -36,6 +36,34 @@ function setup() {
   Logger.log('Installable onEdit trigger installed.');
 }
 
+/**
+ * Run this ONCE from the Apps Script editor after `setup()`. Installs a
+ * time-based trigger that self-heals Master Contact every 5 minutes — a
+ * safety net for the per-row webhook below, which is fire-and-forget with no
+ * retry: a bulk change (CSV import, or many rows edited/deleted at once in
+ * Supabase directly) can fire more simultaneous webhook calls than Apps
+ * Script's concurrency limit allows, silently dropping some. This also
+ * removes rows for contacts deleted in Supabase, which the webhook can't do
+ * (it only fires on insert/update, never delete).
+ */
+function setupResyncTrigger() {
+  ScriptApp.getProjectTriggers().forEach((t) => {
+    if (t.getHandlerFunction() === 'fullResyncMasterContact') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('fullResyncMasterContact')
+    .timeBased()
+    .everyMinutes(5)
+    .create();
+  Logger.log('Full-resync time trigger installed (every 5 minutes).');
+}
+
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('NRG Caller')
+    .addItem('Full Resync Master Contact (now)', 'fullResyncMasterContact')
+    .addToUi();
+}
+
 /* ============ INBOUND: human edits this Sheet -> Supabase ============ */
 
 function onEditInstallable(e) {
@@ -307,6 +335,55 @@ function upsertSheetRow(sheetName, keyHeader, keyValue, valuesByHeader) {
       const col = map[header];
       if (col) sheet.getRange(targetRow, col).setValue(valuesByHeader[header]);
     });
+  });
+}
+
+// Replaces every data row in Master Contact with a fresh pull from Supabase —
+// the source of truth. Fixes both silently-dropped webhook rows (bulk ops)
+// and rows for contacts that were since deleted in Supabase (which the
+// per-row webhook never removes, since it only fires on insert/update).
+// Only touches the columns this sync manages (see mapContactToRow); any
+// other columns (S No, Action, Whatsapp Message, ...) are cleared and left
+// blank for the current dataset, same as they already are for every row.
+function fullResyncMasterContact() {
+  const cfg = getConfig();
+  if (!cfg.SUPABASE_URL || !cfg.SERVICE_KEY) {
+    Logger.log('Supabase credentials not set in Script Properties.');
+    return;
+  }
+  const resp = UrlFetchApp.fetch(
+    cfg.SUPABASE_URL + '/rest/v1/contacts?select=*&order=s_no.asc.nullslast,created_at.asc',
+    {
+      method: 'get',
+      headers: { apikey: cfg.SERVICE_KEY, Authorization: 'Bearer ' + cfg.SERVICE_KEY },
+      muteHttpExceptions: true,
+    }
+  );
+  if (resp.getResponseCode() !== 200) {
+    Logger.log('Full resync fetch failed: ' + resp.getContentText());
+    return;
+  }
+  const records = JSON.parse(resp.getContentText());
+
+  withLock(() => {
+    const sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_CONTACTS);
+    if (!sheet) return;
+    const map = headerMap(sheet);
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
+    if (!records.length) return;
+
+    const headers = Object.keys(map);
+    const rows = records.map((r) => {
+      const rowMap = mapContactToRow(r);
+      const arr = new Array(lastCol).fill('');
+      headers.forEach((h) => {
+        if (h in rowMap) arr[map[h] - 1] = rowMap[h];
+      });
+      return arr;
+    });
+    sheet.getRange(2, 1, rows.length, lastCol).setValues(rows);
   });
 }
 

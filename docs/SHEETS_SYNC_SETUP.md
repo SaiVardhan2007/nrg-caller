@@ -56,3 +56,23 @@ live immediately — no further steps needed.
 - The three log tabs (**Calling Responce**, **Session Att**, **Contact
   collection**) are filled by the app only — they're permanent logs, not
   meant for manual editing.
+
+## 6. Update: Master Contact self-heal (do this once)
+
+The per-row sync above is fire-and-forget with no retry, and it never removes
+rows for contacts deleted in Supabase. A bulk change (CSV import, or many rows
+changed/deleted directly in Supabase) can silently leave the Sheet out of sync.
+Two new pieces fix this — do these once:
+
+1. Re-paste the full updated [`sheets-bridge/Code.gs`](../sheets-bridge/Code.gs)
+   over what's in the Apps Script editor (it now includes `fullResyncMasterContact`,
+   `setupResyncTrigger`, and `onOpen`).
+2. In the function dropdown, select **`setupResyncTrigger`** and click **Run**
+   (authorize again if asked). This installs a trigger that rewrites Master
+   Contact from Supabase every 5 minutes, so it's always eventually correct
+   even if a webhook call gets dropped.
+3. **Deploy → Manage deployments → edit (pencil) → New version → Deploy.**
+   Existing deployments stay pinned to old code until you do this.
+4. Reload the Sheet — a new **NRG Caller** menu appears with **Full Resync
+   Master Contact (now)**, for whenever you want it to happen immediately
+   (e.g. right after a bulk import) instead of waiting up to 5 minutes.

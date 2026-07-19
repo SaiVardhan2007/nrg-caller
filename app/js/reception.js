@@ -3,6 +3,7 @@ import { formatPhone, debounce, showToast, timeHM, escapeHtml } from "./utils.js
 
 let currentUser = null;
 let foundContact = null;
+let searchedDigits = null;
 let wired = false;
 
 export async function init(user) {
@@ -16,6 +17,10 @@ export async function init(user) {
   const sessionSelect = document.getElementById("reception-session-name");
   sessionSelect.innerHTML = (events || []).map((e) => `<option value="${e.code}">${e.code}</option>`).join("");
   if (eventSetting?.value) sessionSelect.value = eventSetting.value;
+
+  const newEventSelect = document.getElementById("reception-new-event");
+  newEventSelect.innerHTML = (events || []).map((e) => `<option value="${e.code}">${e.code}</option>`).join("");
+  if (eventSetting?.value) newEventSelect.value = eventSetting.value;
 
   if (wired) return;
   wired = true;
@@ -39,6 +44,7 @@ export async function init(user) {
     loader.classList.add("hidden");
     if (error || !data) {
       foundContact = null;
+      searchedDigits = digits;
       notFoundEl.classList.remove("hidden");
       return;
     }
@@ -49,12 +55,19 @@ export async function init(user) {
     resultEl.classList.remove("hidden");
   }, 1500);
 
+  const newContactForm = document.getElementById("reception-new-contact-form");
+  const newContactError = document.getElementById("reception-new-error");
+
   searchInput.addEventListener("input", (e) => {
     const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
     e.target.value = digits;
     resultEl.classList.add("hidden");
     notFoundEl.classList.add("hidden");
+    newContactForm.classList.add("hidden");
+    newContactForm.reset();
+    newContactError.classList.add("hidden");
     foundContact = null;
+    searchedDigits = null;
     if (digits.length === 10) doSearch(digits);
   });
 
@@ -89,7 +102,76 @@ export async function init(user) {
   });
 
   document.getElementById("reception-add-person-btn").addEventListener("click", () => {
-    showToast("Use Contact Collection to register a brand-new person.", "warning");
+    newContactForm.classList.remove("hidden");
+    document.getElementById("reception-new-name").focus();
+  });
+
+  let saving = false;
+  newContactForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (saving || !searchedDigits) return;
+
+    const name = document.getElementById("reception-new-name").value.trim();
+    if (!name) {
+      newContactError.textContent = "Please enter a name.";
+      newContactError.classList.remove("hidden");
+      return;
+    }
+    newContactError.classList.add("hidden");
+
+    saving = true;
+    const submitBtn = document.getElementById("reception-new-submit");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Saving…";
+
+    const { data: newContact, error: insertErr } = await supabase
+      .from("contacts")
+      .insert({
+        mob_no: searchedDigits,
+        name,
+        pg_name: document.getElementById("reception-new-pg").value.trim() || null,
+        company_name: document.getElementById("reception-new-company").value.trim() || null,
+        ws: document.getElementById("reception-new-ws").value,
+        calling_purpose: document.getElementById("reception-new-event").value || null,
+      })
+      .select("id,name,mob_no,sessions_count")
+      .single();
+
+    if (insertErr) {
+      saving = false;
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Save & Mark Attendance";
+      newContactError.textContent = insertErr.message.includes("duplicate")
+        ? "This phone number is already registered."
+        : "Could not save. Try again.";
+      newContactError.classList.remove("hidden");
+      return;
+    }
+
+    const sessionName = document.getElementById("reception-session-name").value.trim() || "General Session";
+    const { error: attendErr } = await supabase.from("session_attendance").insert({
+      mob_no: newContact.mob_no,
+      name: newContact.name,
+      took_by: currentUser.user_name,
+    });
+
+    saving = false;
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Save & Mark Attendance";
+
+    if (attendErr) {
+      showToast("Contact registered, but attendance could not be marked. Try marking it again.", "warning");
+    } else {
+      showToast(`${newContact.name} registered and attendance marked 🙏`, "success");
+      addToTodayList({ name: newContact.name, mob_no: newContact.mob_no, ts: new Date().toISOString(), session: sessionName });
+    }
+
+    notFoundEl.classList.add("hidden");
+    newContactForm.classList.add("hidden");
+    newContactForm.reset();
+    searchInput.value = "";
+    foundContact = null;
+    searchedDigits = null;
   });
 }
 
