@@ -150,6 +150,20 @@ drop trigger if exists trg_calls_bump on call_responses;
 create trigger trg_calls_bump after insert on call_responses
   for each row execute function bump_calls_count();
 
+-- contact calling_purpose change -> delete old assignment
+create or replace function handle_contact_calling_purpose_change() returns trigger language plpgsql as $$
+begin
+  if old.calling_purpose is not null and old.calling_purpose is distinct from new.calling_purpose then
+    delete from assignments where contact_id = new.id and event_code = old.calling_purpose;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_contacts_calling_purpose_change on contacts;
+create trigger trg_contacts_calling_purpose_change
+  after update of calling_purpose on contacts
+  for each row execute function handle_contact_calling_purpose_change();
+
 -- ============ ROW LEVEL SECURITY ============
 -- Internal team tool: anon key may read/write app tables.
 -- (service_role bypasses RLS and is used only by the Sheets bridge.)
