@@ -207,7 +207,6 @@ async function fetchEventContactPool(eventCode, tagFilters) {
   const seenIds = new Set();
   return (data || []).filter((c) => {
     if (c.admin_tag_to_users === "Coordinator") return false;
-    if (c.core_cultivation) return false;
     if (seenIds.has(c.id)) return false;
     seenIds.add(c.id);
     return true;
@@ -305,7 +304,40 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       (existingForEvent || []).forEach((a) => {
         if (a.user_name in assignedCount) assignedCount[a.user_name]++;
       });
-      const { rows, unassignedCount } = distributePool(pool, eligible, assignedCount, eventCode);
+
+      // Separate contacts into cultivated and general pools
+      const generalPool = [];
+      const rows = [];
+      let unassignedCount = 0;
+      
+      const eligibleMap = {};
+      eligible.forEach((u) => { eligibleMap[u.user_name] = u; });
+
+      pool.forEach((c) => {
+        if (c.core_cultivation) {
+          // Assigned specifically to their permanent cultivator if they have auto_assign checked
+          if (c.core_cultivation in assignedCount) {
+            const cap = eligibleMap[c.core_cultivation].call_limit;
+            const currentLoad = assignedCount[c.core_cultivation];
+            if (currentLoad < (cap == null ? Infinity : cap)) {
+              rows.push({ contact_id: c.id, user_name: c.core_cultivation, event_code: eventCode });
+              assignedCount[c.core_cultivation]++;
+            } else {
+              unassignedCount++;
+            }
+          } else {
+            unassignedCount++;
+          }
+        } else {
+          generalPool.push(c);
+        }
+      });
+
+      // Distribute remaining uncultivated contacts fairly
+      const { rows: generalRows, unassignedCount: generalUnassigned } = distributePool(generalPool, eligible, assignedCount, eventCode);
+      rows.push(...generalRows);
+      unassignedCount += generalUnassigned;
+
       if (rows.length) {
         const { error: insErr } = await supabase.from("assignments").insert(rows);
         if (insErr) throw insErr;

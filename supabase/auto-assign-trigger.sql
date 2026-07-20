@@ -25,6 +25,16 @@ begin
     return new;
   end if;
   if new.core_cultivation is not null then
+    -- assign to specific cultivator if they are auto_assign active and under call limit
+    if exists (
+      select 1 from users u
+      left join (select user_name, count(*) as c from assignments where event_code = cur_event group by user_name) a on a.user_name = u.user_name
+      where u.user_name = new.core_cultivation and u.role = 'Coordinator' and u.auto_assign = true
+        and (u.call_limit is null or coalesce(a.c, 0) < u.call_limit)
+    ) then
+      insert into assignments (contact_id, user_name, event_code) values (new.id, new.core_cultivation, cur_event)
+        on conflict (contact_id, event_code) do nothing;
+    end if;
     return new;
   end if;
 
