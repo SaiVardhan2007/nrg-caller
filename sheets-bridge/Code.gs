@@ -157,28 +157,33 @@ function syncAdminPageRow(sheet, row) {
 
 function syncMasterContactRow(sheet, row, e) {
   const map = headerMap(sheet);
-  const mob = String(cellVal(sheet, row, map, 'Mob No') || '').replace(/\D/g, '');
+  const colPhone = map['Phone'] || map['Mob No'];
+  const mob = String(colPhone ? cellVal(sheet, row, map, colPhone) : '').replace(/\D/g, '');
   if (mob.length !== 10) return;
+
+  const colProf = map['Profession'] || map['W/S'];
+  const wsVal = colProf ? String(cellVal(sheet, row, map, colProf) || 'NA').trim() : 'NA';
+  const tagCol = map['Admin Tag'] || map['Admin tag'];
 
   const payload = {
     mob_no: mob,
     name: String(cellVal(sheet, row, map, 'Name') || '').trim(),
     pg_name: String(cellVal(sheet, row, map, 'PG Name') || '') || null,
-    profession: String(cellVal(sheet, row, map, 'Profession') || '') || null,
+    profession: null,
     company_name: String(cellVal(sheet, row, map, 'Company Name') || '') || null,
-    ws: String(cellVal(sheet, row, map, 'W/S') || 'NA').trim() || 'NA',
+    ws: ['W', 'S', 'NA'].includes(wsVal) ? wsVal : 'NA',
     gender: String(cellVal(sheet, row, map, 'Gender') || '').trim() || null,
     admin_remarks: String(cellVal(sheet, row, map, 'Admin Remarks') || '') || null,
-    admin_tag: String(cellVal(sheet, row, map, 'Admin tag') || '') || null,
+    admin_tag: tagCol ? String(cellVal(sheet, row, map, tagCol) || '') || null : null,
     core_cultivation: String(cellVal(sheet, row, map, 'Core Cultivation') || '') || null,
     calling_purpose: String(cellVal(sheet, row, map, 'Calling Purpose') || '') || null,
   };
 
-  // If this edit changed the Mob No cell itself, upserting under the new
+  // If this edit changed the Phone cell itself, upserting under the new
   // number would create a duplicate row instead of updating the existing
   // contact (mob_no is the match key). Use the edit event's oldValue to
   // find the existing row by its previous number and update it in place.
-  const editedMobNoCell = e && e.range.getColumn() === map['Mob No'];
+  const editedMobNoCell = e && colPhone && e.range.getColumn() === colPhone;
   const oldMob = editedMobNoCell && e.oldValue ? String(e.oldValue).replace(/\D/g, '') : '';
   if (oldMob.length === 10 && oldMob !== mob) {
     const cfg = getConfig();
@@ -253,7 +258,7 @@ function doPost(e) {
     if (table === 'users') {
       upsertSheetRow(SHEET_ADMIN, 'User Name', record.user_name, mapUserToRow(record));
     } else if (table === 'contacts') {
-      upsertSheetRow(SHEET_CONTACTS, 'Mob No', record.mob_no, mapContactToRow(record));
+      upsertSheetRow(SHEET_CONTACTS, 'Phone', record.mob_no, mapContactToRow(record));
     } else if (table === 'settings' && record.key === 'message_text') {
       SpreadsheetApp.getActive().getSheetByName(SHEET_BODY_TEXT).getRange(MESSAGE_CELL).setValue(record.value);
     } else if (table === 'settings' && (record.key === 'current_event' || record.key === 'tag_filter')) {
@@ -286,15 +291,15 @@ function mapContactToRow(r) {
     'S No': r.s_no === null || r.s_no === undefined ? '' : r.s_no,
     'Time Stamp': r.created_at ? new Date(r.created_at).toLocaleString() : '',
     'Name': r.name,
-    'Mob No': r.mob_no,
-    'W/S': r.ws || 'NA',
+    'Phone': r.mob_no,
+    'PG Name': r.pg_name || '',
+    'Profession': r.ws || 'NA',
     'Gender': r.gender || '',
-    'No of Sessions': r.sessions_count === null || r.sessions_count === undefined ? 0 : r.sessions_count,
+    'Sessions': r.sessions_count === null || r.sessions_count === undefined ? 0 : r.sessions_count,
     'Calls': r.calls_count === null || r.calls_count === undefined ? 0 : r.calls_count,
-    'Admin tag': r.admin_tag || '',
+    'Admin Tag': r.admin_tag || '',
     'Core Cultivation': r.core_cultivation || '',
     'Calling Purpose': r.calling_purpose || '',
-    'PG Name': r.pg_name || '',
     'Company Name': r.company_name || '',
     'Admin Remarks': r.admin_remarks || '',
   };
@@ -386,8 +391,8 @@ function fullResyncMasterContact() {
     if (!sheet) return;
 
     const headers = [
-      'S No', 'Time Stamp', 'Name', 'Mob No', 'W/S', 'Gender', 'No of Sessions', 'Calls',
-      'Admin tag', 'Core Cultivation', 'Calling Purpose', 'PG Name', 'Company Name', 'Admin Remarks'
+      'S No', 'Time Stamp', 'Name', 'Phone', 'PG Name', 'Profession', 'Gender', 'Sessions', 'Calls',
+      'Admin Tag', 'Core Cultivation', 'Calling Purpose', 'Company Name', 'Admin Remarks'
     ];
     const lastRow = sheet.getLastRow();
     const lastCol = sheet.getLastColumn();
@@ -501,12 +506,13 @@ function getNewContactsData() {
   const result = [];
 
   for (let i = 0; i < values.length; i++) {
-    const mobVal = values[i][map['Mob No'] - 1];
+    const colPhone = map['Phone'] || map['Mob No'];
+    const mobVal = colPhone ? values[i][colPhone - 1] : null;
     const mob = String(mobVal === undefined || mobVal === null ? '' : mobVal).replace(/\D/g, '');
     if (!mob || mob.length !== 10) continue; // skip empty or invalid phone number rows
 
-    const rawProfession = values[i][map['Profession'] - 1] || values[i][map['W/S'] - 1] || '';
-    const rawWs = values[i][map['W/S'] - 1] || values[i][map['Profession'] - 1] || '';
+    const colProf = map['Profession'] || map['W/S'];
+    const rawWs = colProf ? String(values[i][colProf - 1] || 'NA').trim() : 'NA';
     
     result.push({
       mob_no: mob,
@@ -527,7 +533,7 @@ function deleteNewContactsFromSheet(mobNos) {
   if (!sheet) return 0;
 
   const map = headerMap(sheet);
-  const col = map['Mob No'];
+  const col = map['Phone'] || map['Mob No'];
   if (!col) return 0;
 
   let deletedCount = 0;

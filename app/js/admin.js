@@ -515,6 +515,8 @@ let lastCallCounts = {};
 
 export async function initContacts() {
   await loadEvents();
+  const searchInput = document.getElementById("contacts-search");
+  if (searchInput) searchInput.value = "";
   await renderContactsTable();
   wireContactsSearch();
   wireAddContactModal();
@@ -529,7 +531,7 @@ const ADMIN_TAG_OPTIONS = ["", "Don't Call", "Coordinator", "Janata", "Call", "C
 
 async function renderContactsTable(searchTerm = "") {
   const tbody = document.getElementById("contacts-table-body");
-  tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Loading contacts…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="14" class="loading-row">Loading contacts…</td></tr>`;
 
   let query = supabase.from("contacts").select("*").order("s_no", { ascending: true, nullsFirst: false });
   if (searchTerm) {
@@ -537,11 +539,11 @@ async function renderContactsTable(searchTerm = "") {
   }
   const { data, error } = await query.limit(500);
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Could not load contacts.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14" class="loading-row">Could not load contacts.</td></tr>`;
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="13" class="loading-row">No contacts found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14" class="loading-row">No contacts found.</td></tr>`;
     return;
   }
 
@@ -557,6 +559,7 @@ async function renderContactsTable(searchTerm = "") {
       <td data-label="Time Stamp">${c.created_at ? new Date(c.created_at).toLocaleString() : ""}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(c.name)}" /></td>
       <td data-label="Phone"><input class="inline-edit" data-field="mob_no" maxlength="10" value="${c.mob_no}" /></td>
+      <td data-label="PG Name"><input class="inline-edit" data-field="pg_name" value="${escapeHtml(c.pg_name || "")}" /></td>
       <td data-label="Profession">
         <select class="inline-edit" data-field="ws">
           ${WS_ADMIN_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
@@ -781,15 +784,17 @@ function wireContactsSearch() {
   contactsSearchWired = true;
   const input = document.getElementById("contacts-search");
   let t;
-  input.addEventListener("input", () => {
+  const handleSearch = () => {
     clearTimeout(t);
     t = setTimeout(() => renderContactsTable(input.value.trim()), 300);
-  });
+  };
+  input.addEventListener("input", handleSearch);
+  input.addEventListener("search", handleSearch);
 }
 
 const CONTACT_CSV_HEADERS = [
-  "S No", "Time Stamp", "Name", "Mob No", "Profession", "Gender", "Sessions", "Calls", "Admin Tag",
-  "Core Cultivation", "Calling Purpose", "PG Name", "Company Name", "Admin Remarks",
+  "S No", "Time Stamp", "Name", "Phone", "PG Name", "Profession", "Gender", "Sessions", "Calls", "Admin Tag",
+  "Core Cultivation", "Calling Purpose", "Company Name", "Admin Remarks",
 ];
 
 let contactsImportExportWired = false;
@@ -802,9 +807,9 @@ function wireContactsImportExport() {
     lastContactsData.forEach((c, i) => {
       rows.push([
         c.s_no ?? i + 1, c.created_at ? new Date(c.created_at).toLocaleString() : "", c.name, c.mob_no,
-        c.ws || "NA", c.gender || "", c.sessions_count, lastCallCounts[c.mob_no] || 0,
+        c.pg_name || "", c.ws || "NA", c.gender || "", c.sessions_count, c.calls_count,
         c.admin_tag || "", c.core_cultivation || "", c.calling_purpose || "",
-        c.pg_name || "", c.company_name || "", c.admin_remarks || "",
+        c.company_name || "", c.admin_remarks || "",
       ]);
     });
     downloadCSV(`nrg-master-contact-${todayStamp()}.csv`, rows);
@@ -1393,9 +1398,10 @@ function renderNewContactsTable() {
       <tr data-index="${idx}">
         <td data-label="S.No">${idx + 1}</td>
         <td data-label="Time Stamp">—</td>
-        <td data-label="Name"><strong>${escapeHtml(c.name)}</strong></td>
-        <td data-label="Phone">${formatPhone(c.mob_no)}</td>
-        <td data-label="W/S">
+        <td data-label="Name"><input class="inline-edit new-contact-inline-edit" data-field="name" data-index="${idx}" value="${escapeHtml(c.name)}" /></td>
+        <td data-label="Phone"><input class="inline-edit new-contact-inline-edit" data-field="mob_no" data-index="${idx}" maxlength="10" value="${c.mob_no}" /></td>
+        <td data-label="PG Name"><input class="inline-edit new-contact-inline-edit" data-field="pg_name" data-index="${idx}" value="${escapeHtml(c.pg_name || "")}" /></td>
+        <td data-label="Profession">
           <select class="inline-edit new-contact-ws-select" data-index="${idx}">
             ${WS_ADMIN_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
           </select>
@@ -1424,9 +1430,8 @@ function renderNewContactsTable() {
             ${eventsCache.map((e) => `<option value="${e.code}" ${e.code === selectedEvent ? "selected" : ""}>${e.code}</option>`).join("")}
           </select>
         </td>
-        <td data-label="PG Name"><input class="inline-edit new-contact-inline-edit" data-field="pg_name" data-index="${idx}" value="${escapeHtml(c.pg_name || "")}" /></td>
-        <td data-label="Company Name"><input class="inline-edit new-contact-inline-edit" data-field="company_name" data-index="${idx}" value="${escapeHtml(c.company_name || "")}" /></td>
-        <td data-label="Admin Remarks"><input class="inline-edit new-contact-inline-edit" data-field="admin_remarks" data-index="${idx}" value="${escapeHtml(c.admin_remarks || "")}" /></td>
+        <td data-label="User Reviews"><button class="cell-chip" disabled>—</button></td>
+        <td data-label="Admin Review"><button class="cell-chip new-contact-review-btn" data-index="${idx}">${c.admin_remarks ? "✎ Edit" : "+ Add"}</button></td>
         <td data-label="Actions" class="no-export">
           <div class="row-actions" style="display:flex;gap:6px;justify-content:flex-end;">
             <button class="btn btn-primary new-contact-add-btn" data-index="${idx}" style="padding:4px 10px;font-size:12px;">Add</button>
@@ -1477,6 +1482,18 @@ function renderNewContactsTable() {
     select.addEventListener("change", (e) => {
       const idx = parseInt(e.target.dataset.index, 10);
       newContactsCache[idx].calling_purpose = e.target.value;
+    });
+  });
+
+  tbody.querySelectorAll(".new-contact-review-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const idx = parseInt(e.target.dataset.index, 10);
+      const contact = newContactsCache[idx];
+      const val = prompt(`Admin Remarks for ${contact.name}:`, contact.admin_remarks || "");
+      if (val !== null) {
+        newContactsCache[idx].admin_remarks = val.trim() || null;
+        btn.textContent = val.trim() ? "✎ Edit" : "+ Add";
+      }
     });
   });
 
