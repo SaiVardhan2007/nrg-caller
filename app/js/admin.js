@@ -235,29 +235,35 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
     btn.disabled = true;
     btn.textContent = "Assigning…";
     try {
+      // 1. Force blur active inputs to ensure changes are triggered
+      if (document.activeElement && (document.activeElement.classList.contains("limit-input") || document.activeElement.classList.contains("auto-assign-input"))) {
+        document.activeElement.blur();
+        // Wait 150ms for DB updates to complete
+        await new Promise((r) => setTimeout(r, 150));
+      }
+
       const eventCode = eventSelect.value;
       const tagFilters = getCheckedTags(tagFilterGroup);
 
-      // switching to a different event than whatever was last active clears the
-      // board (snapshotting outgoing counts first for historical analytics) —
-      // a deliberate reset, distinct from re-clicking Assign for the *same*
-      // event, which stays additive below and never touches existing rows.
-      const previousEvent = await getSetting("current_event");
-      if (previousEvent && previousEvent !== eventCode) {
-        const { data: outgoing } = await supabase.from("assignments").select("user_name,event_code");
-        if (outgoing && outgoing.length) {
-          const outgoingCounts = {};
-          outgoing.forEach((a) => {
-            const key = a.user_name + "|" + a.event_code;
-            outgoingCounts[key] = (outgoingCounts[key] || 0) + 1;
-          });
-          const roundRows = Object.entries(outgoingCounts).map(([key, count]) => {
-            const [user_name, event_code] = key.split("|");
-            return { user_name, event_code, assigned_count: count };
-          });
-          await supabase.from("assignment_rounds").insert(roundRows);
-        }
-        await supabase.from("assignments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      // 2. Archive and remove all assignments of OTHER events first.
+      // This ensures no user is assigned to more than one event simultaneously.
+      const { data: outgoing } = await supabase
+        .from("assignments")
+        .select("user_name,event_code")
+        .neq("event_code", eventCode);
+
+      if (outgoing && outgoing.length) {
+        const outgoingCounts = {};
+        outgoing.forEach((a) => {
+          const key = a.user_name + "|" + a.event_code;
+          outgoingCounts[key] = (outgoingCounts[key] || 0) + 1;
+        });
+        const roundRows = Object.entries(outgoingCounts).map(([key, count]) => {
+          const [user_name, event_code] = key.split("|");
+          return { user_name, event_code, assigned_count: count };
+        });
+        await supabase.from("assignment_rounds").insert(roundRows);
+        await supabase.from("assignments").delete().neq("event_code", eventCode);
       }
 
       await setSetting("current_event", eventCode);
@@ -276,14 +282,22 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
 
       const pool = (await fetchEventContactPool(eventCode, tagFilters)).filter((c) => !alreadyAssignedIds.has(c.id));
 
-      // eligible users — re-fetch fresh, since usersCache can be stale if a
-      // limit/auto-assign checkbox was toggled without a page reload since then.
-      const { data: freshUsers, error: usersErr } = await supabase
-        .from("users")
-        .select("id,user_name,role,call_limit,auto_assign");
-      if (usersErr) throw usersErr;
-      usersCache = freshUsers || [];
-      const eligible = usersCache.filter((u) => u.role === "Coordinator" && u.auto_assign);
+      // 3. Read the settings directly from the DOM to avoid race conditions with unsaved inputs
+      const eligible = [];
+      document.querySelectorAll("#users-table-body tr").forEach((row) => {
+        const uName = row.querySelector("td[data-label='User Name'] strong")?.textContent.trim();
+        const role = row.querySelector("td[data-label='Role']")?.textContent.trim();
+        const limitVal = row.querySelector(".limit-input")?.value;
+        const autoChecked = row.querySelector(".auto-assign-input")?.checked;
+        if (role === "Coordinator" && autoChecked) {
+          eligible.push({
+            user_name: uName,
+            role,
+            call_limit: limitVal === "" || limitVal === undefined ? null : parseInt(limitVal, 10)
+          });
+        }
+      });
+
       // seed each user's count from their existing load for *this event* (not zero),
       // so call_limit is a running cap across clicks, matching the SQL trigger's rule.
       const assignedCount = {};
@@ -297,7 +311,14 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
         if (insErr) throw insErr;
       }
 
-      await mirrorAssignedCounts(usersCache);
+      // Re-fetch users for cache count updates in database
+      const { data: freshUsers } = await supabase
+        .from("users")
+        .select("id,user_name,role,call_limit,auto_assign");
+      if (freshUsers) {
+        usersCache = freshUsers;
+        await mirrorAssignedCounts(usersCache);
+      }
 
       summary.textContent = `Assigned ${rows.length} new contact(s) across ${eligible.length} caller(s).` +
         (unassignedCount ? ` ${unassignedCount} left unassigned (no eligible user under their limit).` : "");
@@ -536,7 +557,7 @@ async function renderContactsTable(searchTerm = "") {
 
   let query = supabase.from("contacts").select("*").order("s_no", { ascending: true, nullsFirst: false });
   if (searchTerm) {
-    query = query.or(`name.ilike.%${searchTerm}%,mob_no.ilike.%${searchTerm}%`);
+    query = query.or(`(name.ilike.%${searchTerm}%,mob_no.ilike.%${searchTerm}%)`);
   }
   const { data, error } = await query.limit(500);
   if (error) {

@@ -272,13 +272,40 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   color: var(--text-main); font-family: inherit; transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-/* Compact Table Cells */
+/* Compact Table Cells & Headers */
 .data-table td[data-label="S.No"], .data-table th:nth-child(1) {
   width: 32px !important;
   max-width: 32px !important;
   text-align: center;
 }
-.data-table td[data-label="Sessions"], .data-table td[data-label="Calls"] {
+.data-table td[data-label="Time Stamp"], .data-table th:nth-child(2) {
+  width: 145px !important;
+  max-width: 145px !important;
+}
+.data-table td[data-label="Name"], .data-table th:nth-child(3) {
+  width: 130px !important;
+  max-width: 130px !important;
+}
+.data-table td[data-label="Phone"] input, .data-table th:nth-child(4) {
+  min-width: 85px !important;
+  width: 88px !important;
+}
+.data-table td[data-label="PG Name"], .data-table th:nth-child(5) {
+  width: 130px !important;
+  max-width: 130px !important;
+}
+.data-table td[data-label="Profession"] select, .data-table th:nth-child(6) {
+  min-width: 55px !important;
+  width: 55px !important;
+  padding: 4px 2px !important;
+}
+.data-table td[data-label="Gender"] select, .data-table th:nth-child(7) {
+  min-width: 75px !important;
+  width: 75px !important;
+  padding: 4px 2px !important;
+}
+.data-table td[data-label="Sessions"], .data-table th:nth-child(8),
+.data-table td[data-label="Calls"], .data-table th:nth-child(9) {
   width: 48px !important;
   text-align: center;
 }
@@ -286,27 +313,21 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   padding: 2px 6px !important;
   font-size: 12px !important;
 }
-.data-table td[data-label="Profession"] select {
-  min-width: 55px !important;
-  width: 55px !important;
-  padding: 4px 2px !important;
-}
-.data-table td[data-label="Gender"] select {
-  min-width: 75px !important;
-  width: 75px !important;
-  padding: 4px 2px !important;
-}
-.data-table td[data-label="Admin Tag to Users"] select {
+.data-table td[data-label="Admin Tag to Users"] select, .data-table th:nth-child(10) {
   min-width: 105px !important;
   width: 105px !important;
 }
-.data-table td[data-label="Admin Tag"] select {
+.data-table td[data-label="Admin Tag"] select, .data-table th:nth-child(11) {
   min-width: 85px !important;
   width: 85px !important;
 }
-.data-table td[data-label="Phone"] input {
-  min-width: 85px !important;
-  width: 88px !important;
+.data-table td[data-label="Core Cultivation"] select, .data-table th:nth-child(12) {
+  min-width: 100px !important;
+  width: 100px !important;
+}
+.data-table td[data-label="Calling Purpose"] select, .data-table th:nth-child(13) {
+  min-width: 100px !important;
+  width: 100px !important;
 }
 .inline-edit:hover { border-color: var(--sandstone); background: var(--surface); }
 .inline-edit:focus { outline: none; border-color: var(--tulsi); background: var(--surface); box-shadow: 0 0 0 3px rgba(5,150,105,0.12); }
