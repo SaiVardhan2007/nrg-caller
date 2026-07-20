@@ -116,7 +116,6 @@ export function parseCSV(text) {
     headers.forEach((h, i) => { obj[h] = (r[i] ?? "").trim(); });
     return obj;
   });
-  });
 }
 
 export function copyToClipboard(text, element) {
