@@ -257,19 +257,56 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .data-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--card-radius); overflow: hidden; }
 .data-table th {
   background: var(--tulsi-dark); color: #fff; text-align: left;
-  padding: 12px 14px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700;
+  padding: 8px 10px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 700;
 }
-.data-table td { padding: 12px 14px; border-bottom: 1px solid var(--sandstone); font-size: 14px; }
+.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--sandstone); font-size: 13px; }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tbody tr { transition: background 0.12s ease; }
 .data-table tbody tr:hover { background: rgba(5,150,105,0.04); }
 .clickable-row { cursor: pointer; }
 .clickable-row:hover { background: rgba(5,150,105,0.1) !important; }
-.data-table input[type="number"], .data-table select { padding: 7px 9px; font-size: 13px; }
+.data-table input[type="number"], .data-table select { padding: 4px 6px; font-size: 12.5px; }
 .inline-edit {
-  width: 100%; min-width: 90px; padding: 7px 9px; font-size: 13.5px;
+  width: 100%; min-width: 50px; padding: 5px 6px; font-size: 13px;
   border: 1.5px solid transparent; border-radius: 8px; background: transparent;
   color: var(--text-main); font-family: inherit; transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+/* Compact Table Cells */
+.data-table td[data-label="S.No"], .data-table th:nth-child(1) {
+  width: 32px !important;
+  max-width: 32px !important;
+  text-align: center;
+}
+.data-table td[data-label="Sessions"], .data-table td[data-label="Calls"] {
+  width: 48px !important;
+  text-align: center;
+}
+.data-table td[data-label="Sessions"] button, .data-table td[data-label="Calls"] button {
+  padding: 2px 6px !important;
+  font-size: 12px !important;
+}
+.data-table td[data-label="Profession"] select {
+  min-width: 55px !important;
+  width: 55px !important;
+  padding: 4px 2px !important;
+}
+.data-table td[data-label="Gender"] select {
+  min-width: 75px !important;
+  width: 75px !important;
+  padding: 4px 2px !important;
+}
+.data-table td[data-label="Admin Tag to Users"] select {
+  min-width: 105px !important;
+  width: 105px !important;
+}
+.data-table td[data-label="Admin Tag"] select {
+  min-width: 85px !important;
+  width: 85px !important;
+}
+.data-table td[data-label="Phone"] input {
+  min-width: 85px !important;
+  width: 88px !important;
 }
 .inline-edit:hover { border-color: var(--sandstone); background: var(--surface); }
 .inline-edit:focus { outline: none; border-color: var(--tulsi); background: var(--surface); box-shadow: 0 0 0 3px rgba(5,150,105,0.12); }
