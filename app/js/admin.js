@@ -660,18 +660,38 @@ async function renderContactsTable(searchTerm = "") {
     });
   });
 
+  // Mobile Click Details modal listener
+  tbody.querySelectorAll("tr").forEach((row) => {
+    row.addEventListener("click", (e) => {
+      if (window.innerWidth <= 640) {
+        const target = e.target;
+        if (target.tagName === "INPUT" || target.tagName === "SELECT" || target.closest("button") || target.closest(".info-link") || target.closest(".admin-review-link") || target.closest("td[data-label='Phone']")) {
+          return;
+        }
+        const inputMob = row.querySelector("input[data-field='mob_no']") || row.querySelector("td[data-label='Phone'] input");
+        const inputName = row.querySelector("input[data-field='name']") || row.querySelector("td[data-label='Name'] input");
+        const mob = inputMob ? inputMob.value : "";
+        const name = inputName ? inputName.value : "";
+        if (mob) {
+          openContactInfoModal("details", mob, name, false);
+        }
+      }
+    });
+  });
+
   lastContactsData = data;
   lastCallCounts = callCounts;
 }
 
 const INFO_MODAL_TITLES = { sessions: "Session Attendance", calls: "Calling History", reviews: "User Reviews" };
 
-async function openContactInfoModal(kind, mob, name) {
+async function openContactInfoModal(kind, mob, name, isNewContact = false) {
   const modal = document.getElementById("contact-info-modal");
-  document.getElementById("contact-info-title").textContent = INFO_MODAL_TITLES[kind];
+  document.getElementById("contact-info-title").textContent = INFO_MODAL_TITLES[kind] || "Contact Details";
   document.getElementById("contact-info-sub").textContent = `${name} · ${formatPhone(mob)}`;
   const thead = document.getElementById("contact-info-thead");
   const tbody = document.getElementById("contact-info-body");
+  const modalActions = modal.querySelector(".modal-actions");
   thead.innerHTML = "";
   tbody.innerHTML = `<tr><td class="loading-row">Loading…</td></tr>`;
   modal.classList.add("active");
@@ -705,7 +725,94 @@ async function openContactInfoModal(kind, mob, name) {
             <td data-label="Said">${escapeHtml(r.addl_remarks || r.remarks)}</td>
           </tr>`).join("")
       : `<tr><td colspan="2" class="loading-row">No reviews from users yet.</td></tr>`;
+  } else if (kind === "details") {
+    thead.innerHTML = `<tr><th>Field</th><th>Value</th></tr>`;
+    if (isNewContact) {
+      const contact = newContactsCache.find((c) => c.mob_no === mob);
+      if (!contact) {
+        tbody.innerHTML = `<tr><td colspan="2" class="loading-row">Contact details not found in cache.</td></tr>`;
+        return;
+      }
+      const fields = [
+        { name: "Name", value: escapeHtml(contact.name) },
+        { name: "Phone", value: formatPhone(contact.mob_no) },
+        { name: "PG Name", value: escapeHtml(contact.pg_name || "—") },
+        { name: "Profession (W/S)", value: escapeHtml(contact.ws || "—") },
+        { name: "Gender", value: escapeHtml(contact.gender || "—") },
+        { name: "Admin Tag to Users", value: escapeHtml(contact.admin_tag_to_users || "—") },
+        { name: "Admin Tag", value: escapeHtml(contact.admin_tag || "—") },
+        { name: "Core Cultivation", value: escapeHtml(contact.core_cultivation || "—") },
+        { name: "Calling Purpose", value: escapeHtml(contact.calling_purpose || "—") },
+        { name: "Admin Remarks", value: escapeHtml(contact.admin_remarks || "—") }
+      ];
+      tbody.innerHTML = fields.map(f => `
+        <tr>
+          <td data-label="Field" style="font-weight:700;color:var(--text-muted);text-transform:uppercase;font-size:11px;">${f.name}</td>
+          <td data-label="Value">${f.value}</td>
+        </tr>
+      `).join("");
+    } else {
+      const { data: contact } = await supabase.from("contacts").select("*").eq("mob_no", mob).maybeSingle();
+      if (!contact) {
+        tbody.innerHTML = `<tr><td colspan="2" class="loading-row">Contact details not found.</td></tr>`;
+        return;
+      }
+      const fields = [
+        { name: "Time Stamp", value: contact.created_at ? new Date(contact.created_at).toLocaleString() : "—" },
+        { name: "Name", value: escapeHtml(contact.name) },
+        { name: "Phone", value: formatPhone(contact.mob_no) },
+        { name: "PG Name", value: escapeHtml(contact.pg_name || "—") },
+        { name: "Profession (W/S)", value: escapeHtml(contact.ws || "—") },
+        { name: "Gender", value: escapeHtml(contact.gender || "—") },
+        { name: "Sessions", value: contact.sessions_count || 0 },
+        { name: "Calls", value: contact.calls_count || 0 },
+        { name: "Admin Tag to Users", value: escapeHtml(contact.admin_tag_to_users || "—") },
+        { name: "Admin Tag", value: escapeHtml(contact.admin_tag || "—") },
+        { name: "Core Cultivation", value: escapeHtml(contact.core_cultivation || "—") },
+        { name: "Calling Purpose", value: escapeHtml(contact.calling_purpose || "—") },
+        { name: "Admin Remarks", value: escapeHtml(contact.admin_remarks || "—") }
+      ];
+      tbody.innerHTML = fields.map(f => `
+        <tr>
+          <td data-label="Field" style="font-weight:700;color:var(--text-muted);text-transform:uppercase;font-size:11px;">${f.name}</td>
+          <td data-label="Value">${f.value}</td>
+        </tr>
+      `).join("");
+    }
   }
+
+  // Dynamic actions rendering to support mobile click operations
+  if (isNewContact && kind === "details") {
+    modalActions.innerHTML = `
+      <button id="contact-info-close" class="btn btn-secondary">Close</button>
+      <button class="btn btn-primary" id="modal-add-contact-btn">Add to Master</button>
+      <button class="btn btn-secondary" id="modal-del-contact-btn" style="color:var(--danger);border-color:var(--danger);">Delete</button>
+    `;
+    modalActions.querySelector("#modal-add-contact-btn").onclick = async () => {
+      modal.classList.remove("active");
+      const contact = newContactsCache.find(c => c.mob_no === mob);
+      if (contact) {
+        await promoteSingleContact(contact);
+      }
+    };
+    modalActions.querySelector("#modal-del-contact-btn").onclick = async () => {
+      if (!confirm(`Delete ${name}?`)) return;
+      modal.classList.remove("active");
+      const contact = newContactsCache.find(c => c.mob_no === mob);
+      if (contact) {
+        const ok = await deleteContactsFromSheetsCall([contact.mob_no]);
+        if (ok) {
+          showToast("Deleted from Sheets", "success");
+          await loadNewContacts(true);
+        } else {
+          showToast("Failed to delete from Sheets", "error");
+        }
+      }
+    };
+  } else {
+    modalActions.innerHTML = `<button id="contact-info-close" class="btn btn-secondary">Close</button>`;
+  }
+  modalActions.querySelector("#contact-info-close").onclick = () => modal.classList.remove("active");
 }
 
 let contactInfoModalWired = false;
@@ -1643,6 +1750,23 @@ function renderNewContactsTable() {
         showToast("Failed to delete from Sheets", "error");
         btn.disabled = false;
         btn.textContent = "Delete";
+      }
+    });
+  });
+
+  // Mobile Click Details modal listener for New Contacts
+  tbody.querySelectorAll("tr").forEach((row) => {
+    row.addEventListener("click", (e) => {
+      if (window.innerWidth <= 640) {
+        const target = e.target;
+        if (target.tagName === "INPUT" || target.tagName === "SELECT" || target.closest("button") || target.closest(".new-contact-review-btn") || target.closest("td[data-label='Phone']")) {
+          return;
+        }
+        const idx = parseInt(row.dataset.index, 10);
+        const contact = newContactsCache[idx];
+        if (contact) {
+          openContactInfoModal("details", contact.mob_no, contact.name, true);
+        }
       }
     });
   });

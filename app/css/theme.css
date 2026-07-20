@@ -521,6 +521,34 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     box-sizing: border-box;
     text-align: left;
   }
+
+  /* Filter columns in admin contact tables for ultra-clean mobile views */
+  #contacts-table td:not([data-label="S.No"]):not([data-label="Name"]):not([data-label="Phone"]):not([data-label="Calling Purpose"]),
+  #new-contacts-table td:not([data-label="S.No"]):not([data-label="Name"]):not([data-label="Phone"]):not([data-label="Calling Purpose"]) {
+    display: none !important;
+  }
+
+  /* Two rows layout structure: S.No (15%) + Name (83%) on Row 1; Phone (49%) + Calling Purpose (49%) on Row 2 */
+  #contacts-table td[data-label="S.No"], #new-contacts-table td[data-label="S.No"] {
+    width: 15% !important;
+  }
+  #contacts-table td[data-label="Name"], #new-contacts-table td[data-label="Name"] {
+    width: 83% !important;
+  }
+  #contacts-table td[data-label="Phone"], #new-contacts-table td[data-label="Phone"],
+  #contacts-table td[data-label="Calling Purpose"], #new-contacts-table td[data-label="Calling Purpose"] {
+    width: 49% !important;
+  }
+
+  /* Hover states for interactive mobile contact cards */
+  #contacts-table tbody tr, #new-contacts-table tbody tr {
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.15s ease;
+  }
+  #contacts-table tbody tr:hover, #new-contacts-table tbody tr:hover {
+    background-color: #f3f4f6;
+  }
+
   /* Full width for long columns */
   .data-table td[data-label="Name"],
   .data-table td[data-label="Time Stamp"],
