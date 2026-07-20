@@ -58,6 +58,7 @@
   <nav id="admin-tabs" class="admin-tabs hidden">
     <button class="admin-tab active" data-target="admin-users-section">Users &amp; Assignment</button>
     <button class="admin-tab" data-target="admin-contacts-section">Master Contact</button>
+    <button class="admin-tab" data-target="admin-new-contacts-section">New Contacts</button>
     <button class="admin-tab" data-target="admin-message-section">Message</button>
     <button class="admin-tab" data-target="admin-analytics-section">Analytics</button>
     <button class="admin-tab" data-target="admin-reception-analytics-section">Reception</button>
@@ -75,11 +76,6 @@
       <button class="dashboard-card" data-target="reception-section">
         <span class="card-icon-badge badge-saffron"><span class="card-emoji">🙏</span></span>
         <span class="card-label">Reception</span>
-        <span class="card-arrow">→</span>
-      </button>
-      <button class="dashboard-card" data-target="collection-section">
-        <span class="card-icon-badge badge-indigo"><span class="card-emoji">📇</span></span>
-        <span class="card-label">Contact Collection</span>
         <span class="card-arrow">→</span>
       </button>
     </div>
@@ -188,6 +184,7 @@
       </div>
 
       <div class="stats-bar">
+        <div class="stat stat-assigned"><span id="analytics-total-assigned" class="stat-num">0</span><span class="stat-label">Total Assigned</span></div>
         <div class="stat"><span id="analytics-total-calls" class="stat-num">0</span><span class="stat-label">Calls Made</span></div>
         <div class="stat stat-positive"><span id="analytics-positive-calls" class="stat-num">0</span><span class="stat-label">Positive</span></div>
         <div class="stat stat-pending"><span id="analytics-pending-calls" class="stat-num">0</span><span class="stat-label">Pending</span></div>
@@ -261,6 +258,44 @@
             <tbody id="reception-analytics-attendance-body"><tr><td colspan="5" class="loading-row">Pick a range above.</td></tr></tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <!-- ===== ADMIN: New Contacts ===== -->
+    <section id="admin-new-contacts-section" class="page hidden">
+      <div class="panel">
+        <div class="panel-row">
+          <button id="new-contacts-refresh-btn" class="btn btn-secondary">↻ Refresh Sheets Data</button>
+          <button id="new-contacts-add-all-btn" class="btn btn-primary">Add All to Master</button>
+        </div>
+        <p id="new-contacts-summary" class="muted-text">Connecting to Sheets…</p>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table" id="new-contacts-table">
+          <thead>
+            <tr>
+              <th>S.No</th>
+              <th>Time Stamp</th>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>W/S</th>
+              <th>Gender</th>
+              <th>Sessions</th>
+              <th>Calls</th>
+              <th>Admin Tag</th>
+              <th>Core Cultivation</th>
+              <th>Calling Purpose</th>
+              <th>PG Name</th>
+              <th>Company Name</th>
+              <th>Admin Remarks</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="new-contacts-table-body">
+            <tr><td colspan="15" class="loading-row">Connecting to Sheets…</td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
 
@@ -339,52 +374,52 @@
       </div>
     </section>
 
-    <!-- ===== CONTACT COLLECTION ===== -->
-    <section id="collection-section" class="page hidden">
-      <div class="panel">
-        <form id="collection-form" autocomplete="off">
-          <label class="field">
-            <span>Phone Number</span>
-            <input id="collection-phone" type="tel" inputmode="numeric" maxlength="10" required />
-          </label>
-          <div id="collection-duplicate" class="field-warning hidden"></div>
-          <label class="field">
-            <span>Name</span>
-            <input id="collection-name" type="text" required />
-          </label>
-          <label class="field">
-            <span>PG Name</span>
-            <input id="collection-pg" type="text" />
-          </label>
-          <label class="field">
-            <span>Profession</span>
-            <input id="collection-profession" type="text" />
-          </label>
-          <label class="field">
-            <span>Company Name</span>
-            <input id="collection-company" type="text" />
-          </label>
-          <label class="field">
-            <span>Gender</span>
-            <select id="collection-gender"><option value="">— select —</option><option value="Male">Male</option><option value="Female">Female</option></select>
-          </label>
-          <label class="field">
-            <span>Remarks</span>
-            <textarea id="collection-remarks" rows="2"></textarea>
-          </label>
-          <button id="collection-submit" type="submit" class="btn btn-primary btn-block">Save Contact</button>
-        </form>
-      </div>
-      <div class="panel">
-        <h3 class="section-title">Collected by you today</h3>
-        <div id="collection-list" class="cards-list"></div>
-      </div>
-    </section>
+
 
   </main>
 </div>
 
 <!-- ============ MODALS ============ -->
+<div id="duplicate-modal" class="modal">
+  <div class="modal-box modal-large">
+    <h3 id="duplicate-title">Duplicate Contact Found</h3>
+    <p id="duplicate-modal-subtitle" class="muted-text">A contact with this phone number already exists in Master. Decide how to proceed.</p>
+    
+    <div class="duplicate-comparison-container">
+      <div class="duplicate-column">
+        <h4>Existing Master Contact</h4>
+        <table class="comparison-table">
+          <tr><th>Name</th><td id="dup-exist-name">-</td></tr>
+          <tr><th>Phone</th><td id="dup-exist-phone">-</td></tr>
+          <tr><th>PG Name</th><td id="dup-exist-pg">-</td></tr>
+          <tr><th>Profession</th><td id="dup-exist-profession">-</td></tr>
+          <tr><th>Gender</th><td id="dup-exist-gender">-</td></tr>
+          <tr><th>Event</th><td id="dup-exist-event">-</td></tr>
+          <tr><th>Remarks</th><td id="dup-exist-remarks">-</td></tr>
+        </table>
+      </div>
+      <div class="duplicate-column">
+        <h4>New Incoming Contact</h4>
+        <table class="comparison-table">
+          <tr><th>Name</th><td id="dup-new-name">-</td></tr>
+          <tr><th>Phone</th><td id="dup-new-phone">-</td></tr>
+          <tr><th>PG Name</th><td id="dup-new-pg">-</td></tr>
+          <tr><th>Profession</th><td id="dup-new-profession">-</td></tr>
+          <tr><th>Gender</th><td id="dup-new-gender">-</td></tr>
+          <tr><th>Event</th><td id="dup-new-event">-</td></tr>
+          <tr><th>Remarks</th><td id="dup-new-remarks">-</td></tr>
+        </table>
+      </div>
+    </div>
+    
+    <div class="modal-actions">
+      <button id="dup-keep-existing-btn" class="btn btn-secondary">Keep Existing</button>
+      <button id="dup-overwrite-new-btn" class="btn btn-primary">Overwrite with New</button>
+      <button id="dup-cancel-btn" class="btn btn-secondary">Cancel/Skip</button>
+    </div>
+  </div>
+</div>
+
 <div id="add-event-modal" class="modal">
   <div class="modal-box">
     <h3>Add Event</h3>
@@ -404,7 +439,7 @@
     <label class="field"><span>User Name</span><input id="add-user-name" type="text" /></label>
     <label class="field"><span>Phone (Password)</span><input id="add-user-phone" type="tel" maxlength="10" /></label>
     <label class="field"><span>Role</span>
-      <select id="add-user-role"><option>User</option><option>Admin</option><option>Reception</option></select>
+      <select id="add-user-role"><option>Coordinator</option><option>Admin</option><option>Reception</option></select>
     </label>
     <label class="field"><span>Call Limit (blank = no limit)</span><input id="add-user-limit" type="number" min="0" /></label>
     <label class="field checkbox"><input id="add-user-auto" type="checkbox" checked /><span>Auto Assign</span></label>

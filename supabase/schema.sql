@@ -10,7 +10,7 @@ create table if not exists users (
   s_no        int,
   user_name   text not null unique,
   login_pw    text not null,
-  role        text not null default 'User' check (role in ('User','Admin','Reception')),
+  role        text not null default 'Coordinator' check (role in ('Coordinator','Admin','Reception')),
   call_limit  int,                          -- null = no limit
   auto_assign boolean not null default true,
   assigned_count int not null default 0,    -- mirrors "No of Call Assigned by Automation" in Sheets
@@ -32,6 +32,7 @@ create table if not exists contacts (
   ws               text check (ws in ('W','S','NA')),
   gender           text check (gender in ('Male','Female')),
   sessions_count   int not null default 0,      -- auto-maintained by trigger
+  calls_count      int not null default 0,      -- auto-maintained by trigger
   admin_remarks    text,
   admin_tag        text,                        -- Don't Call / Janata / Call / Core / Assigned
   core_cultivation text,                        -- user_name of permanent cultivator
@@ -87,22 +88,7 @@ create table if not exists session_attendance (
   event_code text
 );
 
--- Sheet: Contact collection
-create table if not exists contact_collection (
-  id           uuid primary key default gen_random_uuid(),
-  ts           timestamptz not null default now(),
-  mob_no       text not null check (mob_no ~ '^[0-9]{10}$'),
-  name         text not null,
-  pg_name      text,
-  profession   text,
-  company_name text,
-  gender       text check (gender in ('Male','Female')),
-  collected_by text not null,
-  remarks      text,
-  promoted     boolean not null default false   -- true once moved to Master Contact
-);
 
-alter table contact_collection add column if not exists gender text check (gender in ('Male','Female'));
 
 -- Event codes (dropdown source)
 create table if not exists events (
@@ -152,6 +138,17 @@ end $$;
 drop trigger if exists trg_attendance_unbump on session_attendance;
 create trigger trg_attendance_unbump after delete on session_attendance
   for each row execute function unbump_sessions_count();
+
+-- call response insert -> contacts.calls_count + 1
+create or replace function bump_calls_count() returns trigger language plpgsql as $$
+begin
+  update contacts set calls_count = calls_count + 1 where mob_no = new.mob_no;
+  return new;
+end $$;
+
+drop trigger if exists trg_calls_bump on call_responses;
+create trigger trg_calls_bump after insert on call_responses
+  for each row execute function bump_calls_count();
 
 -- ============ ROW LEVEL SECURITY ============
 -- Internal team tool: anon key may read/write app tables.
@@ -203,19 +200,19 @@ on conflict (key) do nothing;
 
 -- users from the Admin Page sheet
 insert into users (s_no, user_name, login_pw, role, auto_assign) values
-  (1,  'SNKD',        '1896',       'User',      false),
-  (2,  'Abhinay',     '6302017475', 'Admin',     false),
-  (3,  'Anil',        '9553223877', 'Reception', true),
-  (4,  'Arabinda',    '9090984782', 'User',      true),
-  (5,  'Aryan',       '7815958506', 'User',      true),
-  (6,  'Ashwith',     '9390676851', 'User',      true),
-  (7,  'Deepak',      '7487939125', 'User',      true),
-  (8,  'Dushmanth',   '8000292970', 'User',      true),
-  (9,  'Guruswami',   '9826996727', 'User',      true),
-  (10, 'Narendra',    '6300603869', 'User',      true),
-  (11, 'Sai Vardhan', '9390927165', 'User',      true),
-  (12, 'Shashwat',    '8052521146', 'User',      true),
-  (13, 'Snehith',     '9154689543', 'User',      true),
-  (14, 'Srinivas',    '9063384390', 'User',      false),
-  (15, 'Tej Vardhan', '9110737842', 'User',      true)
+  (1,  'SNKD',        '1896',       'Coordinator', false),
+  (2,  'Abhinay',     '6302017475', 'Admin',       false),
+  (3,  'Anil',        '9553223877', 'Reception',   true),
+  (4,  'Arabinda',    '9090984782', 'Coordinator', true),
+  (5,  'Aryan',       '7815958506', 'Coordinator', true),
+  (6,  'Ashwith',     '9390676851', 'Coordinator', true),
+  (7,  'Deepak',      '7487939125', 'Coordinator', true),
+  (8,  'Dushmanth',   '8000292970', 'Coordinator', true),
+  (9,  'Guruswami',   '9826996727', 'Coordinator', true),
+  (10, 'Narendra',    '6300603869', 'Coordinator', true),
+  (11, 'Sai Vardhan', '9390927165', 'Coordinator', true),
+  (12, 'Shashwat',    '8052521146', 'Coordinator', true),
+  (13, 'Snehith',     '9154689543', 'Coordinator', true),
+  (14, 'Srinivas',    '9063384390', 'Coordinator', false),
+  (15, 'Tej Vardhan', '9110737842', 'Coordinator', true)
 on conflict (user_name) do nothing;

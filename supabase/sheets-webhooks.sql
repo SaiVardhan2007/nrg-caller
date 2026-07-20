@@ -20,7 +20,8 @@ begin
   perform net.http_post(
     url := webhook_url,
     body := jsonb_build_object('table', TG_TABLE_NAME, 'record', row_to_json(new)),
-    headers := jsonb_build_object('Content-Type', 'application/json')
+    headers := jsonb_build_object('Content-Type', 'application/json'),
+    timeout_milliseconds := 25000
   );
   return coalesce(new, old);
 end $$;

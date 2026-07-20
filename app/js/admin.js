@@ -128,11 +128,11 @@ async function renderUsersTable() {
       <td data-label="User Name"><strong>${u.user_name}</strong></td>
       <td data-label="Role">${u.role}</td>
       <td data-label="Call Limit">
-        <input type="number" min="0" class="limit-input" value="${u.call_limit ?? ""}" placeholder="No limit" ${u.role !== "User" ? "disabled" : ""} />
+        <input type="number" min="0" class="limit-input" value="${u.call_limit ?? ""}" placeholder="No limit" ${u.role !== "Coordinator" ? "disabled" : ""} />
       </td>
       <td data-label="Assigned Count" class="assigned-count">${counts[u.user_name] || 0}</td>
       <td data-label="Auto Assign">
-        <input type="checkbox" class="auto-assign-input" ${u.auto_assign ? "checked" : ""} ${u.role !== "User" ? "disabled" : ""} />
+        <input type="checkbox" class="auto-assign-input" ${u.auto_assign ? "checked" : ""} ${u.role !== "Coordinator" ? "disabled" : ""} />
       </td>
       <td data-label="">
         <button class="btn btn-link delete-user-btn">Delete</button>
@@ -223,7 +223,7 @@ async function mirrorAssignedCounts(usersCache) {
   (allAssignments || []).forEach((a) => { globalCounts[a.user_name] = (globalCounts[a.user_name] || 0) + 1; });
   await Promise.all(
     usersCache
-      .filter((u) => u.role === "User")
+      .filter((u) => u.role === "Coordinator")
       .map((u) => supabase.from("users").update({ assigned_count: globalCounts[u.user_name] || 0 }).eq("id", u.id))
   );
 }
@@ -283,7 +283,7 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
         .select("id,user_name,role,call_limit,auto_assign");
       if (usersErr) throw usersErr;
       usersCache = freshUsers || [];
-      const eligible = usersCache.filter((u) => u.role === "User" && u.auto_assign);
+      const eligible = usersCache.filter((u) => u.role === "Coordinator" && u.auto_assign);
       // seed each user's count from their existing load for *this event* (not zero),
       // so call_limit is a running cap across clicks, matching the SQL trigger's rule.
       const assignedCount = {};
@@ -351,7 +351,7 @@ function wireRebalanceButton(eventSelect, tagFilterGroup) {
         .select("id,user_name,role,call_limit,auto_assign");
       if (usersErr) throw usersErr;
       usersCache = freshUsers || [];
-      const eligible = usersCache.filter((u) => u.role === "User" && u.auto_assign);
+      const eligible = usersCache.filter((u) => u.role === "Coordinator" && u.auto_assign);
       // seed from in-progress/completed load only — those still count toward
       // the cap, but the freed-up untouched slots don't (they're up for grabs).
       const assignedCount = {};
@@ -389,7 +389,7 @@ function wireAddUserModal() {
   openBtn.onclick = () => {
     document.getElementById("add-user-name").value = "";
     document.getElementById("add-user-phone").value = "";
-    document.getElementById("add-user-role").value = "User";
+    document.getElementById("add-user-role").value = "Coordinator";
     document.getElementById("add-user-limit").value = "";
     document.getElementById("add-user-auto").checked = true;
     errorEl.classList.add("hidden");
@@ -477,7 +477,7 @@ function wireUsersImportExport() {
       const login_pw = pickField(row, "Login PW", "Phone", "Password");
       if (!user_name || !login_pw) { skipped++; return; }
       const roleRaw = pickField(row, "Role", "User Status");
-      const role = ["Admin", "Reception"].includes(roleRaw) ? roleRaw : "User";
+      const role = ["Admin", "Reception"].includes(roleRaw) ? roleRaw : "Coordinator";
       const limitRaw = pickField(row, "Call Limit", "Call Limit By Admin");
       const limitParsed = limitRaw === "" ? null : parseInt(limitRaw, 10);
       const autoRaw = pickField(row, "Auto Assign", "Auto Assign Status");
@@ -546,13 +546,10 @@ async function renderContactsTable(searchTerm = "") {
   }
 
   const mobNos = data.map((c) => c.mob_no);
-  const [{ data: calls }, { data: userRows }] = await Promise.all([
-    supabase.from("call_responses").select("mob_no").in("mob_no", mobNos).limit(20000),
-    supabase.from("users").select("user_name").eq("role", "User").order("user_name"),
+  const [{ data: userRows }] = await Promise.all([
+    supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
     loadEvents(),
   ]);
-  const callCounts = {};
-  (calls || []).forEach((r) => { callCounts[r.mob_no] = (callCounts[r.mob_no] || 0) + 1; });
 
   tbody.innerHTML = data.map((c, i) => `
     <tr data-id="${c.id}">
@@ -571,7 +568,7 @@ async function renderContactsTable(searchTerm = "") {
         </select>
       </td>
       <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.sessions_count}</button></td>
-      <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${callCounts[c.mob_no] || 0}</button></td>
+      <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.calls_count}</button></td>
       <td data-label="Admin Tag">
         <select class="inline-edit" data-field="admin_tag">
           ${ADMIN_TAG_OPTIONS.map((t) => `<option value="${t}" ${t === (c.admin_tag || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
@@ -866,7 +863,7 @@ function wireContactsImportExport() {
 
 async function populateContactModalDropdowns() {
   const cultivatorSelect = document.getElementById("add-contact-cultivator");
-  const { data: users } = await supabase.from("users").select("user_name").eq("role", "User").order("user_name");
+  const { data: users } = await supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name");
   cultivatorSelect.innerHTML = `<option value="">— none —</option>` +
     (users || []).map((u) => `<option value="${u.user_name}">${u.user_name}</option>`).join("");
 
@@ -966,7 +963,7 @@ export async function initAnalytics() {
   const fromInput = document.getElementById("analytics-from");
   const toInput = document.getElementById("analytics-to");
 
-  const { data: users } = await supabase.from("users").select("user_name").eq("role", "User").order("user_name");
+  const { data: users } = await supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name");
   userSelect.innerHTML = `<option value="__ALL__">All Users (Combined)</option>` +
     (users || []).map((u) => `<option value="${u.user_name}">${u.user_name}</option>`).join("");
 
@@ -1074,6 +1071,13 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   (rounds || []).forEach((r) => { roundTotals[r.event_code] = (roundTotals[r.event_code] || 0) + r.assigned_count; });
   const callTotals = {};
   (rangedCalls || []).forEach((c) => { if (c.event_code) callTotals[c.event_code] = (callTotals[c.event_code] || 0) + 1; });
+
+  let totalAssigned = 0;
+  eventsToShow.forEach((e) => {
+    const assigned = e.code === currentEventCode ? (liveCounts[e.code] || 0) : (roundTotals[e.code] || 0);
+    totalAssigned += assigned;
+  });
+  document.getElementById("analytics-total-assigned").textContent = totalAssigned;
 
   const byEventBody = document.getElementById("analytics-by-event-body");
   const eventRows = eventsToShow.map((e) => {
@@ -1262,3 +1266,546 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
     });
   });
 }
+
+/* ======================= NEW CONTACTS & DUPLICATE RESOLUTION ======================= */
+
+let newContactsPollInterval = null;
+let sheetsWebhookUrl = "";
+let newContactsCache = [];
+let duplicateQueue = [];
+let currentDuplicateIndex = 0;
+let isResolvingDuplicates = false;
+let isFetchingNewContacts = false;
+let newContactsWired = false;
+
+export async function initNewContacts() {
+  stopNewContactsPolling(); // safety clean-up
+
+  const refreshBtn = document.getElementById("new-contacts-refresh-btn");
+  const addAllBtn = document.getElementById("new-contacts-add-all-btn");
+
+  if (!newContactsWired) {
+    newContactsWired = true;
+    refreshBtn.addEventListener("click", () => {
+      loadNewContacts(true);
+    });
+    addAllBtn.addEventListener("click", () => {
+      addAllNewContacts();
+    });
+
+    const modal = document.getElementById("duplicate-modal");
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        closeDuplicateModal();
+        isResolvingDuplicates = false;
+        initNewContacts(); // resume
+      }
+    });
+  }
+
+  const summaryEl = document.getElementById("new-contacts-summary");
+  summaryEl.textContent = "Connecting to Sheets...";
+
+  sheetsWebhookUrl = await getSetting("apps_script_webhook_url");
+  if (!sheetsWebhookUrl) {
+    summaryEl.textContent = "Error: Apps Script Webhook URL is not configured in Settings.";
+    document.getElementById("new-contacts-table-body").innerHTML =
+      `<tr><td colspan="7" class="loading-row">Please configure apps_script_webhook_url in DB settings first.</td></tr>`;
+    return;
+  }
+
+  await loadEvents();
+
+  // Load immediately
+  await loadNewContacts();
+
+  // Poll every 3 seconds
+  newContactsPollInterval = setInterval(() => {
+    loadNewContacts();
+  }, 3000);
+}
+
+export function stopNewContactsPolling() {
+  if (newContactsPollInterval) {
+    clearInterval(newContactsPollInterval);
+    newContactsPollInterval = null;
+  }
+}
+
+let newContactsCoordinators = [];
+
+async function loadNewContacts(forceShowLoading = false) {
+  if (isResolvingDuplicates) return;
+  if (isFetchingNewContacts) return;
+
+  const tbody = document.getElementById("new-contacts-table-body");
+  const summaryEl = document.getElementById("new-contacts-summary");
+
+  if (forceShowLoading || tbody.innerHTML.includes("Connecting")) {
+    tbody.innerHTML = `<tr><td colspan="15" class="loading-row">Loading new contacts from Sheets…</td></tr>`;
+  }
+
+  isFetchingNewContacts = true;
+  try {
+    const url = sheetsWebhookUrl + "?action=get_new_contacts";
+    const [response, { data: coordinators }] = await Promise.all([
+      fetch(url),
+      supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name")
+    ]);
+
+    if (!response.ok) throw new Error("HTTP error " + response.status);
+    const result = await response.json();
+
+    if (isResolvingDuplicates) return; // guard against overlaps
+
+    if (!result.ok) {
+      throw new Error(result.error || "Unknown Apps Script error");
+    }
+
+    newContactsCoordinators = coordinators || [];
+    newContactsCache = result.data || [];
+    renderNewContactsTable();
+  } catch (err) {
+    console.error("Failed to load new contacts:", err);
+    summaryEl.textContent = "Failed to sync: " + err.message;
+  } finally {
+    isFetchingNewContacts = false;
+  }
+}
+
+function renderNewContactsTable() {
+  const tbody = document.getElementById("new-contacts-table-body");
+  const summaryEl = document.getElementById("new-contacts-summary");
+
+  if (!newContactsCache.length) {
+    tbody.innerHTML = `<tr><td colspan="15" class="loading-row">No new contacts found in Google Sheets.</td></tr>`;
+    summaryEl.textContent = "Checked just now. All clear!";
+    return;
+  }
+
+  summaryEl.textContent = `Found ${newContactsCache.length} new contact(s) in Sheets.`;
+
+  const activeEvent = document.getElementById("event-select")?.value || "";
+
+  tbody.innerHTML = newContactsCache.map((c, idx) => {
+    const selectedEvent = c.calling_purpose || activeEvent;
+    return `
+      <tr data-index="${idx}">
+        <td data-label="S.No">${idx + 1}</td>
+        <td data-label="Time Stamp">—</td>
+        <td data-label="Name"><strong>${escapeHtml(c.name)}</strong></td>
+        <td data-label="Phone">${formatPhone(c.mob_no)}</td>
+        <td data-label="W/S">
+          <select class="inline-edit new-contact-ws-select" data-index="${idx}">
+            ${WS_ADMIN_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
+          </select>
+        </td>
+        <td data-label="Gender">
+          <select class="inline-edit new-contact-gender-select" data-index="${idx}">
+            ${GENDER_ADMIN_OPTIONS.map((o) => `<option value="${o}" ${o === (c.gender || "") ? "selected" : ""}>${o || "—"}</option>`).join("")}
+          </select>
+        </td>
+        <td data-label="Sessions">0</td>
+        <td data-label="Calls">0</td>
+        <td data-label="Admin Tag">
+          <select class="inline-edit new-contact-tag-select" data-index="${idx}">
+            ${ADMIN_TAG_OPTIONS.map((t) => `<option value="${t}" ${t === (c.admin_tag || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+          </select>
+        </td>
+        <td data-label="Core Cultivation">
+          <select class="inline-edit new-contact-cult-select" data-index="${idx}">
+            <option value="">—</option>
+            ${newContactsCoordinators.map((u) => `<option value="${u.user_name}" ${u.user_name === (c.core_cultivation || "") ? "selected" : ""}>${u.user_name}</option>`).join("")}
+          </select>
+        </td>
+        <td data-label="Calling Purpose">
+          <select class="inline-edit new-contact-event-select" data-index="${idx}">
+            <option value="">— select —</option>
+            ${eventsCache.map((e) => `<option value="${e.code}" ${e.code === selectedEvent ? "selected" : ""}>${e.code}</option>`).join("")}
+          </select>
+        </td>
+        <td data-label="PG Name"><input class="inline-edit new-contact-inline-edit" data-field="pg_name" data-index="${idx}" value="${escapeHtml(c.pg_name || "")}" /></td>
+        <td data-label="Company Name"><input class="inline-edit new-contact-inline-edit" data-field="company_name" data-index="${idx}" value="${escapeHtml(c.company_name || "")}" /></td>
+        <td data-label="Admin Remarks"><input class="inline-edit new-contact-inline-edit" data-field="admin_remarks" data-index="${idx}" value="${escapeHtml(c.admin_remarks || "")}" /></td>
+        <td data-label="Actions" class="no-export">
+          <div class="row-actions" style="display:flex;gap:6px;justify-content:flex-end;">
+            <button class="btn btn-primary new-contact-add-btn" data-index="${idx}" style="padding:4px 10px;font-size:12px;">Add</button>
+            <button class="btn btn-secondary new-contact-del-btn" data-index="${idx}" style="padding:4px 10px;font-size:12px;color:var(--danger);border-color:var(--danger);">Delete</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  tbody.querySelectorAll(".new-contact-ws-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      const idx = parseInt(e.target.dataset.index, 10);
+      newContactsCache[idx].ws = e.target.value;
+    });
+  });
+
+  tbody.querySelectorAll(".new-contact-gender-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      const idx = parseInt(e.target.dataset.index, 10);
+      newContactsCache[idx].gender = e.target.value || null;
+    });
+  });
+
+  tbody.querySelectorAll(".new-contact-tag-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      const idx = parseInt(e.target.dataset.index, 10);
+      newContactsCache[idx].admin_tag = e.target.value || null;
+    });
+  });
+
+  tbody.querySelectorAll(".new-contact-cult-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      const idx = parseInt(e.target.dataset.index, 10);
+      newContactsCache[idx].core_cultivation = e.target.value || null;
+    });
+  });
+
+  tbody.querySelectorAll(".new-contact-inline-edit").forEach((input) => {
+    input.addEventListener("change", (e) => {
+      const idx = parseInt(e.target.dataset.index, 10);
+      const field = e.target.dataset.field;
+      newContactsCache[idx][field] = e.target.value.trim() || null;
+    });
+  });
+
+  tbody.querySelectorAll(".new-contact-event-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      const idx = parseInt(e.target.dataset.index, 10);
+      newContactsCache[idx].calling_purpose = e.target.value;
+    });
+  });
+
+  tbody.querySelectorAll(".new-contact-add-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const idx = parseInt(e.target.dataset.index, 10);
+      const contact = newContactsCache[idx];
+
+      btn.disabled = true;
+      btn.textContent = "…";
+      await promoteSingleContact(contact);
+      btn.disabled = false;
+      btn.textContent = "Add";
+    });
+  });
+
+  tbody.querySelectorAll(".new-contact-del-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const idx = parseInt(e.target.dataset.index, 10);
+      const contact = newContactsCache[idx];
+      if (!confirm(`Delete ${contact.name} (${formatPhone(contact.mob_no)}) from New Contacts list?`)) return;
+
+      btn.disabled = true;
+      btn.textContent = "…";
+      const success = await deleteContactsFromSheetsCall([contact.mob_no]);
+      if (success) {
+        showToast("Contact deleted from Sheets", "success");
+        await loadNewContacts(true);
+      } else {
+        showToast("Failed to delete from Sheets", "error");
+        btn.disabled = false;
+        btn.textContent = "Delete";
+      }
+    });
+  });
+}
+
+async function deleteContactsFromSheetsCall(mobNos) {
+  if (!sheetsWebhookUrl) return false;
+  try {
+    const response = await fetch(sheetsWebhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain"
+      },
+      body: JSON.stringify({
+        action: "delete_new_contacts",
+        mob_nos: mobNos
+      })
+    });
+    return response.ok;
+  } catch (err) {
+    console.error("Failed to delete from sheets:", err);
+    return false;
+  }
+}
+
+async function promoteSingleContact(newContact) {
+  try {
+    const { data: existing, error } = await supabase
+      .from("contacts")
+      .select("*")
+      .eq("mob_no", newContact.mob_no)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (existing) {
+      isResolvingDuplicates = true;
+      stopNewContactsPolling();
+
+      openDuplicateModal(existing, newContact, false, async (decision) => {
+        closeDuplicateModal();
+        isResolvingDuplicates = false;
+
+        if (decision === "keep_existing") {
+          await deleteContactsFromSheetsCall([newContact.mob_no]);
+          showToast("Kept existing contact, deleted from Sheets", "success");
+          initNewContacts();
+        } else if (decision === "overwrite") {
+          const { error: updateErr } = await supabase
+            .from("contacts")
+            .update({
+              name: newContact.name,
+              pg_name: newContact.pg_name || null,
+              profession: newContact.profession || null,
+              company_name: newContact.company_name || null,
+              ws: newContact.ws || "NA",
+              gender: newContact.gender || null,
+              admin_tag: newContact.admin_tag || null,
+              core_cultivation: newContact.core_cultivation || null,
+              calling_purpose: newContact.calling_purpose || null,
+              admin_remarks: newContact.admin_remarks || null
+            })
+            .eq("mob_no", newContact.mob_no);
+
+          if (updateErr) throw updateErr;
+
+          await deleteContactsFromSheetsCall([newContact.mob_no]);
+          showToast("Updated existing contact with new details", "success");
+          initNewContacts();
+        } else {
+          initNewContacts();
+        }
+      });
+    } else {
+      const { error: insErr } = await supabase
+        .from("contacts")
+        .insert({
+          mob_no: newContact.mob_no,
+          name: newContact.name,
+          pg_name: newContact.pg_name || null,
+          profession: newContact.profession || null,
+          company_name: newContact.company_name || null,
+          ws: newContact.ws || "NA",
+          gender: newContact.gender || null,
+          admin_tag: newContact.admin_tag || null,
+          core_cultivation: newContact.core_cultivation || null,
+          calling_purpose: newContact.calling_purpose || null,
+          admin_remarks: newContact.admin_remarks || null
+        });
+
+      if (insErr) throw insErr;
+
+      await deleteContactsFromSheetsCall([newContact.mob_no]);
+      showToast(`${newContact.name} added to Master Contacts!`, "success");
+      await loadNewContacts(true);
+    }
+  } catch (err) {
+    showToast("Failed to add contact: " + err.message, "error");
+  }
+}
+
+function openDuplicateModal(existingContact, newContact, isBulk, resolveCallback) {
+  const modal = document.getElementById("duplicate-modal");
+
+  document.getElementById("dup-exist-name").textContent = existingContact.name || "—";
+  document.getElementById("dup-exist-phone").textContent = formatPhone(existingContact.mob_no) || "—";
+  document.getElementById("dup-exist-pg").textContent = existingContact.pg_name || "—";
+  document.getElementById("dup-exist-profession").textContent = (existingContact.profession || "") + (existingContact.ws ? ` (${existingContact.ws})` : "") || "—";
+  document.getElementById("dup-exist-gender").textContent = existingContact.gender || "—";
+  document.getElementById("dup-exist-event").textContent = existingContact.calling_purpose || "—";
+  document.getElementById("dup-exist-remarks").textContent = existingContact.admin_remarks || "—";
+
+  document.getElementById("dup-new-name").textContent = newContact.name || "—";
+  document.getElementById("dup-new-phone").textContent = formatPhone(newContact.mob_no) || "—";
+  document.getElementById("dup-new-pg").textContent = newContact.pg_name || "—";
+  document.getElementById("dup-new-profession").textContent = (newContact.profession || "") + (newContact.ws ? ` (${newContact.ws})` : "") || "—";
+  document.getElementById("dup-new-gender").textContent = newContact.gender || "—";
+  document.getElementById("dup-new-event").textContent = newContact.calling_purpose || "—";
+  document.getElementById("dup-new-remarks").textContent = newContact.remarks || "—";
+
+  if (isBulk) {
+    document.getElementById("duplicate-modal-subtitle").textContent =
+      `Resolving duplicate ${currentDuplicateIndex + 1} of ${duplicateQueue.length}. Match phone: ${formatPhone(newContact.mob_no)}`;
+  } else {
+    document.getElementById("duplicate-modal-subtitle").textContent =
+      `Conflict for phone number: ${formatPhone(newContact.mob_no)}`;
+  }
+
+  const keepBtn = document.getElementById("dup-keep-existing-btn");
+  const overwriteBtn = document.getElementById("dup-overwrite-new-btn");
+  const cancelBtn = document.getElementById("dup-cancel-btn");
+
+  keepBtn.disabled = false;
+  keepBtn.textContent = "Keep Existing";
+  overwriteBtn.disabled = false;
+  overwriteBtn.textContent = "Overwrite with New";
+  cancelBtn.disabled = false;
+  cancelBtn.textContent = isBulk ? "Skip" : "Cancel";
+
+  keepBtn.onclick = async () => {
+    keepBtn.disabled = true;
+    keepBtn.textContent = "Processing…";
+    await resolveCallback("keep_existing");
+  };
+
+  overwriteBtn.onclick = async () => {
+    overwriteBtn.disabled = true;
+    overwriteBtn.textContent = "Processing…";
+    await resolveCallback("overwrite");
+  };
+
+  cancelBtn.onclick = () => {
+    resolveCallback("cancel");
+  };
+
+  modal.classList.add("active");
+}
+
+function closeDuplicateModal() {
+  document.getElementById("duplicate-modal").classList.remove("active");
+}
+
+async function addAllNewContacts() {
+  const addAllBtn = document.getElementById("new-contacts-add-all-btn");
+  if (!newContactsCache.length) {
+    showToast("No new contacts to add.", "warning");
+    return;
+  }
+
+  addAllBtn.disabled = true;
+  addAllBtn.textContent = "Processing…";
+
+  try {
+    const mobNos = newContactsCache.map(c => c.mob_no);
+
+    const { data: existingList, error } = await supabase
+      .from("contacts")
+      .select("*")
+      .in("mob_no", mobNos);
+
+    if (error) throw error;
+
+    const existingMap = new Map();
+    (existingList || []).forEach(c => {
+      existingMap.set(c.mob_no, c);
+    });
+
+    const toInsert = [];
+    const duplicates = [];
+
+    newContactsCache.forEach(c => {
+      if (existingMap.has(c.mob_no)) {
+        duplicates.push({
+          newContact: c,
+          existingContact: existingMap.get(c.mob_no)
+        });
+      } else {
+        toInsert.push(c);
+      }
+    });
+
+    let insertedCount = 0;
+    if (toInsert.length) {
+      const payload = toInsert.map(c => ({
+        mob_no: c.mob_no,
+        name: c.name,
+        pg_name: c.pg_name || null,
+        company_name: c.company_name || null,
+        ws: c.ws || "NA",
+        gender: c.gender || null,
+        admin_tag: c.admin_tag || null,
+        core_cultivation: c.core_cultivation || null,
+        calling_purpose: c.calling_purpose || null,
+        admin_remarks: c.admin_remarks || null
+      }));
+
+      const { error: insErr } = await supabase.from("contacts").insert(payload);
+      if (insErr) throw insErr;
+
+      const toDeleteMobs = toInsert.map(c => c.mob_no);
+      await deleteContactsFromSheetsCall(toDeleteMobs);
+      insertedCount = toInsert.length;
+    }
+
+    if (duplicates.length) {
+      showToast(`Imported ${insertedCount} contacts. ${duplicates.length} duplicate conflicts found.`, "warning");
+
+      isResolvingDuplicates = true;
+      stopNewContactsPolling();
+
+      duplicateQueue = duplicates;
+      currentDuplicateIndex = 0;
+
+      runBulkDuplicateResolution();
+    } else {
+      showToast(`All ${insertedCount} contacts imported successfully! 🎉`, "success");
+      await loadNewContacts(true);
+    }
+  } catch (err) {
+    showToast("Failed during bulk import: " + err.message, "error");
+  } finally {
+    addAllBtn.disabled = false;
+    addAllBtn.textContent = "Add All to Master";
+  }
+}
+
+function runBulkDuplicateResolution() {
+  if (currentDuplicateIndex >= duplicateQueue.length) {
+    closeDuplicateModal();
+    isResolvingDuplicates = false;
+    showToast("Finished duplicate resolution!", "success");
+    initNewContacts();
+    return;
+  }
+
+  const dupItem = duplicateQueue[currentDuplicateIndex];
+  openDuplicateModal(dupItem.existingContact, dupItem.newContact, true, async (decision) => {
+    try {
+      if (decision === "keep_existing") {
+        await deleteContactsFromSheetsCall([dupItem.newContact.mob_no]);
+        currentDuplicateIndex++;
+        runBulkDuplicateResolution();
+      } else if (decision === "overwrite") {
+        const { error } = await supabase
+          .from("contacts")
+          .update({
+            name: dupItem.newContact.name,
+            pg_name: dupItem.newContact.pg_name || null,
+            profession: dupItem.newContact.profession || null,
+            company_name: dupItem.newContact.company_name || null,
+            ws: dupItem.newContact.ws || "NA",
+            gender: dupItem.newContact.gender || null,
+            admin_tag: dupItem.newContact.admin_tag || null,
+            core_cultivation: dupItem.newContact.core_cultivation || null,
+            calling_purpose: dupItem.newContact.calling_purpose || null,
+            admin_remarks: dupItem.newContact.admin_remarks || null
+          })
+          .eq("mob_no", dupItem.newContact.mob_no);
+
+        if (error) throw error;
+
+        await deleteContactsFromSheetsCall([dupItem.newContact.mob_no]);
+        currentDuplicateIndex++;
+        runBulkDuplicateResolution();
+      } else {
+        currentDuplicateIndex++;
+        runBulkDuplicateResolution();
+      }
+    } catch (err) {
+      showToast("Error resolving duplicate: " + err.message, "error");
+      const keepBtn = document.getElementById("dup-keep-existing-btn");
+      const overwriteBtn = document.getElementById("dup-overwrite-new-btn");
+      keepBtn.disabled = false;
+      keepBtn.textContent = "Keep Existing";
+      overwriteBtn.disabled = false;
+      overwriteBtn.textContent = "Overwrite with New";
+    }
+  });
+}
+

@@ -6,10 +6,10 @@
 
 const SHEET_ADMIN = 'Admin Page';
 const SHEET_CONTACTS = 'Master Contact';
+const SHEET_NEW_CONTACTS = 'New Contacts';
 const SHEET_BODY_TEXT = 'Body Text';
 const SHEET_CALL_RESPONSES = 'Calling Responce';
 const SHEET_SESSION_ATT = 'Session Att';
-const SHEET_COLLECTION = 'Contact collection';
 const MESSAGE_CELL = 'E3';
 
 function getConfig() {
@@ -81,7 +81,6 @@ function fullResyncAll() {
   fullResyncMasterContact();
   fullResyncLogSheet('call_responses', SHEET_CALL_RESPONSES, mapCallResponseToRow, 'ts');
   fullResyncLogSheet('session_attendance', SHEET_SESSION_ATT, mapAttendanceToRow, 'ts');
-  fullResyncLogSheet('contact_collection', SHEET_COLLECTION, mapCollectionToRow, 'ts');
 }
 
 /* ============ INBOUND: human edits this Sheet -> Supabase ============ */
@@ -142,8 +141,8 @@ function syncAdminPageRow(sheet, row) {
   const userName = String(cellVal(sheet, row, map, 'User Name') || '').trim();
   if (!userName) return;
 
-  const status = String(cellVal(sheet, row, map, 'User Status') || 'User').trim();
-  const role = (status === 'Admin' || status === 'Reception') ? status : 'User';
+  const status = String(cellVal(sheet, row, map, 'User Status') || 'Coordinator').trim();
+  const role = (status === 'Admin' || status === 'Reception') ? status : 'Coordinator';
   const limitRaw = cellVal(sheet, row, map, 'Call Limit By Admin');
   const auto = String(cellVal(sheet, row, map, 'Auto Assign Status') || '').trim().toLowerCase() === 'yes';
 
@@ -169,7 +168,7 @@ function syncMasterContactRow(sheet, row, e) {
     company_name: String(cellVal(sheet, row, map, 'Company Name') || '') || null,
     ws: String(cellVal(sheet, row, map, 'W/S') || 'NA').trim() || 'NA',
     gender: String(cellVal(sheet, row, map, 'Gender') || '').trim() || null,
-    admin_remarks: String(cellVal(sheet, row, map, 'Admin Remakrs') || '') || null,
+    admin_remarks: String(cellVal(sheet, row, map, 'Admin Remarks') || '') || null,
     admin_tag: String(cellVal(sheet, row, map, 'Admin tag') || '') || null,
     core_cultivation: String(cellVal(sheet, row, map, 'Core Cultivation') || '') || null,
     calling_purpose: String(cellVal(sheet, row, map, 'Calling Purpose') || '') || null,
@@ -240,6 +239,14 @@ function syncAdminGlobalSetting(key, value) {
 function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
+
+    if (body && body.action === 'delete_new_contacts') {
+      const mobNos = body.mob_nos;
+      const deletedCount = deleteNewContactsFromSheet(mobNos);
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, deleted: deletedCount }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     const table = body.table;
     const record = body.record;
 
@@ -255,8 +262,6 @@ function doPost(e) {
       appendSheetRow(SHEET_CALL_RESPONSES, mapCallResponseToRow(record));
     } else if (table === 'session_attendance') {
       appendSheetRow(SHEET_SESSION_ATT, mapAttendanceToRow(record));
-    } else if (table === 'contact_collection') {
-      appendSheetRow(SHEET_COLLECTION, mapCollectionToRow(record));
     }
 
     return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
@@ -278,18 +283,20 @@ function mapUserToRow(r) {
 
 function mapContactToRow(r) {
   return {
-    'Mob No': r.mob_no,
+    'S No': r.s_no === null || r.s_no === undefined ? '' : r.s_no,
+    'Time Stamp': r.created_at ? new Date(r.created_at).toLocaleString() : '',
     'Name': r.name,
-    'PG Name': r.pg_name || '',
-    'Profession': r.profession || '',
-    'Company Name': r.company_name || '',
+    'Mob No': r.mob_no,
     'W/S': r.ws || 'NA',
     'Gender': r.gender || '',
     'No of Sessions': r.sessions_count === null || r.sessions_count === undefined ? 0 : r.sessions_count,
-    'Admin Remakrs': r.admin_remarks || '',
+    'Calls': r.calls_count === null || r.calls_count === undefined ? 0 : r.calls_count,
     'Admin tag': r.admin_tag || '',
     'Core Cultivation': r.core_cultivation || '',
     'Calling Purpose': r.calling_purpose || '',
+    'PG Name': r.pg_name || '',
+    'Company Name': r.company_name || '',
+    'Admin Remarks': r.admin_remarks || '',
   };
 }
 
@@ -307,20 +314,6 @@ function mapCallResponseToRow(r) {
 
 function mapAttendanceToRow(r) {
   return { 'Time stamp': r.ts, 'Mob No': r.mob_no, 'Name': r.name, 'took by': r.took_by, 'Event': r.event_code || '' };
-}
-
-function mapCollectionToRow(r) {
-  return {
-    'time stamp': r.ts,
-    'Mob No': r.mob_no,
-    'Name': r.name,
-    'PG Name': r.pg_name || '',
-    'Profession': r.profession || '',
-    'Company Name': r.company_name || '',
-    'Gender': r.gender || '',
-    'collected by': r.collected_by,
-    'remarks': r.remarks || '',
-  };
 }
 
 // Supabase fires one webhook per changed row, and several can land at nearly
@@ -391,22 +384,33 @@ function fullResyncMasterContact() {
   withLock(() => {
     const sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_CONTACTS);
     if (!sheet) return;
-    const map = headerMap(sheet);
+
+    const headers = [
+      'S No', 'Time Stamp', 'Name', 'Mob No', 'W/S', 'Gender', 'No of Sessions', 'Calls',
+      'Admin tag', 'Core Cultivation', 'Calling Purpose', 'PG Name', 'Company Name', 'Admin Remarks'
+    ];
     const lastRow = sheet.getLastRow();
     const lastCol = sheet.getLastColumn();
-    if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
+
+    // Clear old content and headers completely
+    if (lastRow > 0 && lastCol > 0) {
+      sheet.getRange(1, 1, lastRow, lastCol).clearContent();
+    }
+
+    // Write new headers
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+
     if (!records.length) return;
 
-    const headers = Object.keys(map);
     const rows = records.map((r) => {
       const rowMap = mapContactToRow(r);
-      const arr = new Array(lastCol).fill('');
-      headers.forEach((h) => {
-        if (h in rowMap) arr[map[h] - 1] = rowMap[h];
+      const arr = new Array(headers.length).fill('');
+      headers.forEach((h, i) => {
+        if (h in rowMap) arr[i] = rowMap[h];
       });
       return arr;
     });
-    sheet.getRange(2, 1, rows.length, lastCol).setValues(rows);
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
   });
 }
 
@@ -467,4 +471,78 @@ function appendSheetRow(sheetName, valuesByHeader) {
       if (col) sheet.getRange(row, col).setValue(valuesByHeader[header]);
     });
   });
+}
+
+function doGet(e) {
+  try {
+    const action = e.parameter.action;
+    if (action === 'get_new_contacts') {
+      const data = getNewContactsData();
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, data: data }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Unknown action' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function getNewContactsData() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_NEW_CONTACTS);
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  const map = headerMap(sheet);
+  const dataRange = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn());
+  const values = dataRange.getValues();
+  const result = [];
+
+  for (let i = 0; i < values.length; i++) {
+    const mobVal = values[i][map['Mob No'] - 1];
+    const mob = String(mobVal === undefined || mobVal === null ? '' : mobVal).replace(/\D/g, '');
+    if (!mob || mob.length !== 10) continue; // skip empty or invalid phone number rows
+
+    const rawProfession = values[i][map['Profession'] - 1] || values[i][map['W/S'] - 1] || '';
+    const rawWs = values[i][map['W/S'] - 1] || values[i][map['Profession'] - 1] || '';
+    
+    result.push({
+      mob_no: mob,
+      name: String(values[i][map['Name'] - 1] || '').trim(),
+      pg_name: String(values[i][map['PG Name'] - 1] || '').trim(),
+      profession: String(rawProfession).trim(),
+      ws: ['W', 'S', 'NA'].includes(String(rawWs).trim()) ? String(rawWs).trim() : 'NA',
+      gender: String(values[i][map['Gender'] - 1] || '').trim(),
+      calling_purpose: String(values[i][map['Calling Purpose'] - 1] || '').trim()
+    });
+  }
+  return result;
+}
+
+function deleteNewContactsFromSheet(mobNos) {
+  if (!mobNos || !mobNos.length) return 0;
+  const sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_NEW_CONTACTS);
+  if (!sheet) return 0;
+
+  const map = headerMap(sheet);
+  const col = map['Mob No'];
+  if (!col) return 0;
+
+  let deletedCount = 0;
+  withLock(() => {
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+
+    const vals = sheet.getRange(2, col, lastRow - 1, 1).getValues();
+    for (let i = vals.length - 1; i >= 0; i--) {
+      const mob = String(vals[i][0] || '').replace(/\D/g, '');
+      if (mobNos.indexOf(mob) !== -1) {
+        sheet.deleteRow(i + 2);
+        deletedCount++;
+      }
+    }
+  });
+  return deletedCount;
 }

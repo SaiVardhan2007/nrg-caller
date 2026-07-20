@@ -41,17 +41,44 @@ export async function init(user) {
       .eq("mob_no", digits)
       .maybeSingle();
 
-    loader.classList.add("hidden");
     if (error || !data) {
+      loader.classList.add("hidden");
       foundContact = null;
       searchedDigits = digits;
       notFoundEl.classList.remove("hidden");
       return;
     }
+
+    // Check if attendance was marked in the last 8 hours
+    const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
+    const { data: recentAtt, error: attError } = await supabase
+      .from("session_attendance")
+      .select("id")
+      .eq("mob_no", data.mob_no)
+      .gte("ts", eightHoursAgo)
+      .limit(1);
+
+    const alreadyMarked = recentAtt && recentAtt.length > 0;
+
+    loader.classList.add("hidden");
     foundContact = data;
     document.getElementById("reception-name").textContent = data.name;
     document.getElementById("reception-phone").textContent = formatPhone(data.mob_no);
     document.getElementById("reception-sessions").textContent = `Sessions attended: ${data.sessions_count}`;
+
+    const btn = document.getElementById("mark-attendance-btn");
+    if (alreadyMarked) {
+      btn.disabled = true;
+      btn.textContent = "✓ Already Marked";
+      btn.style.opacity = "0.6";
+      btn.style.cursor = "not-allowed";
+    } else {
+      btn.disabled = false;
+      btn.textContent = "🙏 Mark Attendance";
+      btn.style.opacity = "";
+      btn.style.cursor = "";
+    }
+
     resultEl.classList.remove("hidden");
   }, 1500);
 

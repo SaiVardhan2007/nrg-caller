@@ -46,7 +46,7 @@ begin
   left join (
     select user_name, count(*) as c from assignments where event_code = cur_event group by user_name
   ) a on a.user_name = u.user_name
-  where u.role = 'User' and u.auto_assign = true
+  where u.role = 'Coordinator' and u.auto_assign = true
     and (u.call_limit is null or coalesce(a.c, 0) < u.call_limit)
   order by coalesce(a.c, 0) asc, u.user_name asc
   limit 1;

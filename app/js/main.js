@@ -4,7 +4,6 @@ import { showToast } from "./utils.js";
 import * as Admin from "./admin.js";
 import * as Caller from "./caller.js";
 import * as Reception from "./reception.js";
-import * as Collection from "./collection.js";
 
 const loginView = document.getElementById("login-view");
 const appView = document.getElementById("app-view");
@@ -21,12 +20,12 @@ const roleBadgeEl = document.getElementById("role-badge");
 const PAGE_TITLES = {
   "admin-users-section": "Users & Assignment",
   "admin-contacts-section": "Master Contact",
+  "admin-new-contacts-section": "New Contacts",
   "admin-message-section": "Message",
   "admin-analytics-section": "Analytics",
   "admin-reception-analytics-section": "Reception Analytics",
   "caller-section": "My Calls",
   "reception-section": "Reception",
-  "collection-section": "Contact Collection",
 };
 
 let currentUser = null;
@@ -38,12 +37,14 @@ function showScreen(id) {
 
   if (id === "caller-section") Caller.init(currentUser);
   if (id === "reception-section") Reception.init(currentUser);
-  if (id === "collection-section") Collection.init(currentUser);
   if (id === "admin-users-section") Admin.initUsers(currentUser);
   if (id === "admin-contacts-section") Admin.initContacts(currentUser);
+  if (id === "admin-new-contacts-section") Admin.initNewContacts(currentUser);
   if (id === "admin-message-section") Admin.initMessage(currentUser);
   if (id === "admin-analytics-section") Admin.initAnalytics(currentUser);
   if (id === "admin-reception-analytics-section") Admin.initReceptionAnalytics();
+
+  if (id !== "admin-new-contacts-section") Admin.stopNewContactsPolling();
 }
 
 function goDashboard() {
@@ -89,7 +90,7 @@ function wireNav() {
 
 function renderForRole(user) {
   userNameEl.textContent = user.user_name;
-  if (user.role !== "User") {
+  if (user.role !== "Coordinator") {
     roleBadgeEl.textContent = user.role;
     roleBadgeEl.classList.remove("hidden");
   } else {
@@ -108,11 +109,9 @@ function renderForRole(user) {
     showScreen("reception-section");
   } else {
     adminTabs.classList.add("hidden");
-    // Soft-launch: testing Reception first, so My Calls and Contact
-    // Collection are disabled for regular Users until that's confirmed
-    // working. Remove these two lines to re-enable both.
+    // Soft-launch: testing Reception first, so My Calls is disabled for regular Users until that's confirmed
+    // working. Remove this line to re-enable.
     document.querySelector('.dashboard-card[data-target="caller-section"]').classList.add("disabled");
-    document.querySelector('.dashboard-card[data-target="collection-section"]').classList.add("disabled");
     goDashboard();
   }
 }
