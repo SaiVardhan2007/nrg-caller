@@ -24,13 +24,7 @@ begin
   if new.admin_tag = 'Don''t Call' or new.admin_tag = 'Coordinator' then
     return new;
   end if;
-  -- If core_cultivation is set, assign to that cultivator instead of the auto-assign pool
   if new.core_cultivation is not null then
-    if exists (select 1 from users where user_name = new.core_cultivation and role = 'Coordinator') then
-      insert into assignments (contact_id, user_name, event_code)
-      values (new.id, new.core_cultivation, cur_event)
-      on conflict (contact_id, event_code) do nothing;
-    end if;
     return new;
   end if;
 
