@@ -294,6 +294,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .stat {
   flex: 1; background: var(--surface); border: 1px solid var(--sandstone); border-radius: var(--radius-lg);
   padding: 16px 10px; text-align: center; box-shadow: var(--shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.stat.cursor-pointer {
+  cursor: pointer;
+}
+.stat.cursor-pointer:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.06);
+  border-color: #4f46e5;
 }
 .stat-num { display: block; font-size: 26px; font-weight: 800; color: var(--tulsi-dark); letter-spacing: -0.02em; }
 .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.03em; }
@@ -509,6 +518,17 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   .stats-bar .stat:last-child:nth-child(odd) {
     grid-column: span 2 !important;
   }
+}
+
+/* Copy-to-clipboard phone cell highlights */
+.phone-clickable, td[data-label="Phone"]:not(:has(input)) {
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s ease;
+}
+.phone-clickable:hover, td[data-label="Phone"]:not(:has(input)):hover {
+  color: #4f46e5 !important;
+  text-decoration: underline;
 }
 
 /* Portal is intentionally light-mode only, regardless of the device's system

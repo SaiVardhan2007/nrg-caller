@@ -34,7 +34,8 @@ create table if not exists contacts (
   sessions_count   int not null default 0,      -- auto-maintained by trigger
   calls_count      int not null default 0,      -- auto-maintained by trigger
   admin_remarks    text,
-  admin_tag        text,                        -- Don't Call / Janata / Call / Core / Assigned
+  admin_tag_to_users text,                      -- Don't Call / Janata / Call / Core / Assigned
+  admin_tag        text,                        -- LIT / Folk HYD / Focus / ...
   core_cultivation text,                        -- user_name of permanent cultivator
   calling_purpose  text,                        -- event code: GIC / RY / JSTM / ...
   created_at       timestamptz not null default now(),

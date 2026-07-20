@@ -127,6 +127,21 @@ async function boot() {
     renderForRole(existing);
   }
 
+  // Global click-to-copy handler for phone numbers
+  document.addEventListener("click", (e) => {
+    const target = e.target;
+    if (target.tagName === "INPUT" || target.tagName === "SELECT" || target.closest("button") || target.closest("a")) return;
+    const cell = target.closest(".phone-cell, .phone-clickable, td[data-label='Phone']");
+    if (cell) {
+      const text = cell.textContent.replace(/\D/g, "");
+      if (text.length === 10) {
+        import("./utils.js").then(({ copyToClipboard }) => {
+          copyToClipboard(text, cell);
+        });
+      }
+    }
+  });
+
   loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const uname = document.getElementById("login-username").value;

@@ -198,15 +198,15 @@ function distributePool(pool, eligible, assignedCount, eventCode) {
 async function fetchEventContactPool(eventCode, tagFilters) {
   let query = supabase
     .from("contacts")
-    .select("id,core_cultivation,admin_tag")
+    .select("id,core_cultivation,admin_tag_to_users")
     .eq("calling_purpose", eventCode)
-    .or("admin_tag.is.null,admin_tag.neq.Don't Call");
-  if (tagFilters.length) query = query.in("admin_tag", tagFilters);
+    .or("admin_tag_to_users.is.null,admin_tag_to_users.neq.Don't Call");
+  if (tagFilters.length) query = query.in("admin_tag_to_users", tagFilters);
   const { data, error } = await query;
   if (error) throw error;
   const seenIds = new Set();
   return (data || []).filter((c) => {
-    if (c.admin_tag === "Coordinator") return false;
+    if (c.admin_tag_to_users === "Coordinator") return false;
     if (c.core_cultivation) return false;
     if (seenIds.has(c.id)) return false;
     seenIds.add(c.id);
@@ -527,11 +527,12 @@ export async function initContacts() {
 
 const WS_ADMIN_OPTIONS = ["NA", "W", "S"];
 const GENDER_ADMIN_OPTIONS = ["", "Male", "Female"];
-const ADMIN_TAG_OPTIONS = ["", "Don't Call", "Coordinator", "Janata", "Call", "Core", "Assigned"];
+const ADMIN_TAG_TO_USERS_OPTIONS = ["", "Don't Call", "Coordinator", "Janata", "Call", "Core", "Assigned"];
+const ADMIN_TAG_OPTIONS = ["", "LIT", "Folk HYD", "Focus"];
 
 async function renderContactsTable(searchTerm = "") {
   const tbody = document.getElementById("contacts-table-body");
-  tbody.innerHTML = `<tr><td colspan="14" class="loading-row">Loading contacts…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="15" class="loading-row">Loading contacts…</td></tr>`;
 
   let query = supabase.from("contacts").select("*").order("s_no", { ascending: true, nullsFirst: false });
   if (searchTerm) {
@@ -539,11 +540,11 @@ async function renderContactsTable(searchTerm = "") {
   }
   const { data, error } = await query.limit(500);
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="14" class="loading-row">Could not load contacts.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="15" class="loading-row">Could not load contacts.</td></tr>`;
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="14" class="loading-row">No contacts found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="15" class="loading-row">No contacts found.</td></tr>`;
     return;
   }
 
@@ -572,6 +573,11 @@ async function renderContactsTable(searchTerm = "") {
       </td>
       <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.sessions_count}</button></td>
       <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.calls_count}</button></td>
+      <td data-label="Admin Tag to Users">
+        <select class="inline-edit" data-field="admin_tag_to_users">
+          ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (c.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+        </select>
+      </td>
       <td data-label="Admin Tag">
         <select class="inline-edit" data-field="admin_tag">
           ${ADMIN_TAG_OPTIONS.map((t) => `<option value="${t}" ${t === (c.admin_tag || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
@@ -793,8 +799,8 @@ function wireContactsSearch() {
 }
 
 const CONTACT_CSV_HEADERS = [
-  "S No", "Time Stamp", "Name", "Phone", "PG Name", "Profession", "Gender", "Sessions", "Calls", "Admin Tag",
-  "Core Cultivation", "Calling Purpose", "Company Name", "Admin Remarks",
+  "S No", "Time Stamp", "Name", "Phone", "PG Name", "Profession", "Gender", "Sessions", "Calls", "Admin Tag to Users",
+  "Admin Tag", "Core Cultivation", "Calling Purpose", "Company Name", "Admin Remarks",
 ];
 
 let contactsImportExportWired = false;
@@ -808,7 +814,7 @@ function wireContactsImportExport() {
       rows.push([
         c.s_no ?? i + 1, c.created_at ? new Date(c.created_at).toLocaleString() : "", c.name, c.mob_no,
         c.pg_name || "", c.ws || "NA", c.gender || "", c.sessions_count, c.calls_count,
-        c.admin_tag || "", c.core_cultivation || "", c.calling_purpose || "",
+        c.admin_tag_to_users || "", c.admin_tag || "", c.core_cultivation || "", c.calling_purpose || "",
         c.company_name || "", c.admin_remarks || "",
       ]);
     });
@@ -840,6 +846,7 @@ function wireContactsImportExport() {
         name,
         ws: WS_ADMIN_OPTIONS.includes(pickField(row, "Profession", "W/S")) ? pickField(row, "Profession", "W/S") : "NA",
         gender: ["Male", "Female"].includes(pickField(row, "Gender")) ? pickField(row, "Gender") : null,
+        admin_tag_to_users: pickField(row, "Admin Tag to Users", "Admin tag to users") || null,
         admin_tag: pickField(row, "Admin Tag") || null,
         core_cultivation: pickField(row, "Core Cultivation") || null,
         calling_purpose: pickField(row, "Calling Purpose") || null,
@@ -887,6 +894,7 @@ function openAddContactModal() {
   populateContactModalDropdowns().then(() => {
     document.getElementById("add-contact-ws").value = "NA";
     document.getElementById("add-contact-gender").value = "";
+    document.getElementById("add-contact-tag-users").value = "";
     document.getElementById("add-contact-tag").value = "";
     document.getElementById("add-contact-cultivator").value = "";
     document.getElementById("add-contact-event").value = eventsCache[0]?.code || "";
@@ -919,6 +927,7 @@ function wireAddContactModal() {
       company_name: document.getElementById("add-contact-company").value.trim() || null,
       ws: document.getElementById("add-contact-ws").value,
       gender: document.getElementById("add-contact-gender").value || null,
+      admin_tag_to_users: document.getElementById("add-contact-tag-users").value || null,
       admin_tag: document.getElementById("add-contact-tag").value || null,
       core_cultivation: document.getElementById("add-contact-cultivator").value || null,
       calling_purpose: document.getElementById("add-contact-event").value || null,
@@ -986,6 +995,10 @@ export async function initAnalytics() {
   if (!analyticsWired) {
     analyticsWired = true;
     document.getElementById("analytics-run-btn").addEventListener("click", run);
+    document.getElementById("card-assigned").addEventListener("click", () => openAnalyticsStatModal("assigned"));
+    document.getElementById("card-calls-made").addEventListener("click", () => openAnalyticsStatModal("calls"));
+    document.getElementById("card-positive").addEventListener("click", () => openAnalyticsStatModal("positive"));
+    document.getElementById("card-pending").addEventListener("click", () => openAnalyticsStatModal("pending"));
     document.getElementById("analytics-export-btn").addEventListener("click", () => {
       const readTable = (tableEl) => {
         const rows = [Array.from(tableEl.querySelectorAll("thead th")).map((th) => th.textContent.trim())];
@@ -1020,6 +1033,96 @@ function callOutcomeCategory(remarks) {
   return "pending";
 }
 
+let currentAnalyticsParams = null;
+
+async function openAnalyticsStatModal(statType) {
+  if (!currentAnalyticsParams) return;
+  const { userName, isAll, fromTs, toTs, eventFilter, currentEventCode } = currentAnalyticsParams;
+  const activeEvent = eventFilter || currentEventCode;
+
+  const modal = document.getElementById("contact-info-modal");
+  const thead = document.getElementById("contact-info-thead");
+  const tbody = document.getElementById("contact-info-body");
+
+  tbody.innerHTML = `<tr><td class="loading-row">Loading…</td></tr>`;
+  modal.classList.add("active");
+
+  if (statType === "assigned") {
+    document.getElementById("contact-info-title").textContent = "Assigned Contacts Details";
+    document.getElementById("contact-info-sub").textContent = isAll ? "All Users (Combined)" : userName;
+    thead.innerHTML = `<tr><th>S.No</th>${isAll ? "<th>Caller</th>" : ""}<th>Name</th><th>Phone</th><th>Campaign</th></tr>`;
+
+    let query = supabase
+      .from("assignments")
+      .select("user_name, event_code, contacts(name, mob_no)")
+      .eq("event_code", activeEvent);
+    if (!isAll) query = query.eq("user_name", userName);
+
+    const { data, error } = await query;
+    if (error || !data || !data.length) {
+      tbody.innerHTML = `<tr><td colspan="${isAll ? 5 : 4}" class="loading-row">No assigned contacts found.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = data.map((a, idx) => `
+      <tr>
+        <td data-label="S.No">${idx + 1}</td>
+        ${isAll ? `<td data-label="Caller">${escapeHtml(a.user_name)}</td>` : ""}
+        <td data-label="Name">${escapeHtml(a.contacts?.name || "—")}</td>
+        <td data-label="Phone" class="phone-clickable" title="Click to copy phone number">${formatPhone(a.contacts?.mob_no || "")}</td>
+        <td data-label="Campaign">${escapeHtml(a.event_code)}</td>
+      </tr>
+    `).join("");
+  } else {
+    // call response stats
+    let title = "Calls Made";
+    if (statType === "positive") title = "Positive Responses";
+    if (statType === "pending") title = "Pending Responses";
+
+    document.getElementById("contact-info-title").textContent = title;
+    document.getElementById("contact-info-sub").textContent = isAll ? "All Users (Combined)" : userName;
+    thead.innerHTML = `<tr><th>Time</th>${isAll ? "<th>Caller</th>" : ""}<th>Name</th><th>Phone</th><th>Status</th></tr>`;
+
+    let query = supabase
+      .from("call_responses")
+      .select("ts, caller_name, contact_name, mob_no, remarks, addl_remarks")
+      .eq("event_code", activeEvent)
+      .order("ts", { ascending: false });
+
+    if (!isAll) query = query.eq("caller_name", userName);
+    if (fromTs) query = query.gte("ts", fromTs);
+    if (toTs) query = query.lte("ts", toTs);
+
+    const { data, error } = await query;
+    if (error) {
+      tbody.innerHTML = `<tr><td colspan="${isAll ? 5 : 4}" class="loading-row">Error loading call responses.</td></tr>`;
+      return;
+    }
+
+    let filtered = data || [];
+    if (statType === "positive") {
+      filtered = filtered.filter((r) => callOutcomeCategory(r.remarks) === "positive");
+    } else if (statType === "pending") {
+      filtered = filtered.filter((r) => callOutcomeCategory(r.remarks) === "pending");
+    }
+
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="${isAll ? 5 : 4}" class="loading-row">No responses found.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map((r) => `
+      <tr>
+        <td data-label="Time">${new Date(r.ts).toLocaleString()}</td>
+        ${isAll ? `<td data-label="Caller">${escapeHtml(r.caller_name)}</td>` : ""}
+        <td data-label="Name">${escapeHtml(r.contact_name || "")}</td>
+        <td data-label="Phone" class="phone-clickable" title="Click to copy phone number">${formatPhone(r.mob_no)}</td>
+        <td data-label="Status">${escapeHtml(r.remarks)}${r.addl_remarks ? " — " + escapeHtml(r.addl_remarks) : ""}</td>
+      </tr>
+    `).join("");
+  }
+}
+
 let analyticsRequestId = 0;
 
 async function runAnalytics(userName, fromDate, toDate, eventFilter) {
@@ -1034,6 +1137,8 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   const toTs = toDate ? new Date(toDate + "T23:59:59").toISOString() : null;
   const currentEventCode = await getSetting("current_event");
   if (isStale()) return;
+
+  currentAnalyticsParams = { userName, isAll, fromTs, toTs, eventFilter, currentEventCode };
 
   // total calls made in the selected range, broken down by outcome
   let callsQuery = supabase.from("call_responses").select("remarks");
@@ -1383,7 +1488,7 @@ function renderNewContactsTable() {
   const summaryEl = document.getElementById("new-contacts-summary");
 
   if (!newContactsCache.length) {
-    tbody.innerHTML = `<tr><td colspan="15" class="loading-row">No new contacts found in Google Sheets.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="16" class="loading-row">No new contacts found in Google Sheets.</td></tr>`;
     summaryEl.textContent = "Checked just now. All clear!";
     return;
   }
@@ -1413,6 +1518,11 @@ function renderNewContactsTable() {
         </td>
         <td data-label="Sessions">0</td>
         <td data-label="Calls">0</td>
+        <td data-label="Admin Tag to Users">
+          <select class="inline-edit new-contact-tag-users-select" data-index="${idx}">
+            ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (c.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+          </select>
+        </td>
         <td data-label="Admin Tag">
           <select class="inline-edit new-contact-tag-select" data-index="${idx}">
             ${ADMIN_TAG_OPTIONS.map((t) => `<option value="${t}" ${t === (c.admin_tag || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
@@ -1453,6 +1563,13 @@ function renderNewContactsTable() {
     select.addEventListener("change", (e) => {
       const idx = parseInt(e.target.dataset.index, 10);
       newContactsCache[idx].gender = e.target.value || null;
+    });
+  });
+
+  tbody.querySelectorAll(".new-contact-tag-users-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      const idx = parseInt(e.target.dataset.index, 10);
+      newContactsCache[idx].admin_tag_to_users = e.target.value || null;
     });
   });
 
@@ -1583,6 +1700,7 @@ async function promoteSingleContact(newContact) {
               company_name: newContact.company_name || null,
               ws: newContact.ws || "NA",
               gender: newContact.gender || null,
+              admin_tag_to_users: newContact.admin_tag_to_users || null,
               admin_tag: newContact.admin_tag || null,
               core_cultivation: newContact.core_cultivation || null,
               calling_purpose: newContact.calling_purpose || null,
@@ -1610,6 +1728,7 @@ async function promoteSingleContact(newContact) {
           company_name: newContact.company_name || null,
           ws: newContact.ws || "NA",
           gender: newContact.gender || null,
+          admin_tag_to_users: newContact.admin_tag_to_users || null,
           admin_tag: newContact.admin_tag || null,
           core_cultivation: newContact.core_cultivation || null,
           calling_purpose: newContact.calling_purpose || null,
@@ -1736,6 +1855,7 @@ async function addAllNewContacts() {
         company_name: c.company_name || null,
         ws: c.ws || "NA",
         gender: c.gender || null,
+        admin_tag_to_users: c.admin_tag_to_users || null,
         admin_tag: c.admin_tag || null,
         core_cultivation: c.core_cultivation || null,
         calling_purpose: c.calling_purpose || null,
@@ -1798,6 +1918,7 @@ function runBulkDuplicateResolution() {
             company_name: dupItem.newContact.company_name || null,
             ws: dupItem.newContact.ws || "NA",
             gender: dupItem.newContact.gender || null,
+            admin_tag_to_users: dupItem.newContact.admin_tag_to_users || null,
             admin_tag: dupItem.newContact.admin_tag || null,
             core_cultivation: dupItem.newContact.core_cultivation || null,
             calling_purpose: dupItem.newContact.calling_purpose || null,

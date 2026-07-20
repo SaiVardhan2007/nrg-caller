@@ -116,4 +116,45 @@ export function parseCSV(text) {
     headers.forEach((h, i) => { obj[h] = (r[i] ?? "").trim(); });
     return obj;
   });
+  });
+}
+
+export function copyToClipboard(text, element) {
+  navigator.clipboard.writeText(text).then(() => {
+    // Show a floating "Copied!" badge near the element
+    const rect = element.getBoundingClientRect();
+    const badge = document.createElement("div");
+    badge.className = "copied-badge";
+    badge.textContent = "Copied!";
+    badge.style.position = "fixed"; // Fixed positioning avoids page scroll alignment offsets
+    badge.style.top = `${rect.top - 28}px`;
+    badge.style.left = `${rect.left + rect.width / 2}px`;
+    badge.style.transform = "translateX(-50%)";
+    badge.style.background = "#10b981";
+    badge.style.color = "#ffffff";
+    badge.style.padding = "3px 8px";
+    badge.style.borderRadius = "4px";
+    badge.style.fontSize = "11px";
+    badge.style.fontWeight = "bold";
+    badge.style.zIndex = "99999";
+    badge.style.pointerEvents = "none";
+    badge.style.opacity = "0";
+    badge.style.transition = "opacity 0.2s ease, transform 0.2s ease";
+    document.body.appendChild(badge);
+
+    // trigger transition
+    setTimeout(() => {
+      badge.style.opacity = "1";
+      badge.style.transform = "translateX(-50%) translateY(-3px)";
+    }, 10);
+
+    // remove after 1.2s
+    setTimeout(() => {
+      badge.style.opacity = "0";
+      badge.style.transform = "translateX(-50%) translateY(-8px)";
+      setTimeout(() => badge.remove(), 200);
+    }, 1000);
+  }).catch(err => {
+    console.error("Clipboard copy failed: ", err);
+  });
 }

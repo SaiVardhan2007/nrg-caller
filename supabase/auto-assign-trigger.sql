@@ -21,7 +21,7 @@ begin
   if cur_event is null or cur_event = '' or new.calling_purpose is distinct from cur_event then
     return new;
   end if;
-  if new.admin_tag = 'Don''t Call' or new.admin_tag = 'Coordinator' then
+  if new.admin_tag_to_users = 'Don''t Call' or new.admin_tag_to_users = 'Coordinator' then
     return new;
   end if;
   if new.core_cultivation is not null then
@@ -31,7 +31,7 @@ begin
   select value into tag_filter_raw from settings where key = 'tag_filter';
   if tag_filter_raw is not null and length(trim(tag_filter_raw)) > 0 then
     select array_agg(trim(x)) into tag_list from unnest(string_to_array(tag_filter_raw, ',')) as x;
-    if new.admin_tag is null or not (new.admin_tag = any(tag_list)) then
+    if new.admin_tag_to_users is null or not (new.admin_tag_to_users = any(tag_list)) then
       return new;
     end if;
   end if;

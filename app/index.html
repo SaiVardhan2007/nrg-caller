@@ -147,12 +147,12 @@
           <thead>
             <tr>
               <th>S.No</th><th>Time Stamp</th><th>Name</th><th>Phone</th><th>PG Name</th><th>Profession</th><th>Gender</th><th>Sessions</th><th>Calls</th>
-              <th>Admin Tag</th><th>Core Cultivation</th><th>Calling Purpose</th>
+              <th>Admin Tag to Users</th><th>Admin Tag</th><th>Core Cultivation</th><th>Calling Purpose</th>
               <th>User Reviews</th><th>Admin Review</th>
             </tr>
           </thead>
           <tbody id="contacts-table-body">
-            <tr><td colspan="14" class="loading-row">Loading contacts…</td></tr>
+            <tr><td colspan="15" class="loading-row">Loading contacts…</td></tr>
           </tbody>
         </table>
       </div>
@@ -184,10 +184,10 @@
       </div>
 
       <div class="stats-bar">
-        <div class="stat stat-assigned"><span id="analytics-total-assigned" class="stat-num">0</span><span class="stat-label">Total Assigned</span></div>
-        <div class="stat"><span id="analytics-total-calls" class="stat-num">0</span><span class="stat-label">Calls Made</span></div>
-        <div class="stat stat-positive"><span id="analytics-positive-calls" class="stat-num">0</span><span class="stat-label">Positive</span></div>
-        <div class="stat stat-pending"><span id="analytics-pending-calls" class="stat-num">0</span><span class="stat-label">Pending</span></div>
+        <div id="card-assigned" class="stat stat-assigned cursor-pointer"><span id="analytics-total-assigned" class="stat-num">0</span><span class="stat-label">Total Assigned</span></div>
+        <div id="card-calls-made" class="stat cursor-pointer"><span id="analytics-total-calls" class="stat-num">0</span><span class="stat-label">Calls Made</span></div>
+        <div id="card-positive" class="stat stat-positive cursor-pointer"><span id="analytics-positive-calls" class="stat-num">0</span><span class="stat-label">Positive</span></div>
+        <div id="card-pending" class="stat stat-pending cursor-pointer"><span id="analytics-pending-calls" class="stat-num">0</span><span class="stat-label">Pending</span></div>
       </div>
 
       <div class="panel">
@@ -284,6 +284,7 @@
               <th>Gender</th>
               <th>Sessions</th>
               <th>Calls</th>
+              <th>Admin Tag to Users</th>
               <th>Admin Tag</th>
               <th>Core Cultivation</th>
               <th>Calling Purpose</th>
@@ -293,7 +294,7 @@
             </tr>
           </thead>
           <tbody id="new-contacts-table-body">
-            <tr><td colspan="15" class="loading-row">Connecting to Sheets…</td></tr>
+            <tr><td colspan="16" class="loading-row">Connecting to Sheets…</td></tr>
           </tbody>
         </table>
       </div>
@@ -464,8 +465,8 @@
     <label class="field"><span>Gender</span>
       <select id="add-contact-gender"><option value="">— select —</option><option value="Male">Male</option><option value="Female">Female</option></select>
     </label>
-    <label class="field"><span>Admin Tag</span>
-      <select id="add-contact-tag">
+    <label class="field"><span>Admin Tag to Users</span>
+      <select id="add-contact-tag-users">
         <option value="">— none —</option>
         <option value="Don't Call">Don't Call</option>
         <option value="Coordinator">Coordinator</option>
@@ -473,6 +474,14 @@
         <option value="Call">Call</option>
         <option value="Core">Core</option>
         <option value="Assigned">Assigned</option>
+      </select>
+    </label>
+    <label class="field"><span>Admin Tag</span>
+      <select id="add-contact-tag">
+        <option value="">— none —</option>
+        <option value="LIT">LIT</option>
+        <option value="Folk HYD">Folk HYD</option>
+        <option value="Focus">Focus</option>
       </select>
     </label>
     <label class="field"><span>Core Cultivation (user)</span>

@@ -163,6 +163,7 @@ function syncMasterContactRow(sheet, row, e) {
 
   const colProf = map['Profession'] || map['W/S'];
   const wsVal = colProf ? String(cellVal(sheet, row, map, colProf) || 'NA').trim() : 'NA';
+  const tagUsersCol = map['Admin Tag to Users'] || map['Admin tag to users'];
   const tagCol = map['Admin Tag'] || map['Admin tag'];
 
   const payload = {
@@ -174,6 +175,7 @@ function syncMasterContactRow(sheet, row, e) {
     ws: ['W', 'S', 'NA'].includes(wsVal) ? wsVal : 'NA',
     gender: String(cellVal(sheet, row, map, 'Gender') || '').trim() || null,
     admin_remarks: String(cellVal(sheet, row, map, 'Admin Remarks') || '') || null,
+    admin_tag_to_users: tagUsersCol ? String(cellVal(sheet, row, map, tagUsersCol) || '') || null : null,
     admin_tag: tagCol ? String(cellVal(sheet, row, map, tagCol) || '') || null : null,
     core_cultivation: String(cellVal(sheet, row, map, 'Core Cultivation') || '') || null,
     calling_purpose: String(cellVal(sheet, row, map, 'Calling Purpose') || '') || null,
@@ -297,6 +299,7 @@ function mapContactToRow(r) {
     'Gender': r.gender || '',
     'Sessions': r.sessions_count === null || r.sessions_count === undefined ? 0 : r.sessions_count,
     'Calls': r.calls_count === null || r.calls_count === undefined ? 0 : r.calls_count,
+    'Admin Tag to Users': r.admin_tag_to_users || '',
     'Admin Tag': r.admin_tag || '',
     'Core Cultivation': r.core_cultivation || '',
     'Calling Purpose': r.calling_purpose || '',
@@ -392,7 +395,7 @@ function fullResyncMasterContact() {
 
     const headers = [
       'S No', 'Time Stamp', 'Name', 'Phone', 'PG Name', 'Profession', 'Gender', 'Sessions', 'Calls',
-      'Admin Tag', 'Core Cultivation', 'Calling Purpose', 'Company Name', 'Admin Remarks'
+      'Admin Tag to Users', 'Admin Tag', 'Core Cultivation', 'Calling Purpose', 'Company Name', 'Admin Remarks'
     ];
     const lastRow = sheet.getLastRow();
     const lastCol = sheet.getLastColumn();
@@ -514,13 +517,20 @@ function getNewContactsData() {
     const colProf = map['Profession'] || map['W/S'];
     const rawWs = colProf ? String(values[i][colProf - 1] || 'NA').trim() : 'NA';
     
+    const tagUsersCol = map['Admin Tag to Users'] || map['Admin tag to users'];
+    const tagCol = map['Admin Tag'] || map['Admin tag'];
+    const tagUsersVal = tagUsersCol ? String(values[i][tagUsersCol - 1] || '').trim() : '';
+    const tagVal = tagCol ? String(values[i][tagCol - 1] || '').trim() : '';
+
     result.push({
       mob_no: mob,
       name: String(values[i][map['Name'] - 1] || '').trim(),
       pg_name: String(values[i][map['PG Name'] - 1] || '').trim(),
-      profession: String(rawProfession).trim(),
+      profession: '',
       ws: ['W', 'S', 'NA'].includes(String(rawWs).trim()) ? String(rawWs).trim() : 'NA',
       gender: String(values[i][map['Gender'] - 1] || '').trim(),
+      admin_tag_to_users: tagUsersVal,
+      admin_tag: tagVal,
       calling_purpose: String(values[i][map['Calling Purpose'] - 1] || '').trim()
     });
   }
