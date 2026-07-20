@@ -255,6 +255,11 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 
 .table-wrap { overflow-x: auto; margin-bottom: 16px; border-radius: var(--card-radius); box-shadow: var(--shadow); }
 .data-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--card-radius); overflow: hidden; }
+@media (min-width: 641px) {
+  #contacts-table, #new-contacts-table {
+    min-width: 1400px;
+  }
+}
 .data-table th {
   background: var(--tulsi-dark); color: #fff; text-align: left;
   padding: 8px 10px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 700;
