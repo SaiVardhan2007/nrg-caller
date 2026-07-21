@@ -1504,13 +1504,16 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
   document.getElementById("reception-analytics-attendance-count").textContent = rows.length;
   const tbody = document.getElementById("reception-analytics-attendance-body");
 
-  // Track first occurrence per mob_no to highlight duplicates
-  const seenMobs = new Set();
+  // Find the index of the oldest record (last occurrence in ts desc array) for each mob_no
+  const oldestIndices = {};
+  rows.forEach((r, idx) => {
+    oldestIndices[r.mob_no] = idx;
+  });
 
   tbody.innerHTML = rows.length
-    ? rows.map((r) => {
-        const isDuplicate = seenMobs.has(r.mob_no);
-        seenMobs.add(r.mob_no);
+    ? rows.map((r, idx) => {
+        const isOldest = oldestIndices[r.mob_no] === idx;
+        const isDuplicate = !isOldest;
         const dupClass = isDuplicate ? ' class="duplicate-attendance"' : '';
         return `
         <tr data-id="${r.id}"${dupClass}>
