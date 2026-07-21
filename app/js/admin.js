@@ -1503,16 +1503,45 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
   const rows = attendance || [];
   document.getElementById("reception-analytics-attendance-count").textContent = rows.length;
   const tbody = document.getElementById("reception-analytics-attendance-body");
+
+  // Track first occurrence per mob_no to highlight duplicates
+  const seenMobs = new Set();
+
   tbody.innerHTML = rows.length
-    ? rows.map((r) => `
-        <tr data-id="${r.id}">
+    ? rows.map((r) => {
+        const isDuplicate = seenMobs.has(r.mob_no);
+        seenMobs.add(r.mob_no);
+        const dupClass = isDuplicate ? ' class="duplicate-attendance"' : '';
+        return `
+        <tr data-id="${r.id}"${dupClass}>
           <td data-label="Time">${new Date(r.ts).toLocaleString()}</td>
           <td data-label="Name">${escapeHtml(r.name || "")}</td>
           <td data-label="Phone">${formatPhone(r.mob_no)}</td>
+          <td data-label="Event">
+            <select class="inline-edit attendance-event-select" data-att-id="${r.id}">
+              <option value="">—</option>
+              ${eventsCache.map((e) => `<option value="${e.code}" ${e.code === (r.event_code || "") ? "selected" : ""}>${e.code}</option>`).join("")}
+            </select>
+          </td>
           <td data-label="Marked By">${escapeHtml(r.took_by)}</td>
           <td class="no-export"><button class="cell-chip danger attendance-delete-btn" data-id="${r.id}" data-name="${escapeHtml(r.name || "")}">✕ Delete</button></td>
-        </tr>`).join("")
-    : `<tr><td colspan="5" class="loading-row">No attendance marked in this range.</td></tr>`;
+        </tr>`;
+      }).join("")
+    : `<tr><td colspan="6" class="loading-row">No attendance marked in this range.</td></tr>`;
+
+  // Wire event change dropdowns
+  tbody.querySelectorAll(".attendance-event-select").forEach((sel) => {
+    sel.addEventListener("change", async (e) => {
+      const attId = sel.dataset.attId;
+      const newCode = sel.value || null;
+      const { error } = await supabase.from("session_attendance").update({ event_code: newCode }).eq("id", attId);
+      if (error) {
+        showToast("Could not update event: " + error.message, "error");
+      } else {
+        showToast("Event updated", "success");
+      }
+    });
+  });
 
   tbody.querySelectorAll(".attendance-delete-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -1530,7 +1559,7 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
       const count = tbody.querySelectorAll("tr[data-id]").length;
       document.getElementById("reception-analytics-attendance-count").textContent = count;
       if (!count) {
-        tbody.innerHTML = `<tr><td colspan="5" class="loading-row">No attendance marked in this range.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="loading-row">No attendance marked in this range.</td></tr>`;
       }
       showToast("Attendance record deleted", "success");
     });
@@ -2124,3 +2153,83 @@ function runBulkDuplicateResolution() {
   });
 }
 
+/* ======================= FULL DB DOWNLOAD (ZIP of CSVs) ======================= */
+
+export async function downloadAllDbData() {
+  const btn = document.getElementById("download-all-db-btn");
+  btn.disabled = true;
+  btn.textContent = "…";
+  showToast("Preparing full database export…", "info");
+
+  const DB_TABLES = [
+    "users",
+    "contacts",
+    "assignments",
+    "assignment_rounds",
+    "call_responses",
+    "session_attendance",
+    "events",
+    "settings",
+  ];
+
+  try {
+    const allData = {};
+    for (const table of DB_TABLES) {
+      const { data, error } = await supabase.from(table).select("*");
+      if (error) {
+        console.warn(`Could not fetch ${table}:`, error.message);
+        allData[table] = [];
+      } else {
+        allData[table] = data || [];
+      }
+    }
+
+    // Build individual CSVs and combine into a single downloadable file
+    // Since we can't create ZIP without a library, we'll create a single CSV workbook
+    // with clear section separators, or download each table individually.
+    // Better approach: create a single combined text file with all tables clearly separated.
+
+    let output = "";
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+
+    for (const table of DB_TABLES) {
+      const rows = allData[table];
+      output += `\n===== TABLE: ${table.toUpperCase()} (${rows.length} rows) =====\n`;
+
+      if (!rows.length) {
+        output += "(empty)\n";
+        continue;
+      }
+
+      const headers = Object.keys(rows[0]);
+      output += headers.join(",") + "\n";
+      rows.forEach((row) => {
+        output += headers.map((h) => {
+          let v = row[h];
+          if (v === null || v === undefined) return "";
+          v = String(v).replace(/"/g, '""');
+          return v.includes(",") || v.includes("\n") || v.includes('"') ? `"${v}"` : v;
+        }).join(",") + "\n";
+      });
+    }
+
+    // Trigger download
+    const blob = new Blob([output], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `FNRG_Preaching_Full_DB_${timestamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast(`Exported ${DB_TABLES.length} tables successfully! 📁`, "success");
+  } catch (err) {
+    console.error("DB export error:", err);
+    showToast("Export failed: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "⬇";
+  }
+}

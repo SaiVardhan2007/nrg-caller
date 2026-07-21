@@ -339,6 +339,10 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .loading-row { text-align: center; color: var(--text-muted); padding: 26px !important; font-size: 14px; animation: pulseFade 1.4s ease-in-out infinite; }
 @keyframes pulseFade { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 
+/* Duplicate attendance highlight */
+.duplicate-attendance { background: rgba(245, 158, 11, 0.12) !important; }
+.duplicate-attendance td { border-left: 3px solid #f59e0b !important; }
+
 /* ============ SKELETON LOADERS ============ */
 @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
 .skeleton {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>NRG Caller</title>
+<title>FNRG Preaching</title>
 <meta name="theme-color" content="#047857" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
@@ -18,8 +18,8 @@
 <!-- ============ LOGIN ============ -->
 <div id="login-view" class="screen">
   <div class="login-card">
-    <div class="login-logo"><img src="icons/icon-192.png" alt="NRG Caller" style="width:72px;height:72px;border-radius:16px;" /></div>
-    <h1 class="login-title">NRG Caller</h1>
+    <div class="login-logo"><img src="icons/icon-192.png" alt="FNRG Preaching" style="width:72px;height:72px;border-radius:16px;" /></div>
+    <h1 class="login-title">FNRG Preaching</h1>
     <p class="login-sub">Sign in to continue</p>
     <form id="login-form" autocomplete="off">
       <label class="field">
@@ -44,12 +44,13 @@
   <header class="app-header">
     <button id="back-btn" class="icon-btn hidden" aria-label="Back">←</button>
     <div class="header-titles">
-      <div id="header-title" class="header-title">NRG Caller</div>
+      <div id="header-title" class="header-title">FNRG Preaching</div>
       <div id="sync-status" class="sync-status"></div>
     </div>
     <div class="header-right">
       <span id="user-name" class="user-chip"></span>
       <span id="role-badge" class="role-badge hidden"></span>
+      <button id="download-all-db-btn" class="icon-btn hidden" aria-label="Download All Data" title="Download All DB Data">⬇</button>
       <button id="logout-btn" class="icon-btn" aria-label="Logout">⎋</button>
     </div>
   </header>
@@ -256,8 +257,8 @@
         <h3 class="section-title">Attendance in Range</h3>
         <div class="table-wrap">
           <table class="data-table">
-            <thead><tr><th>Time</th><th>Name</th><th>Phone</th><th>Marked By</th><th class="no-export"></th></tr></thead>
-            <tbody id="reception-analytics-attendance-body"><tr><td colspan="5" class="loading-row">Pick a range above.</td></tr></tbody>
+            <thead><tr><th>Time</th><th>Name</th><th>Phone</th><th>Event</th><th>Marked By</th><th class="no-export"></th></tr></thead>
+            <tbody id="reception-analytics-attendance-body"><tr><td colspan="6" class="loading-row">Pick a range above.</td></tr></tbody>
           </table>
         </div>
       </div>

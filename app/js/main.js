@@ -33,7 +33,7 @@ let currentUser = null;
 function showScreen(id) {
   document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
-  headerTitle.textContent = PAGE_TITLES[id] || "NRG Caller";
+  headerTitle.textContent = PAGE_TITLES[id] || "FNRG Preaching";
 
   if (id === "caller-section") Caller.init(currentUser);
   if (id === "reception-section") Reception.init(currentUser);
@@ -50,7 +50,7 @@ function showScreen(id) {
 function goDashboard() {
   dashboard.classList.remove("hidden");
   document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
-  headerTitle.textContent = "NRG Caller";
+  headerTitle.textContent = "FNRG Preaching";
   backBtn.classList.add("hidden");
 }
 
@@ -101,6 +101,10 @@ function renderForRole(user) {
     adminTabs.classList.remove("hidden");
     dashboard.classList.add("hidden");
     backBtn.classList.add("hidden");
+    // Show download-all-db button for admin
+    const dlBtn = document.getElementById("download-all-db-btn");
+    dlBtn.classList.remove("hidden");
+    dlBtn.addEventListener("click", () => Admin.downloadAllDbData(), { once: true });
     showScreen("admin-users-section");
   } else if (user.role === "Reception") {
     adminTabs.classList.add("hidden");

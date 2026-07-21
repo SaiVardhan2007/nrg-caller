@@ -106,6 +106,25 @@ export async function init(user) {
     btn.disabled = true;
     btn.textContent = "Marking…";
 
+    // Double check 8-hour window right before insert to prevent duplicate marking
+    const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
+    const { data: recentAtt } = await supabase
+      .from("session_attendance")
+      .select("id")
+      .eq("mob_no", foundContact.mob_no)
+      .gte("ts", eightHoursAgo)
+      .limit(1);
+
+    if (recentAtt && recentAtt.length > 0) {
+      showToast("Attendance already marked in the last 8 hours.", "warning");
+      btn.disabled = true;
+      btn.textContent = "✓ Already Marked";
+      btn.style.opacity = "0.6";
+      btn.style.cursor = "not-allowed";
+      marking = false;
+      return;
+    }
+
     const eventCode = document.getElementById("reception-session-name").value.trim();
     const sessionName = eventCode || "General Session";
     const { error } = await supabase.from("session_attendance").insert({
@@ -116,14 +135,19 @@ export async function init(user) {
     });
 
     marking = false;
-    btn.disabled = false;
-    btn.textContent = "🙏 Mark Attendance";
 
     if (error) {
       showToast("Could not mark attendance. Try again.", "error");
+      btn.disabled = false;
+      btn.textContent = "🙏 Mark Attendance";
       return;
     }
+
     showToast(`Attendance marked for ${foundContact.name} 🙏`, "success");
+    btn.textContent = "✓ Already Marked";
+    btn.style.opacity = "0.6";
+    btn.style.cursor = "not-allowed";
+
     addToTodayList({ name: foundContact.name, mob_no: foundContact.mob_no, ts: new Date().toISOString(), session: sessionName });
 
     foundContact.sessions_count++;
