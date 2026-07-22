@@ -113,9 +113,6 @@ function renderForRole(user) {
     showScreen("reception-section");
   } else {
     adminTabs.classList.add("hidden");
-    // Soft-launch: testing Reception first, so My Calls is disabled for regular Users until that's confirmed
-    // working. Remove this line to re-enable.
-    document.querySelector('.dashboard-card[data-target="caller-section"]').classList.add("disabled");
     goDashboard();
   }
 }

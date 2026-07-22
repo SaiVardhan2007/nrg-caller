@@ -151,7 +151,7 @@ function renderCard(a, weekCallCount) {
       </div>
       <div class="call-card-row2">
         <div class="card-badges">
-          <button class="calls-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📋 Sessions: ${c.sessions_count}</button>
+          <button class="sessions-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📋 Sessions: ${c.sessions_count}</button>
           <button class="calls-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📞 This week: ${weekCallCount}</button>
         </div>
         <a class="phone-pill" href="${telHref(c.mob_no)}">📞 ${formatPhone(c.mob_no)}</a>
@@ -247,7 +247,13 @@ function wireCard(assignments) {
 
     card.querySelectorAll(".calls-link").forEach((btn) => {
       btn.addEventListener("click", (e) => {
-        openHistoryModal(e.target.dataset.mob, e.target.dataset.name);
+        openHistoryModal(e.currentTarget.dataset.mob, e.currentTarget.dataset.name, "calls");
+      });
+    });
+
+    card.querySelectorAll(".sessions-link").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        openHistoryModal(e.currentTarget.dataset.mob, e.currentTarget.dataset.name, "sessions");
       });
     });
   });
@@ -274,6 +280,30 @@ async function submitCard(card, assignmentId, contactId, contact) {
     remarks: status,
     addl_remarks: addl,
   });
+
+  if (status === "Joining the session") {
+    try {
+      const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
+      const { data: recentAtt } = await supabase
+        .from("session_attendance")
+        .select("id")
+        .eq("mob_no", contact.mob_no)
+        .gte("ts", eightHoursAgo)
+        .limit(1);
+
+      if (!recentAtt || recentAtt.length === 0) {
+        await supabase.from("session_attendance").insert({
+          mob_no: contact.mob_no,
+          name: contact.name,
+          took_by: currentUser.user_name,
+          event_code: currentEventCode || null,
+          ts: new Date().toISOString()
+        });
+      }
+    } catch (err) {
+      console.warn("Could not auto-mark session attendance:", err);
+    }
+  }
 
   card.classList.remove("row-saving");
   if (e1 || e2) {
@@ -385,30 +415,58 @@ function wireReviewModal() {
   });
 }
 
-async function openHistoryModal(mob, name) {
-  document.getElementById("history-modal-title").textContent = "Call History";
-  document.getElementById("history-contact-info").textContent = `Contact: ${name} (${formatPhone(mob)})`;
+async function openHistoryModal(mob, name, kind = "calls") {
+  const titleEl = document.getElementById("history-modal-title");
+  const theadRow = document.querySelector("#history-modal thead tr");
   const tbody = document.getElementById("history-body");
+
+  document.getElementById("history-contact-info").textContent = `Contact: ${name} (${formatPhone(mob)})`;
   tbody.innerHTML = `<tr><td colspan="3" class="no-history">Loading…</td></tr>`;
   document.getElementById("history-modal").classList.add("active");
 
-  const { data, error } = await supabase
-    .from("call_responses")
-    .select("ts,remarks,addl_remarks")
-    .eq("mob_no", mob)
-    .order("ts", { ascending: false });
+  if (kind === "sessions") {
+    titleEl.textContent = "Session Attendance";
+    theadRow.innerHTML = "<th>Time</th><th>Marked By</th><th>Event</th>";
 
-  if (error || !data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="3" class="no-history">No call history yet.</td></tr>`;
-    return;
+    const { data, error } = await supabase
+      .from("session_attendance")
+      .select("ts,took_by,event_code")
+      .eq("mob_no", mob)
+      .order("ts", { ascending: false });
+
+    if (error || !data || !data.length) {
+      tbody.innerHTML = `<tr><td colspan="3" class="no-history">No sessions attended yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = data.map((r) => `
+      <tr>
+        <td>${new Date(r.ts).toLocaleString()}</td>
+        <td>${escapeHtml(r.took_by)}</td>
+        <td>${escapeHtml(r.event_code || "—")}</td>
+      </tr>
+    `).join("");
+  } else {
+    titleEl.textContent = "Call History";
+    theadRow.innerHTML = "<th>Time</th><th>Status</th><th>Additional</th>";
+
+    const { data, error } = await supabase
+      .from("call_responses")
+      .select("ts,remarks,addl_remarks")
+      .eq("mob_no", mob)
+      .order("ts", { ascending: false });
+
+    if (error || !data || !data.length) {
+      tbody.innerHTML = `<tr><td colspan="3" class="no-history">No call history yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = data.map((r) => `
+      <tr>
+        <td>${new Date(r.ts).toLocaleString()}</td>
+        <td>${escapeHtml(r.remarks)}</td>
+        <td>${escapeHtml(r.addl_remarks || "")}</td>
+      </tr>
+    `).join("");
   }
-  tbody.innerHTML = data.map((r) => `
-    <tr>
-      <td>${new Date(r.ts).toLocaleString()}</td>
-      <td>${escapeHtml(r.remarks)}</td>
-      <td>${escapeHtml(r.addl_remarks || "")}</td>
-    </tr>
-  `).join("");
 }
 
 function wireHistoryModal() {

@@ -531,7 +531,9 @@ function getNewContactsData() {
       gender: String(values[i][map['Gender'] - 1] || '').trim(),
       admin_tag_to_users: tagUsersVal,
       admin_tag: tagVal,
-      calling_purpose: String(values[i][map['Calling Purpose'] - 1] || '').trim()
+      calling_purpose: String(values[i][map['Calling Purpose'] - 1] || '').trim(),
+      time_stamp: map['Time Stamp'] ? String(values[i][map['Time Stamp'] - 1] || '').trim() : '',
+      sessions: map['Sessions'] ? String(values[i][map['Sessions'] - 1] || '').trim() : ''
     });
   }
   return result;

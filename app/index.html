@@ -139,6 +139,21 @@
     <section id="admin-contacts-section" class="page hidden">
       <div class="panel-row">
         <input id="contacts-search" type="search" placeholder="Search name or phone…" class="search-input" />
+        <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
+          <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
+          <select id="contacts-sort" class="inline-edit" style="width:160px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
+            <option value="s_no-asc">S.No (Asc)</option>
+            <option value="s_no-desc">S.No (Desc)</option>
+            <option value="created_at-desc">Time Stamp (Newest)</option>
+            <option value="created_at-asc">Time Stamp (Oldest)</option>
+            <option value="name-asc">Name (A-Z)</option>
+            <option value="name-desc">Name (Z-A)</option>
+            <option value="sessions_count-desc">Sessions (High-Low)</option>
+            <option value="sessions_count-asc">Sessions (Low-High)</option>
+            <option value="calls_count-desc">Calls (High-Low)</option>
+            <option value="calls_count-asc">Calls (Low-High)</option>
+          </select>
+        </label>
         <button id="add-contact-btn" class="btn btn-secondary">+ Add Contact</button>
         <button id="contacts-export-btn" class="btn btn-secondary">⬇ Export CSV</button>
         <button id="contacts-import-btn" class="btn btn-secondary">⬆ Import CSV</button>

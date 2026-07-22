@@ -64,6 +64,9 @@ create table if not exists assignment_rounds (
   user_name       text not null,
   event_code      text not null,
   assigned_count  int not null default 0,
+  called_count    int not null default 0,
+  left_count      int not null default 0,
+  positive_count  int not null default 0,
   round_ended_at  timestamptz not null default now()
 );
 

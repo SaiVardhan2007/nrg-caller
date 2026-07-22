@@ -192,9 +192,11 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .main-content:has(> #admin-contacts-section:not(.hidden)),
 .main-content:has(> #admin-users-section:not(.hidden)),
 .main-content:has(> #admin-analytics-section:not(.hidden)),
-.main-content:has(> #admin-reception-analytics-section:not(.hidden)) {
+.main-content:has(> #admin-reception-analytics-section:not(.hidden)),
+.main-content:has(> #admin-new-contacts-section:not(.hidden)) {
   max-width: 100%;
   margin: 0;
+  padding: 12px 8px;
 }
 
 /* ============ DASHBOARD ============ */
@@ -553,27 +555,93 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   }
 
   /* Filter columns in admin contact tables for ultra-clean mobile views */
-  #contacts-table td:not([data-label="S.No"]):not([data-label="Name"]):not([data-label="Phone"]):not([data-label="Calling Purpose"]),
-  #new-contacts-table td:not([data-label="S.No"]):not([data-label="Name"]):not([data-label="Phone"]):not([data-label="Calling Purpose"]) {
+  #contacts-table td:not([data-label="S.No"]):not([data-label="Name"]):not([data-label="Phone"]):not([data-label="Calling Purpose"]):not([data-label="Sessions"]):not([data-label="Admin Tag to Users"]),
+  #new-contacts-table td:not([data-label="S.No"]):not([data-label="Name"]):not([data-label="Phone"]):not([data-label="Calling Purpose"]):not([data-label="Sessions"]):not([data-label="Admin Tag to Users"]) {
     display: none !important;
   }
 
-  /* Two rows layout structure: S.No (15%) + Name (83%) on Row 1; Phone (49%) + Calling Purpose (49%) on Row 2 */
-  #contacts-table td[data-label="S.No"], #new-contacts-table td[data-label="S.No"] {
-    width: 15% !important;
-  }
-  #contacts-table td[data-label="Name"], #new-contacts-table td[data-label="Name"] {
-    width: 83% !important;
-  }
-  #contacts-table td[data-label="Phone"], #new-contacts-table td[data-label="Phone"],
-  #contacts-table td[data-label="Calling Purpose"], #new-contacts-table td[data-label="Calling Purpose"] {
-    width: 49% !important;
+  /* Hide labels in mobile view for contacts tables */
+  #contacts-table td[data-label]::before,
+  #new-contacts-table td[data-label]::before {
+    display: none !important;
   }
 
-  /* Hover states for interactive mobile contact cards */
+  /* Two rows layout structure: S.No (6%) + Name (60%) + Phone (30%) on Row 1; Sessions (18%) + Admin Tag to Users (44%) + Calling Purpose (34%) on Row 2 */
+  #contacts-table td[data-label="S.No"], #new-contacts-table td[data-label="S.No"] {
+    width: 6% !important;
+    padding: 2px 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: 600;
+  }
+  #contacts-table td[data-label="Name"], #new-contacts-table td[data-label="Name"] {
+    width: 60% !important;
+    padding: 2px 0 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  #contacts-table td[data-label="Phone"], #new-contacts-table td[data-label="Phone"] {
+    width: 30% !important;
+    padding: 2px 0 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  #contacts-table td[data-label="Sessions"], #new-contacts-table td[data-label="Sessions"] {
+    width: 18% !important;
+    padding: 2px 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+  }
+  #contacts-table td[data-label="Admin Tag to Users"], #new-contacts-table td[data-label="Admin Tag to Users"] {
+    width: 44% !important;
+    padding: 2px 0 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  #contacts-table td[data-label="Calling Purpose"], #new-contacts-table td[data-label="Calling Purpose"] {
+    width: 34% !important;
+    padding: 2px 0 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  /* Ensure inputs/selects in Row 1 take full width of container */
+  #contacts-table td[data-label="Phone"] input,
+  #new-contacts-table td[data-label="Phone"] input,
+  #contacts-table td[data-label="Name"] input,
+  #new-contacts-table td[data-label="Name"] input {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  #contacts-table td[data-label="Sessions"] button::before,
+  #new-contacts-table td[data-label="Sessions"] button::before {
+    content: "S: ";
+    font-size: 12px;
+    font-weight: bold;
+  }
+
+  /* Give inputs/selects in cards subtle borders for clear mobile editability */
+  #contacts-table td input.inline-edit,
+  #contacts-table td select.inline-edit,
+  #new-contacts-table td input.inline-edit,
+  #new-contacts-table td select.inline-edit {
+    font-size: 13px !important;
+    padding: 4px 6px !important;
+    border: 1px solid var(--sandstone) !important;
+    border-radius: 6px !important;
+    background: var(--surface) !important;
+  }
+
+  /* Hover states for interactive mobile contact cards and compact sizes */
   #contacts-table tbody tr, #new-contacts-table tbody tr {
     cursor: pointer;
     transition: background-color 0.2s ease, transform 0.15s ease;
+    margin-bottom: 8px !important;
+    padding: 6px 8px !important;
+    gap: 4px 2% !important;
   }
   #contacts-table tbody tr:hover, #new-contacts-table tbody tr:hover {
     background-color: #f3f4f6;
