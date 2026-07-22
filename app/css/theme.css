@@ -176,7 +176,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .user-chip { font-size: 13px; font-weight: 700; background: rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 20px; }
 .role-badge { font-size: 11px; background: var(--saffron-light); color: #4a2c05; padding: 3px 9px; border-radius: 20px; font-weight: 800; }
 
-.admin-tabs { display: flex; gap: 4px; padding: 10px 16px 0; background: var(--cream); overflow-x: auto; }
+.admin-tabs { display: flex; gap: 4px; padding: 10px 16px 0; background: var(--cream); overflow-x: auto; position: sticky; top: 50px; z-index: 9; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
 .admin-tab {
   background: none; border: none; padding: 10px 14px; font-size: 14px; font-weight: 700;
   font-family: inherit;
@@ -269,7 +269,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 .data-table th {
   position: sticky;
-  top: 0;
+  top: 97px;
   z-index: 10;
   background: var(--tulsi-dark); color: #fff; text-align: left;
   padding: 8px 10px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 700;
