@@ -255,7 +255,14 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .caller-title-row .section-title { margin-bottom: 0; }
 .btn-refresh { padding: 8px 14px; font-size: 13px; white-space: nowrap; }
 
-.table-wrap { overflow-x: auto; margin-bottom: 16px; border-radius: var(--card-radius); box-shadow: var(--shadow); }
+.table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 240px);
+  margin-bottom: 16px;
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow);
+}
 .data-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--card-radius); overflow: hidden; }
 @media (min-width: 641px) {
   #contacts-table, #new-contacts-table {
@@ -263,6 +270,9 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   }
 }
 .data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   background: var(--tulsi-dark); color: #fff; text-align: left;
   padding: 8px 10px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 700;
 }
@@ -286,16 +296,18 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   text-align: center;
 }
 .data-table td[data-label="Time Stamp"], .data-table th:nth-child(2) {
-  width: 145px !important;
-  max-width: 145px !important;
+  width: 110px !important;
+  max-width: 110px !important;
+  line-height: 1.2;
 }
-.data-table td[data-label="Name"], .data-table th:nth-child(3) {
-  width: 130px !important;
-  max-width: 130px !important;
+.data-table td[data-label="Name"], .data-table td[data-label="Name"] input, .data-table th:nth-child(3) {
+  width: 140px !important;
+  max-width: 140px !important;
 }
-.data-table td[data-label="Phone"] input, .data-table th:nth-child(4) {
-  min-width: 85px !important;
-  width: 88px !important;
+.data-table td[data-label="Phone"], .data-table td[data-label="Phone"] input, .data-table th:nth-child(4) {
+  min-width: 105px !important;
+  width: 105px !important;
+  max-width: 105px !important;
 }
 .data-table td[data-label="PG Name"], .data-table th:nth-child(5) {
   width: 130px !important;

@@ -163,8 +163,18 @@ function syncMasterContactRow(sheet, row, e) {
 
   const colProf = map['Profession'] || map['W/S'];
   const wsVal = colProf ? String(cellVal(sheet, row, map, colProf) || 'NA').trim() : 'NA';
-  const tagUsersCol = map['Admin Tag to Users'] || map['Admin tag to users'];
+  const tagUsersCol = map['Admin Tag to Users'] || map['Admin tag to users'] || map['Action'] || map['action'];
   const tagCol = map['Admin Tag'] || map['Admin tag'];
+  let tagUsersVal = tagUsersCol ? String(cellVal(sheet, row, map, tagUsersCol) || '').trim() : '';
+  if (tagUsersVal) {
+    if (tagUsersVal.toLowerCase() === 'never call him') {
+      tagUsersVal = "Don't Call";
+    } else if (tagUsersVal.toLowerCase() === "let's call") {
+      tagUsersVal = "Call";
+    } else if (tagUsersVal.toLowerCase() === "janata" || tagUsersVal.toLowerCase() === "weekend only") {
+      tagUsersVal = "Janata";
+    }
+  }
 
   const payload = {
     mob_no: mob,
@@ -175,7 +185,7 @@ function syncMasterContactRow(sheet, row, e) {
     ws: ['W', 'S', 'NA'].includes(wsVal) ? wsVal : 'NA',
     gender: String(cellVal(sheet, row, map, 'Gender') || '').trim() || null,
     admin_remarks: String(cellVal(sheet, row, map, 'Admin Remarks') || '') || null,
-    admin_tag_to_users: tagUsersCol ? String(cellVal(sheet, row, map, tagUsersCol) || '') || null : null,
+    admin_tag_to_users: tagUsersVal || null,
     admin_tag: tagCol ? String(cellVal(sheet, row, map, tagCol) || '') || null : null,
     core_cultivation: String(cellVal(sheet, row, map, 'Core Cultivation') || '') || null,
     calling_purpose: String(cellVal(sheet, row, map, 'Calling Purpose') || '') || null,
@@ -517,9 +527,18 @@ function getNewContactsData() {
     const colProf = map['Profession'] || map['W/S'];
     const rawWs = colProf ? String(values[i][colProf - 1] || 'NA').trim() : 'NA';
     
-    const tagUsersCol = map['Admin Tag to Users'] || map['Admin tag to users'];
+    const tagUsersCol = map['Admin Tag to Users'] || map['Admin tag to users'] || map['Action'] || map['action'];
     const tagCol = map['Admin Tag'] || map['Admin tag'];
-    const tagUsersVal = tagUsersCol ? String(values[i][tagUsersCol - 1] || '').trim() : '';
+    let tagUsersVal = tagUsersCol ? String(values[i][tagUsersCol - 1] || '').trim() : '';
+    if (tagUsersVal) {
+      if (tagUsersVal.toLowerCase() === 'never call him') {
+        tagUsersVal = "Don't Call";
+      } else if (tagUsersVal.toLowerCase() === "let's call") {
+        tagUsersVal = "Call";
+      } else if (tagUsersVal.toLowerCase() === "janata" || tagUsersVal.toLowerCase() === "weekend only") {
+        tagUsersVal = "Janata";
+      }
+    }
     const tagVal = tagCol ? String(values[i][tagCol - 1] || '').trim() : '';
 
     result.push({

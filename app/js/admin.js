@@ -1037,7 +1037,17 @@ function wireContactsImportExport() {
         name,
         ws: WS_ADMIN_OPTIONS.includes(pickField(row, "Profession", "W/S")) ? pickField(row, "Profession", "W/S") : "NA",
         gender: ["Male", "Female"].includes(pickField(row, "Gender")) ? pickField(row, "Gender") : null,
-        admin_tag_to_users: pickField(row, "Admin Tag to Users", "Admin tag to users") || null,
+        admin_tag_to_users: (() => {
+          let val = pickField(row, "Action", "action", "Admin Tag to Users", "Admin tag to users");
+          if (val) {
+            val = val.trim();
+            if (val.toLowerCase() === "never call him") return "Don't Call";
+            if (val.toLowerCase() === "let's call") return "Call";
+            if (val.toLowerCase() === "janata" || val.toLowerCase() === "weekend only") return "Janata";
+            return val;
+          }
+          return null;
+        })(),
         admin_tag: pickField(row, "Admin Tag") || null,
         core_cultivation: pickField(row, "Core Cultivation") || null,
         calling_purpose: pickField(row, "Calling Purpose") || null,
