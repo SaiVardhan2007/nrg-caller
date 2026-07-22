@@ -257,8 +257,6 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 
 .table-wrap {
   overflow-x: auto;
-  overflow-y: auto;
-  max-height: calc(100vh - 240px);
   margin-bottom: 16px;
   border-radius: var(--card-radius);
   box-shadow: var(--shadow);
