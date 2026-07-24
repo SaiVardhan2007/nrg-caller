@@ -5,6 +5,14 @@ function todayStamp() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// accepts legacy full words too, so old CSV exports / Sheet rows still import cleanly
+function normalizeGender(raw) {
+  const v = String(raw || "").trim().toLowerCase();
+  if (v === "m" || v === "male") return "M";
+  if (v === "f" || v === "female") return "F";
+  return null;
+}
+
 let eventsCache = [];
 let usersCache = [];
 let eventsLoaded = false;
@@ -58,21 +66,96 @@ export async function initUsers() {
   wireAssignButton(eventSelect, tagFilterGroup);
   wireRebalanceButton(eventSelect, tagFilterGroup);
   wireAddUserModal();
-  wireAddEventModal();
+  wireManageEventsModal();
   wireUsersImportExport();
 }
 
-let addEventModalWired = false;
-function wireAddEventModal() {
-  if (addEventModalWired) return;
-  addEventModalWired = true;
-  const modal = document.getElementById("add-event-modal");
+async function refreshEventsEverywhere(selectedCode) {
+  eventsLoaded = false;
+  await loadEvents();
+  const eventSelect = document.getElementById("event-select");
+  if (eventSelect) fillEventSelect(eventSelect, selectedCode);
+}
 
-  document.getElementById("add-event-btn").onclick = () => {
+async function renderManageEventsList() {
+  const tbody = document.getElementById("manage-events-body");
+  tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Loading events…</td></tr>`;
+
+  const [, { data: contacts }] = await Promise.all([
+    loadEvents(),
+    supabase.from("contacts").select("calling_purpose"),
+  ]);
+  const counts = {};
+  (contacts || []).forEach((c) => {
+    if (c.calling_purpose) counts[c.calling_purpose] = (counts[c.calling_purpose] || 0) + 1;
+  });
+
+  if (!eventsCache.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="loading-row">No events yet.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = eventsCache.map((e) => `
+    <tr data-code="${e.code}">
+      <td data-label="Code"><strong>${escapeHtml(e.code)}</strong></td>
+      <td data-label="Display Name"><input class="inline-edit event-name-input" value="${escapeHtml(e.name)}" /></td>
+      <td data-label="Contacts">${counts[e.code] || 0}</td>
+      <td data-label=""><button class="cell-chip danger delete-event-btn">Delete</button></td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll(".event-name-input").forEach((input) => {
+    input.addEventListener("change", async (e) => {
+      const code = e.target.closest("tr").dataset.code;
+      const name = e.target.value.trim();
+      if (!name) {
+        showToast("Display name cannot be empty.", "error");
+        const ev = eventsCache.find((ev) => ev.code === code);
+        e.target.value = ev ? ev.name : "";
+        return;
+      }
+      const { error } = await supabase.from("events").update({ name }).eq("code", code);
+      if (error) {
+        showToast("Update failed: " + error.message, "error");
+        return;
+      }
+      await refreshEventsEverywhere();
+      showToast("Event updated", "success");
+    });
+  });
+
+  tbody.querySelectorAll(".delete-event-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const code = e.target.closest("tr").dataset.code;
+      const count = counts[code] || 0;
+      const msg = count
+        ? `Delete event "${code}"? ${count} contact(s) are tagged with this event as their Calling Purpose — they'll keep that tag, but it will no longer appear as a selectable event.`
+        : `Delete event "${code}"?`;
+      if (!confirm(msg)) return;
+      const { error } = await supabase.from("events").delete().eq("code", code);
+      if (error) {
+        showToast("Delete failed: " + error.message, "error");
+        return;
+      }
+      await refreshEventsEverywhere();
+      await renderManageEventsList();
+      showToast("Event deleted", "success");
+    });
+  });
+}
+
+let manageEventsModalWired = false;
+function wireManageEventsModal() {
+  if (manageEventsModalWired) return;
+  manageEventsModalWired = true;
+  const modal = document.getElementById("manage-events-modal");
+
+  document.getElementById("manage-events-btn").onclick = () => {
     document.getElementById("add-event-code").value = "";
     document.getElementById("add-event-name").value = "";
     document.getElementById("add-event-error").classList.add("hidden");
     modal.classList.add("active");
+    renderManageEventsList();
   };
   document.getElementById("add-event-cancel").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
@@ -92,10 +175,11 @@ function wireAddEventModal() {
       errorEl.classList.remove("hidden");
       return;
     }
-    eventsLoaded = false;
-    await loadEvents();
-    fillEventSelect(document.getElementById("event-select"), code);
-    modal.classList.remove("active");
+    document.getElementById("add-event-code").value = "";
+    document.getElementById("add-event-name").value = "";
+    errorEl.classList.add("hidden");
+    await refreshEventsEverywhere(code);
+    await renderManageEventsList();
     showToast("Event added", "success");
   };
 }
@@ -590,11 +674,12 @@ export async function initContacts() {
   wireAddContactModal();
   wireContactInfoModal();
   wireAdminReviewModal();
+  wireDeleteContactModal();
   wireContactsImportExport();
 }
 
 const WS_ADMIN_OPTIONS = ["NA", "W", "S"];
-const GENDER_ADMIN_OPTIONS = ["", "Male", "Female"];
+const GENDER_ADMIN_OPTIONS = ["", "M", "F"];
 const ADMIN_TAG_TO_USERS_OPTIONS = ["", "Don't Call", "Coordinator", "Janata", "Call", "Core", "Assigned"];
 const ADMIN_TAG_OPTIONS = ["", "LIT", "Folk HYD", "Focus"];
 
@@ -674,8 +759,8 @@ async function renderContactsTable(searchTerm = "") {
           ${eventsCache.map((e) => `<option value="${e.code}" ${e.code === (c.calling_purpose || "") ? "selected" : ""}>${e.code}</option>`).join("")}
         </select>
       </td>
-      <td data-label="User Reviews"><button class="cell-chip info-link" data-kind="reviews" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">View</button></td>
       <td data-label="Admin Review"><button class="cell-chip admin-review-link" data-id="${c.id}" data-name="${escapeHtml(c.name)}" data-review="${escapeHtml(c.admin_remarks || "")}">${c.admin_remarks ? "✎ Edit" : "+ Add"}</button></td>
+      <td data-label=""><button class="cell-chip danger delete-contact-btn" data-id="${c.id}" data-name="${escapeHtml(c.name)}">Delete</button></td>
     </tr>
   `).join("");
 
@@ -736,6 +821,12 @@ async function renderContactsTable(searchTerm = "") {
   tbody.querySelectorAll(".admin-review-link").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       openAdminReviewModal(e.target.dataset.id, e.target.dataset.name, e.target.dataset.review);
+    });
+  });
+
+  tbody.querySelectorAll(".delete-contact-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      openDeleteContactModal(e.target.dataset.id, e.target.dataset.name);
     });
   });
 
@@ -912,6 +1003,7 @@ async function openEventCallsModal(userName, isAll, eventCode, eventName, fromTs
   const callerHeader = isAll ? "<th>Caller</th>" : "";
   thead.innerHTML = `<tr><th>Time</th>${callerHeader}<th>Contact</th><th>Phone</th><th>Status</th></tr>`;
   tbody.innerHTML = `<tr><td class="loading-row">Loading…</td></tr>`;
+  document.getElementById("contact-info-export-btn").classList.add("hidden");
   modal.classList.add("active");
 
   let query = supabase
@@ -923,6 +1015,9 @@ async function openEventCallsModal(userName, isAll, eventCode, eventName, fromTs
   if (fromTs) query = query.gte("ts", fromTs);
   if (toTs) query = query.lte("ts", toTs);
   const { data } = await query;
+
+  // group rows by caller so one person's calls sit together, not interleaved with others'
+  if (data) data.sort((a, b) => a.caller_name.localeCompare(b.caller_name));
 
   const colspan = isAll ? 5 : 4;
   tbody.innerHTML = (data && data.length)
@@ -971,6 +1066,40 @@ function wireAdminReviewModal() {
   };
 }
 
+let deleteContactId = null;
+
+function openDeleteContactModal(contactId, name) {
+  deleteContactId = contactId;
+  document.getElementById("delete-contact-message").textContent =
+    `Are you sure you want to permanently delete ${name}? This cannot be undone.`;
+  document.getElementById("delete-contact-modal").classList.add("active");
+}
+
+let deleteContactModalWired = false;
+function wireDeleteContactModal() {
+  if (deleteContactModalWired) return;
+  deleteContactModalWired = true;
+  const modal = document.getElementById("delete-contact-modal");
+  document.getElementById("delete-contact-cancel").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  document.getElementById("delete-contact-confirm").onclick = async () => {
+    const btn = document.getElementById("delete-contact-confirm");
+    btn.disabled = true;
+    btn.textContent = "Deleting…";
+    const { error } = await supabase.from("contacts").delete().eq("id", deleteContactId);
+    btn.disabled = false;
+    btn.textContent = "Permanently Delete";
+    if (error) {
+      showToast("Delete failed: " + error.message, "error");
+      return;
+    }
+    modal.classList.remove("active");
+    showToast("Contact deleted", "success");
+    renderContactsTable(document.getElementById("contacts-search").value.trim());
+  };
+}
+
 function wireContactsSearch() {
   if (contactsSearchWired) return;
   contactsSearchWired = true;
@@ -1010,67 +1139,6 @@ function wireContactsImportExport() {
       ]);
     });
     downloadCSV(`nrg-master-contact-${todayStamp()}.csv`, rows);
-  });
-
-  const fileInput = document.getElementById("contacts-import-file");
-  const summaryEl = document.getElementById("contacts-import-summary");
-  document.getElementById("contacts-import-btn").addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const records = parseCSV(await file.text());
-    fileInput.value = "";
-    if (!records.length) {
-      showToast("No rows found in that file.", "error");
-      return;
-    }
-
-    let skipped = 0;
-    const byMob = new Map(); // de-dupe within the file itself — last row for a phone number wins
-    records.forEach((row) => {
-      const name = pickField(row, "Name");
-      const mobRaw = pickField(row, "Mob No", "Phone", "Mobile", "Mobile Number");
-      const mob_no = mobRaw.replace(/\D/g, "");
-      if (!name || mob_no.length !== 10) { skipped++; return; }
-      byMob.set(mob_no, {
-        mob_no,
-        name,
-        ws: WS_ADMIN_OPTIONS.includes(pickField(row, "Profession", "W/S")) ? pickField(row, "Profession", "W/S") : "NA",
-        gender: ["Male", "Female"].includes(pickField(row, "Gender")) ? pickField(row, "Gender") : null,
-        admin_tag_to_users: (() => {
-          let val = pickField(row, "Action", "action", "Admin Tag to Users", "Admin tag to users");
-          if (val) {
-            val = val.trim();
-            if (val.toLowerCase() === "never call him") return "Don't Call";
-            if (val.toLowerCase() === "let's call") return "Call";
-            if (val.toLowerCase() === "janata" || val.toLowerCase() === "weekend only") return "Janata";
-            return val;
-          }
-          return null;
-        })(),
-        admin_tag: pickField(row, "Admin Tag") || null,
-        core_cultivation: pickField(row, "Core Cultivation") || null,
-        calling_purpose: pickField(row, "Calling Purpose") || null,
-        pg_name: pickField(row, "PG Name") || null,
-        company_name: pickField(row, "Company Name") || null,
-        admin_remarks: pickField(row, "Admin Remarks", "Admin Remakrs") || null,
-      });
-    });
-
-    const payload = Array.from(byMob.values());
-    if (!payload.length) {
-      showToast("No valid rows to import (need at least Name + a 10-digit Mob No).", "error");
-      return;
-    }
-    const { error } = await supabase.from("contacts").upsert(payload, { onConflict: "mob_no" });
-    if (error) {
-      showToast("Import failed: " + error.message, "error");
-      return;
-    }
-    summaryEl.textContent = `Imported ${payload.length} contact(s).` + (skipped ? ` Skipped ${skipped} row(s) missing a name or valid 10-digit phone.` : "");
-    summaryEl.classList.remove("hidden");
-    showToast("Contacts imported", "success");
-    renderContactsTable(document.getElementById("contacts-search").value.trim());
   });
 }
 
@@ -1248,6 +1316,16 @@ async function openAnalyticsStatModal(statType) {
   tbody.innerHTML = `<tr><td class="loading-row">Loading…</td></tr>`;
   modal.classList.add("active");
 
+  const exportBtn = document.getElementById("contact-info-export-btn");
+  exportBtn.classList.toggle("hidden", statType !== "pending");
+  exportBtn.onclick = () => {
+    const rows = [Array.from(thead.querySelectorAll("th")).map((th) => th.textContent.trim())];
+    tbody.querySelectorAll("tr").forEach((tr) => {
+      rows.push(Array.from(tr.children).map((td) => td.textContent.trim()));
+    });
+    downloadCSV(`nrg-pending-contacts-${todayStamp()}.csv`, rows);
+  };
+
   if (statType === "assigned") {
     document.getElementById("contact-info-title").textContent = "Assigned Contacts Details";
     document.getElementById("contact-info-sub").textContent = isAll ? "All Users (Combined)" : userName;
@@ -1271,6 +1349,9 @@ async function openAnalyticsStatModal(statType) {
       tbody.innerHTML = `<tr><td colspan="${isAll ? 5 : 4}" class="loading-row">No assigned contacts found.</td></tr>`;
       return;
     }
+
+    // group rows by caller so one person's contacts sit together, not interleaved with others'
+    data.sort((a, b) => a.user_name.localeCompare(b.user_name));
 
     tbody.innerHTML = data.map((a, idx) => `
       <tr>
@@ -1310,6 +1391,9 @@ async function openAnalyticsStatModal(statType) {
       tbody.innerHTML = `<tr><td colspan="${isAll ? 5 : 4}" class="loading-row">No pending contacts found.</td></tr>`;
       return;
     }
+
+    // group rows by caller so one person's contacts sit together, not interleaved with others'
+    data.sort((a, b) => a.user_name.localeCompare(b.user_name));
 
     tbody.innerHTML = data.map((a, idx) => `
       <tr>
@@ -1352,6 +1436,9 @@ async function openAnalyticsStatModal(statType) {
       tbody.innerHTML = `<tr><td colspan="${isAll ? 5 : 4}" class="loading-row">No responses found.</td></tr>`;
       return;
     }
+
+    // group rows by caller so one person's calls sit together, not interleaved with others'
+    filtered.sort((a, b) => a.caller_name.localeCompare(b.caller_name));
 
     tbody.innerHTML = filtered.map((r) => `
       <tr>
@@ -1408,7 +1495,7 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   if (toTs) rangedCallsQuery = rangedCallsQuery.lte("ts", toTs);
   let liveAssignmentsQuery = supabase.from("assignments").select("event_code");
   if (!isAll) liveAssignmentsQuery = liveAssignmentsQuery.eq("user_name", userName);
-  let roundsQuery = supabase.from("assignment_rounds").select("event_code,assigned_count,called_count,left_count");
+  let roundsQuery = supabase.from("assignment_rounds").select("event_code,assigned_count,called_count,left_count,round_ended_at");
   if (!isAll) roundsQuery = roundsQuery.eq("user_name", userName);
 
   let pendingQuery = supabase.from("assignments").select("id", { count: "exact", head: true }).in("status", ["Not Done", "yet to call", ""]);
@@ -1428,13 +1515,25 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   const liveCounts = {};
   (liveAssignments || []).forEach((a) => { liveCounts[a.event_code] = (liveCounts[a.event_code] || 0) + 1; });
   
+  // Every time admin (re-)assigns an event, the outgoing round is snapshotted
+  // into a fresh set of rows here — so an event that's been assigned multiple
+  // times over its life has multiple rounds on file. Only the most recent
+  // round represents "how things stand", so sum within that round only
+  // instead of across every historical round ever taken (which double/triple
+  // counted and inflated Total Assigned).
+  const roundsByEvent = {};
+  (rounds || []).forEach((r) => {
+    (roundsByEvent[r.event_code] || (roundsByEvent[r.event_code] = [])).push(r);
+  });
   const roundTotals = {};
   const roundCalled = {};
   const roundLeft = {};
-  (rounds || []).forEach((r) => { 
-    roundTotals[r.event_code] = (roundTotals[r.event_code] || 0) + r.assigned_count;
-    roundCalled[r.event_code] = (roundCalled[r.event_code] || 0) + (r.called_count || 0);
-    roundLeft[r.event_code] = (roundLeft[r.event_code] || 0) + (r.left_count || 0);
+  Object.entries(roundsByEvent).forEach(([code, rows]) => {
+    const latestTs = rows.reduce((max, r) => (r.round_ended_at > max ? r.round_ended_at : max), rows[0].round_ended_at);
+    const latestRows = rows.filter((r) => r.round_ended_at === latestTs);
+    roundTotals[code] = latestRows.reduce((sum, r) => sum + r.assigned_count, 0);
+    roundCalled[code] = latestRows.reduce((sum, r) => sum + (r.called_count || 0), 0);
+    roundLeft[code] = latestRows.reduce((sum, r) => sum + (r.left_count || 0), 0);
   });
   
   const callTotals = {};
@@ -1471,7 +1570,7 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
         <td data-label="Event">${escapeHtml(e.name)}</td>
         <td data-label="Assigned">${assigned}</td>
         <td data-label="Called">${called}</td>
-        <td data-label="Left">${left}</td>
+        <td data-label="Pending">${left}</td>
       </tr>`;
   }).join("");
   byEventBody.innerHTML = eventRows || `<tr><td colspan="4" class="loading-row">No data yet.</td></tr>`;
@@ -1488,6 +1587,8 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   if (!isAll) assignedQuery = assignedQuery.eq("user_name", userName);
   const { data: assignedContacts } = await assignedQuery;
   if (isStale()) return;
+  // group rows by caller so one person's contacts sit together, not interleaved with others'
+  if (assignedContacts) assignedContacts.sort((a, b) => a.user_name.localeCompare(b.user_name));
   const assignedBody = document.getElementById("analytics-assigned-body");
   assignedBody.innerHTML = (assignedContacts && assignedContacts.length)
     ? assignedContacts.map((a) => `
@@ -1505,6 +1606,8 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   cultivatedQuery = isAll ? cultivatedQuery.not("core_cultivation", "is", null) : cultivatedQuery.eq("core_cultivation", userName);
   const { data: cultivated } = await cultivatedQuery;
   if (isStale()) return;
+  // group rows by cultivator so one person's contacts sit together, not interleaved with others'
+  if (cultivated) cultivated.sort((a, b) => (a.core_cultivation || "").localeCompare(b.core_cultivation || ""));
   const cultivationBody = document.getElementById("analytics-cultivation-body");
   if (!cultivated || !cultivated.length) {
     cultivationBody.innerHTML = `<tr><td colspan="5" class="loading-row">No contacts cultivated${isAll ? "" : " to this user"}.</td></tr>`;

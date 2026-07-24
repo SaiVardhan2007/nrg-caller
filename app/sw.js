@@ -1,4 +1,4 @@
-const CACHE_NAME = "fnrg-preaching-v6";
+const CACHE_NAME = "fnrg-preaching-v11";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -12,6 +12,8 @@ const SHELL_FILES = [
   "./js/caller.js",
   "./js/reception.js",
   "./js/collection.js",
+  "./js/oneToOne.js",
+  "./js/coreCultivation.js",
   "./manifest.json",
 ];
 

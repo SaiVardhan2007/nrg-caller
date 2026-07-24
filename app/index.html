@@ -65,6 +65,7 @@
     <button class="admin-tab" data-target="admin-message-section">Message</button>
     <button class="admin-tab" data-target="admin-analytics-section">Analytics</button>
     <button class="admin-tab" data-target="admin-reception-analytics-section">Reception</button>
+    <button class="admin-tab" data-target="admin-one-to-one-section">One to One</button>
   </nav>
 
   <!-- ---- User dashboard ---- -->
@@ -72,13 +73,23 @@
     <div class="dashboard-cards">
       <button class="dashboard-card" data-target="caller-section">
         <span class="card-icon-badge badge-tulsi"><span class="card-emoji">📞</span></span>
-        <span class="card-label">My Calls</span>
+        <span class="card-label">My Calls <span id="dash-completion-badge" class="completion-badge">0%</span></span>
         <span id="dash-event-name" class="card-sub"></span>
         <span class="card-arrow">→</span>
       </button>
       <button class="dashboard-card" data-target="reception-section">
-        <span class="card-icon-badge badge-saffron"><span class="card-emoji">🙏</span></span>
+        <span class="card-icon-badge badge-saffron"><span class="card-emoji">🛎️</span></span>
         <span class="card-label">Reception</span>
+        <span class="card-arrow">→</span>
+      </button>
+      <button class="dashboard-card" data-target="one-to-one-user-section">
+        <span class="card-icon-badge badge-indigo"><span class="card-emoji">👥</span></span>
+        <span class="card-label">One to One with Prabhu</span>
+        <span class="card-arrow">→</span>
+      </button>
+      <button class="dashboard-card" data-target="core-cultivation-section">
+        <span class="card-icon-badge badge-cultivation"><span class="card-emoji duo">💧🌱</span></span>
+        <span class="card-label">Core Cultivation</span>
         <span class="card-arrow">→</span>
       </button>
     </div>
@@ -94,9 +105,10 @@
             <span>Current Event</span>
             <select id="event-select"></select>
           </label>
-          <button id="add-event-btn" type="button" class="btn btn-secondary">+ Add Event</button>
+          <button id="manage-events-btn" type="button" class="btn btn-secondary">✎ Edit Events</button>
           <div class="field inline tag-check-group" id="tag-filter-group">
             <span>Admin Tag Filter</span>
+            <label class="tag-check"><input type="checkbox" value="Don't Call" /> Don't Call</label>
             <label class="tag-check"><input type="checkbox" value="Janata" /> Janata</label>
             <label class="tag-check"><input type="checkbox" value="Call" /> Call</label>
             <label class="tag-check"><input type="checkbox" value="Core" /> Core</label>
@@ -156,17 +168,14 @@
         </label>
         <button id="add-contact-btn" class="btn btn-secondary">+ Add Contact</button>
         <button id="contacts-export-btn" class="btn btn-secondary">⬇ Export CSV</button>
-        <button id="contacts-import-btn" class="btn btn-secondary">⬆ Import CSV</button>
-        <input id="contacts-import-file" type="file" accept=".csv" class="hidden" />
       </div>
-      <div id="contacts-import-summary" class="muted-text hidden"></div>
       <div class="table-wrap">
         <table class="data-table" id="contacts-table">
           <thead>
             <tr>
               <th>S.No</th><th>Time Stamp</th><th>Name</th><th>Phone</th><th>PG Name</th><th>Profession</th><th>Gender</th><th>Sessions</th><th>Calls</th>
               <th>Admin Tag to Users</th><th>Admin Tag</th><th>Core Cultivation</th><th>Calling Purpose</th>
-              <th>User Reviews</th><th>Admin Review</th>
+              <th>Admin Review</th><th></th>
             </tr>
           </thead>
           <tbody id="contacts-table-body">
@@ -209,10 +218,10 @@
       </div>
 
       <div class="panel">
-        <h3 class="section-title">By Event — Assigned / Called / Left</h3>
+        <h3 class="section-title">By Event — Assigned / Called / Pending</h3>
         <div class="table-wrap">
           <table class="data-table">
-            <thead><tr><th>Event</th><th>Assigned</th><th>Called</th><th>Left</th></tr></thead>
+            <thead><tr><th>Event</th><th>Assigned</th><th>Called</th><th>Pending</th></tr></thead>
             <tbody id="analytics-by-event-body"><tr><td colspan="4" class="loading-row">Pick a user above.</td></tr></tbody>
           </table>
         </div>
@@ -279,6 +288,37 @@
       </div>
     </section>
 
+    <!-- ===== ADMIN: One to One ===== -->
+    <section id="admin-one-to-one-section" class="page hidden">
+      <div class="panel">
+        <div class="panel-row">
+          <input id="one-to-one-search" type="tel" inputmode="numeric" placeholder="Search 10-digit phone number in Master Contact…" class="search-input" />
+        </div>
+        <div id="one-to-one-search-result" class="reception-result hidden">
+          <div id="one-to-one-search-name" class="reception-name"></div>
+          <div id="one-to-one-search-phone" class="reception-phone"></div>
+          <div class="modal-actions" style="justify-content:flex-start;">
+            <button id="one-to-one-search-add" class="btn btn-primary">Add</button>
+            <button id="one-to-one-search-cancel" class="btn btn-secondary">Cancel</button>
+          </div>
+        </div>
+        <div id="one-to-one-search-not-found" class="reception-not-found hidden">
+          <p>No contact found in Master Contact with this number.</p>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table" id="one-to-one-table">
+          <thead>
+            <tr><th>S.No</th><th>Name</th><th>Phone</th><th>W/S</th><th>Help Asked by the Boy</th><th>Remarks by SNKD</th></tr>
+          </thead>
+          <tbody id="one-to-one-table-body">
+            <tr><td colspan="6" class="loading-row">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- ===== ADMIN: New Contacts ===== -->
     <section id="admin-new-contacts-section" class="page hidden">
       <div class="panel">
@@ -333,16 +373,35 @@
     <!-- ===== CALLER ===== -->
     <section id="caller-section" class="page hidden">
       <div class="stats-bar">
-        <div class="stat"><span id="stat-total" class="stat-num">0</span><span class="stat-label">Total</span></div>
-        <div class="stat"><span id="stat-positive" class="stat-num">0</span><span class="stat-label">Positive</span></div>
-        <div class="stat"><span id="stat-pending" class="stat-num">0</span><span class="stat-label">Pending</span></div>
+        <div class="stat stat-total"><span id="stat-total" class="stat-num">0</span><span class="stat-label">Total</span></div>
+        <div class="stat stat-positive"><span id="stat-positive" class="stat-num">0</span><span class="stat-label">Positive</span></div>
+        <div class="stat stat-pending"><span id="stat-pending" class="stat-num">0</span><span class="stat-label">Pending</span></div>
       </div>
       <div class="caller-title-row">
-        <div id="caller-event-title" class="section-title"></div>
+        <div class="card-sub-row">
+          <div id="caller-event-title" class="section-title"></div>
+          <span id="caller-completion-badge" class="completion-badge">0% Completed</span>
+        </div>
         <button id="caller-refresh-btn" class="btn btn-secondary btn-refresh" type="button">↻ Refresh</button>
       </div>
       <div id="caller-cards" class="cards-list">
         <p class="loading-row">Loading your assigned contacts…</p>
+      </div>
+    </section>
+
+    <!-- ===== CORE CULTIVATION ===== -->
+    <section id="core-cultivation-section" class="page hidden">
+      <div class="stats-bar">
+        <div class="stat stat-total"><span id="cc-stat-total" class="stat-num">0</span><span class="stat-label">Total</span></div>
+        <div class="stat stat-positive"><span id="cc-stat-positive" class="stat-num">0</span><span class="stat-label">Positive</span></div>
+        <div class="stat stat-pending"><span id="cc-stat-pending" class="stat-num">0</span><span class="stat-label">Pending</span></div>
+      </div>
+      <div class="caller-title-row">
+        <div class="section-title">Your Core Cultivation Contacts</div>
+        <button id="cc-refresh-btn" class="btn btn-secondary btn-refresh" type="button">↻ Refresh</button>
+      </div>
+      <div id="cc-cards" class="cards-list">
+        <p class="loading-row">Loading your core cultivation contacts…</p>
       </div>
     </section>
 
@@ -352,13 +411,18 @@
         <input id="reception-search" type="tel" inputmode="numeric" placeholder="Enter 10-digit phone number…" class="search-input" />
         <div id="reception-loader" class="loader-row hidden"><span class="btn-spinner"></span> Searching…</div>
         <div id="reception-result" class="reception-result hidden">
-          <div id="reception-name" class="reception-name"></div>
           <div id="reception-phone" class="reception-phone"></div>
           <div id="reception-sessions" class="reception-sessions"></div>
+          <label class="field"><span>Name</span><input id="reception-edit-name" type="text" /></label>
+          <label class="field"><span>PG / Flat Name</span><input id="reception-edit-pg" type="text" /></label>
+          <label class="field"><span>Profession</span>
+            <select id="reception-edit-ws"><option value="">— select —</option><option value="NA">NA</option><option value="W">W</option><option value="S">S</option></select>
+          </label>
           <label class="field">
             <span>Session Name</span>
             <select id="reception-session-name"></select>
           </label>
+          <div id="reception-missing-error" class="field-error hidden"></div>
           <button id="mark-attendance-btn" class="btn btn-primary btn-block">🙏 Mark Attendance</button>
         </div>
         <div id="reception-not-found" class="reception-not-found hidden">
@@ -372,7 +436,7 @@
               <select id="reception-new-ws"><option value="NA">NA</option><option value="W">W</option><option value="S">S</option></select>
             </label>
             <label class="field"><span>Gender</span>
-              <select id="reception-new-gender"><option value="">— select —</option><option value="Male">Male</option><option value="Female">Female</option></select>
+              <select id="reception-new-gender"><option value="">— select —</option><option value="M">M</option><option value="F">F</option></select>
             </label>
             <label class="field"><span>Event</span>
               <select id="reception-new-event"></select>
@@ -383,7 +447,16 @@
         </div>
       </div>
       <div class="panel">
-        <h3 class="section-title">Today's Attendance</h3>
+        <div class="caller-title-row">
+          <h3 class="section-title">Today's Attendance</h3>
+          <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
+            <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
+            <select id="reception-attendance-sort" class="inline-edit" style="width:160px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
+              <option value="name">Name (A-Z)</option>
+              <option value="time">Time (Latest)</option>
+            </select>
+          </label>
+        </div>
         <table class="data-table">
           <thead><tr><th>Name</th><th>Phone</th><th>Time</th><th>Session</th></tr></thead>
           <tbody id="reception-attendance-body">
@@ -393,7 +466,27 @@
       </div>
     </section>
 
-
+    <!-- ===== USER: One to One with Prabhu ===== -->
+    <section id="one-to-one-user-section" class="page hidden">
+      <div id="one-to-one-user-not-linked" class="panel hidden">
+        <p class="muted-text">You haven't been added to One to One yet. Please speak to admin.</p>
+      </div>
+      <div id="one-to-one-user-content" class="hidden">
+        <div class="panel">
+          <label class="field"><span>Ask Prabhu a question</span><textarea id="one-to-one-user-text" rows="3" placeholder="Type your question here…"></textarea></label>
+          <button id="one-to-one-user-submit" class="btn btn-primary">Send to Prabhu</button>
+        </div>
+        <div class="panel">
+          <h3 class="section-title">Your Past Questions</h3>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Time</th><th>Question</th></tr></thead>
+              <tbody id="one-to-one-user-questions-body"><tr><td colspan="2" class="loading-row">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
 
   </main>
 </div>
@@ -439,15 +532,27 @@
   </div>
 </div>
 
-<div id="add-event-modal" class="modal">
-  <div class="modal-box">
-    <h3>Add Event</h3>
+<div id="manage-events-modal" class="modal">
+  <div class="modal-box modal-large">
+    <h3>Edit Events</h3>
+    <div class="table-wrap" style="max-height:320px;">
+      <table class="data-table" id="manage-events-table">
+        <thead>
+          <tr><th>Code</th><th>Display Name</th><th>Contacts</th><th></th></tr>
+        </thead>
+        <tbody id="manage-events-body">
+          <tr><td colspan="4" class="loading-row">Loading events…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4 style="margin:18px 0 10px; color:var(--tulsi-dark); font-weight:800; font-size:15px;">Add New Event</h4>
     <label class="field"><span>Event Code (short, e.g. GIC)</span><input id="add-event-code" type="text" maxlength="10" /></label>
     <label class="field"><span>Display Name</span><input id="add-event-name" type="text" /></label>
     <div id="add-event-error" class="field-error hidden"></div>
     <div class="modal-actions">
-      <button id="add-event-cancel" class="btn btn-secondary">Cancel</button>
-      <button id="add-event-submit" class="btn btn-primary">Save</button>
+      <button id="add-event-cancel" class="btn btn-secondary">Close</button>
+      <button id="add-event-submit" class="btn btn-primary">+ Add Event</button>
     </div>
   </div>
 </div>
@@ -481,7 +586,7 @@
       <select id="add-contact-ws"><option value="NA">NA</option><option value="W">W</option><option value="S">S</option></select>
     </label>
     <label class="field"><span>Gender</span>
-      <select id="add-contact-gender"><option value="">— select —</option><option value="Male">Male</option><option value="Female">Female</option></select>
+      <select id="add-contact-gender"><option value="">— select —</option><option value="M">M</option><option value="F">F</option></select>
     </label>
     <label class="field"><span>Admin Tag to Users</span>
       <select id="add-contact-tag-users">
@@ -516,6 +621,17 @@
   </div>
 </div>
 
+<div id="delete-contact-modal" class="modal">
+  <div class="modal-box">
+    <h3>Delete Contact</h3>
+    <p id="delete-contact-message" class="muted-text"></p>
+    <div class="modal-actions">
+      <button id="delete-contact-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="delete-contact-confirm" class="btn btn-primary" style="background:var(--danger); box-shadow:none;">Permanently Delete</button>
+    </div>
+  </div>
+</div>
+
 <div id="review-modal" class="modal">
   <div class="modal-box">
     <h3 id="review-title">Add a review</h3>
@@ -543,6 +659,7 @@
       </table>
     </div>
     <div class="modal-actions">
+      <button id="contact-info-export-btn" class="btn btn-secondary hidden">⬇ Export CSV</button>
       <button id="contact-info-close" class="btn btn-secondary">Close</button>
     </div>
   </div>
@@ -560,6 +677,41 @@
     <div class="modal-actions">
       <button id="admin-review-cancel" class="btn btn-secondary">Cancel</button>
       <button id="admin-review-save" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="help-requests-modal" class="modal">
+  <div class="modal-box">
+    <h3>Help Asked by the Boy</h3>
+    <p id="help-requests-sub" class="muted-text"></p>
+    <div class="table-wrap" style="max-height:300px;">
+      <table class="data-table">
+        <thead><tr><th>Time</th><th>Question</th></tr></thead>
+        <tbody id="help-requests-body"><tr><td colspan="2" class="loading-row">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="help-requests-close" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="remarks-modal" class="modal">
+  <div class="modal-box">
+    <h3>Remarks by SNKD</h3>
+    <p id="remarks-sub" class="muted-text"></p>
+    <div class="table-wrap" style="max-height:220px;">
+      <table class="data-table">
+        <thead><tr><th>Time</th><th>Remark</th></tr></thead>
+        <tbody id="remarks-body"><tr><td colspan="2" class="loading-row">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <label class="field"><span>Add Remark</span><textarea id="remarks-text" rows="3"></textarea></label>
+    <div id="remarks-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="remarks-close" class="btn btn-secondary">Close</button>
+      <button id="remarks-add" class="btn btn-primary">Add Remark</button>
     </div>
   </div>
 </div>

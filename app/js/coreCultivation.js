@@ -33,9 +33,9 @@ function statusCategory(status) {
   return "neutral";
 }
 
-const cardState = new Map(); // assignment.id -> { called, sent, submitted, lastStatus }
-let currentEventCode = "";
-let currentEventName = "";
+// keyed by contact.id, since (unlike My Calls) there's no assignments row
+// guaranteed to exist for every core-cultivated contact
+const cardState = new Map(); // contact.id -> { called, sent, submitted, lastStatus }
 let messageText = "";
 let currentUser = null;
 
@@ -51,33 +51,23 @@ const SKELETON_CARD = `
 
 export async function init(user) {
   currentUser = user;
-  const listEl = document.getElementById("caller-cards");
+  const listEl = document.getElementById("cc-cards");
   listEl.innerHTML = SKELETON_CARD.repeat(3);
 
-  const [{ data: eventRow }, { data: msgRow }] = await Promise.all([
-    supabase.from("settings").select("value").eq("key", "current_event").single(),
-    supabase.from("settings").select("value").eq("key", "message_text").single(),
-  ]);
-  currentEventCode = eventRow?.value || "";
+  const { data: msgRow } = await supabase.from("settings").select("value").eq("key", "message_text").single();
   messageText = msgRow?.value || "";
-
-  const { data: eventInfo } = await supabase.from("events").select("name").eq("code", currentEventCode).single();
-  currentEventName = eventInfo?.name || currentEventCode;
-  document.getElementById("caller-event-title").textContent = currentEventName;
-  document.getElementById("dash-event-name").textContent = currentEventName;
 
   await loadAndRenderCards();
   wireReviewModal();
   wireHistoryModal();
   wireRefreshButton();
-  subscribeRealtime();
 }
 
 let refreshWired = false;
 function wireRefreshButton() {
   if (refreshWired) return;
   refreshWired = true;
-  const btn = document.getElementById("caller-refresh-btn");
+  const btn = document.getElementById("cc-refresh-btn");
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     const original = btn.textContent;
@@ -88,42 +78,49 @@ function wireRefreshButton() {
   });
 }
 
+// Core cultivation is a permanent 1:1 link on the contact itself, not tied to
+// the active event's assignments table (which gets wiped on every event
+// switch) — so this reads straight from contacts, and derives "current
+// status" from this cultivator's own most recent call_responses entry for
+// each contact rather than from an assignments row that may not exist.
 async function loadAndRenderCards() {
-  const { data: assignments, error } = await supabase
-    .from("assignments")
-    .select("id,status,submitted_at,contact_id,contacts(id,name,mob_no,ws,sessions_count,core_cultivation)")
-    .eq("user_name", currentUser.user_name)
-    .eq("event_code", currentEventCode);
+  const { data: contacts, error } = await supabase
+    .from("contacts")
+    .select("id,name,mob_no,ws,sessions_count,calling_purpose")
+    .eq("core_cultivation", currentUser.user_name);
 
-  const listEl = document.getElementById("caller-cards");
+  const listEl = document.getElementById("cc-cards");
   if (error) {
-    listEl.innerHTML = `<p class="loading-row">Could not load your contacts.</p>`;
+    listEl.innerHTML = `<p class="loading-row">Could not load your core cultivation contacts.</p>`;
     return;
   }
-  if (!assignments || !assignments.length) {
-    listEl.innerHTML = `<p class="loading-row">No contacts assigned to you yet for ${escapeHtml(currentEventName)}.</p>`;
+  if (!contacts || !contacts.length) {
+    listEl.innerHTML = `<p class="loading-row">No contacts under your core cultivation yet.</p>`;
     updateStatsBar([]);
     return;
   }
 
-  assignments.forEach((a) => {
-    if (!cardState.has(a.id)) {
-      cardState.set(a.id, { called: false, sent: false, submitted: !!a.submitted_at, lastStatus: a.status });
+  const mobNos = contacts.map((c) => c.mob_no);
+  const [{ data: weekCalls }, { data: ownHistory }] = await Promise.all([
+    supabase.from("call_responses").select("mob_no").in("mob_no", mobNos).gte("ts", startOfWeek().toISOString()),
+    supabase.from("call_responses").select("mob_no,remarks,ts").eq("caller_name", currentUser.user_name).in("mob_no", mobNos).order("ts", { ascending: false }),
+  ]);
+  const weekCallCounts = {};
+  (weekCalls || []).forEach((r) => { weekCallCounts[r.mob_no] = (weekCallCounts[r.mob_no] || 0) + 1; });
+  // first row per mob_no wins — list is already newest-first
+  const lastStatusByMob = {};
+  (ownHistory || []).forEach((r) => { if (!(r.mob_no in lastStatusByMob)) lastStatusByMob[r.mob_no] = r.remarks; });
+
+  contacts.forEach((c) => {
+    if (!cardState.has(c.id)) {
+      const lastStatus = lastStatusByMob[c.mob_no] || null;
+      cardState.set(c.id, { called: false, sent: false, submitted: !!lastStatus, lastStatus });
     }
   });
 
-  const mobNos = assignments.map((a) => a.contacts.mob_no);
-  const { data: weekCalls } = await supabase
-    .from("call_responses")
-    .select("mob_no")
-    .in("mob_no", mobNos)
-    .gte("ts", startOfWeek().toISOString());
-  const weekCallCounts = {};
-  (weekCalls || []).forEach((r) => { weekCallCounts[r.mob_no] = (weekCallCounts[r.mob_no] || 0) + 1; });
-
-  listEl.innerHTML = assignments.map((a) => renderCard(a, weekCallCounts[a.contacts.mob_no] || 0)).join("");
-  wireCard(assignments);
-  updateStatsBar(assignments);
+  listEl.innerHTML = contacts.map((c) => renderCard(c, weekCallCounts[c.mob_no] || 0)).join("");
+  wireCard(contacts);
+  updateStatsBar(contacts);
 }
 
 function startOfWeek() {
@@ -136,13 +133,13 @@ function startOfWeek() {
   return monday;
 }
 
-function renderCard(a, weekCallCount) {
-  const c = a.contacts;
-  const st = cardState.get(a.id);
-  const submittedLabel = st.submitted && st.lastStatus === a.status;
-  const category = statusCategory(a.status);
+function renderCard(c, weekCallCount) {
+  const st = cardState.get(c.id);
+  const status = st.lastStatus || STATUS_DEFAULT;
+  const submittedLabel = st.submitted;
+  const category = statusCategory(status);
   return `
-    <div class="call-card" data-assignment-id="${a.id}" data-contact-id="${c.id}">
+    <div class="call-card" data-contact-id="${c.id}">
       <div class="call-card-row1">
         <select class="ws-select" data-ws="${c.ws || "NA"}">
           ${WS_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
@@ -151,6 +148,7 @@ function renderCard(a, weekCallCount) {
       </div>
       <div class="call-card-row2">
         <div class="card-badges">
+          <span class="calls-link" style="cursor:default;">🌱 ${escapeHtml(c.calling_purpose || "—")}</span>
           <button class="sessions-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📋 Sessions: ${c.sessions_count}</button>
           <button class="calls-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📞 This week: ${weekCallCount}</button>
         </div>
@@ -158,12 +156,12 @@ function renderCard(a, weekCallCount) {
       </div>
       <div class="call-card-row3">
         <select class="status-select status-${category}">
-          ${STATUS_OPTIONS.map((o) => `<option value="${o}" ${o === (a.status || STATUS_DEFAULT) ? "selected" : ""}>${o}</option>`).join("")}
+          ${STATUS_OPTIONS.map((o) => `<option value="${o}" ${o === status ? "selected" : ""}>${o}</option>`).join("")}
         </select>
       </div>
       <div class="call-card-row4">
         <button class="btn btn-secondary send-btn">💬 Send Message</button>
-        <button class="btn btn-primary row-submit-btn" ${submittedLabel ? "disabled" : "disabled"}>
+        <button class="btn btn-primary row-submit-btn" disabled>
           ${submittedLabel ? "✓ Submitted" : "Submit"}
         </button>
       </div>
@@ -171,8 +169,8 @@ function renderCard(a, weekCallCount) {
   `;
 }
 
-function refreshSubmitButton(card, assignmentId) {
-  const st = cardState.get(assignmentId);
+function refreshSubmitButton(card, contactId) {
+  const st = cardState.get(contactId);
   const statusSelect = card.querySelector(".status-select");
   const submitBtn = card.querySelector(".row-submit-btn");
   const status = statusSelect.value;
@@ -207,14 +205,12 @@ function refreshSubmitButton(card, assignmentId) {
   }
 }
 
-function wireCard(assignments) {
-  document.querySelectorAll(".call-card").forEach((card) => {
-    const assignmentId = card.dataset.assignmentId;
+function wireCard(contacts) {
+  document.querySelectorAll("#cc-cards .call-card").forEach((card) => {
     const contactId = card.dataset.contactId;
-    const a = assignments.find((x) => x.id === assignmentId);
-    const c = a.contacts;
+    const c = contacts.find((x) => x.id === contactId);
 
-    refreshSubmitButton(card, assignmentId);
+    refreshSubmitButton(card, contactId);
 
     card.querySelector(".ws-select").addEventListener("change", async (e) => {
       e.target.dataset.ws = e.target.value;
@@ -222,32 +218,33 @@ function wireCard(assignments) {
     });
 
     card.querySelector(".phone-pill").addEventListener("click", () => {
-      cardState.get(assignmentId).called = true;
-      refreshSubmitButton(card, assignmentId);
+      cardState.get(contactId).called = true;
+      refreshSubmitButton(card, contactId);
     });
 
     card.querySelector(".status-select").addEventListener("change", (e) => {
       e.target.classList.remove("status-positive", "status-negative", "status-neutral");
       e.target.classList.add(`status-${statusCategory(e.target.value)}`);
       if (e.target.value && e.target.value !== STATUS_DEFAULT) {
-        const mandatory = e.target.value === "Others" || !!c.core_cultivation;
-        openReviewModal(card, assignmentId, c, mandatory);
+        // every contact here is under core cultivation, so a comment is
+        // always required, not just for "Others" like on the regular My Calls page.
+        openReviewModal(card, contactId, c);
       }
-      refreshSubmitButton(card, assignmentId);
+      refreshSubmitButton(card, contactId);
     });
 
     card.querySelector(".send-btn").addEventListener("click", () => {
       const text = (messageText || "").replace(/\{name\}/g, c.name);
       window.open(waHref(c.mob_no, text), "_blank");
-      cardState.get(assignmentId).sent = true;
-      refreshSubmitButton(card, assignmentId);
+      cardState.get(contactId).sent = true;
+      refreshSubmitButton(card, contactId);
     });
 
     card.querySelector(".row-submit-btn").addEventListener("click", () => {
-      submitCard(card, assignmentId, contactId, c);
+      submitCard(card, contactId, c);
     });
 
-    card.querySelectorAll(".calls-link").forEach((btn) => {
+    card.querySelectorAll(".calls-link[data-mob]").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         openHistoryModal(e.currentTarget.dataset.mob, e.currentTarget.dataset.name, "calls");
       });
@@ -261,24 +258,22 @@ function wireCard(assignments) {
   });
 }
 
-async function submitCard(card, assignmentId, contactId, contact) {
+async function submitCard(card, contactId, contact) {
   const statusSelect = card.querySelector(".status-select");
   const submitBtn = card.querySelector(".row-submit-btn");
   const status = statusSelect.value;
   const addl = statusSelect.dataset.review || null;
+  const eventCode = contact.calling_purpose || null;
 
   submitBtn.disabled = true;
   submitBtn.textContent = "Saving…";
   card.classList.add("row-saving");
 
-  const { error: e1 } = await supabase.from("assignments")
-    .update({ status, submitted_at: new Date().toISOString() })
-    .eq("id", assignmentId);
-  const { error: e2 } = await supabase.from("call_responses").insert({
+  const { error } = await supabase.from("call_responses").insert({
     caller_name: currentUser.user_name,
     contact_name: contact.name,
     mob_no: contact.mob_no,
-    event_code: currentEventCode,
+    event_code: eventCode,
     remarks: status,
     addl_remarks: addl,
   });
@@ -298,7 +293,7 @@ async function submitCard(card, assignmentId, contactId, contact) {
           mob_no: contact.mob_no,
           name: contact.name,
           took_by: currentUser.user_name,
-          event_code: currentEventCode || null,
+          event_code: eventCode,
           ts: new Date().toISOString()
         });
       }
@@ -308,7 +303,7 @@ async function submitCard(card, assignmentId, contactId, contact) {
   }
 
   card.classList.remove("row-saving");
-  if (e1 || e2) {
+  if (error) {
     card.classList.add("row-error");
     setTimeout(() => card.classList.remove("row-error"), 1600);
     showToast("Save failed. Please try again.", "error");
@@ -317,7 +312,7 @@ async function submitCard(card, assignmentId, contactId, contact) {
     return;
   }
 
-  const st = cardState.get(assignmentId);
+  const st = cardState.get(contactId);
   st.submitted = true;
   st.lastStatus = status;
   st.called = false;
@@ -326,62 +321,50 @@ async function submitCard(card, assignmentId, contactId, contact) {
   card.classList.add("row-saved");
   setTimeout(() => card.classList.remove("row-saved"), 1200);
   showToast("Thanks for submitting 🙏", "success", 1500);
-  refreshSubmitButton(card, assignmentId);
+  refreshSubmitButton(card, contactId);
   updateStatsBarFromDom();
 }
 
-function updateCompletionBadges(total, pending) {
-  const pct = total > 0 ? Math.round(((total - pending) / total) * 100) : 0;
-  document.getElementById("caller-completion-badge").textContent = `${pct}% Completed`;
-  document.getElementById("dash-completion-badge").textContent = `${pct}%`;
-}
-
-function updateStatsBar(assignments) {
-  const total = assignments.length;
+function updateStatsBar(contacts) {
+  const total = contacts.length;
   let positive = 0, pending = 0;
-  assignments.forEach((a) => {
-    const s = (a.status || STATUS_DEFAULT).toLowerCase();
+  contacts.forEach((c) => {
+    const s = (cardState.get(c.id)?.lastStatus || STATUS_DEFAULT).toLowerCase();
     if (POSITIVE.includes(s)) positive++;
     else if (PENDING.includes(s)) pending++;
   });
-  document.getElementById("stat-total").textContent = total;
-  document.getElementById("stat-positive").textContent = positive;
-  document.getElementById("stat-pending").textContent = pending;
-  updateCompletionBadges(total, pending);
+  document.getElementById("cc-stat-total").textContent = total;
+  document.getElementById("cc-stat-positive").textContent = positive;
+  document.getElementById("cc-stat-pending").textContent = pending;
 }
 
 function updateStatsBarFromDom() {
-  const cards = document.querySelectorAll(".call-card");
+  const cards = document.querySelectorAll("#cc-cards .call-card");
   let total = cards.length, positive = 0, pending = 0;
   cards.forEach((card) => {
     const s = card.querySelector(".status-select").value.toLowerCase();
     if (POSITIVE.includes(s)) positive++;
     else if (PENDING.includes(s)) pending++;
   });
-  document.getElementById("stat-total").textContent = total;
-  document.getElementById("stat-positive").textContent = positive;
-  document.getElementById("stat-pending").textContent = pending;
-  updateCompletionBadges(total, pending);
+  document.getElementById("cc-stat-total").textContent = total;
+  document.getElementById("cc-stat-positive").textContent = positive;
+  document.getElementById("cc-stat-pending").textContent = pending;
 }
 
-// Fires the moment a status is picked (any status, not just "Others"), mirroring
-// how "Others" used to work on its own. Mandatory for "Others" or a core-cultivated
-// contact (no Skip shown, Cancel reverts the status pick); optional otherwise
-// (Skip keeps the status but records no comment).
+// Every status pick here requires a comment — unlike My Calls, there is no
+// Skip; Cancel backs out of the status pick entirely (same as the mandatory
+// path there for "Others" / core-cultivated cards).
 let pendingReview = null;
 
-function openReviewModal(card, assignmentId, contact, mandatory) {
-  pendingReview = { card, assignmentId, mandatory };
+function openReviewModal(card, contactId, contact) {
+  pendingReview = { card, contactId };
   document.getElementById("review-input").value = "";
   document.getElementById("review-error").classList.add("hidden");
-  document.getElementById("review-skip").textContent = mandatory ? "Cancel" : "Skip";
-  document.getElementById("review-confirm").textContent = mandatory ? "Submit" : "Save";
-  document.getElementById("review-title").textContent = mandatory ? "Review required" : "Add a review";
-  document.getElementById("review-hint").textContent = mandatory
-    ? (contact.core_cultivation
-        ? `${contact.name} is under core cultivation — please leave a short note so nothing gets missed.`
-        : "Please add a short note about what happened.")
-    : "Optional — add any notes about this call, or skip.";
+  document.getElementById("review-skip").textContent = "Cancel";
+  document.getElementById("review-confirm").textContent = "Submit";
+  document.getElementById("review-title").textContent = "Review required";
+  document.getElementById("review-hint").textContent =
+    `${contact.name} is under your core cultivation — please leave a short note so nothing gets missed.`;
   document.getElementById("review-modal").classList.add("active");
   setTimeout(() => document.getElementById("review-input").focus(), 60);
 }
@@ -393,32 +376,27 @@ function wireReviewModal() {
 
   document.getElementById("review-skip").onclick = () => {
     if (!pendingReview) return;
-    const { card, assignmentId, mandatory } = pendingReview;
+    const { card, contactId } = pendingReview;
     modal.classList.remove("active");
     pendingReview = null;
     const statusSelect = card.querySelector(".status-select");
-    if (mandatory) {
-      // Cancel: back out of the status pick entirely, same as the old Others-cancel behavior.
-      statusSelect.value = STATUS_DEFAULT;
-      statusSelect.classList.remove("status-positive", "status-negative", "status-neutral");
-      statusSelect.classList.add("status-neutral");
-    } else {
-      statusSelect.dataset.review = "";
-    }
-    refreshSubmitButton(card, assignmentId);
+    statusSelect.value = STATUS_DEFAULT;
+    statusSelect.classList.remove("status-positive", "status-negative", "status-neutral");
+    statusSelect.classList.add("status-neutral");
+    refreshSubmitButton(card, contactId);
   };
   document.getElementById("review-confirm").onclick = () => {
     if (!pendingReview) return;
-    if (pendingReview.mandatory && !input.value.trim()) {
+    if (!input.value.trim()) {
       errorEl.textContent = "A review is required for this response.";
       errorEl.classList.remove("hidden");
       return;
     }
-    const { card, assignmentId } = pendingReview;
+    const { card, contactId } = pendingReview;
     modal.classList.remove("active");
     pendingReview = null;
     card.querySelector(".status-select").dataset.review = input.value.trim();
-    refreshSubmitButton(card, assignmentId);
+    refreshSubmitButton(card, contactId);
   };
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.ctrlKey) document.getElementById("review-confirm").click();
@@ -483,17 +461,4 @@ function wireHistoryModal() {
   const modal = document.getElementById("history-modal");
   document.getElementById("history-close").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
-}
-
-let realtimeWired = false;
-function subscribeRealtime() {
-  if (realtimeWired) return;
-  realtimeWired = true;
-  supabase
-    .channel("assignments-live")
-    .on("postgres_changes", { event: "*", schema: "public", table: "assignments" }, () => {
-      if (document.getElementById("caller-section").classList.contains("hidden")) return;
-      loadAndRenderCards();
-    })
-    .subscribe();
 }

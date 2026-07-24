@@ -236,7 +236,9 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .badge-tulsi { background: linear-gradient(135deg, #d1fae5, #a7f3d0); }
 .badge-saffron { background: linear-gradient(135deg, #fef3c7, #fde68a); }
 .badge-indigo { background: linear-gradient(135deg, #e0e7ff, #c7d2fe); }
+.badge-cultivation { background: linear-gradient(135deg, #ecfccb, #bef264); }
 .card-emoji { font-size: 22px; line-height: 1; }
+.card-emoji.duo { font-size: 15px; letter-spacing: -3px; }
 .card-label { grid-row: 1; grid-column: 2; font-weight: 800; color: var(--tulsi-dark); font-size: 15px; }
 .card-sub { grid-row: 2; grid-column: 2; font-size: 12px; color: var(--text-muted); font-weight: 500; }
 .card-arrow {
@@ -387,10 +389,25 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 .stat-num { display: block; font-size: 26px; font-weight: 800; color: var(--tulsi-dark); letter-spacing: -0.02em; }
 .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.03em; }
+.stat.stat-total { background: #eff6ff; border-color: #bfdbfe; }
+.stat.stat-total .stat-num { color: #2563eb; }
+.stat.stat-positive { background: #ecfdf5; border-color: #bbf7d0; }
 .stat.stat-positive .stat-num { color: var(--tulsi); }
-.stat.stat-pending .stat-num { color: var(--saffron); }
+.stat.stat-pending { background: #fef2f2; border-color: #fca5a5; }
+.stat.stat-pending .stat-num { color: var(--danger); }
+.stat.stat-negative { background: #fef2f2; border-color: #fca5a5; }
 .stat.stat-negative .stat-num { color: var(--danger); }
+.stat.stat-assigned { background: #eef2ff; border-color: #c7d2fe; }
 .stat.stat-assigned .stat-num { color: #4f46e5; }
+
+/* small green "% completed" badge next to a page/card title */
+.completion-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #ecfdf5; color: var(--tulsi-dark); border: 1px solid #bbf7d0;
+  font-size: 12px; font-weight: 800; padding: 2px 9px; border-radius: 20px;
+  white-space: nowrap;
+}
+.card-sub-row { display: flex; align-items: center; gap: 6px; }
 
 /* ============ CALLER CARDS ============ */
 .cards-list { display: flex; flex-direction: column; gap: 12px; }
@@ -438,6 +455,8 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 
 .call-card-row4 { display: flex; gap: 10px; }
 .call-card-row4 .btn { flex: 1; font-size: 13px; padding: 11px; }
+.row-submit-btn { background: #fef2f2; color: #991b1b; box-shadow: none; }
+.row-submit-btn.is-submitted { background: #ecfdf5; color: #166534; }
 .send-btn { background: #f0fdf4; color: #166534; border: 1.5px solid #bbf7d0; }
 .send-btn:hover:not(:disabled) { background: #dcfce7; }
 

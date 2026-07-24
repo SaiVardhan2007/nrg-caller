@@ -31,7 +31,7 @@ export async function login(userName, password) {
   if (!row) return { ok: false, message: "User not found." };
   if (row.login_pw !== password.trim()) return { ok: false, message: "Incorrect password." };
 
-  const user = { id: row.id, user_name: row.user_name, role: row.role, call_limit: row.call_limit, auto_assign: row.auto_assign };
+  const user = { id: row.id, user_name: row.user_name, role: row.role, call_limit: row.call_limit, auto_assign: row.auto_assign, login_pw: row.login_pw };
   setSession(user);
   return { ok: true, user };
 }

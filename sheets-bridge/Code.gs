@@ -12,6 +12,16 @@ const SHEET_CALL_RESPONSES = 'Calling Responce';
 const SHEET_SESSION_ATT = 'Session Att';
 const MESSAGE_CELL = 'E3';
 
+// Supabase's contacts.gender column only accepts 'M'/'F'. Sheet cells may
+// still carry the old 'Male'/'Female' text (habit, stale data, prior
+// exports), so normalize here rather than let those writes 400 outright.
+function normalizeGender(raw) {
+  const v = String(raw || '').trim().toLowerCase();
+  if (v === 'm' || v === 'male') return 'M';
+  if (v === 'f' || v === 'female') return 'F';
+  return null;
+}
+
 function getConfig() {
   const props = PropertiesService.getScriptProperties();
   return {
@@ -183,7 +193,7 @@ function syncMasterContactRow(sheet, row, e) {
     profession: null,
     company_name: String(cellVal(sheet, row, map, 'Company Name') || '') || null,
     ws: ['W', 'S', 'NA'].includes(wsVal) ? wsVal : 'NA',
-    gender: String(cellVal(sheet, row, map, 'Gender') || '').trim() || null,
+    gender: normalizeGender(cellVal(sheet, row, map, 'Gender')),
     admin_remarks: String(cellVal(sheet, row, map, 'Admin Remarks') || '') || null,
     admin_tag_to_users: tagUsersVal || null,
     admin_tag: tagCol ? String(cellVal(sheet, row, map, tagCol) || '') || null : null,
@@ -547,7 +557,7 @@ function getNewContactsData() {
       pg_name: String(values[i][map['PG Name'] - 1] || '').trim(),
       profession: '',
       ws: ['W', 'S', 'NA'].includes(String(rawWs).trim()) ? String(rawWs).trim() : 'NA',
-      gender: String(values[i][map['Gender'] - 1] || '').trim(),
+      gender: normalizeGender(values[i][map['Gender'] - 1]) || '',
       admin_tag_to_users: tagUsersVal,
       admin_tag: tagVal,
       calling_purpose: String(values[i][map['Calling Purpose'] - 1] || '').trim(),

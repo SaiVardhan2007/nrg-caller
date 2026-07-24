@@ -30,7 +30,7 @@ create table if not exists contacts (
   profession       text,
   company_name     text,
   ws               text check (ws in ('W','S','NA')),
-  gender           text check (gender in ('Male','Female')),
+  gender           text check (gender in ('M','F')),
   sessions_count   int not null default 0,      -- auto-maintained by trigger
   calls_count      int not null default 0,      -- auto-maintained by trigger
   admin_remarks    text,
@@ -38,11 +38,13 @@ create table if not exists contacts (
   admin_tag        text,                        -- LIT / Folk HYD / Focus / ...
   core_cultivation text,                        -- user_name of permanent cultivator
   calling_purpose  text,                        -- event code: GIC / RY / JSTM / ...
+  one_to_one_status boolean not null default false, -- in the One to One (with Prabhu) roster
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
 
-alter table contacts add column if not exists gender text check (gender in ('Male','Female'));
+alter table contacts add column if not exists gender text check (gender in ('M','F'));
+alter table contacts add column if not exists one_to_one_status boolean not null default false;
 
 -- No sheet: live assignment state (erased & rebuilt when admin switches event)
 create table if not exists assignments (
@@ -106,6 +108,28 @@ create table if not exists settings (
   key   text primary key,
   value text
 );
+
+-- No sheet: One to One (with Prabhu) — a contact's own submitted questions,
+-- shown to admin as "Help Asked by the Boy" and to the contact (when logged
+-- in as a user) as their own question history.
+create table if not exists help_requests (
+  id         uuid primary key default gen_random_uuid(),
+  mob_no     text not null,
+  message    text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_help_requests_mob_no on help_requests(mob_no);
+
+-- No sheet: admin-only remark log for a One to One contact ("Remarks by
+-- SNKD") — never shown to the contact/user themselves.
+create table if not exists one_to_one_remarks (
+  id         uuid primary key default gen_random_uuid(),
+  mob_no     text not null,
+  remark     text not null,
+  admin_name text,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_one_to_one_remarks_mob_no on one_to_one_remarks(mob_no);
 
 -- ============ TRIGGERS ============
 
@@ -181,11 +205,14 @@ alter table session_attendance enable row level security;
 alter table contact_collection enable row level security;
 alter table events             enable row level security;
 alter table settings           enable row level security;
+alter table help_requests      enable row level security;
+alter table one_to_one_remarks enable row level security;
 
 do $$ declare t text;
 begin
   foreach t in array array['users','contacts','assignments','assignment_rounds','call_responses',
-                           'session_attendance','contact_collection','events','settings'] loop
+                           'session_attendance','contact_collection','events','settings',
+                           'help_requests','one_to_one_remarks'] loop
     execute format('drop policy if exists app_all on %I', t);
     execute format('create policy app_all on %I for all to anon, authenticated using (true) with check (true)', t);
   end loop;

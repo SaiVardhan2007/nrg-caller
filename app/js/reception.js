@@ -4,6 +4,7 @@ import { formatPhone, debounce, showToast, timeHM, escapeHtml } from "./utils.js
 let currentUser = null;
 let foundContact = null;
 let searchedDigits = null;
+let contactAlreadyMarked = false;
 let wired = false;
 
 export async function init(user) {
@@ -22,6 +23,9 @@ export async function init(user) {
   newEventSelect.innerHTML = (events || []).map((e) => `<option value="${e.code}">${e.code}</option>`).join("");
   if (eventSetting?.value) newEventSelect.value = eventSetting.value;
 
+  const sortSelect = document.getElementById("reception-attendance-sort");
+  sortSelect.addEventListener("change", renderTodayList);
+
   if (wired) return;
   wired = true;
 
@@ -29,6 +33,55 @@ export async function init(user) {
   const loader = document.getElementById("reception-loader");
   const resultEl = document.getElementById("reception-result");
   const notFoundEl = document.getElementById("reception-not-found");
+  const nameInput = document.getElementById("reception-edit-name");
+  const pgInput = document.getElementById("reception-edit-pg");
+  const wsSelect = document.getElementById("reception-edit-ws");
+
+  // required fields shown while marking attendance — until every one of these
+  // is filled in, we can't be sure who this actually is, so gate the button
+  // rather than let attendance get marked against a half-blank record.
+  function missingFieldMessage() {
+    if (!nameInput.value.trim()) return "Please add a name before marking attendance.";
+    if (!wsSelect.value) return "Please select a profession before marking attendance.";
+    if (!pgInput.value.trim()) return "Please add a PG / flat name before marking attendance.";
+    return null;
+  }
+
+  function updateMarkButtonGating() {
+    const btn = document.getElementById("mark-attendance-btn");
+    const errorEl = document.getElementById("reception-missing-error");
+    if (contactAlreadyMarked) {
+      btn.disabled = true;
+      btn.textContent = "✓ Already Marked";
+      btn.style.opacity = "0.6";
+      btn.style.cursor = "not-allowed";
+      errorEl.classList.add("hidden");
+      return;
+    }
+    const missing = missingFieldMessage();
+    btn.style.opacity = "";
+    btn.style.cursor = "";
+    if (missing) {
+      btn.disabled = true;
+      btn.textContent = "🙏 Mark Attendance";
+      errorEl.textContent = missing;
+      errorEl.classList.remove("hidden");
+    } else {
+      btn.disabled = false;
+      btn.textContent = "🙏 Mark Attendance";
+      errorEl.classList.add("hidden");
+    }
+  }
+
+  async function saveField(field, value) {
+    if (!foundContact) return;
+    foundContact[field] = value;
+    await supabase.from("contacts").update({ [field]: value || null }).eq("id", foundContact.id);
+    updateMarkButtonGating();
+  }
+  nameInput.addEventListener("change", (e) => saveField("name", e.target.value.trim()));
+  pgInput.addEventListener("change", (e) => saveField("pg_name", e.target.value.trim()));
+  wsSelect.addEventListener("change", (e) => saveField("ws", e.target.value));
 
   const doSearch = debounce(async (digits) => {
     loader.classList.remove("hidden");
@@ -37,7 +90,7 @@ export async function init(user) {
 
     const { data, error } = await supabase
       .from("contacts")
-      .select("id,name,mob_no,sessions_count")
+      .select("id,name,mob_no,pg_name,ws,sessions_count")
       .eq("mob_no", digits)
       .maybeSingle();
 
@@ -58,27 +111,17 @@ export async function init(user) {
       .gte("ts", eightHoursAgo)
       .limit(1);
 
-    const alreadyMarked = recentAtt && recentAtt.length > 0;
+    contactAlreadyMarked = recentAtt && recentAtt.length > 0;
 
     loader.classList.add("hidden");
     foundContact = data;
-    document.getElementById("reception-name").textContent = data.name;
     document.getElementById("reception-phone").textContent = formatPhone(data.mob_no);
     document.getElementById("reception-sessions").textContent = `Sessions attended: ${data.sessions_count}`;
+    nameInput.value = data.name || "";
+    pgInput.value = data.pg_name || "";
+    wsSelect.value = data.ws || "";
 
-    const btn = document.getElementById("mark-attendance-btn");
-    if (alreadyMarked) {
-      btn.disabled = true;
-      btn.textContent = "✓ Already Marked";
-      btn.style.opacity = "0.6";
-      btn.style.cursor = "not-allowed";
-    } else {
-      btn.disabled = false;
-      btn.textContent = "🙏 Mark Attendance";
-      btn.style.opacity = "";
-      btn.style.cursor = "";
-    }
-
+    updateMarkButtonGating();
     resultEl.classList.remove("hidden");
   }, 1500);
 
@@ -93,14 +136,21 @@ export async function init(user) {
     newContactForm.classList.add("hidden");
     newContactForm.reset();
     newContactError.classList.add("hidden");
+    document.getElementById("reception-missing-error").classList.add("hidden");
     foundContact = null;
     searchedDigits = null;
+    contactAlreadyMarked = false;
     if (digits.length === 10) doSearch(digits);
   });
 
   let marking = false;
   document.getElementById("mark-attendance-btn").addEventListener("click", async () => {
     if (marking || !foundContact) return;
+    const missing = missingFieldMessage();
+    if (missing) {
+      showToast(missing, "error");
+      return;
+    }
     marking = true;
     const btn = document.getElementById("mark-attendance-btn");
     btn.disabled = true;
@@ -117,6 +167,7 @@ export async function init(user) {
 
     if (recentAtt && recentAtt.length > 0) {
       showToast("Attendance already marked in the last 8 hours.", "warning");
+      contactAlreadyMarked = true;
       btn.disabled = true;
       btn.textContent = "✓ Already Marked";
       btn.style.opacity = "0.6";
@@ -126,7 +177,6 @@ export async function init(user) {
     }
 
     const eventCode = document.getElementById("reception-session-name").value.trim();
-    const sessionName = eventCode || "General Session";
     const { error } = await supabase.from("session_attendance").insert({
       mob_no: foundContact.mob_no,
       name: foundContact.name,
@@ -144,11 +194,12 @@ export async function init(user) {
     }
 
     showToast(`Attendance marked for ${foundContact.name} 🙏`, "success");
+    contactAlreadyMarked = true;
     btn.textContent = "✓ Already Marked";
     btn.style.opacity = "0.6";
     btn.style.cursor = "not-allowed";
 
-    addToTodayList({ name: foundContact.name, mob_no: foundContact.mob_no, ts: new Date().toISOString(), session: sessionName });
+    renderTodayList();
 
     foundContact.sessions_count++;
     document.getElementById("reception-sessions").textContent = `Sessions attended: ${foundContact.sessions_count}`;
@@ -203,7 +254,6 @@ export async function init(user) {
     }
 
     const eventCode = document.getElementById("reception-new-event").value.trim();
-    const sessionName = eventCode || "General Session";
     const { error: attendErr } = await supabase.from("session_attendance").insert({
       mob_no: newContact.mob_no,
       name: newContact.name,
@@ -219,7 +269,7 @@ export async function init(user) {
       showToast("Contact registered, but attendance could not be marked. Try marking it again.", "warning");
     } else {
       showToast(`${newContact.name} registered and attendance marked 🙏`, "success");
-      addToTodayList({ name: newContact.name, mob_no: newContact.mob_no, ts: new Date().toISOString(), session: sessionName });
+      renderTodayList();
     }
 
     notFoundEl.classList.add("hidden");
@@ -231,39 +281,47 @@ export async function init(user) {
   });
 }
 
-function todayKey() {
-  const d = new Date();
-  return `reception_marked_${d.toISOString().slice(0, 10)}`;
+async function loadTodayAttendance() {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const { data, error } = await supabase
+    .from("session_attendance")
+    .select("mob_no,name,ts,event_code")
+    .gte("ts", startOfDay.toISOString())
+    .order("ts", { ascending: false });
+  return error ? [] : (data || []);
 }
 
-function getTodayList() {
-  try {
-    return JSON.parse(localStorage.getItem(todayKey()) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function addToTodayList(entry) {
-  const list = getTodayList();
-  list.unshift(entry);
-  localStorage.setItem(todayKey(), JSON.stringify(list));
-  renderTodayList();
-}
-
-function renderTodayList() {
+async function renderTodayList() {
   const tbody = document.getElementById("reception-attendance-body");
-  const list = getTodayList();
+  const list = await loadTodayAttendance();
   if (!list.length) {
     tbody.innerHTML = `<tr><td colspan="4" class="loading-row">No attendance marked today.</td></tr>`;
     return;
   }
-  tbody.innerHTML = list.map((r) => `
+  // "Name" groups repeat markings for the same person (by mob_no, the actual
+  // identity key — not the name text, which can vary between markings)
+  // together; "Time" keeps the natural latest-first order.
+  const sortMode = document.getElementById("reception-attendance-sort")?.value || "name";
+  let sorted;
+  if (sortMode === "name") {
+    const groups = new Map();
+    for (const r of list) {
+      if (!groups.has(r.mob_no)) groups.set(r.mob_no, []);
+      groups.get(r.mob_no).push(r);
+    }
+    sorted = [...groups.values()]
+      .sort((a, b) => (a[0].name || "").localeCompare(b[0].name || ""))
+      .flat();
+  } else {
+    sorted = list;
+  }
+  tbody.innerHTML = sorted.map((r) => `
     <tr>
-      <td data-label="Name">${escapeHtml(r.name)}</td>
+      <td data-label="Name">${escapeHtml(r.name || "")}</td>
       <td data-label="Phone" class="phone-cell">${formatPhone(r.mob_no)}</td>
       <td data-label="Time">${timeHM(r.ts)}</td>
-      <td data-label="Session">${escapeHtml(r.session)}</td>
+      <td data-label="Session">${escapeHtml(r.event_code || "")}</td>
     </tr>
   `).join("");
 }

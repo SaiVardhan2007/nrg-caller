@@ -105,7 +105,7 @@ Detailed overview of the PostgreSQL tables configured in Supabase (defined in [s
    - `profession`: `text`
    - `company_name`: `text`
    - `ws`: `text` (Working Status: `'W'`, `'S'`, `'NA'`)
-   - `gender`: `text` (`'Male'`, `'Female'`)
+   - `gender`: `text` (`'M'`, `'F'`)
    - `sessions_count`: `int` (Auto-calculated session attendance count)
    - `calls_count`: `int` (Auto-calculated call responses count)
    - `admin_remarks`: `text` (Admin review comments)
@@ -133,7 +133,10 @@ Detailed overview of the PostgreSQL tables configured in Supabase (defined in [s
 6. **`session_attendance`** (Mirrors the *Session Att* sheet log)
    - Tracks marked attendance with `ts`, `mob_no`, `name`, `took_by` (who registered it), and `event_code`.
 
-
+7. **`help_requests`** & **`one_to_one_remarks`** (One to One with Prabhu — no sheet)
+   - `contacts.one_to_one_status` (`boolean`) marks a contact as part of the One to One roster (set by admin from the admin One to One page's phone search).
+   - `help_requests`: `mob_no`, `message`, `created_at` — questions the contact submits themselves (via their own logged-in session, matched by phone number to `users.login_pw`). Shown to admin as "Help Asked by the Boy" and to the contact as their own question history.
+   - `one_to_one_remarks`: `mob_no`, `remark`, `admin_name`, `created_at` — admin-only notes ("Remarks by SNKD"), never shown to the contact/user.
 
 8. **`events`** & **`settings`**
    - Metadata and key-value configuration (`current_event`, `tag_filter`, `message_text`, `apps_script_webhook_url`).
