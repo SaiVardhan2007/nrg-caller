@@ -147,7 +147,7 @@ async function openHelpRequestsModal(mob, name) {
 
 async function renderHelpRequestsList() {
   const tbody = document.getElementById("help-requests-body");
-  tbody.innerHTML = `<tr><td colspan="3" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
 
   const { data } = await supabase
     .from("help_requests")
@@ -156,18 +156,29 @@ async function renderHelpRequestsList() {
     .order("created_at", { ascending: false });
 
   tbody.innerHTML = (data && data.length)
-    ? data.map((r) => `
+    ? data.map((r, i) => `
         <tr>
+          <td data-label="S.No">${i + 1}</td>
           <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
           <td data-label="Question">${escapeHtml(r.message)}</td>
           <td data-label="Status"><button class="cell-chip${r.resolved ? "" : " danger"} resolve-help-btn" data-id="${r.id}" data-resolved="${r.resolved}">${r.resolved ? "✓ Resolved" : "✕ Unresolved"}</button></td>
+          <td data-label=""><button class="cell-chip danger delete-help-btn" data-id="${r.id}">Delete</button></td>
         </tr>`).join("")
-    : `<tr><td colspan="3" class="loading-row">No questions asked yet.</td></tr>`;
+    : `<tr><td colspan="5" class="loading-row">No questions asked yet.</td></tr>`;
 
   tbody.querySelectorAll(".resolve-help-btn").forEach((btn) => {
     btn.onclick = async () => {
       const newResolved = btn.dataset.resolved !== "true";
       await supabase.from("help_requests").update({ resolved: newResolved }).eq("id", btn.dataset.id);
+      await renderHelpRequestsList();
+      renderOneToOneTable();
+    };
+  });
+
+  tbody.querySelectorAll(".delete-help-btn").forEach((btn) => {
+    btn.onclick = async () => {
+      if (!confirm("Delete this question?")) return;
+      await supabase.from("help_requests").delete().eq("id", btn.dataset.id);
       await renderHelpRequestsList();
       renderOneToOneTable();
     };
@@ -191,21 +202,32 @@ async function openRemarksModal(mob, name) {
 
 async function renderRemarksList() {
   const tbody = document.getElementById("remarks-body");
-  tbody.innerHTML = `<tr><td colspan="2" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Loading…</td></tr>`;
 
   const { data } = await supabase
     .from("one_to_one_remarks")
-    .select("remark,admin_name,created_at")
+    .select("id,remark,admin_name,created_at")
     .eq("mob_no", remarksContext.mob)
     .order("created_at", { ascending: false });
 
   tbody.innerHTML = (data && data.length)
-    ? data.map((r) => `
+    ? data.map((r, i) => `
         <tr>
+          <td data-label="S.No">${i + 1}</td>
           <td data-label="Time">${new Date(r.created_at).toLocaleString()}${r.admin_name ? ` · ${escapeHtml(r.admin_name)}` : ""}</td>
           <td data-label="Remark">${escapeHtml(r.remark)}</td>
+          <td data-label=""><button class="cell-chip danger delete-remark-btn" data-id="${r.id}">Delete</button></td>
         </tr>`).join("")
-    : `<tr><td colspan="2" class="loading-row">No remarks yet.</td></tr>`;
+    : `<tr><td colspan="4" class="loading-row">No remarks yet.</td></tr>`;
+
+  tbody.querySelectorAll(".delete-remark-btn").forEach((btn) => {
+    btn.onclick = async () => {
+      if (!confirm("Delete this remark?")) return;
+      await supabase.from("one_to_one_remarks").delete().eq("id", btn.dataset.id);
+      await renderRemarksList();
+      renderOneToOneTable();
+    };
+  });
 }
 
 function wireRemarksModal() {
