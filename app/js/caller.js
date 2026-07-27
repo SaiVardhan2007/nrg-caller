@@ -70,7 +70,27 @@ export async function init(user) {
   wireReviewModal();
   wireHistoryModal();
   wireRefreshButton();
+  wireSearch();
   subscribeRealtime();
+}
+
+let searchWired = false;
+function wireSearch() {
+  if (searchWired) return;
+  searchWired = true;
+  document.getElementById("caller-search").addEventListener("input", applySearchFilter);
+}
+
+function applySearchFilter() {
+  const q = document.getElementById("caller-search").value.trim().toLowerCase();
+  const qDigits = q.replace(/\D/g, "");
+  document.querySelectorAll("#caller-cards .call-card").forEach((card) => {
+    if (!q) { card.classList.remove("hidden"); return; }
+    const name = (card.querySelector(".call-card-name")?.textContent || "").toLowerCase();
+    const phoneDigits = (card.querySelector(".phone-pill")?.textContent || "").replace(/\D/g, "");
+    const match = name.includes(q) || (qDigits && phoneDigits.includes(qDigits));
+    card.classList.toggle("hidden", !match);
+  });
 }
 
 let refreshWired = false;
@@ -124,6 +144,7 @@ async function loadAndRenderCards() {
   listEl.innerHTML = assignments.map((a) => renderCard(a, weekCallCounts[a.contacts.mob_no] || 0)).join("");
   wireCard(assignments);
   updateStatsBar(assignments);
+  applySearchFilter();
 }
 
 function startOfWeek() {

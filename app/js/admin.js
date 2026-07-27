@@ -718,8 +718,36 @@ async function renderContactsTable(searchTerm = "") {
     loadEvents(),
   ]);
 
-  tbody.innerHTML = data.map((c, i) => `
-    <tr data-id="${c.id}">
+  // Contacts sharing the same name are likely duplicate entries (mob_no is
+  // unique in the DB, so name is the only signal available) — flag the
+  // oldest one green and every later duplicate red.
+  const nameGroups = new Map();
+  data.forEach((c) => {
+    const key = (c.name || "").trim().toLowerCase();
+    if (!key) return;
+    if (!nameGroups.has(key)) nameGroups.set(key, []);
+    nameGroups.get(key).push(c);
+  });
+  const oldestIdByName = new Map();
+  nameGroups.forEach((rows, key) => {
+    if (rows.length < 2) return;
+    const oldest = [...rows].sort((a, b) => {
+      const ta = a.created_at ? new Date(a.created_at).getTime() : Infinity;
+      const tb = b.created_at ? new Date(b.created_at).getTime() : Infinity;
+      return ta - tb;
+    })[0];
+    oldestIdByName.set(key, oldest.id);
+  });
+
+  tbody.innerHTML = data.map((c, i) => {
+    const nameKey = (c.name || "").trim().toLowerCase();
+    const dupGroup = nameGroups.get(nameKey);
+    let rowClass = "";
+    if (dupGroup && dupGroup.length > 1) {
+      rowClass = oldestIdByName.get(nameKey) === c.id ? "contact-original" : "contact-duplicate";
+    }
+    return `
+    <tr data-id="${c.id}"${rowClass ? ` class="${rowClass}"` : ""}>
       <td data-label="S.No">${c.s_no ?? i + 1}</td>
       <td data-label="Time Stamp">${c.created_at ? new Date(c.created_at).toLocaleString() : ""}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(c.name)}" /></td>
@@ -762,7 +790,8 @@ async function renderContactsTable(searchTerm = "") {
       <td data-label="Admin Review"><button class="cell-chip admin-review-link" data-id="${c.id}" data-name="${escapeHtml(c.name)}" data-review="${escapeHtml(c.admin_remarks || "")}">${c.admin_remarks ? "✎ Edit" : "+ Add"}</button></td>
       <td data-label=""><button class="cell-chip danger delete-contact-btn" data-id="${c.id}" data-name="${escapeHtml(c.name)}">Delete</button></td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
 
   tbody.querySelectorAll(".inline-edit").forEach((el) => {
     el.addEventListener("change", async (e) => {
@@ -2496,4 +2525,308 @@ export async function downloadAllDbData() {
     btn.disabled = false;
     btn.textContent = "⬇";
   }
+}
+
+/* ======================= BULK DELETE DATA ======================= */
+
+const BULK_DELETE_ALL_UUID = "00000000-0000-0000-0000-000000000000";
+
+let bulkDeleteWired = false;
+let bulkDeleteUser = null;
+let pendingBulkDelete = null; // { cfg, count }
+
+export async function openBulkDeleteModal(currentUser) {
+  bulkDeleteUser = currentUser;
+  wireBulkDeleteModal();
+  document.getElementById("bulk-delete-error").classList.add("hidden");
+  document.getElementById("bulk-delete-type").value = "contacts";
+  document.getElementById("bulk-delete-contacts-scope").value = "all";
+  showBulkDeleteFilter("contacts");
+  showBulkDeleteSub(document.getElementById("bulk-delete-filter-contacts"), "all");
+  document.getElementById("bulk-delete-modal").classList.add("active");
+  document.getElementById("bulk-delete-preview").textContent = "Checking…";
+  await populateBulkDeleteDropdowns();
+  refreshBulkDeletePreview();
+}
+
+async function populateBulkDeleteDropdowns() {
+  eventsLoaded = false;
+  await loadEvents();
+  const eventOptionsHtml = `<option value="">— select —</option>` +
+    eventsCache.map((e) => `<option value="${e.code}">${e.name} (${e.code})</option>`).join("");
+
+  ["bulk-delete-contacts-purpose", "bulk-delete-attendance-event", "bulk-delete-calls-event", "bulk-delete-assignments-event"]
+    .forEach((id) => { document.getElementById(id).innerHTML = eventOptionsHtml; });
+
+  document.getElementById("bulk-delete-contacts-admin-tag").innerHTML =
+    `<option value="">— select —</option>` + ADMIN_TAG_OPTIONS.filter(Boolean).map((t) => `<option value="${t}">${t}</option>`).join("");
+  document.getElementById("bulk-delete-contacts-tag-to-users").innerHTML =
+    `<option value="">— select —</option>` + ADMIN_TAG_TO_USERS_OPTIONS.filter(Boolean).map((t) => `<option value="${t}">${t}</option>`).join("");
+
+  const { data: callerRows } = await supabase.from("users").select("user_name").order("user_name");
+  document.getElementById("bulk-delete-calls-caller").innerHTML =
+    `<option value="">— select —</option>` + (callerRows || []).map((u) => `<option value="${u.user_name}">${u.user_name}</option>`).join("");
+
+  document.getElementById("bulk-delete-events-checklist").innerHTML = eventsCache.map((e) => `
+    <label class="tag-check"><input type="checkbox" class="bulk-delete-event-check" value="${e.code}" /> ${escapeHtml(e.name)} (${e.code})</label>
+  `).join("") || `<p class="muted-text">No events found.</p>`;
+}
+
+function showBulkDeleteFilter(type) {
+  document.querySelectorAll(".bulk-delete-filter").forEach((el) => el.classList.add("hidden"));
+  document.getElementById(`bulk-delete-filter-${type}`).classList.remove("hidden");
+}
+
+function showBulkDeleteSub(container, scope) {
+  container.querySelectorAll(".bulk-delete-sub").forEach((el) => {
+    el.classList.toggle("hidden", el.dataset.scope !== scope);
+  });
+}
+
+function getBulkDeleteConfig() {
+  const type = document.getElementById("bulk-delete-type").value;
+
+  if (type === "contacts") {
+    const scope = document.getElementById("bulk-delete-contacts-scope").value;
+    if (scope === "purpose") {
+      const val = document.getElementById("bulk-delete-contacts-purpose").value;
+      if (!val) return { error: "Please select a calling purpose (event)." };
+      return { table: "contacts", apply: (q) => q.eq("calling_purpose", val), label: `Master Contacts with Calling Purpose "${val}"` };
+    }
+    if (scope === "admin_tag") {
+      const val = document.getElementById("bulk-delete-contacts-admin-tag").value;
+      if (!val) return { error: "Please select an admin tag." };
+      return { table: "contacts", apply: (q) => q.eq("admin_tag", val), label: `Master Contacts with Admin Tag "${val}"` };
+    }
+    if (scope === "admin_tag_to_users") {
+      const val = document.getElementById("bulk-delete-contacts-tag-to-users").value;
+      if (!val) return { error: "Please select an admin tag to users value." };
+      return { table: "contacts", apply: (q) => q.eq("admin_tag_to_users", val), label: `Master Contacts with Admin Tag to Users "${val}"` };
+    }
+    return { table: "contacts", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL Master Contacts" };
+  }
+
+  if (type === "session_attendance") {
+    const scope = document.getElementById("bulk-delete-attendance-scope").value;
+    if (scope === "event") {
+      const val = document.getElementById("bulk-delete-attendance-event").value;
+      if (!val) return { error: "Please select an event." };
+      return { table: "session_attendance", apply: (q) => q.eq("event_code", val), label: `Session Attendance for event "${val}"` };
+    }
+    return { table: "session_attendance", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL Session Attendance records" };
+  }
+
+  if (type === "call_responses") {
+    const scope = document.getElementById("bulk-delete-calls-scope").value;
+    if (scope === "event") {
+      const val = document.getElementById("bulk-delete-calls-event").value;
+      if (!val) return { error: "Please select an event." };
+      return { table: "call_responses", apply: (q) => q.eq("event_code", val), label: `Call Responses for event "${val}"` };
+    }
+    if (scope === "caller") {
+      const val = document.getElementById("bulk-delete-calls-caller").value;
+      if (!val) return { error: "Please select a caller." };
+      return { table: "call_responses", apply: (q) => q.eq("caller_name", val), label: `Call Responses by caller "${val}"` };
+    }
+    return { table: "call_responses", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL Call Responses" };
+  }
+
+  if (type === "assignments") {
+    const scope = document.getElementById("bulk-delete-assignments-scope").value;
+    if (scope === "event") {
+      const val = document.getElementById("bulk-delete-assignments-event").value;
+      if (!val) return { error: "Please select an event." };
+      return { table: "assignments", apply: (q) => q.eq("event_code", val), label: `Assignments for event "${val}"` };
+    }
+    return { table: "assignments", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL Current Assignments" };
+  }
+
+  if (type === "events") {
+    const codes = [...document.querySelectorAll(".bulk-delete-event-check:checked")].map((c) => c.value);
+    if (!codes.length) return { error: "Please select at least one event to delete." };
+    return { table: "events", apply: (q) => q.in("code", codes), label: `Event(s): ${codes.join(", ")}` };
+  }
+
+  return { error: "Unknown data type." };
+}
+
+async function refreshBulkDeletePreview() {
+  const previewEl = document.getElementById("bulk-delete-preview");
+  const errorEl = document.getElementById("bulk-delete-error");
+  errorEl.classList.add("hidden");
+  const cfg = getBulkDeleteConfig();
+  if (cfg.error) {
+    previewEl.textContent = "";
+    return;
+  }
+  previewEl.textContent = "Checking…";
+  let query = supabase.from(cfg.table).select(cfg.table === "events" ? "code" : "id", { count: "exact", head: true });
+  query = cfg.apply(query);
+  const { count, error } = await query;
+  if (error) {
+    previewEl.textContent = "";
+    errorEl.textContent = "Could not check matching records: " + error.message;
+    errorEl.classList.remove("hidden");
+    return;
+  }
+  previewEl.textContent = `${count ?? 0} record${count === 1 ? "" : "s"} match — ${cfg.label}`;
+}
+
+function wireBulkDeleteModal() {
+  if (bulkDeleteWired) return;
+  bulkDeleteWired = true;
+
+  const modal = document.getElementById("bulk-delete-modal");
+  document.getElementById("bulk-delete-cancel").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  const typeSelect = document.getElementById("bulk-delete-type");
+  typeSelect.addEventListener("change", () => {
+    showBulkDeleteFilter(typeSelect.value);
+    refreshBulkDeletePreview();
+  });
+
+  [
+    ["bulk-delete-contacts-scope", "bulk-delete-filter-contacts"],
+    ["bulk-delete-attendance-scope", "bulk-delete-filter-session_attendance"],
+    ["bulk-delete-calls-scope", "bulk-delete-filter-call_responses"],
+    ["bulk-delete-assignments-scope", "bulk-delete-filter-assignments"],
+  ].forEach(([scopeId, containerId]) => {
+    const scopeSelect = document.getElementById(scopeId);
+    const container = document.getElementById(containerId);
+    scopeSelect.addEventListener("change", () => {
+      showBulkDeleteSub(container, scopeSelect.value);
+      refreshBulkDeletePreview();
+    });
+  });
+
+  [
+    "bulk-delete-contacts-purpose", "bulk-delete-contacts-admin-tag", "bulk-delete-contacts-tag-to-users",
+    "bulk-delete-attendance-event", "bulk-delete-calls-event", "bulk-delete-calls-caller", "bulk-delete-assignments-event",
+  ].forEach((id) => {
+    document.getElementById(id).addEventListener("change", refreshBulkDeletePreview);
+  });
+
+  document.getElementById("bulk-delete-events-checklist").addEventListener("change", (e) => {
+    if (e.target.classList.contains("bulk-delete-event-check")) refreshBulkDeletePreview();
+  });
+
+  document.getElementById("bulk-delete-trigger").onclick = async () => {
+    const errorEl = document.getElementById("bulk-delete-error");
+    errorEl.classList.add("hidden");
+    const cfg = getBulkDeleteConfig();
+    if (cfg.error) {
+      errorEl.textContent = cfg.error;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    let query = supabase.from(cfg.table).select(cfg.table === "events" ? "code" : "id", { count: "exact", head: true });
+    query = cfg.apply(query);
+    const { count, error } = await query;
+    if (error) {
+      errorEl.textContent = "Could not check matching records: " + error.message;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    if (!count) {
+      errorEl.textContent = "No records match this filter — nothing to delete.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    openBulkDeleteGuard(cfg, count);
+  };
+
+  wireBulkDeleteGuard();
+}
+
+function openBulkDeleteGuard(cfg, count) {
+  pendingBulkDelete = { cfg, count };
+  document.getElementById("bulk-delete-guard-step1").classList.remove("hidden");
+  document.getElementById("bulk-delete-guard-step2").classList.add("hidden");
+  document.getElementById("bulk-delete-guard-message").textContent =
+    `Are you sure you want to permanently delete ${count} record${count === 1 ? "" : "s"} — ${cfg.label}? This cannot be undone.`;
+  document.getElementById("bulk-delete-guard-password").value = "";
+  document.getElementById("bulk-delete-guard-error").classList.add("hidden");
+  document.getElementById("bulk-delete-guard-modal").classList.add("active");
+}
+
+let bulkDeleteGuardWired = false;
+function wireBulkDeleteGuard() {
+  if (bulkDeleteGuardWired) return;
+  bulkDeleteGuardWired = true;
+
+  const guardModal = document.getElementById("bulk-delete-guard-modal");
+  const closeGuard = () => {
+    guardModal.classList.remove("active");
+    pendingBulkDelete = null;
+  };
+  document.getElementById("bulk-delete-guard-cancel1").onclick = closeGuard;
+  document.getElementById("bulk-delete-guard-cancel2").onclick = closeGuard;
+  guardModal.addEventListener("click", (e) => { if (e.target === guardModal) closeGuard(); });
+
+  document.getElementById("bulk-delete-guard-yes").onclick = () => {
+    document.getElementById("bulk-delete-guard-step1").classList.add("hidden");
+    document.getElementById("bulk-delete-guard-step2").classList.remove("hidden");
+    setTimeout(() => document.getElementById("bulk-delete-guard-password").focus(), 50);
+  };
+
+  document.getElementById("bulk-delete-guard-confirm").onclick = async () => {
+    const pwInput = document.getElementById("bulk-delete-guard-password");
+    const errorEl = document.getElementById("bulk-delete-guard-error");
+    const pw = pwInput.value.trim();
+    if (!pw) {
+      errorEl.textContent = "Please enter your password.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    if (!pendingBulkDelete) { closeGuard(); return; }
+
+    const btn = document.getElementById("bulk-delete-guard-confirm");
+    btn.disabled = true;
+    btn.textContent = "Verifying…";
+
+    const { data: userRow } = await supabase.from("users").select("login_pw").eq("id", bulkDeleteUser.id).maybeSingle();
+
+    if (!userRow || userRow.login_pw !== pw) {
+      btn.disabled = false;
+      btn.textContent = "Permanently Delete";
+      errorEl.textContent = "Incorrect password.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    errorEl.classList.add("hidden");
+
+    const { cfg, count } = pendingBulkDelete;
+    const ok = await executeBulkDelete(cfg);
+
+    btn.disabled = false;
+    btn.textContent = "Permanently Delete";
+
+    if (ok) {
+      closeGuard();
+      document.getElementById("bulk-delete-modal").classList.remove("active");
+      showToast(`Deleted ${count} record${count === 1 ? "" : "s"} 🗑`, "success");
+    }
+  };
+}
+
+async function executeBulkDelete(cfg) {
+  let query = supabase.from(cfg.table).delete();
+  query = cfg.apply(query);
+  const { error } = await query;
+  if (error) {
+    showToast("Delete failed: " + error.message, "error");
+    return false;
+  }
+
+  eventsLoaded = false; // events/contacts data may have shifted — refresh caches on next use
+
+  if (cfg.table === "contacts" && !document.getElementById("admin-contacts-section").classList.contains("hidden")) {
+    renderContactsTable(document.getElementById("contacts-search").value.trim());
+  }
+  if (cfg.table === "events") {
+    await loadEvents();
+    if (!document.getElementById("admin-users-section").classList.contains("hidden")) initUsers();
+  }
+  return true;
 }

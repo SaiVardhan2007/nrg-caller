@@ -113,6 +113,10 @@ function renderForRole(user) {
     const dlBtn = document.getElementById("download-all-db-btn");
     dlBtn.classList.remove("hidden");
     dlBtn.addEventListener("click", () => Admin.downloadAllDbData(), { once: true });
+    // Show bulk-delete button for admin
+    const bulkDelBtn = document.getElementById("bulk-delete-btn");
+    bulkDelBtn.classList.remove("hidden");
+    bulkDelBtn.addEventListener("click", () => Admin.openBulkDeleteModal(currentUser), { once: true });
     showScreen("admin-users-section");
   } else if (user.role === "Reception") {
     adminTabs.classList.add("hidden");

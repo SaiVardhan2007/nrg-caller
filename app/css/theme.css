@@ -107,6 +107,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .tag-check:has(input:checked) { border-color: var(--tulsi); background: rgba(5,150,105,0.08); color: var(--tulsi-dark); }
 .tag-check input { width: auto; accent-color: var(--tulsi); }
 .field-error { color: var(--danger); font-size: 13px; margin: -8px 0 14px; font-weight: 500; }
+#caller-search { margin-bottom: 14px; }
 .field-warning { color: var(--warning); font-size: 13px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px; }
 
 /* ============ BUTTONS ============ */
@@ -358,6 +359,10 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 /* Duplicate attendance highlight */
 .duplicate-attendance { background: rgba(245, 158, 11, 0.12) !important; }
 .duplicate-attendance td { border-left: 3px solid #f59e0b !important; }
+.contact-original { background: rgba(5, 150, 105, 0.10) !important; }
+.contact-original td { border-left: 3px solid #059669 !important; }
+.contact-duplicate { background: rgba(220, 38, 38, 0.10) !important; }
+.contact-duplicate td { border-left: 3px solid #dc2626 !important; }
 
 /* ============ SKELETON LOADERS ============ */
 @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }

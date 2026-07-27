@@ -51,6 +51,7 @@
       <span id="user-name" class="user-chip"></span>
       <span id="role-badge" class="role-badge hidden"></span>
       <button id="download-all-db-btn" class="icon-btn hidden" aria-label="Download All Data" title="Download All DB Data">⬇</button>
+      <button id="bulk-delete-btn" class="icon-btn hidden" aria-label="Bulk Delete Data" title="Bulk Delete Data">🗑</button>
       <button id="logout-btn" class="icon-btn" aria-label="Logout">⎋</button>
     </div>
   </header>
@@ -384,6 +385,7 @@
         </div>
         <button id="caller-refresh-btn" class="btn btn-secondary btn-refresh" type="button">↻ Refresh</button>
       </div>
+      <input id="caller-search" type="search" placeholder="Search name or phone…" class="search-input" />
       <div id="caller-cards" class="cards-list">
         <p class="loading-row">Loading your assigned contacts…</p>
       </div>
@@ -553,6 +555,131 @@
     <div class="modal-actions">
       <button id="add-event-cancel" class="btn btn-secondary">Close</button>
       <button id="add-event-submit" class="btn btn-primary">+ Add Event</button>
+    </div>
+  </div>
+</div>
+
+<div id="bulk-delete-modal" class="modal">
+  <div class="modal-box modal-large">
+    <h3>🗑 Bulk Delete Data</h3>
+    <p class="muted-text">Choose what to delete and narrow it down with a filter, then confirm. This permanently removes data and cannot be undone.</p>
+
+    <label class="field">
+      <span>What do you want to delete?</span>
+      <select id="bulk-delete-type">
+        <option value="contacts">Master Contacts</option>
+        <option value="session_attendance">Session Attendance (Reception)</option>
+        <option value="call_responses">Call Responses (Call History)</option>
+        <option value="assignments">Current Assignments</option>
+        <option value="events">Events</option>
+      </select>
+    </label>
+
+    <div id="bulk-delete-filter-contacts" class="bulk-delete-filter">
+      <label class="field">
+        <span>Filter</span>
+        <select id="bulk-delete-contacts-scope">
+          <option value="all">All Master Contacts</option>
+          <option value="purpose">By Calling Purpose (Event)</option>
+          <option value="admin_tag">By Admin Tag</option>
+          <option value="admin_tag_to_users">By Admin Tag to Users</option>
+        </select>
+      </label>
+      <label class="field bulk-delete-sub" data-scope="purpose">
+        <span>Calling Purpose</span>
+        <select id="bulk-delete-contacts-purpose"></select>
+      </label>
+      <label class="field bulk-delete-sub" data-scope="admin_tag">
+        <span>Admin Tag</span>
+        <select id="bulk-delete-contacts-admin-tag"></select>
+      </label>
+      <label class="field bulk-delete-sub" data-scope="admin_tag_to_users">
+        <span>Admin Tag to Users</span>
+        <select id="bulk-delete-contacts-tag-to-users"></select>
+      </label>
+    </div>
+
+    <div id="bulk-delete-filter-session_attendance" class="bulk-delete-filter hidden">
+      <label class="field">
+        <span>Filter</span>
+        <select id="bulk-delete-attendance-scope">
+          <option value="all">All Attendance Records</option>
+          <option value="event">By Event</option>
+        </select>
+      </label>
+      <label class="field bulk-delete-sub" data-scope="event">
+        <span>Event</span>
+        <select id="bulk-delete-attendance-event"></select>
+      </label>
+    </div>
+
+    <div id="bulk-delete-filter-call_responses" class="bulk-delete-filter hidden">
+      <label class="field">
+        <span>Filter</span>
+        <select id="bulk-delete-calls-scope">
+          <option value="all">All Call Responses</option>
+          <option value="event">By Event</option>
+          <option value="caller">By Caller</option>
+        </select>
+      </label>
+      <label class="field bulk-delete-sub" data-scope="event">
+        <span>Event</span>
+        <select id="bulk-delete-calls-event"></select>
+      </label>
+      <label class="field bulk-delete-sub" data-scope="caller">
+        <span>Caller</span>
+        <select id="bulk-delete-calls-caller"></select>
+      </label>
+    </div>
+
+    <div id="bulk-delete-filter-assignments" class="bulk-delete-filter hidden">
+      <label class="field">
+        <span>Filter</span>
+        <select id="bulk-delete-assignments-scope">
+          <option value="all">All Assignments</option>
+          <option value="event">By Event</option>
+        </select>
+      </label>
+      <label class="field bulk-delete-sub" data-scope="event">
+        <span>Event</span>
+        <select id="bulk-delete-assignments-event"></select>
+      </label>
+    </div>
+
+    <div id="bulk-delete-filter-events" class="bulk-delete-filter hidden">
+      <span style="display:block; font-size:13px; font-weight:700; color:var(--tulsi-dark); margin-bottom:6px;">Select Event(s) to Delete</span>
+      <div id="bulk-delete-events-checklist" class="tag-check-group"></div>
+    </div>
+
+    <div id="bulk-delete-preview" class="muted-text" style="margin:14px 0; font-weight:700;"></div>
+    <div id="bulk-delete-error" class="field-error hidden"></div>
+
+    <div class="modal-actions">
+      <button id="bulk-delete-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="bulk-delete-trigger" class="btn btn-primary" style="background:var(--danger); box-shadow:none;">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="bulk-delete-guard-modal" class="modal">
+  <div class="modal-box">
+    <div id="bulk-delete-guard-step1">
+      <h3>Confirm Deletion</h3>
+      <p id="bulk-delete-guard-message" class="muted-text"></p>
+      <div class="modal-actions">
+        <button id="bulk-delete-guard-cancel1" class="btn btn-secondary">Cancel</button>
+        <button id="bulk-delete-guard-yes" class="btn btn-primary" style="background:var(--danger); box-shadow:none;">Yes, Continue</button>
+      </div>
+    </div>
+    <div id="bulk-delete-guard-step2" class="hidden">
+      <h3>Enter Password to Confirm</h3>
+      <p class="muted-text">For security, re-enter your password to permanently delete this data.</p>
+      <label class="field"><span>Password</span><input id="bulk-delete-guard-password" type="password" autocomplete="current-password" /></label>
+      <div id="bulk-delete-guard-error" class="field-error hidden"></div>
+      <div class="modal-actions">
+        <button id="bulk-delete-guard-cancel2" class="btn btn-secondary">Cancel</button>
+        <button id="bulk-delete-guard-confirm" class="btn btn-primary" style="background:var(--danger); box-shadow:none;">Permanently Delete</button>
+      </div>
     </div>
   </div>
 </div>
