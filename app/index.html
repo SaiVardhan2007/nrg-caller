@@ -50,6 +50,7 @@
     <div class="header-right">
       <span id="user-name" class="user-chip"></span>
       <span id="role-badge" class="role-badge hidden"></span>
+      <button id="refresh-btn" class="icon-btn" aria-label="Refresh" title="Refresh this page's data">↻</button>
       <button id="download-all-db-btn" class="icon-btn hidden" aria-label="Download All Data" title="Download All DB Data">⬇</button>
       <button id="bulk-delete-btn" class="icon-btn hidden" aria-label="Bulk Delete Data" title="Bulk Delete Data">🗑</button>
       <button id="logout-btn" class="icon-btn" aria-label="Logout">⎋</button>
@@ -126,6 +127,7 @@
         <table class="data-table" id="users-table">
           <thead>
             <tr>
+              <th>S.No</th>
               <th>User ID</th>
               <th>Password</th>
               <th>Role</th>
@@ -141,7 +143,7 @@
             </tr>
           </thead>
           <tbody id="users-table-body">
-            <tr><td colspan="9" class="loading-row">Loading users…</td></tr>
+            <tr><td colspan="10" class="loading-row">Loading users…</td></tr>
           </tbody>
         </table>
       </div>
@@ -295,6 +297,7 @@
           </label>
           <button id="analytics-run-btn" class="btn btn-primary">View</button>
           <button id="analytics-export-btn" class="btn btn-secondary">⬇ Export CSV</button>
+          <button id="general-data-btn" class="btn btn-secondary">📊 General Data</button>
         </div>
       </div>
 
@@ -319,7 +322,33 @@
         <h3 class="section-title">Currently Assigned Contacts</h3>
         <div class="table-wrap">
           <table class="data-table">
-            <thead><tr><th>Caller</th><th>Name</th><th>Phone</th><th>Status</th><th>Called?</th></tr></thead>
+            <thead>
+              <tr>
+                <th>
+                  <div class="th-label">Caller</div>
+                  <select id="analytics-assigned-filter-caller" class="th-filter">
+                    <option value="__ALL__">All</option>
+                  </select>
+                </th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>
+                  <div class="th-label">Status</div>
+                  <select id="analytics-assigned-filter-status" class="th-filter">
+                    <option value="__ALL__">All</option>
+                    <option value="">Not Done</option>
+                  </select>
+                </th>
+                <th>
+                  <div class="th-label">Called?</div>
+                  <select id="analytics-assigned-filter-called" class="th-filter">
+                    <option value="__ALL__">All</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </th>
+              </tr>
+            </thead>
             <tbody id="analytics-assigned-body"></tbody>
           </table>
         </div>
@@ -563,7 +592,7 @@
       </div>
       <div id="one-to-one-user-request" class="panel hidden">
         <p class="muted-text">You haven't been added to One to One yet.</p>
-        <button id="one-to-one-request-btn" class="btn btn-primary">Request Prabhu for One to One slot</button>
+        <button id="one-to-one-request-btn" class="btn btn-primary">Request Prabhu to get your slot</button>
         <div id="one-to-one-request-form" class="hidden" style="margin-top:14px;">
           <label class="field"><span>Your message to Prabhu</span><textarea id="one-to-one-request-text" rows="3" placeholder="Tell Prabhu why you'd like a One to One slot…"></textarea></label>
           <div id="one-to-one-request-error" class="field-error hidden"></div>
@@ -948,6 +977,22 @@
     <div class="modal-actions">
       <button id="remarks-close" class="btn btn-secondary">Close</button>
       <button id="remarks-add" class="btn btn-primary">Add Remark</button>
+    </div>
+  </div>
+</div>
+
+<div id="general-data-modal" class="modal">
+  <div class="modal-box modal-large">
+    <h3>General Data — All Users</h3>
+    <p class="muted-text">Live snapshot of every caller with contacts currently assigned to them.</p>
+    <div class="table-wrap" style="max-height:60vh;">
+      <table class="data-table">
+        <thead><tr><th>User</th><th>Assigned</th><th>Positive</th><th>Pending</th><th>Pending %</th></tr></thead>
+        <tbody id="general-data-body"><tr><td colspan="5" class="loading-row">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="general-data-close" class="btn btn-secondary">Close</button>
     </div>
   </div>
 </div>

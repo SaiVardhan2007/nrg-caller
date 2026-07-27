@@ -478,8 +478,8 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 
 .call-card-row4 { display: flex; gap: 10px; }
 .call-card-row4 .btn { flex: 1; font-size: 13px; padding: 11px; }
-.row-submit-btn { background: #fef2f2; color: #991b1b; box-shadow: none; }
-.row-submit-btn.is-submitted { background: #ecfdf5; color: #166534; }
+.row-submit-btn { background: #fca5a5; color: #7f1d1d; box-shadow: none; }
+.row-submit-btn.is-submitted { background: #86efac; color: #14532d; }
 .send-btn { background: #f0fdf4; color: #166534; border: 1.5px solid #bbf7d0; }
 .send-btn:hover:not(:disabled) { background: #dcfce7; }
 

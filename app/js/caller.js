@@ -1,29 +1,21 @@
 import { supabase } from "./supabaseClient.js";
 import { formatPhone, telHref, waHref, showToast, escapeHtml } from "./utils.js";
 
-const STATUS_DEFAULT = "Not Done";
+const STATUS_DEFAULT = ""; // "Not Done" is stored as an empty status, not the literal text
 const STATUS_OPTIONS = [
-  "Not Done",
-  "Don't Call him again",
-  "Joining the session",
-  "Next Week will join",
-  "Out of station",
-  "evening Shift",
-  "Busy",
-  "Will come for Saturday",
-  "Wrong Number",
-  "Sunday Available",
-  "Will try to attend",
-  "Yet To Call",
-  "Didn't Receive, Sent in WhatsApp",
-  "Out of Network Coverage",
-  "Shifted to Home town",
-  "Only Online session",
-  "Others",
+  { value: "", label: "Not Done" },
+  { value: "Joining the session", label: "Joining the session" },
+  { value: "Next Week will join", label: "Next Week will join" },
+  { value: "Out of Station", label: "Out of Station" },
+  { value: "Wrong Number", label: "Wrong Number" },
+  { value: "Shifted to Home Town", label: "Shifted to Home Town" },
+  { value: "Yet to Call Again", label: "Yet to Call Again" },
+  { value: "Available on Weekend", label: "Available on Weekend" },
+  { value: "Others", label: "Others" },
 ];
-const POSITIVE = ["joining the session", "will try to attend"];
+const POSITIVE = ["joining the session", "next week will join", "will try to attend"];
 const PENDING = ["not done", "yet to call", ""];
-const NEGATIVE = ["don't call him again", "wrong number", "out of network coverage", "shifted to home town"];
+const NEGATIVE = ["out of station", "wrong number", "shifted to home town", "yet to call again", "available on weekend"];
 const WS_OPTIONS = ["NA", "W", "S"];
 
 function statusCategory(status) {
@@ -179,7 +171,7 @@ function renderCard(a, weekCallCount) {
       </div>
       <div class="call-card-row3">
         <select class="status-select status-${category}">
-          ${STATUS_OPTIONS.map((o) => `<option value="${o}" ${o === (a.status || STATUS_DEFAULT) ? "selected" : ""}>${o}</option>`).join("")}
+          ${STATUS_OPTIONS.map((o) => `<option value="${o.value}" ${o.value === (a.status || STATUS_DEFAULT) ? "selected" : ""}>${o.label}</option>`).join("")}
         </select>
       </div>
       <div class="call-card-row4">

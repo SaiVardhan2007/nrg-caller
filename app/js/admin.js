@@ -25,8 +25,8 @@ async function loadEvents() {
   return eventsCache;
 }
 
-function fillEventSelect(select, selectedCode) {
-  select.innerHTML = eventsCache
+function fillEventSelect(select, selectedCode, includeAllOption = false) {
+  select.innerHTML = (includeAllOption ? `<option value="__ALL__">All Events</option>` : "") + eventsCache
     .map((e) => `<option value="${e.code}">${e.name} (${e.code})</option>`)
     .join("");
   if (selectedCode) select.value = selectedCode;
@@ -59,7 +59,7 @@ export async function initUsers() {
     getSetting("tag_filter"),
     renderUsersTable(),
   ]);
-  fillEventSelect(eventSelect, currentEvent);
+  fillEventSelect(eventSelect, currentEvent, true);
   const savedTags = (tagFilterValue || "").split(",").map((t) => t.trim()).filter(Boolean);
   tagFilterGroup.querySelectorAll("input").forEach((cb) => { cb.checked = savedTags.includes(cb.value); });
 
@@ -76,7 +76,7 @@ async function refreshEventsEverywhere(selectedCode) {
   eventsLoaded = false;
   await loadEvents();
   const eventSelect = document.getElementById("event-select");
-  if (eventSelect) fillEventSelect(eventSelect, selectedCode);
+  if (eventSelect) fillEventSelect(eventSelect, selectedCode, true);
 }
 
 async function renderManageEventsList() {
@@ -188,14 +188,14 @@ function wireManageEventsModal() {
 
 async function renderUsersTable() {
   const tbody = document.getElementById("users-table-body");
-  tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Loading users…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Loading users…</td></tr>`;
 
   const { data: users, error } = await supabase
     .from("users")
     .select("id,user_name,login_pw,role,call_limit,auto_assign")
     .order("user_name");
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Could not load users.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Could not load users.</td></tr>`;
     return;
   }
   usersCache = users || [];
@@ -214,7 +214,7 @@ async function renderUsersTable() {
   });
 
   if (!usersCache.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">No users yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">No users yet.</td></tr>`;
     return;
   }
 
@@ -222,13 +222,14 @@ async function renderUsersTable() {
   const selectAllInput = document.getElementById("auto-assign-select-all");
   if (selectAllInput) selectAllInput.checked = coordinators.length > 0 && coordinators.every((u) => u.auto_assign);
 
-  tbody.innerHTML = usersCache.map((u) => {
+  tbody.innerHTML = usersCache.map((u, i) => {
     const assigned = counts[u.user_name] || 0;
     const completed = completedCounts[u.user_name] || 0;
     const pct = assigned > 0 ? Math.round((completed / assigned) * 100) + "%" : "—";
     return `
     <tr data-id="${u.id}" data-label-row>
-      <td data-label="User ID"><strong>${escapeHtml((u.user_name || "").trim().split(/\s+/)[0] || "")}</strong></td>
+      <td data-label="S.No">${i + 1}</td>
+      <td data-label="User ID"><strong>${escapeHtml(u.user_name || "")}</strong></td>
       <td data-label="Password">${escapeHtml(u.login_pw || "")}</td>
       <td data-label="Role">${u.role}</td>
       <td data-label="Call Limit">
@@ -291,7 +292,9 @@ function distributePool(pool, eligible, assignedCount, eventCode) {
     if (!candidates.length) { unassignedCount++; continue; }
     candidates.sort((a, b) => assignedCount[a.user_name] - assignedCount[b.user_name]);
     const pick = candidates[0];
-    rows.push({ contact_id: c.id, user_name: pick.user_name, event_code: eventCode });
+    // "All Events" mode passes eventCode="__ALL__" — each contact keeps its
+    // own calling_purpose as the assignment's real event_code instead.
+    rows.push({ contact_id: c.id, user_name: pick.user_name, event_code: c.calling_purpose || eventCode });
     assignedCount[pick.user_name]++;
   }
   return { rows, unassignedCount };
@@ -302,11 +305,14 @@ function distributePool(pool, eligible, assignedCount, eventCode) {
 // never callable), and anything with a Core Cultivation set (that link is
 // admin-only, never auto-assigned) — the same pool rule used by Assign,
 // Rebalance, and (in SQL) the continuous trigger.
+// eventCode === "__ALL__" pools contacts across every event at once (each one
+// still keeps its own calling_purpose as its assignment's event_code).
 async function fetchEventContactPool(eventCode, tagFilters) {
+  const allEvents = eventCode === "__ALL__";
   let query = supabase
     .from("contacts")
-    .select("id,core_cultivation,admin_tag_to_users")
-    .eq("calling_purpose", eventCode);
+    .select("id,core_cultivation,admin_tag_to_users,calling_purpose");
+  query = allEvents ? query.not("calling_purpose", "is", null) : query.eq("calling_purpose", eventCode);
   if (tagFilters.length) {
     // When specific tags are selected, only include contacts with those tags
     query = query.in("admin_tag_to_users", tagFilters);
@@ -446,7 +452,10 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       // and resets the current assignment state to zero before fresh distribution.
       await archiveAndClearAssignments();
 
-      await setSetting("current_event", eventCode);
+      // "All Events" is a pooling choice for this one Assign click, not a
+      // real event — leave whatever single event was last set as "current"
+      // alone, since Reception/Analytics rely on that setting elsewhere.
+      if (eventCode !== "__ALL__") await setSetting("current_event", eventCode);
       await setSetting("tag_filter", tagFilters.join(", "));
 
       // existingForEvent will now be empty since we cleared it above
@@ -493,7 +502,7 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
             const cap = eligibleMap[c.core_cultivation].call_limit;
             const currentLoad = assignedCount[c.core_cultivation];
             if (currentLoad < (cap == null ? Infinity : cap)) {
-              rows.push({ contact_id: c.id, user_name: c.core_cultivation, event_code: eventCode });
+              rows.push({ contact_id: c.id, user_name: c.core_cultivation, event_code: c.calling_purpose || eventCode });
               assignedCount[c.core_cultivation]++;
             } else {
               unassignedCount++;
@@ -550,10 +559,9 @@ function wireRebalanceButton(eventSelect, tagFilterGroup) {
 
       const eligiblePool = await fetchEventContactPool(eventCode, tagFilters);
 
-      const { data: existing, error: existingErr } = await supabase
-        .from("assignments")
-        .select("id,contact_id,user_name,status")
-        .eq("event_code", eventCode);
+      let existingQuery = supabase.from("assignments").select("id,contact_id,user_name,status");
+      if (eventCode !== "__ALL__") existingQuery = existingQuery.eq("event_code", eventCode);
+      const { data: existing, error: existingErr } = await existingQuery;
       if (existingErr) throw existingErr;
 
       // only ever touch contacts nobody has acted on yet — a caller's status
@@ -784,10 +792,10 @@ const NUMBER_FILTER_FIELDS = [
 // rebuilds a header filter's option list from live data while keeping
 // whatever the admin currently has selected (falls back to "All" if that
 // value no longer exists, e.g. an event got deleted).
-function populateFilterSelect(select, values) {
+function populateFilterSelect(select, values, blankLabel = "—") {
   if (!select) return;
   const current = select.value;
-  select.innerHTML = `<option value="__ALL__">All</option><option value="">—</option>` +
+  select.innerHTML = `<option value="__ALL__">All</option><option value="">${blankLabel}</option>` +
     values.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
   select.value = [...select.options].some((o) => o.value === current) ? current : "__ALL__";
 }
@@ -1455,6 +1463,8 @@ let analyticsWired = false;
 export async function initAnalytics() {
   await loadEvents();
   wireContactInfoModal();
+  wireAssignedContactsFilters();
+  wireGeneralDataModal();
   const userSelect = document.getElementById("analytics-user-select");
   const eventSelect = document.getElementById("analytics-event-select");
   const fromInput = document.getElementById("analytics-from");
@@ -1484,7 +1494,7 @@ export async function initAnalytics() {
     document.getElementById("card-pending").addEventListener("click", () => openAnalyticsStatModal("pending"));
     document.getElementById("analytics-export-btn").addEventListener("click", () => {
       const readTable = (tableEl) => {
-        const rows = [Array.from(tableEl.querySelectorAll("thead th")).map((th) => th.textContent.trim())];
+        const rows = [Array.from(tableEl.querySelectorAll("thead th")).map((th) => (th.querySelector(".th-label")?.textContent || th.textContent).trim())];
         tableEl.querySelectorAll("tbody tr").forEach((tr) => {
           rows.push(Array.from(tr.children).map((td) => td.textContent.trim()));
         });
@@ -1506,8 +1516,8 @@ export async function initAnalytics() {
 }
 
 // same categorization used on the caller's own stats bar, so the numbers agree across the app
-const ANALYTICS_POSITIVE = ["joining the session", "will try to attend"];
-const ANALYTICS_NEGATIVE = ["don't call him again", "wrong number", "out of network coverage", "shifted to home town"];
+const ANALYTICS_POSITIVE = ["joining the session", "next week will join", "will try to attend"];
+const ANALYTICS_NEGATIVE = ["out of station", "wrong number", "shifted to home town", "yet to call again", "available on weekend"];
 const ANALYTICS_PENDING = ["not done", "yet to call", ""];
 function callOutcomeCategory(remarks) {
   const s = (remarks || "").toLowerCase();
@@ -1517,6 +1527,93 @@ function callOutcomeCategory(remarks) {
 }
 
 let currentAnalyticsParams = null;
+let lastAssignedContacts = [];
+
+// re-applies the Caller/Status/Called? header filters over the already-fetched
+// assignment list — no re-query needed, this table's data is small and local.
+function renderAssignedContactsTable() {
+  const assignedBody = document.getElementById("analytics-assigned-body");
+  if (!assignedBody) return;
+  const callerFilter = document.getElementById("analytics-assigned-filter-caller")?.value ?? "__ALL__";
+  const statusFilter = document.getElementById("analytics-assigned-filter-status")?.value ?? "__ALL__";
+  const calledFilter = document.getElementById("analytics-assigned-filter-called")?.value ?? "__ALL__";
+
+  let rows = lastAssignedContacts;
+  if (callerFilter !== "__ALL__") rows = rows.filter((a) => a.user_name === callerFilter);
+  if (statusFilter !== "__ALL__") {
+    rows = statusFilter === "" ? rows.filter((a) => !a.status || a.status === "Not Done") : rows.filter((a) => a.status === statusFilter);
+  }
+  if (calledFilter !== "__ALL__") {
+    const wantCalled = calledFilter === "yes";
+    rows = rows.filter((a) => (((a.status || "Not Done") !== "Not Done")) === wantCalled);
+  }
+
+  assignedBody.innerHTML = rows.length
+    ? rows.map((a) => `
+        <tr>
+          <td data-label="Caller">${escapeHtml(a.user_name)}</td>
+          <td data-label="Name">${escapeHtml(a.contacts?.name || "—")}</td>
+          <td data-label="Phone">${formatPhone(a.contacts?.mob_no || "")}</td>
+          <td data-label="Status">${escapeHtml(a.status || "Not Done")}</td>
+          <td data-label="Called?">${(a.status || "Not Done") !== "Not Done" ? "✅" : "—"}</td>
+        </tr>`).join("")
+    : `<tr><td colspan="5" class="loading-row">No contacts currently assigned.</td></tr>`;
+}
+
+let assignedContactsFiltersWired = false;
+function wireAssignedContactsFilters() {
+  if (assignedContactsFiltersWired) return;
+  assignedContactsFiltersWired = true;
+  ["analytics-assigned-filter-caller", "analytics-assigned-filter-status", "analytics-assigned-filter-called"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("change", renderAssignedContactsTable);
+  });
+}
+
+// one-glance snapshot across every Coordinator's current live assignment load
+// — assigned/positive/pending straight from the live assignments table, same
+// categorization as everywhere else (callOutcomeCategory).
+let generalDataModalWired = false;
+function wireGeneralDataModal() {
+  if (generalDataModalWired) return;
+  generalDataModalWired = true;
+  const modal = document.getElementById("general-data-modal");
+  document.getElementById("general-data-close").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  document.getElementById("general-data-btn").onclick = async () => {
+    modal.classList.add("active");
+    const tbody = document.getElementById("general-data-body");
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
+
+    const { data: assignments } = await supabase.from("assignments").select("user_name,status");
+
+    const stats = {};
+    (assignments || []).forEach((a) => {
+      if (!stats[a.user_name]) stats[a.user_name] = { assigned: 0, positive: 0, pending: 0 };
+      const s = stats[a.user_name];
+      s.assigned++;
+      const category = callOutcomeCategory(a.status);
+      if (category === "positive") s.positive++;
+      else if (category === "pending") s.pending++;
+    });
+
+    const rows = Object.entries(stats).filter(([, s]) => s.assigned > 0).sort((a, b) => a[0].localeCompare(b[0]));
+    tbody.innerHTML = rows.length
+      ? rows.map(([name, s]) => {
+          const pendingPct = s.assigned > 0 ? Math.round((s.pending / s.assigned) * 100) + "%" : "—";
+          return `
+          <tr>
+            <td data-label="User">${escapeHtml(name)}</td>
+            <td data-label="Assigned">${s.assigned}</td>
+            <td data-label="Positive">${s.positive}</td>
+            <td data-label="Pending">${s.pending}</td>
+            <td data-label="Pending %">${pendingPct}</td>
+          </tr>`;
+        }).join("")
+      : `<tr><td colspan="5" class="loading-row">No contacts currently assigned to anyone.</td></tr>`;
+  };
+}
 
 async function openAnalyticsStatModal(statType) {
   if (!currentAnalyticsParams) return;
@@ -1804,17 +1901,17 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   if (isStale()) return;
   // group rows by caller so one person's contacts sit together, not interleaved with others'
   if (assignedContacts) assignedContacts.sort((a, b) => a.user_name.localeCompare(b.user_name));
-  const assignedBody = document.getElementById("analytics-assigned-body");
-  assignedBody.innerHTML = (assignedContacts && assignedContacts.length)
-    ? assignedContacts.map((a) => `
-        <tr>
-          <td data-label="Caller">${escapeHtml(a.user_name)}</td>
-          <td data-label="Name">${escapeHtml(a.contacts?.name || "—")}</td>
-          <td data-label="Phone">${formatPhone(a.contacts?.mob_no || "")}</td>
-          <td data-label="Status">${escapeHtml(a.status)}</td>
-          <td data-label="Called?">${a.status !== "Not Done" ? "✅" : "—"}</td>
-        </tr>`).join("")
-    : `<tr><td colspan="5" class="loading-row">No contacts currently assigned.</td></tr>`;
+  lastAssignedContacts = assignedContacts || [];
+  populateFilterSelect(
+    document.getElementById("analytics-assigned-filter-caller"),
+    [...new Set(lastAssignedContacts.map((a) => a.user_name))].filter(Boolean).sort()
+  );
+  populateFilterSelect(
+    document.getElementById("analytics-assigned-filter-status"),
+    [...new Set(lastAssignedContacts.map((a) => a.status))].filter(Boolean).sort(),
+    "Not Done"
+  );
+  renderAssignedContactsTable();
 
   // core cultivation health: is the cultivator actually calling the people cultivated to them?
   let cultivatedQuery = supabase.from("contacts").select("name,mob_no,core_cultivation");

@@ -180,6 +180,13 @@ async function boot() {
   });
 
   document.getElementById("logout-btn").addEventListener("click", logout);
+
+  // Re-runs just the current page's init/render — never navigates away or
+  // touches the session, so it can never bounce back to the login screen.
+  document.getElementById("refresh-btn").addEventListener("click", () => {
+    const visiblePage = document.querySelector(".page:not(.hidden)");
+    if (visiblePage) showScreen(visiblePage.id);
+  });
 }
 
 boot();
