@@ -94,6 +94,11 @@
         <span class="card-label">Core Cultivation</span>
         <span class="card-arrow">→</span>
       </button>
+      <button class="dashboard-card" data-target="contact-collection-section">
+        <span class="card-icon-badge badge-saffron"><span class="card-emoji">📇</span></span>
+        <span class="card-label">Contact Collection</span>
+        <span class="card-arrow">→</span>
+      </button>
     </div>
   </div>
 
@@ -436,6 +441,36 @@
       </div>
     </section>
 
+    <!-- ===== USER: Contact Collection ===== -->
+    <section id="contact-collection-section" class="page hidden">
+      <div class="panel">
+        <h3 class="section-title">Add a Contact</h3>
+        <label class="field"><span>Name</span><input id="collection-name" type="text" /></label>
+        <label class="field"><span>Phone Number</span><input id="collection-phone" type="tel" inputmode="numeric" maxlength="10" /></label>
+        <label class="field"><span>Profession</span><input id="collection-profession" type="text" /></label>
+        <label class="field">
+          <span>Gender</span>
+          <select id="collection-gender">
+            <option value="">— select —</option>
+            <option value="M">M</option>
+            <option value="F">F</option>
+          </select>
+        </label>
+        <label class="field"><span>Staying (optional)</span><input id="collection-staying" type="text" placeholder="PG / hostel / home…" /></label>
+        <div id="collection-error" class="field-error hidden"></div>
+        <button id="collection-submit" class="btn btn-primary">Submit</button>
+      </div>
+      <div class="panel">
+        <h3 class="section-title">Your Submissions</h3>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Time</th><th>Name</th><th>Phone</th><th>Profession</th><th>Gender</th><th>Staying</th></tr></thead>
+            <tbody id="collection-submissions-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== ADMIN: New Contacts ===== -->
     <section id="admin-new-contacts-section" class="page hidden">
       <div class="panel">
@@ -470,6 +505,31 @@
           </thead>
           <tbody id="new-contacts-table-body">
             <tr><td colspan="16" class="loading-row">Connecting to Sheets…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h3 class="section-title">Contact Collection Submissions</h3>
+        <p class="muted-text">Leads submitted from the Contact Collection card — Add promotes to Master Contact.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="collection-submissions-admin-table">
+          <thead>
+            <tr>
+              <th>S.No</th>
+              <th>Time</th>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Profession</th>
+              <th>Gender</th>
+              <th>Staying</th>
+              <th>Collected By</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="collection-submissions-admin-body">
+            <tr><td colspan="9" class="loading-row">Loading…</td></tr>
           </tbody>
         </table>
       </div>

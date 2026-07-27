@@ -2116,6 +2116,84 @@ let isResolvingDuplicates = false;
 let isFetchingNewContacts = false;
 let newContactsWired = false;
 
+// Leads submitted from the user-facing Contact Collection card. Separate,
+// much simpler pipeline than the Sheets-based New Contacts table above —
+// Add promotes straight into Master Contact (skipped if the phone's already
+// there; admin resolves that manually), Delete just dismisses the lead.
+async function renderCollectionSubmissions() {
+  const tbody = document.getElementById("collection-submissions-admin-body");
+  tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Loading…</td></tr>`;
+
+  const { data, error } = await supabase
+    .from("contact_collection")
+    .select("id,name,mob_no,profession,gender,staying,collected_by,created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Could not load submissions.</td></tr>`;
+    return;
+  }
+  if (!data || !data.length) {
+    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">No submissions yet.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map((r, i) => `
+    <tr data-id="${r.id}">
+      <td data-label="S.No">${i + 1}</td>
+      <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
+      <td data-label="Name">${escapeHtml(r.name)}</td>
+      <td data-label="Phone" class="phone-cell">${formatPhone(r.mob_no)}</td>
+      <td data-label="Profession">${escapeHtml(r.profession)}</td>
+      <td data-label="Gender">${escapeHtml(r.gender)}</td>
+      <td data-label="Staying">${escapeHtml(r.staying || "—")}</td>
+      <td data-label="Collected By">${escapeHtml(r.collected_by || "—")}</td>
+      <td data-label="">
+        <button class="cell-chip collection-add-btn" data-id="${r.id}">+ Add</button>
+        <button class="cell-chip danger collection-delete-btn" data-id="${r.id}">Delete</button>
+      </td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll(".collection-add-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const row = data.find((r) => r.id === btn.dataset.id);
+      if (!row) return;
+      btn.disabled = true;
+      const { data: existing } = await supabase.from("contacts").select("id").eq("mob_no", row.mob_no).maybeSingle();
+      if (existing) {
+        showToast(`${row.name}'s phone number is already in Master Contact — resolve manually there.`, "warning");
+        btn.disabled = false;
+        return;
+      }
+      const { error: insErr } = await supabase.from("contacts").insert({
+        mob_no: row.mob_no,
+        name: row.name,
+        profession: row.profession,
+        gender: row.gender,
+        pg_name: row.staying || null,
+        ws: "NA",
+      });
+      if (insErr) {
+        showToast("Add failed: " + insErr.message, "error");
+        btn.disabled = false;
+        return;
+      }
+      await supabase.from("contact_collection").delete().eq("id", row.id);
+      showToast(`${row.name} added to Master Contact`, "success");
+      renderCollectionSubmissions();
+    });
+  });
+
+  tbody.querySelectorAll(".collection-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Delete this submission?")) return;
+      await supabase.from("contact_collection").delete().eq("id", btn.dataset.id);
+      renderCollectionSubmissions();
+    });
+  });
+}
+
 export async function initNewContacts() {
   stopNewContactsPolling(); // safety clean-up
 
@@ -2140,6 +2218,10 @@ export async function initNewContacts() {
       }
     });
   }
+
+  // Independent of the Sheets bridge below — always load regardless of
+  // whether apps_script_webhook_url is configured.
+  await renderCollectionSubmissions();
 
   const summaryEl = document.getElementById("new-contacts-summary");
   summaryEl.textContent = "Connecting to Sheets...";

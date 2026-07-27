@@ -134,6 +134,21 @@ create table if not exists one_to_one_remarks (
 );
 create index if not exists idx_one_to_one_remarks_mob_no on one_to_one_remarks(mob_no);
 
+-- Sheet: Contact Collection — leads any logged-in user can submit from the
+-- "Contact Collection" dashboard card; admin reviews and promotes them to
+-- Master Contact from the New Contacts page.
+create table if not exists contact_collection (
+  id           uuid primary key default gen_random_uuid(),
+  name         text not null,
+  mob_no       text not null check (mob_no ~ '^[0-9]{10}$'),
+  profession   text not null,
+  gender       text not null check (gender in ('M','F')),
+  staying      text,
+  collected_by text,
+  created_at   timestamptz not null default now()
+);
+create index if not exists idx_contact_collection_mob_no on contact_collection(mob_no);
+
 -- ============ TRIGGERS ============
 
 -- keep updated_at fresh

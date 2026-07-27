@@ -6,6 +6,7 @@ import * as Caller from "./caller.js";
 import * as Reception from "./reception.js";
 import * as OneToOne from "./oneToOne.js";
 import * as CoreCultivation from "./coreCultivation.js";
+import * as Collection from "./collection.js";
 
 const loginView = document.getElementById("login-view");
 const appView = document.getElementById("app-view");
@@ -31,6 +32,7 @@ const PAGE_TITLES = {
   "reception-section": "Reception",
   "one-to-one-user-section": "One to One with Prabhu",
   "core-cultivation-section": "Core Cultivation",
+  "contact-collection-section": "Contact Collection",
 };
 
 let currentUser = null;
@@ -51,6 +53,7 @@ function showScreen(id) {
   if (id === "admin-one-to-one-section") OneToOne.initAdminOneToOne(currentUser);
   if (id === "one-to-one-user-section") OneToOne.initUserOneToOne(currentUser);
   if (id === "core-cultivation-section") CoreCultivation.init(currentUser);
+  if (id === "contact-collection-section") Collection.init(currentUser);
 
   if (id !== "admin-new-contacts-section") Admin.stopNewContactsPolling();
 }

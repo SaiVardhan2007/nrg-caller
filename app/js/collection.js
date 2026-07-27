@@ -1,0 +1,88 @@
+import { supabase } from "./supabaseClient.js";
+import { showToast, formatPhone, escapeHtml } from "./utils.js";
+
+let wired = false;
+
+export async function init(currentUser) {
+  await renderSubmissions(currentUser.user_name);
+  if (wired) return;
+  wired = true;
+
+  const nameInput = document.getElementById("collection-name");
+  const phoneInput = document.getElementById("collection-phone");
+  const professionInput = document.getElementById("collection-profession");
+  const genderSelect = document.getElementById("collection-gender");
+  const stayingInput = document.getElementById("collection-staying");
+  const errorEl = document.getElementById("collection-error");
+  const submitBtn = document.getElementById("collection-submit");
+
+  phoneInput.addEventListener("input", (e) => {
+    e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10);
+  });
+
+  submitBtn.addEventListener("click", async () => {
+    const name = nameInput.value.trim();
+    const phone = phoneInput.value.trim();
+    const profession = professionInput.value.trim();
+    const gender = genderSelect.value;
+    const staying = stayingInput.value.trim();
+
+    if (!name || !/^[0-9]{10}$/.test(phone) || !profession || !gender) {
+      errorEl.textContent = "Please fill Name, a valid 10-digit Phone, Profession, and Gender.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    errorEl.classList.add("hidden");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Saving…";
+
+    const { error } = await supabase.from("contact_collection").insert({
+      name,
+      mob_no: phone,
+      profession,
+      gender,
+      staying: staying || null,
+      collected_by: currentUser.user_name,
+    });
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Submit";
+
+    if (error) {
+      errorEl.textContent = "Failed: " + error.message;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+
+    nameInput.value = "";
+    phoneInput.value = "";
+    professionInput.value = "";
+    genderSelect.value = "";
+    stayingInput.value = "";
+    showToast("Contact submitted 🙏", "success");
+    renderSubmissions(currentUser.user_name);
+  });
+}
+
+async function renderSubmissions(userName) {
+  const tbody = document.getElementById("collection-submissions-body");
+  tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
+
+  const { data } = await supabase
+    .from("contact_collection")
+    .select("name,mob_no,profession,gender,staying,created_at")
+    .eq("collected_by", userName)
+    .order("created_at", { ascending: false });
+
+  tbody.innerHTML = (data && data.length)
+    ? data.map((r) => `
+        <tr>
+          <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
+          <td data-label="Name">${escapeHtml(r.name)}</td>
+          <td data-label="Phone" class="phone-cell">${formatPhone(r.mob_no)}</td>
+          <td data-label="Profession">${escapeHtml(r.profession)}</td>
+          <td data-label="Gender">${escapeHtml(r.gender)}</td>
+          <td data-label="Staying">${escapeHtml(r.staying || "—")}</td>
+        </tr>`).join("")
+    : `<tr><td colspan="6" class="loading-row">You haven't submitted any contacts yet.</td></tr>`;
+}
