@@ -126,10 +126,13 @@
         <table class="data-table" id="users-table">
           <thead>
             <tr>
-              <th>User Name</th>
+              <th>User ID</th>
+              <th>Password</th>
               <th>Role</th>
               <th>Call Limit</th>
               <th>Assigned Count</th>
+              <th>Completed Calls</th>
+              <th>Completed %</th>
               <th>
                 Auto Assign
                 <input type="checkbox" id="auto-assign-select-all" title="Enable/disable Auto Assign for all users" style="margin-left:6px; width:16px; height:16px; vertical-align:middle; cursor:pointer;" />
@@ -138,7 +141,7 @@
             </tr>
           </thead>
           <tbody id="users-table-body">
-            <tr><td colspan="6" class="loading-row">Loading users…</td></tr>
+            <tr><td colspan="9" class="loading-row">Loading users…</td></tr>
           </tbody>
         </table>
       </div>
@@ -180,7 +183,22 @@
         <table class="data-table" id="contacts-table">
           <thead>
             <tr>
-              <th>S.No</th><th>Time Stamp</th><th>Name</th><th>Phone</th><th>PG Name</th>
+              <th>S.No</th><th>Time Stamp</th>
+              <th>
+                <div class="th-label">Name</div>
+                <select id="contacts-filter-name" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="__BLANK__">Blank Only</option>
+                </select>
+              </th>
+              <th>Phone</th>
+              <th>
+                <div class="th-label">PG Name</div>
+                <select id="contacts-filter-pg-name" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="__BLANK__">Blank Only</option>
+                </select>
+              </th>
               <th>
                 <div class="th-label">Profession</div>
                 <select id="contacts-filter-ws" class="th-filter">
@@ -200,7 +218,14 @@
                   <option value="F">F</option>
                 </select>
               </th>
-              <th>Sessions</th><th>Calls</th>
+              <th>
+                <div class="th-label">Sessions</div>
+                <input type="number" min="0" id="contacts-filter-sessions" class="th-filter" placeholder="All" />
+              </th>
+              <th>
+                <div class="th-label">Calls</div>
+                <input type="number" min="0" id="contacts-filter-calls" class="th-filter" placeholder="All" />
+              </th>
               <th>
                 <div class="th-label">Admin Tag to Users</div>
                 <select id="contacts-filter-tag-to-users" class="th-filter">

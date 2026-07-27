@@ -188,24 +188,33 @@ function wireManageEventsModal() {
 
 async function renderUsersTable() {
   const tbody = document.getElementById("users-table-body");
-  tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading users…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Loading users…</td></tr>`;
 
   const { data: users, error } = await supabase
     .from("users")
-    .select("id,user_name,role,call_limit,auto_assign")
+    .select("id,user_name,login_pw,role,call_limit,auto_assign")
     .order("user_name");
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Could not load users.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Could not load users.</td></tr>`;
     return;
   }
   usersCache = users || [];
 
-  const { data: assignments } = await supabase.from("assignments").select("user_name");
+  // "completed" mirrors the same rule used everywhere else a call counts as
+  // made (archiveAndClearAssignments, Reception Analytics): any status other
+  // than the untouched default.
+  const { data: assignments } = await supabase.from("assignments").select("user_name,status");
   const counts = {};
-  (assignments || []).forEach((a) => { counts[a.user_name] = (counts[a.user_name] || 0) + 1; });
+  const completedCounts = {};
+  (assignments || []).forEach((a) => {
+    counts[a.user_name] = (counts[a.user_name] || 0) + 1;
+    if ((a.status || "Not Done") !== "Not Done") {
+      completedCounts[a.user_name] = (completedCounts[a.user_name] || 0) + 1;
+    }
+  });
 
   if (!usersCache.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">No users yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">No users yet.</td></tr>`;
     return;
   }
 
@@ -213,14 +222,21 @@ async function renderUsersTable() {
   const selectAllInput = document.getElementById("auto-assign-select-all");
   if (selectAllInput) selectAllInput.checked = coordinators.length > 0 && coordinators.every((u) => u.auto_assign);
 
-  tbody.innerHTML = usersCache.map((u) => `
+  tbody.innerHTML = usersCache.map((u) => {
+    const assigned = counts[u.user_name] || 0;
+    const completed = completedCounts[u.user_name] || 0;
+    const pct = assigned > 0 ? Math.round((completed / assigned) * 100) + "%" : "—";
+    return `
     <tr data-id="${u.id}" data-label-row>
-      <td data-label="User Name"><strong>${u.user_name}</strong></td>
+      <td data-label="User ID"><strong>${escapeHtml((u.user_name || "").trim().split(/\s+/)[0] || "")}</strong></td>
+      <td data-label="Password">${formatPhone(u.login_pw)}</td>
       <td data-label="Role">${u.role}</td>
       <td data-label="Call Limit">
         <input type="number" min="0" class="limit-input" value="${u.call_limit ?? ""}" placeholder="No limit" ${u.role !== "Coordinator" ? "disabled" : ""} />
       </td>
-      <td data-label="Assigned Count" class="assigned-count">${counts[u.user_name] || 0}</td>
+      <td data-label="Assigned Count" class="assigned-count">${assigned}</td>
+      <td data-label="Completed Calls" class="assigned-count">${completed}</td>
+      <td data-label="Completed %" class="assigned-count">${pct}</td>
       <td data-label="Auto Assign">
         <input type="checkbox" class="auto-assign-input" ${u.auto_assign ? "checked" : ""} ${u.role !== "Coordinator" ? "disabled" : ""} />
       </td>
@@ -228,7 +244,8 @@ async function renderUsersTable() {
         <button class="btn btn-link delete-user-btn">Delete</button>
       </td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
 
   tbody.querySelectorAll(".limit-input").forEach((input) => {
     input.addEventListener("change", async (e) => {
@@ -440,13 +457,16 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       // 3. Read the settings directly from the DOM to avoid race conditions with unsaved inputs
       const eligible = [];
       document.querySelectorAll("#users-table-body tr").forEach((row) => {
-        const uName = row.querySelector("td[data-label='User Name'] strong")?.textContent.trim();
+        // User ID cell shows only the first word of the name — look the full
+        // user_name up by row id instead of reading the (truncated) display text.
+        const user = usersCache.find((u) => u.id === row.dataset.id);
+        if (!user) return;
         const role = row.querySelector("td[data-label='Role']")?.textContent.trim();
         const limitVal = row.querySelector(".limit-input")?.value;
         const autoChecked = row.querySelector(".auto-assign-input")?.checked;
         if (role === "Coordinator" && autoChecked) {
           eligible.push({
-            user_name: uName,
+            user_name: user.user_name,
             role,
             call_limit: limitVal === "" || limitVal === undefined ? null : parseInt(limitVal, 10)
           });
@@ -748,6 +768,19 @@ const COLUMN_FILTER_FIELDS = [
   ["contacts-filter-purpose", "calling_purpose"],
 ];
 
+// free-text columns (Name, PG Name) only ever offer an All / Blank Only
+// filter — there's no fixed value set to pick from like the columns above.
+const BLANK_ONLY_FILTER_FIELDS = [
+  ["contacts-filter-name", "name"],
+  ["contacts-filter-pg-name", "pg_name"],
+];
+
+// numeric columns (Sessions, Calls) filter to an exact count typed in.
+const NUMBER_FILTER_FIELDS = [
+  ["contacts-filter-sessions", "sessions_count"],
+  ["contacts-filter-calls", "calls_count"],
+];
+
 // rebuilds a header filter's option list from live data while keeping
 // whatever the admin currently has selected (falls back to "All" if that
 // value no longer exists, e.g. an event got deleted).
@@ -804,10 +837,31 @@ async function renderContactsTable(searchTerm = "") {
 
   // "All" (default) applies no filter; picking a real value shows only rows
   // with that value; picking the blank option shows only untagged rows.
-  for (const [selectId, field] of COLUMN_FILTER_FIELDS) {
+  let anyFilterActive = !!searchTerm;
+  for (const [selectId, filterField] of COLUMN_FILTER_FIELDS) {
     const val = document.getElementById(selectId)?.value ?? "__ALL__";
     if (val === "__ALL__") continue;
-    query = val === "" ? query.is(field, null) : query.eq(field, val);
+    anyFilterActive = true;
+    query = val === "" ? query.is(filterField, null) : query.eq(filterField, val);
+  }
+
+  // Name/PG Name have no fixed value set — only "All" vs "Blank Only" (name
+  // can never actually be null due to its not-null constraint, so blank there
+  // means empty string; pg_name can be either).
+  for (const [selectId, filterField] of BLANK_ONLY_FILTER_FIELDS) {
+    const val = document.getElementById(selectId)?.value ?? "__ALL__";
+    if (val !== "__BLANK__") continue;
+    anyFilterActive = true;
+    query = query.or(`${filterField}.is.null,${filterField}.eq.`);
+  }
+
+  for (const [inputId, filterField] of NUMBER_FILTER_FIELDS) {
+    const raw = document.getElementById(inputId)?.value ?? "";
+    if (raw === "") continue;
+    const num = parseInt(raw, 10);
+    if (Number.isNaN(num)) continue;
+    anyFilterActive = true;
+    query = query.eq(filterField, num);
   }
 
   const { data, error } = await query.limit(2000);
@@ -858,7 +912,7 @@ async function renderContactsTable(searchTerm = "") {
     }
     return `
     <tr data-id="${c.id}"${rowClass ? ` class="${rowClass}"` : ""}>
-      <td data-label="S.No">${c.s_no ?? i + 1}</td>
+      <td data-label="S.No">${anyFilterActive ? i + 1 : (c.s_no ?? i + 1)}</td>
       <td data-label="Time Stamp">${c.created_at ? new Date(c.created_at).toLocaleString() : ""}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(c.name)}" /></td>
       <td data-label="Phone"><input class="inline-edit" data-field="mob_no" maxlength="10" value="${c.mob_no}" /></td>
@@ -1263,6 +1317,14 @@ function wireContactsSearch() {
   for (const [selectId] of COLUMN_FILTER_FIELDS) {
     const filterSelect = document.getElementById(selectId);
     if (filterSelect) filterSelect.addEventListener("change", handleSearch);
+  }
+  for (const [selectId] of BLANK_ONLY_FILTER_FIELDS) {
+    const filterSelect = document.getElementById(selectId);
+    if (filterSelect) filterSelect.addEventListener("change", handleSearch);
+  }
+  for (const [inputId] of NUMBER_FILTER_FIELDS) {
+    const filterInput = document.getElementById(inputId);
+    if (filterInput) filterInput.addEventListener("input", handleSearch);
   }
 }
 
