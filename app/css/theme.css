@@ -380,8 +380,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .contact-original td { border-left: 3px solid #059669 !important; }
 .contact-duplicate { background: rgba(220, 38, 38, 0.10) !important; }
 .contact-duplicate td { border-left: 3px solid #dc2626 !important; }
-.one-to-one-row-alert { background: rgba(220, 38, 38, 0.10) !important; }
-.one-to-one-row-alert td { border-left: 3px solid #dc2626 !important; }
+.one-to-one-row-alert { background: rgba(220, 38, 38, 0.06) !important; }
 
 /* ============ SKELETON LOADERS ============ */
 @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
