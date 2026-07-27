@@ -299,20 +299,25 @@ async function renderTodayList() {
     tbody.innerHTML = `<tr><td colspan="4" class="loading-row">No attendance marked today.</td></tr>`;
     return;
   }
-  // "Name" groups repeat markings for the same person (by mob_no, the actual
-  // identity key — not the name text, which can vary between markings)
-  // together; "Time" keeps the natural latest-first order.
+  // "Name"/"Phone" both group repeat markings for the same person (by mob_no,
+  // the actual identity key — not the name text, which can vary between
+  // markings) together, just ordering the groups differently; "Time" keeps
+  // the natural latest-first order.
   const sortMode = document.getElementById("reception-attendance-sort")?.value || "name";
   let sorted;
-  if (sortMode === "name") {
+  if (sortMode === "name" || sortMode === "phone") {
     const groups = new Map();
     for (const r of list) {
       if (!groups.has(r.mob_no)) groups.set(r.mob_no, []);
       groups.get(r.mob_no).push(r);
     }
-    sorted = [...groups.values()]
-      .sort((a, b) => (a[0].name || "").localeCompare(b[0].name || ""))
-      .flat();
+    const groupArr = [...groups.values()];
+    if (sortMode === "name") {
+      groupArr.sort((a, b) => (a[0].name || "").localeCompare(b[0].name || ""));
+    } else {
+      groupArr.sort((a, b) => (a[0].mob_no || "").localeCompare(b[0].mob_no || ""));
+    }
+    sorted = groupArr.flat();
   } else {
     sorted = list;
   }
