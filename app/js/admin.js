@@ -229,8 +229,8 @@ async function renderUsersTable() {
     return `
     <tr data-id="${u.id}" data-label-row>
       <td data-label="S.No">${i + 1}</td>
-      <td data-label="User ID"><strong>${escapeHtml(u.user_name || "")}</strong></td>
-      <td data-label="Password">${escapeHtml(u.login_pw || "")}</td>
+      <td data-label="User ID"><strong>${u.role === "Admin" ? "—" : escapeHtml(u.user_name || "")}</strong></td>
+      <td data-label="Password">${u.role === "Admin" ? "—" : escapeHtml(u.login_pw || "")}</td>
       <td data-label="Role">${u.role}</td>
       <td data-label="Call Limit">
         <input type="number" min="0" class="limit-input" value="${u.call_limit ?? ""}" placeholder="No limit" ${u.role !== "Coordinator" ? "disabled" : ""} />
