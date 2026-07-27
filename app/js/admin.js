@@ -718,33 +718,32 @@ async function renderContactsTable(searchTerm = "") {
     loadEvents(),
   ]);
 
-  // Contacts sharing the same name are likely duplicate entries (mob_no is
-  // unique in the DB, so name is the only signal available) — flag the
+  // Contacts sharing the same phone number are duplicate entries — flag the
   // oldest one green and every later duplicate red.
-  const nameGroups = new Map();
+  const phoneGroups = new Map();
   data.forEach((c) => {
-    const key = (c.name || "").trim().toLowerCase();
+    const key = (c.mob_no || "").trim();
     if (!key) return;
-    if (!nameGroups.has(key)) nameGroups.set(key, []);
-    nameGroups.get(key).push(c);
+    if (!phoneGroups.has(key)) phoneGroups.set(key, []);
+    phoneGroups.get(key).push(c);
   });
-  const oldestIdByName = new Map();
-  nameGroups.forEach((rows, key) => {
+  const oldestIdByPhone = new Map();
+  phoneGroups.forEach((rows, key) => {
     if (rows.length < 2) return;
     const oldest = [...rows].sort((a, b) => {
       const ta = a.created_at ? new Date(a.created_at).getTime() : Infinity;
       const tb = b.created_at ? new Date(b.created_at).getTime() : Infinity;
       return ta - tb;
     })[0];
-    oldestIdByName.set(key, oldest.id);
+    oldestIdByPhone.set(key, oldest.id);
   });
 
   tbody.innerHTML = data.map((c, i) => {
-    const nameKey = (c.name || "").trim().toLowerCase();
-    const dupGroup = nameGroups.get(nameKey);
+    const phoneKey = (c.mob_no || "").trim();
+    const dupGroup = phoneGroups.get(phoneKey);
     let rowClass = "";
     if (dupGroup && dupGroup.length > 1) {
-      rowClass = oldestIdByName.get(nameKey) === c.id ? "contact-original" : "contact-duplicate";
+      rowClass = oldestIdByPhone.get(phoneKey) === c.id ? "contact-original" : "contact-duplicate";
     }
     return `
     <tr data-id="${c.id}"${rowClass ? ` class="${rowClass}"` : ""}>
