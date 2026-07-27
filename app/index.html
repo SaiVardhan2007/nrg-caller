@@ -398,10 +398,10 @@
       <div class="table-wrap">
         <table class="data-table" id="one-to-one-table">
           <thead>
-            <tr><th>S.No</th><th>Name</th><th>Phone</th><th>W/S</th><th>Help Asked by the Boy</th><th>Remarks by SNKD</th></tr>
+            <tr><th>S.No</th><th>Name</th><th>Phone</th><th>W/S</th><th>Help Asked by the Boy</th><th>Remarks by SNKD</th><th></th></tr>
           </thead>
           <tbody id="one-to-one-table-body">
-            <tr><td colspan="6" class="loading-row">Loading…</td></tr>
+            <tr><td colspan="7" class="loading-row">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -560,6 +560,16 @@
     <section id="one-to-one-user-section" class="page hidden">
       <div id="one-to-one-user-not-linked" class="panel hidden">
         <p class="muted-text">You haven't been added to One to One yet. Please speak to admin.</p>
+      </div>
+      <div id="one-to-one-user-request" class="panel hidden">
+        <p class="muted-text">You haven't been added to One to One yet.</p>
+        <button id="one-to-one-request-btn" class="btn btn-primary">Request Prabhu for One to One slot</button>
+        <div id="one-to-one-request-form" class="hidden" style="margin-top:14px;">
+          <label class="field"><span>Your message to Prabhu</span><textarea id="one-to-one-request-text" rows="3" placeholder="Tell Prabhu why you'd like a One to One slot…"></textarea></label>
+          <div id="one-to-one-request-error" class="field-error hidden"></div>
+          <button id="one-to-one-request-submit" class="btn btn-primary">Submit</button>
+        </div>
+        <p id="one-to-one-request-sent" class="muted-text hidden">Your request has been sent to Prabhu. 🙏</p>
       </div>
       <div id="one-to-one-user-content" class="hidden">
         <div class="panel">

@@ -17,24 +17,44 @@ export async function initAdminOneToOne(currentUser) {
 
 async function renderOneToOneTable() {
   const tbody = document.getElementById("one-to-one-table-body");
-  tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Loading…</td></tr>`;
 
-  const { data, error } = await supabase
-    .from("contacts")
-    .select("id,s_no,name,mob_no,ws")
-    .eq("one_to_one_status", true)
-    .order("s_no", { ascending: true, nullsFirst: false });
+  const [{ data: members, error }, { data: allHelpMobs }] = await Promise.all([
+    supabase
+      .from("contacts")
+      .select("id,s_no,name,mob_no,ws")
+      .eq("one_to_one_status", true)
+      .order("s_no", { ascending: true, nullsFirst: false }),
+    supabase.from("help_requests").select("mob_no"),
+  ]);
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Could not load One to One list.</td></tr>`;
-    return;
-  }
-  if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">No one added to One to One yet. Search a phone number above to add someone.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Could not load One to One list.</td></tr>`;
     return;
   }
 
-  const mobNos = data.map((c) => c.mob_no);
+  // Anyone who asked for a slot (help_requests) but isn't an official member
+  // yet shows up too, as a pending request — admin can Add them straight
+  // from here, with their requested text already sitting in Help Asked.
+  const memberMobs = new Set((members || []).map((c) => c.mob_no));
+  const pendingMobs = [...new Set((allHelpMobs || []).map((r) => r.mob_no))].filter((m) => !memberMobs.has(m));
+  let pendingContacts = [];
+  if (pendingMobs.length) {
+    const { data } = await supabase.from("contacts").select("id,s_no,name,mob_no,ws").in("mob_no", pendingMobs).order("name");
+    pendingContacts = data || [];
+  }
+
+  const rows = [
+    ...(members || []).map((c) => ({ ...c, isPending: false })),
+    ...pendingContacts.map((c) => ({ ...c, isPending: true })),
+  ];
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="loading-row">No one added to One to One yet. Search a phone number above to add someone.</td></tr>`;
+    return;
+  }
+
+  const mobNos = rows.map((c) => c.mob_no);
   const [{ data: helpRows }, { data: remarkRows }] = await Promise.all([
     supabase.from("help_requests").select("mob_no,resolved").in("mob_no", mobNos),
     supabase.from("one_to_one_remarks").select("mob_no").in("mob_no", mobNos),
@@ -51,16 +71,20 @@ async function renderOneToOneTable() {
   // S.No here is this roster's own position, not Master Contact's s_no — it
   // must renumber 1..N for whatever's currently in the list, not carry over
   // a serial number from an unrelated table.
-  tbody.innerHTML = data.map((c, i) => {
+  tbody.innerHTML = rows.map((c, i) => {
     const hasUnresolved = (unresolvedCounts[c.mob_no] || 0) > 0;
+    const actionBtn = c.isPending
+      ? `<button class="cell-chip one-to-one-add-btn" data-id="${c.id}" data-name="${escapeHtml(c.name)}">+ Add</button>`
+      : `<button class="cell-chip danger one-to-one-remove-btn" data-id="${c.id}" data-name="${escapeHtml(c.name)}">Delete</button>`;
     return `
     <tr${hasUnresolved ? ` class="one-to-one-row-alert"` : ""}>
       <td data-label="S.No">${i + 1}</td>
-      <td data-label="Name">${escapeHtml(c.name)}</td>
+      <td data-label="Name">${escapeHtml(c.name)}${c.isPending ? ` <span class="muted-text">(Requested)</span>` : ""}</td>
       <td data-label="Phone" class="phone-cell">${formatPhone(c.mob_no)}</td>
       <td data-label="W/S">${c.ws || "NA"}</td>
       <td data-label="Help Asked by the Boy"><button class="cell-chip help-requests-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${helpCounts[c.mob_no] || 0}</button></td>
       <td data-label="Remarks by SNKD"><button class="cell-chip remarks-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${remarkCounts[c.mob_no] || 0}</button></td>
+      <td data-label="">${actionBtn}</td>
     </tr>
   `;
   }).join("");
@@ -70,6 +94,21 @@ async function renderOneToOneTable() {
   });
   tbody.querySelectorAll(".remarks-link").forEach((btn) => {
     btn.onclick = (e) => openRemarksModal(e.target.dataset.mob, e.target.dataset.name);
+  });
+  tbody.querySelectorAll(".one-to-one-add-btn").forEach((btn) => {
+    btn.onclick = async () => {
+      await supabase.from("contacts").update({ one_to_one_status: true }).eq("id", btn.dataset.id);
+      showToast(`${btn.dataset.name} added to One to One`, "success");
+      renderOneToOneTable();
+    };
+  });
+  tbody.querySelectorAll(".one-to-one-remove-btn").forEach((btn) => {
+    btn.onclick = async () => {
+      if (!confirm(`Remove ${btn.dataset.name} from One to One? Their Master Contact record won't be affected.`)) return;
+      await supabase.from("contacts").update({ one_to_one_status: false }).eq("id", btn.dataset.id);
+      showToast(`${btn.dataset.name} removed from One to One`, "success");
+      renderOneToOneTable();
+    };
   });
 }
 
@@ -269,13 +308,17 @@ function wireRemarksModal() {
 /* ======================= USER: One to One with Prabhu ======================= */
 
 let currentContactMob = null;
+let requestMob = null;
 
 export async function initUserOneToOne(currentUser) {
   const notLinkedEl = document.getElementById("one-to-one-user-not-linked");
+  const requestEl = document.getElementById("one-to-one-user-request");
   const contentEl = document.getElementById("one-to-one-user-content");
   notLinkedEl.classList.add("hidden");
+  requestEl.classList.add("hidden");
   contentEl.classList.add("hidden");
   currentContactMob = null;
+  requestMob = null;
 
   // Sessions created before login_pw was added to the session object won't
   // have it — re-fetch it here (and repair the stored session) instead of
@@ -300,8 +343,15 @@ export async function initUserOneToOne(currentUser) {
     .eq("mob_no", phone)
     .maybeSingle();
 
-  if (!contact || !contact.one_to_one_status) {
+  if (!contact) {
     notLinkedEl.classList.remove("hidden");
+    return;
+  }
+
+  if (!contact.one_to_one_status) {
+    requestMob = contact.mob_no;
+    requestEl.classList.remove("hidden");
+    wireOneToOneRequestForm();
     return;
   }
 
@@ -309,6 +359,48 @@ export async function initUserOneToOne(currentUser) {
   contentEl.classList.remove("hidden");
   wireUserOneToOneForm();
   await renderUserQuestions();
+}
+
+function wireOneToOneRequestForm() {
+  const btn = document.getElementById("one-to-one-request-btn");
+  const form = document.getElementById("one-to-one-request-form");
+  const textEl = document.getElementById("one-to-one-request-text");
+  const errorEl = document.getElementById("one-to-one-request-error");
+  const sentEl = document.getElementById("one-to-one-request-sent");
+  const submitBtn = document.getElementById("one-to-one-request-submit");
+
+  form.classList.add("hidden");
+  sentEl.classList.add("hidden");
+  errorEl.classList.add("hidden");
+  textEl.value = "";
+  btn.classList.remove("hidden");
+
+  btn.onclick = () => {
+    btn.classList.add("hidden");
+    form.classList.remove("hidden");
+  };
+
+  submitBtn.onclick = async () => {
+    const text = textEl.value.trim();
+    if (!text) {
+      errorEl.textContent = "Please enter a message.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    errorEl.classList.add("hidden");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Sending…";
+    const { error } = await supabase.from("help_requests").insert({ mob_no: requestMob, message: text });
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Submit";
+    if (error) {
+      errorEl.textContent = "Failed: " + error.message;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    form.classList.add("hidden");
+    sentEl.classList.remove("hidden");
+  };
 }
 
 async function renderUserQuestions() {
