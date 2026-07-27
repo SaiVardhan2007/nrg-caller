@@ -117,6 +117,7 @@
           </div>
           <button id="assign-btn" class="btn btn-primary">Assign Contacts</button>
           <button id="rebalance-btn" class="btn btn-secondary">⚖ Rebalance Unfinished</button>
+          <button id="disassign-btn" class="btn btn-secondary" style="color:var(--danger); border-color:var(--danger);">✕ Disassign All</button>
         </div>
         <p id="assign-summary" class="muted-text"></p>
       </div>
@@ -129,7 +130,10 @@
               <th>Role</th>
               <th>Call Limit</th>
               <th>Assigned Count</th>
-              <th>Auto Assign</th>
+              <th>
+                Auto Assign
+                <input type="checkbox" id="auto-assign-select-all" title="Enable/disable Auto Assign for all users" style="margin-left:6px; width:16px; height:16px; vertical-align:middle; cursor:pointer;" />
+              </th>
               <th></th>
             </tr>
           </thead>
@@ -176,8 +180,64 @@
         <table class="data-table" id="contacts-table">
           <thead>
             <tr>
-              <th>S.No</th><th>Time Stamp</th><th>Name</th><th>Phone</th><th>PG Name</th><th>Profession</th><th>Gender</th><th>Sessions</th><th>Calls</th>
-              <th>Admin Tag to Users</th><th>Admin Tag</th><th>Core Cultivation</th><th>Calling Purpose</th>
+              <th>S.No</th><th>Time Stamp</th><th>Name</th><th>Phone</th><th>PG Name</th>
+              <th>
+                <div class="th-label">Profession</div>
+                <select id="contacts-filter-ws" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                  <option value="NA">NA</option>
+                  <option value="W">W</option>
+                  <option value="S">S</option>
+                </select>
+              </th>
+              <th>
+                <div class="th-label">Gender</div>
+                <select id="contacts-filter-gender" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                  <option value="M">M</option>
+                  <option value="F">F</option>
+                </select>
+              </th>
+              <th>Sessions</th><th>Calls</th>
+              <th>
+                <div class="th-label">Admin Tag to Users</div>
+                <select id="contacts-filter-tag-to-users" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                  <option value="Don't Call">Don't Call</option>
+                  <option value="Coordinator">Coordinator</option>
+                  <option value="Janata">Janata</option>
+                  <option value="Call">Call</option>
+                  <option value="Core">Core</option>
+                  <option value="Assigned">Assigned</option>
+                </select>
+              </th>
+              <th>
+                <div class="th-label">Admin Tag</div>
+                <select id="contacts-filter-tag" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                  <option value="LIT">LIT</option>
+                  <option value="Folk HYD">Folk HYD</option>
+                  <option value="Focus">Focus</option>
+                </select>
+              </th>
+              <th>
+                <div class="th-label">Core Cultivation</div>
+                <select id="contacts-filter-cultivation" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                </select>
+              </th>
+              <th>
+                <div class="th-label">Calling Purpose</div>
+                <select id="contacts-filter-purpose" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                </select>
+              </th>
               <th>Admin Review</th><th></th>
             </tr>
           </thead>
@@ -284,8 +344,8 @@
         <h3 class="section-title">Attendance in Range</h3>
         <div class="table-wrap">
           <table class="data-table">
-            <thead><tr><th>Time</th><th>Name</th><th>Phone</th><th>Event</th><th>Marked By</th><th class="no-export"></th></tr></thead>
-            <tbody id="reception-analytics-attendance-body"><tr><td colspan="6" class="loading-row">Pick a range above.</td></tr></tbody>
+            <thead><tr><th>S.No</th><th>Time</th><th>Name</th><th>Phone</th><th>Event</th><th>Marked By</th><th class="no-export"></th></tr></thead>
+            <tbody id="reception-analytics-attendance-body"><tr><td colspan="7" class="loading-row">Pick a range above.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -574,6 +634,7 @@
         <option value="session_attendance">Session Attendance (Reception)</option>
         <option value="call_responses">Call Responses (Call History)</option>
         <option value="assignments">Current Assignments</option>
+        <option value="one_to_one">One to One (Questions / Remarks)</option>
         <option value="events">Events</option>
       </select>
     </label>
@@ -646,6 +707,16 @@
       <label class="field bulk-delete-sub" data-scope="event">
         <span>Event</span>
         <select id="bulk-delete-assignments-event"></select>
+      </label>
+    </div>
+
+    <div id="bulk-delete-filter-one_to_one" class="bulk-delete-filter hidden">
+      <label class="field">
+        <span>Filter</span>
+        <select id="bulk-delete-one-to-one-scope">
+          <option value="help_requests">Help Requests (Questions Asked by the Boy)</option>
+          <option value="remarks">Remarks by SNKD</option>
+        </select>
       </label>
     </div>
 

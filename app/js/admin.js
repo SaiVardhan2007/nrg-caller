@@ -65,6 +65,8 @@ export async function initUsers() {
 
   wireAssignButton(eventSelect, tagFilterGroup);
   wireRebalanceButton(eventSelect, tagFilterGroup);
+  wireDisassignButton();
+  wireAutoAssignSelectAll();
   wireAddUserModal();
   wireManageEventsModal();
   wireUsersImportExport();
@@ -207,6 +209,10 @@ async function renderUsersTable() {
     return;
   }
 
+  const coordinators = usersCache.filter((u) => u.role === "Coordinator");
+  const selectAllInput = document.getElementById("auto-assign-select-all");
+  if (selectAllInput) selectAllInput.checked = coordinators.length > 0 && coordinators.every((u) => u.auto_assign);
+
   tbody.innerHTML = usersCache.map((u) => `
     <tr data-id="${u.id}" data-label-row>
       <td data-label="User Name"><strong>${u.user_name}</strong></td>
@@ -316,6 +322,91 @@ async function mirrorAssignedCounts(usersCache) {
   );
 }
 
+// Snapshots every current assignment into assignment_rounds (so past-round
+// stats stay answerable) then wipes the live assignments table. Shared by
+// Assign (which repopulates it right after) and Disassign (which doesn't).
+async function archiveAndClearAssignments() {
+  const { data: outgoing } = await supabase
+    .from("assignments")
+    .select("user_name,event_code,status");
+
+  if (!outgoing || !outgoing.length) return;
+
+  const statsMap = {};
+  outgoing.forEach((a) => {
+    const key = a.user_name + "|" + a.event_code;
+    if (!statsMap[key]) {
+      statsMap[key] = { assigned: 0, called: 0, left: 0, positive: 0 };
+    }
+    const s = statsMap[key];
+    s.assigned++;
+    if ((a.status || "Not Done") !== "Not Done") {
+      s.called++;
+    } else {
+      s.left++;
+    }
+    if (callOutcomeCategory(a.status) === "positive") {
+      s.positive++;
+    }
+  });
+
+  const roundRows = Object.entries(statsMap).map(([key, s]) => {
+    const [user_name, event_code] = key.split("|");
+    return {
+      user_name,
+      event_code,
+      assigned_count: s.assigned,
+      called_count: s.called,
+      left_count: s.left,
+      positive_count: s.positive
+    };
+  });
+
+  await supabase.from("assignment_rounds").insert(roundRows);
+  await supabase.from("assignments").delete().neq("user_name", "");
+}
+
+function wireDisassignButton() {
+  const btn = document.getElementById("disassign-btn");
+  const summary = document.getElementById("assign-summary");
+  btn.onclick = async () => {
+    if (!confirm("Disassign all current contacts from every caller? Each caller's Assigned Count will drop to zero. Past stats are preserved.")) return;
+    btn.disabled = true;
+    btn.textContent = "Disassigning…";
+    try {
+      await archiveAndClearAssignments();
+      const { data: freshUsers } = await supabase
+        .from("users")
+        .select("id,user_name,role,call_limit,auto_assign");
+      if (freshUsers) {
+        usersCache = freshUsers;
+        await mirrorAssignedCounts(usersCache);
+      }
+      summary.textContent = "All callers disassigned — everyone's Assigned Count is now zero.";
+      showToast("All contacts disassigned", "success");
+      await renderUsersTable();
+    } catch (err) {
+      showToast("Disassign failed: " + err.message, "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "✕ Disassign All";
+    }
+  };
+}
+
+function wireAutoAssignSelectAll() {
+  const selectAll = document.getElementById("auto-assign-select-all");
+  if (!selectAll) return;
+  selectAll.onchange = async (e) => {
+    const checked = e.target.checked;
+    const coordinators = usersCache.filter((u) => u.role === "Coordinator");
+    if (!coordinators.length) return;
+    await Promise.all(coordinators.map((u) => supabase.from("users").update({ auto_assign: checked }).eq("id", u.id)));
+    showToast(checked ? "Auto Assign enabled for all users" : "Auto Assign disabled for all users", "success");
+    await renderUsersTable();
+  };
+}
+
 function wireAssignButton(eventSelect, tagFilterGroup) {
   const btn = document.getElementById("assign-btn");
   const summary = document.getElementById("assign-summary");
@@ -336,44 +427,7 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       // 2. Archive and remove all existing assignments across all events first.
       // This ensures no user is assigned to more than one event simultaneously
       // and resets the current assignment state to zero before fresh distribution.
-      const { data: outgoing } = await supabase
-        .from("assignments")
-        .select("user_name,event_code,status");
-
-      if (outgoing && outgoing.length) {
-        const statsMap = {};
-        outgoing.forEach((a) => {
-          const key = a.user_name + "|" + a.event_code;
-          if (!statsMap[key]) {
-            statsMap[key] = { assigned: 0, called: 0, left: 0, positive: 0 };
-          }
-          const s = statsMap[key];
-          s.assigned++;
-          if ((a.status || "Not Done") !== "Not Done") {
-            s.called++;
-          } else {
-            s.left++;
-          }
-          if (callOutcomeCategory(a.status) === "positive") {
-            s.positive++;
-          }
-        });
-
-        const roundRows = Object.entries(statsMap).map(([key, s]) => {
-          const [user_name, event_code] = key.split("|");
-          return {
-            user_name,
-            event_code,
-            assigned_count: s.assigned,
-            called_count: s.called,
-            left_count: s.left,
-            positive_count: s.positive
-          };
-        });
-
-        await supabase.from("assignment_rounds").insert(roundRows);
-        await supabase.from("assignments").delete().neq("user_name", "");
-      }
+      await archiveAndClearAssignments();
 
       await setSetting("current_event", eventCode);
       await setSetting("tag_filter", tagFilters.join(", "));
@@ -683,6 +737,51 @@ const GENDER_ADMIN_OPTIONS = ["", "M", "F"];
 const ADMIN_TAG_TO_USERS_OPTIONS = ["", "Don't Call", "Coordinator", "Janata", "Call", "Core", "Assigned"];
 const ADMIN_TAG_OPTIONS = ["", "LIT", "Folk HYD", "Focus"];
 
+// every column-header filter dropdown in Master Contact, paired with the
+// contacts column it filters on.
+const COLUMN_FILTER_FIELDS = [
+  ["contacts-filter-ws", "ws"],
+  ["contacts-filter-gender", "gender"],
+  ["contacts-filter-tag-to-users", "admin_tag_to_users"],
+  ["contacts-filter-tag", "admin_tag"],
+  ["contacts-filter-cultivation", "core_cultivation"],
+  ["contacts-filter-purpose", "calling_purpose"],
+];
+
+// rebuilds a header filter's option list from live data while keeping
+// whatever the admin currently has selected (falls back to "All" if that
+// value no longer exists, e.g. an event got deleted).
+function populateFilterSelect(select, values) {
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = `<option value="__ALL__">All</option><option value="">—</option>` +
+    values.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+  select.value = [...select.options].some((o) => o.value === current) ? current : "__ALL__";
+}
+
+// Contacts tagged "Coordinator" (admin_tag_to_users) are meant to appear as
+// login accounts on the Users & Assignment page — this keeps that in sync
+// both ways: tagging in adds them there, un-tagging removes the account this
+// created. Matched by phone (login_pw doubles as the contact's phone for
+// these accounts, same link initUserOneToOne relies on).
+async function syncCoordinatorUser(contact, tagValue) {
+  const { data: existing } = await supabase.from("users").select("id,role").eq("login_pw", contact.mob_no).maybeSingle();
+  if (tagValue === "Coordinator") {
+    if (existing) {
+      if (existing.role !== "Coordinator") {
+        await supabase.from("users").update({ role: "Coordinator", user_name: contact.name }).eq("id", existing.id);
+      }
+    } else {
+      const { error } = await supabase.from("users").insert({
+        user_name: contact.name, login_pw: contact.mob_no, role: "Coordinator", auto_assign: true,
+      });
+      if (error) showToast("Tagged as Coordinator, but couldn't add to Users: " + error.message, "warning");
+    }
+  } else if (existing && existing.role === "Coordinator") {
+    await supabase.from("users").delete().eq("id", existing.id);
+  }
+}
+
 async function renderContactsTable(searchTerm = "") {
   const tbody = document.getElementById("contacts-table-body");
   tbody.innerHTML = `<tr><td colspan="15" class="loading-row">Loading contacts…</td></tr>`;
@@ -702,6 +801,15 @@ async function renderContactsTable(searchTerm = "") {
   if (searchTerm) {
     query = query.or(`name.ilike.%${searchTerm}%,mob_no.ilike.%${searchTerm}%`);
   }
+
+  // "All" (default) applies no filter; picking a real value shows only rows
+  // with that value; picking the blank option shows only untagged rows.
+  for (const [selectId, field] of COLUMN_FILTER_FIELDS) {
+    const val = document.getElementById(selectId)?.value ?? "__ALL__";
+    if (val === "__ALL__") continue;
+    query = val === "" ? query.is(field, null) : query.eq(field, val);
+  }
+
   const { data, error } = await query.limit(2000);
   if (error) {
     tbody.innerHTML = `<tr><td colspan="15" class="loading-row">Could not load contacts.</td></tr>`;
@@ -717,6 +825,9 @@ async function renderContactsTable(searchTerm = "") {
     supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
     loadEvents(),
   ]);
+
+  populateFilterSelect(document.getElementById("contacts-filter-cultivation"), (userRows || []).map((u) => u.user_name));
+  populateFilterSelect(document.getElementById("contacts-filter-purpose"), eventsCache.map((e) => e.code));
 
   // Contacts sharing the same phone number are duplicate entries — flag the
   // oldest one green and every later duplicate red.
@@ -818,6 +929,10 @@ async function renderContactsTable(searchTerm = "") {
         return;
       }
       contact[field] = value || null;
+
+      if (field === "admin_tag_to_users") {
+        await syncCoordinatorUser(contact, value || null);
+      }
 
       // Core Cultivation is never auto-assigned — setting it here *is* the
       // manual assign action. Picking a user creates/moves the assignment to
@@ -1144,6 +1259,11 @@ function wireContactsSearch() {
   if (sortSelect) {
     sortSelect.addEventListener("change", handleSearch);
   }
+
+  for (const [selectId] of COLUMN_FILTER_FIELDS) {
+    const filterSelect = document.getElementById(selectId);
+    if (filterSelect) filterSelect.addEventListener("change", handleSearch);
+  }
 }
 
 const CONTACT_CSV_HEADERS = [
@@ -1241,6 +1361,10 @@ function wireAddContactModal() {
       errorEl.classList.remove("hidden");
       return;
     }
+    if (payload.admin_tag_to_users === "Coordinator") {
+      await syncCoordinatorUser({ name, mob_no: phone }, "Coordinator");
+    }
+
     modal.classList.remove("active");
     showToast("Contact added", "success");
     renderContactsTable(document.getElementById("contacts-search").value.trim());
@@ -1567,11 +1691,12 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   const callTotals = {};
   (rangedCalls || []).forEach((c) => { if (c.event_code) callTotals[c.event_code] = (callTotals[c.event_code] || 0) + 1; });
 
-  let totalAssigned = 0;
-  eventsToShow.forEach((e) => {
-    const assigned = e.code === currentEventCode ? (liveCounts[e.code] || 0) : (roundTotals[e.code] || 0);
-    totalAssigned += assigned;
-  });
+  // Total Assigned reflects only who is actually assigned right now (the live
+  // round) — matching the "Assigned Contacts Details" drill-down, which can
+  // only ever show live rows since past rounds' individual assignment rows
+  // are gone once archived into assignment_rounds. Summing in historical
+  // round totals here made the tile disagree with its own drill-down.
+  const totalAssigned = (liveAssignments || []).filter((a) => !eventFilter || a.event_code === eventFilter).length;
   document.getElementById("analytics-total-assigned").textContent = totalAssigned;
 
   const byEventBody = document.getElementById("analytics-by-event-body");
@@ -1723,16 +1848,20 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
   const eventLabel = eventCode ? (eventsCache.find((e) => e.code === eventCode)?.name || eventCode) : "All Events";
   document.getElementById("reception-analytics-event-label").textContent = eventLabel;
 
-  // calls made / positive responses — from assignments, so each contact counts at most once per event
-  let assignmentsQuery = supabase.from("assignments").select("status");
-  if (eventCode) assignmentsQuery = assignmentsQuery.eq("event_code", eventCode);
-  const { data: assignmentsForCalls } = await assignmentsQuery;
+  // calls made / positive responses — from the permanent call log, scoped to
+  // the same date range + event as everything else on this tab (assignments
+  // reflects only the live/current round, so it can't be date-bounded).
+  let callsQuery = supabase.from("call_responses").select("remarks");
+  if (fromTs) callsQuery = callsQuery.gte("ts", fromTs);
+  if (toTs) callsQuery = callsQuery.lte("ts", toTs);
+  if (eventCode) callsQuery = callsQuery.eq("event_code", eventCode);
+  const { data: callsInRange } = await callsQuery;
   if (isStale()) return;
   let callsMade = 0;
   let positive = 0;
-  (assignmentsForCalls || []).forEach((a) => {
-    if ((a.status || "Not Done") !== "Not Done") callsMade++;
-    if (callOutcomeCategory(a.status) === "positive") positive++;
+  (callsInRange || []).forEach((r) => {
+    callsMade++;
+    if (callOutcomeCategory(r.remarks) === "positive") positive++;
   });
   document.getElementById("reception-analytics-calls-made").textContent = callsMade;
   document.getElementById("reception-analytics-positive").textContent = positive;
@@ -1749,19 +1878,27 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
   document.getElementById("reception-analytics-attendance-count").textContent = rows.length;
   const tbody = document.getElementById("reception-analytics-attendance-body");
 
-  // Find the index of the oldest record (last occurrence in ts desc array) for each mob_no
-  const oldestIndices = {};
-  rows.forEach((r, idx) => {
-    oldestIndices[r.mob_no] = idx;
+  // Group repeat markings for the same phone number together (most-recent
+  // group first, newest record within a group first) instead of leaving
+  // duplicates scattered across the plain time-desc order.
+  const groups = new Map();
+  rows.forEach((r) => {
+    if (!groups.has(r.mob_no)) groups.set(r.mob_no, []);
+    groups.get(r.mob_no).push(r);
   });
+  const groupArr = [...groups.values()];
+  groupArr.sort((a, b) => new Date(b[0].ts) - new Date(a[0].ts));
+  const sorted = groupArr.flat();
 
-  tbody.innerHTML = rows.length
-    ? rows.map((r, idx) => {
-        const isOldest = oldestIndices[r.mob_no] === idx;
-        const isDuplicate = !isOldest;
-        const dupClass = isDuplicate ? ' class="duplicate-attendance"' : '';
+  tbody.innerHTML = sorted.length
+    ? sorted.map((r, idx) => {
+        const dupGroup = groups.get(r.mob_no);
+        const isDuplicate = dupGroup.length > 1;
+        const isOldest = isDuplicate && dupGroup[dupGroup.length - 1].id === r.id;
+        const rowClass = isDuplicate ? (isOldest ? "contact-original" : "contact-duplicate") : "";
         return `
-        <tr data-id="${r.id}"${dupClass}>
+        <tr data-id="${r.id}"${rowClass ? ` class="${rowClass}"` : ""}>
+          <td data-label="S.No">${idx + 1}</td>
           <td data-label="Time">${new Date(r.ts).toLocaleString()}</td>
           <td data-label="Name">${escapeHtml(r.name || "")}</td>
           <td data-label="Phone">${formatPhone(r.mob_no)}</td>
@@ -1775,7 +1912,7 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
           <td class="no-export"><button class="cell-chip danger attendance-delete-btn" data-id="${r.id}" data-name="${escapeHtml(r.name || "")}">✕ Delete</button></td>
         </tr>`;
       }).join("")
-    : `<tr><td colspan="6" class="loading-row">No attendance marked in this range.</td></tr>`;
+    : `<tr><td colspan="7" class="loading-row">No attendance marked in this range.</td></tr>`;
 
   // Wire event change dropdowns
   tbody.querySelectorAll(".attendance-event-select").forEach((sel) => {
@@ -1803,13 +1940,8 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
         btn.textContent = "✕ Delete";
         return;
       }
-      btn.closest("tr").remove();
-      const count = tbody.querySelectorAll("tr[data-id]").length;
-      document.getElementById("reception-analytics-attendance-count").textContent = count;
-      if (!count) {
-        tbody.innerHTML = `<tr><td colspan="6" class="loading-row">No attendance marked in this range.</td></tr>`;
-      }
       showToast("Attendance record deleted", "success");
+      runReceptionAnalytics(eventCode, fromDate, toDate);
     });
   });
 }
@@ -2640,6 +2772,14 @@ function getBulkDeleteConfig() {
     return { table: "assignments", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL Current Assignments" };
   }
 
+  if (type === "one_to_one") {
+    const scope = document.getElementById("bulk-delete-one-to-one-scope").value;
+    if (scope === "remarks") {
+      return { table: "one_to_one_remarks", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL One to One Remarks (by SNKD)" };
+    }
+    return { table: "help_requests", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL One to One Help Requests (Questions)" };
+  }
+
   if (type === "events") {
     const codes = [...document.querySelectorAll(".bulk-delete-event-check:checked")].map((c) => c.value);
     if (!codes.length) return { error: "Please select at least one event to delete." };
@@ -2709,6 +2849,8 @@ function wireBulkDeleteModal() {
   document.getElementById("bulk-delete-events-checklist").addEventListener("change", (e) => {
     if (e.target.classList.contains("bulk-delete-event-check")) refreshBulkDeletePreview();
   });
+
+  document.getElementById("bulk-delete-one-to-one-scope").addEventListener("change", refreshBulkDeletePreview);
 
   document.getElementById("bulk-delete-trigger").onclick = async () => {
     const errorEl = document.getElementById("bulk-delete-error");
