@@ -116,9 +116,12 @@ create table if not exists help_requests (
   id         uuid primary key default gen_random_uuid(),
   mob_no     text not null,
   message    text not null,
+  resolved   boolean not null default false,
   created_at timestamptz not null default now()
 );
 create index if not exists idx_help_requests_mob_no on help_requests(mob_no);
+
+alter table help_requests add column if not exists resolved boolean not null default false;
 
 -- No sheet: admin-only remark log for a One to One contact ("Remarks by
 -- SNKD") — never shown to the contact/user themselves.

@@ -36,24 +36,34 @@ async function renderOneToOneTable() {
 
   const mobNos = data.map((c) => c.mob_no);
   const [{ data: helpRows }, { data: remarkRows }] = await Promise.all([
-    supabase.from("help_requests").select("mob_no").in("mob_no", mobNos),
+    supabase.from("help_requests").select("mob_no,resolved").in("mob_no", mobNos),
     supabase.from("one_to_one_remarks").select("mob_no").in("mob_no", mobNos),
   ]);
   const helpCounts = {};
-  (helpRows || []).forEach((r) => { helpCounts[r.mob_no] = (helpCounts[r.mob_no] || 0) + 1; });
+  const unresolvedCounts = {};
+  (helpRows || []).forEach((r) => {
+    helpCounts[r.mob_no] = (helpCounts[r.mob_no] || 0) + 1;
+    if (!r.resolved) unresolvedCounts[r.mob_no] = (unresolvedCounts[r.mob_no] || 0) + 1;
+  });
   const remarkCounts = {};
   (remarkRows || []).forEach((r) => { remarkCounts[r.mob_no] = (remarkCounts[r.mob_no] || 0) + 1; });
 
-  tbody.innerHTML = data.map((c, i) => `
-    <tr>
-      <td data-label="S.No">${c.s_no ?? i + 1}</td>
+  // S.No here is this roster's own position, not Master Contact's s_no — it
+  // must renumber 1..N for whatever's currently in the list, not carry over
+  // a serial number from an unrelated table.
+  tbody.innerHTML = data.map((c, i) => {
+    const hasUnresolved = (unresolvedCounts[c.mob_no] || 0) > 0;
+    return `
+    <tr${hasUnresolved ? ` class="one-to-one-row-alert"` : ""}>
+      <td data-label="S.No">${i + 1}</td>
       <td data-label="Name">${escapeHtml(c.name)}</td>
       <td data-label="Phone" class="phone-cell">${formatPhone(c.mob_no)}</td>
       <td data-label="W/S">${c.ws || "NA"}</td>
       <td data-label="Help Asked by the Boy"><button class="cell-chip help-requests-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${helpCounts[c.mob_no] || 0}</button></td>
       <td data-label="Remarks by SNKD"><button class="cell-chip remarks-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${remarkCounts[c.mob_no] || 0}</button></td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
 
   tbody.querySelectorAll(".help-requests-link").forEach((btn) => {
     btn.onclick = (e) => openHelpRequestsModal(e.target.dataset.mob, e.target.dataset.name);
@@ -126,21 +136,42 @@ function wireOneToOneSearch() {
   };
 }
 
+let helpRequestsContext = null; // { mob, name }
+
 async function openHelpRequestsModal(mob, name) {
+  helpRequestsContext = { mob, name };
   document.getElementById("help-requests-sub").textContent = name;
-  const tbody = document.getElementById("help-requests-body");
-  tbody.innerHTML = `<tr><td colspan="2" class="loading-row">Loading…</td></tr>`;
   document.getElementById("help-requests-modal").classList.add("active");
+  await renderHelpRequestsList();
+}
+
+async function renderHelpRequestsList() {
+  const tbody = document.getElementById("help-requests-body");
+  tbody.innerHTML = `<tr><td colspan="3" class="loading-row">Loading…</td></tr>`;
 
   const { data } = await supabase
     .from("help_requests")
-    .select("message,created_at")
-    .eq("mob_no", mob)
+    .select("id,message,created_at,resolved")
+    .eq("mob_no", helpRequestsContext.mob)
     .order("created_at", { ascending: false });
 
   tbody.innerHTML = (data && data.length)
-    ? data.map((r) => `<tr><td data-label="Time">${new Date(r.created_at).toLocaleString()}</td><td data-label="Question">${escapeHtml(r.message)}</td></tr>`).join("")
-    : `<tr><td colspan="2" class="loading-row">No questions asked yet.</td></tr>`;
+    ? data.map((r) => `
+        <tr>
+          <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
+          <td data-label="Question">${escapeHtml(r.message)}</td>
+          <td data-label="Status"><button class="cell-chip${r.resolved ? "" : " danger"} resolve-help-btn" data-id="${r.id}" data-resolved="${r.resolved}">${r.resolved ? "✓ Resolved" : "✕ Unresolved"}</button></td>
+        </tr>`).join("")
+    : `<tr><td colspan="3" class="loading-row">No questions asked yet.</td></tr>`;
+
+  tbody.querySelectorAll(".resolve-help-btn").forEach((btn) => {
+    btn.onclick = async () => {
+      const newResolved = btn.dataset.resolved !== "true";
+      await supabase.from("help_requests").update({ resolved: newResolved }).eq("id", btn.dataset.id);
+      await renderHelpRequestsList();
+      renderOneToOneTable();
+    };
+  });
 }
 
 function wireHelpRequestsModal() {
@@ -260,17 +291,30 @@ export async function initUserOneToOne(currentUser) {
 
 async function renderUserQuestions() {
   const tbody = document.getElementById("one-to-one-user-questions-body");
-  tbody.innerHTML = `<tr><td colspan="2" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="3" class="loading-row">Loading…</td></tr>`;
 
   const { data } = await supabase
     .from("help_requests")
-    .select("message,created_at")
+    .select("id,message,created_at,resolved")
     .eq("mob_no", currentContactMob)
     .order("created_at", { ascending: false });
 
   tbody.innerHTML = (data && data.length)
-    ? data.map((r) => `<tr><td data-label="Time">${new Date(r.created_at).toLocaleString()}</td><td data-label="Question">${escapeHtml(r.message)}</td></tr>`).join("")
-    : `<tr><td colspan="2" class="loading-row">You haven't asked anything yet.</td></tr>`;
+    ? data.map((r) => `
+        <tr>
+          <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
+          <td data-label="Question">${escapeHtml(r.message)}</td>
+          <td data-label="Status"><button class="cell-chip${r.resolved ? "" : " danger"} user-resolve-btn" data-id="${r.id}" data-resolved="${r.resolved}">${r.resolved ? "✓ Resolved" : "✕ Unresolved"}</button></td>
+        </tr>`).join("")
+    : `<tr><td colspan="3" class="loading-row">You haven't asked anything yet.</td></tr>`;
+
+  tbody.querySelectorAll(".user-resolve-btn").forEach((btn) => {
+    btn.onclick = async () => {
+      const newResolved = btn.dataset.resolved !== "true";
+      await supabase.from("help_requests").update({ resolved: newResolved }).eq("id", btn.dataset.id);
+      await renderUserQuestions();
+    };
+  });
 }
 
 function wireUserOneToOneForm() {

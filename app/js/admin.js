@@ -229,7 +229,7 @@ async function renderUsersTable() {
     return `
     <tr data-id="${u.id}" data-label-row>
       <td data-label="User ID"><strong>${escapeHtml((u.user_name || "").trim().split(/\s+/)[0] || "")}</strong></td>
-      <td data-label="Password">${formatPhone(u.login_pw)}</td>
+      <td data-label="Password">${escapeHtml(u.login_pw || "")}</td>
       <td data-label="Role">${u.role}</td>
       <td data-label="Call Limit">
         <input type="number" min="0" class="limit-input" value="${u.call_limit ?? ""}" placeholder="No limit" ${u.role !== "Coordinator" ? "disabled" : ""} />
