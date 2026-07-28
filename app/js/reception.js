@@ -127,6 +127,25 @@ export async function init(user) {
 
   const newContactForm = document.getElementById("reception-new-contact-form");
   const newContactError = document.getElementById("reception-new-error");
+  const newSubmitBtn = document.getElementById("reception-new-submit");
+
+  // mirrors missingFieldMessage() above for the found-contact flow — the
+  // submit button stays disabled (and CSS-dimmed via .btn:disabled) until
+  // these are filled, instead of always looking clickable while typing.
+  function newContactMissingFieldMessage() {
+    if (!document.getElementById("reception-new-name").value.trim()) return "name";
+    if (!document.getElementById("reception-new-ws").value) return "profession";
+    if (!document.getElementById("reception-new-pg").value.trim()) return "pg";
+    return null;
+  }
+  function updateNewSubmitGating() {
+    newSubmitBtn.disabled = !!newContactMissingFieldMessage();
+  }
+  ["reception-new-name", "reception-new-pg"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", updateNewSubmitGating);
+  });
+  document.getElementById("reception-new-ws").addEventListener("change", updateNewSubmitGating);
+  updateNewSubmitGating();
 
   searchInput.addEventListener("input", (e) => {
     const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
@@ -135,6 +154,7 @@ export async function init(user) {
     notFoundEl.classList.add("hidden");
     newContactForm.classList.add("hidden");
     newContactForm.reset();
+    updateNewSubmitGating();
     newContactError.classList.add("hidden");
     document.getElementById("reception-missing-error").classList.add("hidden");
     foundContact = null;
@@ -207,6 +227,7 @@ export async function init(user) {
 
   document.getElementById("reception-add-person-btn").addEventListener("click", () => {
     newContactForm.classList.remove("hidden");
+    updateNewSubmitGating();
     document.getElementById("reception-new-name").focus();
   });
 
@@ -244,7 +265,7 @@ export async function init(user) {
 
     if (insertErr) {
       saving = false;
-      submitBtn.disabled = false;
+      updateNewSubmitGating();
       submitBtn.textContent = "Save & Mark Attendance";
       newContactError.textContent = insertErr.message.includes("duplicate")
         ? "This phone number is already registered."
@@ -262,7 +283,6 @@ export async function init(user) {
     });
 
     saving = false;
-    submitBtn.disabled = false;
     submitBtn.textContent = "Save & Mark Attendance";
 
     if (attendErr) {
@@ -275,6 +295,7 @@ export async function init(user) {
     notFoundEl.classList.add("hidden");
     newContactForm.classList.add("hidden");
     newContactForm.reset();
+    updateNewSubmitGating();
     searchInput.value = "";
     foundContact = null;
     searchedDigits = null;

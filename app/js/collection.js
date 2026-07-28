@@ -10,9 +10,10 @@ export async function init(currentUser) {
 
   const nameInput = document.getElementById("collection-name");
   const phoneInput = document.getElementById("collection-phone");
-  const professionInput = document.getElementById("collection-profession");
+  const professionSelect = document.getElementById("collection-profession");
   const genderSelect = document.getElementById("collection-gender");
   const stayingInput = document.getElementById("collection-staying");
+  const commentInput = document.getElementById("collection-comment");
   const errorEl = document.getElementById("collection-error");
   const submitBtn = document.getElementById("collection-submit");
 
@@ -23,9 +24,10 @@ export async function init(currentUser) {
   submitBtn.addEventListener("click", async () => {
     const name = nameInput.value.trim();
     const phone = phoneInput.value.trim();
-    const profession = professionInput.value.trim();
+    const profession = professionSelect.value;
     const gender = genderSelect.value;
     const staying = stayingInput.value.trim();
+    const comment = commentInput.value.trim();
 
     if (!name || !/^[0-9]{10}$/.test(phone) || !profession || !gender) {
       errorEl.textContent = "Please fill Name, a valid 10-digit Phone, Profession, and Gender.";
@@ -42,6 +44,7 @@ export async function init(currentUser) {
       profession,
       gender,
       staying: staying || null,
+      comment: comment || null,
       collected_by: currentUser.user_name,
     });
 
@@ -56,9 +59,10 @@ export async function init(currentUser) {
 
     nameInput.value = "";
     phoneInput.value = "";
-    professionInput.value = "";
+    professionSelect.value = "";
     genderSelect.value = "";
     stayingInput.value = "";
+    commentInput.value = "";
     showToast("Contact submitted 🙏", "success");
     renderSubmissions(currentUser.user_name);
   });
@@ -66,11 +70,11 @@ export async function init(currentUser) {
 
 async function renderSubmissions(userName) {
   const tbody = document.getElementById("collection-submissions-body");
-  tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Loading…</td></tr>`;
 
   const { data } = await supabase
     .from("contact_collection")
-    .select("name,mob_no,profession,gender,staying,created_at")
+    .select("name,mob_no,profession,gender,staying,comment,created_at")
     .eq("collected_by", userName)
     .order("created_at", { ascending: false });
 
@@ -83,6 +87,7 @@ async function renderSubmissions(userName) {
           <td data-label="Profession">${escapeHtml(r.profession)}</td>
           <td data-label="Gender">${escapeHtml(r.gender)}</td>
           <td data-label="Staying">${escapeHtml(r.staying || "—")}</td>
+          <td data-label="Comment">${escapeHtml(r.comment || "—")}</td>
         </tr>`).join("")
-    : `<tr><td colspan="6" class="loading-row">You haven't submitted any contacts yet.</td></tr>`;
+    : `<tr><td colspan="7" class="loading-row">You haven't submitted any contacts yet.</td></tr>`;
 }

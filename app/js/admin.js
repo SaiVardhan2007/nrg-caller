@@ -2122,19 +2122,19 @@ let newContactsWired = false;
 // there; admin resolves that manually), Delete just dismisses the lead.
 async function renderCollectionSubmissions() {
   const tbody = document.getElementById("collection-submissions-admin-body");
-  tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Loading…</td></tr>`;
 
   const { data, error } = await supabase
     .from("contact_collection")
-    .select("id,name,mob_no,profession,gender,staying,collected_by,created_at")
+    .select("id,name,mob_no,profession,gender,staying,comment,collected_by,created_at")
     .order("created_at", { ascending: false });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Could not load submissions.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Could not load submissions.</td></tr>`;
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">No submissions yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">No submissions yet.</td></tr>`;
     return;
   }
 
@@ -2147,6 +2147,7 @@ async function renderCollectionSubmissions() {
       <td data-label="Profession">${escapeHtml(r.profession)}</td>
       <td data-label="Gender">${escapeHtml(r.gender)}</td>
       <td data-label="Staying">${escapeHtml(r.staying || "—")}</td>
+      <td data-label="Comment">${escapeHtml(r.comment || "—")}</td>
       <td data-label="Collected By">${escapeHtml(r.collected_by || "—")}</td>
       <td data-label="">
         <button class="cell-chip collection-add-btn" data-id="${r.id}">+ Add</button>
@@ -2169,10 +2170,9 @@ async function renderCollectionSubmissions() {
       const { error: insErr } = await supabase.from("contacts").insert({
         mob_no: row.mob_no,
         name: row.name,
-        profession: row.profession,
         gender: row.gender,
         pg_name: row.staying || null,
-        ws: "NA",
+        ws: row.profession || "NA",
       });
       if (insErr) {
         showToast("Add failed: " + insErr.message, "error");

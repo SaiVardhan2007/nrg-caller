@@ -145,6 +145,7 @@ create table if not exists contact_collection (
   gender       text not null check (gender in ('M','F')),
   staying      text,
   collected_by text,
+  comment      text,
   created_at   timestamptz not null default now()
 );
 create index if not exists idx_contact_collection_mob_no on contact_collection(mob_no);

@@ -447,7 +447,15 @@
         <h3 class="section-title">Add a Contact</h3>
         <label class="field"><span>Name</span><input id="collection-name" type="text" /></label>
         <label class="field"><span>Phone Number</span><input id="collection-phone" type="tel" inputmode="numeric" maxlength="10" /></label>
-        <label class="field"><span>Profession</span><input id="collection-profession" type="text" /></label>
+        <label class="field">
+          <span>Profession</span>
+          <select id="collection-profession">
+            <option value="">— select —</option>
+            <option value="NA">NA</option>
+            <option value="W">W</option>
+            <option value="S">S</option>
+          </select>
+        </label>
         <label class="field">
           <span>Gender</span>
           <select id="collection-gender">
@@ -457,6 +465,7 @@
           </select>
         </label>
         <label class="field"><span>Staying (optional)</span><input id="collection-staying" type="text" placeholder="PG / hostel / home…" /></label>
+        <label class="field"><span>Additional Comment (optional)</span><textarea id="collection-comment" rows="2"></textarea></label>
         <div id="collection-error" class="field-error hidden"></div>
         <button id="collection-submit" class="btn btn-primary">Submit</button>
       </div>
@@ -464,8 +473,8 @@
         <h3 class="section-title">Your Submissions</h3>
         <div class="table-wrap">
           <table class="data-table">
-            <thead><tr><th>Time</th><th>Name</th><th>Phone</th><th>Profession</th><th>Gender</th><th>Staying</th></tr></thead>
-            <tbody id="collection-submissions-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Time</th><th>Name</th><th>Phone</th><th>Profession</th><th>Gender</th><th>Staying</th><th>Comment</th></tr></thead>
+            <tbody id="collection-submissions-body"><tr><td colspan="7" class="loading-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -524,12 +533,13 @@
               <th>Profession</th>
               <th>Gender</th>
               <th>Staying</th>
+              <th>Comment</th>
               <th>Collected By</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="collection-submissions-admin-body">
-            <tr><td colspan="9" class="loading-row">Loading…</td></tr>
+            <tr><td colspan="10" class="loading-row">Loading…</td></tr>
           </tbody>
         </table>
       </div>

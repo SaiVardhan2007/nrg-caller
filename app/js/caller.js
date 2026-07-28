@@ -343,6 +343,26 @@ async function submitCard(card, assignmentId, contactId, contact) {
   updateStatsBarFromDom();
 }
 
+// Lightweight dashboard-only refresh — usable on boot/refresh without loading
+// the full My Calls page (which also renders every call card).
+export async function refreshDashboardBadge(user) {
+  const { data: eventRow } = await supabase.from("settings").select("value").eq("key", "current_event").single();
+  const eventCode = eventRow?.value || "";
+  const { data: eventInfo } = await supabase.from("events").select("name").eq("code", eventCode).single();
+  document.getElementById("dash-event-name").textContent = eventInfo?.name || eventCode;
+
+  const { data: assignments } = await supabase
+    .from("assignments")
+    .select("status")
+    .eq("user_name", user.user_name)
+    .eq("event_code", eventCode);
+
+  const total = assignments ? assignments.length : 0;
+  const pending = (assignments || []).filter((a) => PENDING.includes((a.status || STATUS_DEFAULT).toLowerCase())).length;
+  const pct = total > 0 ? Math.round(((total - pending) / total) * 100) : 0;
+  document.getElementById("dash-completion-badge").textContent = `${pct}%`;
+}
+
 function updateCompletionBadges(total, pending) {
   const pct = total > 0 ? Math.round(((total - pending) / total) * 100) : 0;
   document.getElementById("caller-completion-badge").textContent = `${pct}% Completed`;

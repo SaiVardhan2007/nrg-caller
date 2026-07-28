@@ -63,6 +63,7 @@ function goDashboard() {
   document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
   headerTitle.textContent = "FNRG Preaching";
   backBtn.classList.add("hidden");
+  Caller.refreshDashboardBadge(currentUser);
 }
 
 function enterSection(id) {
@@ -189,6 +190,7 @@ async function boot() {
   document.getElementById("refresh-btn").addEventListener("click", () => {
     const visiblePage = document.querySelector(".page:not(.hidden)");
     if (visiblePage) showScreen(visiblePage.id);
+    else if (!dashboard.classList.contains("hidden")) Caller.refreshDashboardBadge(currentUser);
   });
 }
 
