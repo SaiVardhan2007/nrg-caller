@@ -37,27 +37,12 @@ export function buildPosterPreviewUrl(posterUrl) {
   return `${window.location.origin}/api/poster-preview?v=${version}`;
 }
 
-// A real attached photo (image on top, full caption below, no link/card chrome)
-// only happens via a genuine media share — that's the native share sheet on
-// phones (where callers actually send from). The caption is the plain message
-// with no extra link line, since the photo itself is already attached.
-// Falls back to the /api/poster-preview link-card when file-sharing isn't
-// supported (desktop) — same message text, just with the preview link inserted.
-export async function sendWhatsAppMessage(mob, name, template, imageUrl) {
-  if (imageUrl && navigator.canShare) {
-    try {
-      const resp = await fetch(imageUrl);
-      const blob = await resp.blob();
-      const file = new File([blob], "poster.jpg", { type: blob.type || "image/jpeg" });
-      if (navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], text: buildMessage(name, template) });
-        return true;
-      }
-    } catch (err) {
-      if (err?.name === "AbortError") return false; // user backed out of the share sheet
-      console.error("Image share failed, falling back to WhatsApp link preview:", err);
-    }
-  }
+// Always goes straight to the contact's chat via the wa.me deep link — the
+// native share sheet (real photo attach) was tried and dropped: it has no way
+// to carry a contact's phone number, so WhatsApp always makes the caller
+// manually pick the recipient from a chat list, which is worse than a link
+// preview for callers messaging many different contacts per session.
+export function sendWhatsAppMessage(mob, name, template, imageUrl) {
   const text = buildMessage(name, template, imageUrl ? buildPosterPreviewUrl(imageUrl) : "");
   window.open(waHref(mob, text), "_blank");
   return true;

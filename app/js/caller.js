@@ -253,9 +253,8 @@ function wireCard(assignments) {
       refreshSubmitButton(card, assignmentId);
     });
 
-    card.querySelector(".send-btn").addEventListener("click", async () => {
-      const sent = await sendWhatsAppMessage(c.mob_no, c.name, messageText, messageImageUrl);
-      if (!sent) return;
+    card.querySelector(".send-btn").addEventListener("click", () => {
+      sendWhatsAppMessage(c.mob_no, c.name, messageText, messageImageUrl);
       cardState.get(assignmentId).sent = true;
       refreshSubmitButton(card, assignmentId);
     });
