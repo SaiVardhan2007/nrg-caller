@@ -1654,14 +1654,14 @@ function wireGeneralDataModal() {
     const rows = Object.entries(stats).filter(([, s]) => s.assigned > 0).sort((a, b) => a[0].localeCompare(b[0]));
     tbody.innerHTML = rows.length
       ? rows.map(([name, s]) => {
-          const pendingPct = s.assigned > 0 ? Math.round((s.pending / s.assigned) * 100) + "%" : "—";
+          const completedPct = s.assigned > 0 ? Math.round(((s.assigned - s.pending) / s.assigned) * 100) + "%" : "—";
           return `
           <tr>
             <td data-label="User">${escapeHtml(name)}</td>
             <td data-label="Assigned">${s.assigned}</td>
             <td data-label="Positive">${s.positive}</td>
             <td data-label="Pending">${s.pending}</td>
-            <td data-label="Pending %">${pendingPct}</td>
+            <td data-label="Completed %">${completedPct}</td>
           </tr>`;
         }).join("")
       : `<tr><td colspan="5" class="loading-row">No contacts currently assigned to anyone.</td></tr>`;
