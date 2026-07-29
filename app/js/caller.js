@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { formatPhone, telHref, waHref, buildMessage, buildPosterPreviewUrl, showToast, escapeHtml } from "./utils.js";
+import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml } from "./utils.js";
 
 const STATUS_DEFAULT = ""; // "Not Done" is stored as an empty status, not the literal text
 const STATUS_OPTIONS = [
@@ -9,13 +9,14 @@ const STATUS_OPTIONS = [
   { value: "Out of Station", label: "Out of Station" },
   { value: "Wrong Number", label: "Wrong Number" },
   { value: "Shifted to Home Town", label: "Shifted to Home Town" },
-  { value: "Yet to Call Again", label: "Yet to Call Again" },
+  { value: "Need to Call Again", label: "Need to Call Again" },
   { value: "Available on Weekend", label: "Available on Weekend" },
   { value: "Others", label: "Others" },
 ];
 const POSITIVE = ["joining the session", "next week will join", "will try to attend"];
 const PENDING = ["not done", "yet to call", ""];
-const NEGATIVE = ["out of station", "wrong number", "shifted to home town", "yet to call again", "available on weekend"];
+// "yet to call again" kept for older rows already saved under the previous label
+const NEGATIVE = ["out of station", "wrong number", "shifted to home town", "yet to call again", "need to call again", "available on weekend"];
 const WS_OPTIONS = ["NA", "W", "S"];
 
 function statusCategory(status) {
@@ -252,9 +253,9 @@ function wireCard(assignments) {
       refreshSubmitButton(card, assignmentId);
     });
 
-    card.querySelector(".send-btn").addEventListener("click", () => {
-      const text = buildMessage(c.name, messageText, buildPosterPreviewUrl(messageImageUrl));
-      window.open(waHref(c.mob_no, text), "_blank");
+    card.querySelector(".send-btn").addEventListener("click", async () => {
+      const sent = await sendWhatsAppMessage(c.mob_no, c.name, messageText, messageImageUrl);
+      if (!sent) return;
       cardState.get(assignmentId).sent = true;
       refreshSubmitButton(card, assignmentId);
     });

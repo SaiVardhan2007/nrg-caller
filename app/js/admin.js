@@ -1568,7 +1568,8 @@ export async function initAnalytics() {
 
 // same categorization used on the caller's own stats bar, so the numbers agree across the app
 const ANALYTICS_POSITIVE = ["joining the session", "next week will join", "will try to attend"];
-const ANALYTICS_NEGATIVE = ["out of station", "wrong number", "shifted to home town", "yet to call again", "available on weekend"];
+// "yet to call again" kept for older rows already saved under the previous label
+const ANALYTICS_NEGATIVE = ["out of station", "wrong number", "shifted to home town", "yet to call again", "need to call again", "available on weekend"];
 const ANALYTICS_PENDING = ["not done", "yet to call", ""];
 function callOutcomeCategory(remarks) {
   const s = (remarks || "").toLowerCase();

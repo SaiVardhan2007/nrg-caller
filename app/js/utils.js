@@ -37,6 +37,32 @@ export function buildPosterPreviewUrl(posterUrl) {
   return `${window.location.origin}/api/poster-preview?v=${version}`;
 }
 
+// A real attached photo (image on top, full caption below, no link/card chrome)
+// only happens via a genuine media share — that's the native share sheet on
+// phones (where callers actually send from). The caption is the plain message
+// with no extra link line, since the photo itself is already attached.
+// Falls back to the /api/poster-preview link-card when file-sharing isn't
+// supported (desktop) — same message text, just with the preview link inserted.
+export async function sendWhatsAppMessage(mob, name, template, imageUrl) {
+  if (imageUrl && navigator.canShare) {
+    try {
+      const resp = await fetch(imageUrl);
+      const blob = await resp.blob();
+      const file = new File([blob], "poster.jpg", { type: blob.type || "image/jpeg" });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text: buildMessage(name, template) });
+        return true;
+      }
+    } catch (err) {
+      if (err?.name === "AbortError") return false; // user backed out of the share sheet
+      console.error("Image share failed, falling back to WhatsApp link preview:", err);
+    }
+  }
+  const text = buildMessage(name, template, imageUrl ? buildPosterPreviewUrl(imageUrl) : "");
+  window.open(waHref(mob, text), "_blank");
+  return true;
+}
+
 // Downscales + re-encodes as JPEG so the poster stays well under WhatsApp's
 // practical share-sheet size before it ever reaches Supabase Storage.
 export async function compressImageFile(file, { maxDim = 1600, quality = 0.82, maxBytes = 900 * 1024 } = {}) {
