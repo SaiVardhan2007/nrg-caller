@@ -13,6 +13,53 @@ export function waHref(mob, text) {
   return "https://wa.me/91" + d + (text ? "?text=" + encodeURIComponent(text) : "");
 }
 
+// Every outgoing WhatsApp message opens with "Hare Krishna <name>" — the admin's
+// template (which may still use {name} elsewhere) is just the body below it.
+// `previewUrl` (see buildPosterPreviewUrl) goes right under the greeting so
+// WhatsApp's link-unfurler picks it first and renders the poster as a big
+// photo card, on every device — no share sheet, no OS-level file API needed.
+// (A bare image URL doesn't get this treatment from WhatsApp — only a page
+// declaring real Open Graph tags does, which is what that endpoint serves.)
+export function buildMessage(name, template, previewUrl) {
+  const body = (template || "").replace(/\{name\}/g, name);
+  const greeting = previewUrl ? `Hare Krishna ${name}\n${previewUrl}` : `Hare Krishna ${name}`;
+  return `${greeting}\n\n${body}`;
+}
+
+// The /api/poster-preview endpoint reads the current poster live from Supabase
+// on every request, so no re-upload is needed when it changes — only a
+// version tag (derived from the poster's own storage path, already unique
+// per upload) so WhatsApp's own link-preview cache treats a new poster as a
+// new URL instead of serving a stale thumbnail.
+export function buildPosterPreviewUrl(posterUrl) {
+  if (!posterUrl) return "";
+  const version = encodeURIComponent(posterUrl.split("/").pop());
+  return `${window.location.origin}/api/poster-preview?v=${version}`;
+}
+
+// Downscales + re-encodes as JPEG so the poster stays well under WhatsApp's
+// practical share-sheet size before it ever reaches Supabase Storage.
+export async function compressImageFile(file, { maxDim = 1600, quality = 0.82, maxBytes = 900 * 1024 } = {}) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+  const width = Math.round(bitmap.width * scale);
+  const height = Math.round(bitmap.height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, width, height);
+  bitmap.close?.();
+
+  let q = quality;
+  let blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", q));
+  while (blob.size > maxBytes && q > 0.4) {
+    q -= 0.1;
+    blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", q));
+  }
+  return blob;
+}
+
 export function debounce(fn, wait) {
   let t;
   return (...args) => {

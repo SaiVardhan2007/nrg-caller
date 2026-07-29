@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { formatPhone, telHref, waHref, showToast, escapeHtml } from "./utils.js";
+import { formatPhone, telHref, waHref, buildMessage, buildPosterPreviewUrl, showToast, escapeHtml } from "./utils.js";
 
 const STATUS_DEFAULT = ""; // "Not Done" is stored as an empty status, not the literal text
 const STATUS_OPTIONS = [
@@ -29,6 +29,7 @@ const cardState = new Map(); // assignment.id -> { called, sent, submitted, last
 let currentEventCode = "";
 let currentEventName = "";
 let messageText = "";
+let messageImageUrl = "";
 let currentUser = null;
 
 const SKELETON_CARD = `
@@ -46,12 +47,14 @@ export async function init(user) {
   const listEl = document.getElementById("caller-cards");
   listEl.innerHTML = SKELETON_CARD.repeat(3);
 
-  const [{ data: eventRow }, { data: msgRow }] = await Promise.all([
+  const [{ data: eventRow }, { data: msgRow }, { data: imgRow }] = await Promise.all([
     supabase.from("settings").select("value").eq("key", "current_event").single(),
     supabase.from("settings").select("value").eq("key", "message_text").single(),
+    supabase.from("settings").select("value").eq("key", "poster_url").single(),
   ]);
   currentEventCode = eventRow?.value || "";
   messageText = msgRow?.value || "";
+  messageImageUrl = imgRow?.value || "";
 
   const { data: eventInfo } = await supabase.from("events").select("name").eq("code", currentEventCode).single();
   currentEventName = eventInfo?.name || currentEventCode;
@@ -250,7 +253,7 @@ function wireCard(assignments) {
     });
 
     card.querySelector(".send-btn").addEventListener("click", () => {
-      const text = (messageText || "").replace(/\{name\}/g, c.name);
+      const text = buildMessage(c.name, messageText, buildPosterPreviewUrl(messageImageUrl));
       window.open(waHref(c.mob_no, text), "_blank");
       cardState.get(assignmentId).sent = true;
       refreshSubmitButton(card, assignmentId);

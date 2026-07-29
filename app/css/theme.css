@@ -107,6 +107,9 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .tag-check:has(input:checked) { border-color: var(--tulsi); background: rgba(5,150,105,0.08); color: var(--tulsi-dark); }
 .tag-check input { width: auto; accent-color: var(--tulsi); }
 .field-error { color: var(--danger); font-size: 13px; margin: -8px 0 14px; font-weight: 500; }
+.field-hint { color: var(--text-muted); font-size: 12.5px; margin: -2px 0 6px; }
+.message-image-preview-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.message-image-preview-wrap img { width: 84px; height: 84px; object-fit: cover; border-radius: var(--radius-sm); border: 1.5px solid var(--sandstone); }
 #caller-search { margin-bottom: 14px; }
 .field-warning { color: var(--warning); font-size: 13px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px; }
 

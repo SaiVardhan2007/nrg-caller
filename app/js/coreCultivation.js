@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { formatPhone, telHref, waHref, showToast, escapeHtml } from "./utils.js";
+import { formatPhone, telHref, waHref, buildMessage, buildPosterPreviewUrl, showToast, escapeHtml } from "./utils.js";
 
 const STATUS_DEFAULT = ""; // "Not Done" is stored as an empty status, not the literal text
 const STATUS_OPTIONS = [
@@ -29,6 +29,7 @@ function statusCategory(status) {
 // guaranteed to exist for every core-cultivated contact
 const cardState = new Map(); // contact.id -> { called, sent, submitted, lastStatus }
 let messageText = "";
+let messageImageUrl = "";
 let currentUser = null;
 
 const SKELETON_CARD = `
@@ -46,8 +47,12 @@ export async function init(user) {
   const listEl = document.getElementById("cc-cards");
   listEl.innerHTML = SKELETON_CARD.repeat(3);
 
-  const { data: msgRow } = await supabase.from("settings").select("value").eq("key", "message_text").single();
+  const [{ data: msgRow }, { data: imgRow }] = await Promise.all([
+    supabase.from("settings").select("value").eq("key", "message_text").single(),
+    supabase.from("settings").select("value").eq("key", "poster_url").single(),
+  ]);
   messageText = msgRow?.value || "";
+  messageImageUrl = imgRow?.value || "";
 
   await loadAndRenderCards();
   wireReviewModal();
@@ -226,7 +231,7 @@ function wireCard(contacts) {
     });
 
     card.querySelector(".send-btn").addEventListener("click", () => {
-      const text = (messageText || "").replace(/\{name\}/g, c.name);
+      const text = buildMessage(c.name, messageText, buildPosterPreviewUrl(messageImageUrl));
       window.open(waHref(c.mob_no, text), "_blank");
       cardState.get(contactId).sent = true;
       refreshSubmitButton(card, contactId);

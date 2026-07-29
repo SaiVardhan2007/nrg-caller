@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, formatPhone, escapeHtml, downloadCSV, exportTableToCSV, parseCSV } from "./utils.js";
+import { STORAGE_BUCKET } from "./config.js";
+import { showToast, formatPhone, escapeHtml, downloadCSV, exportTableToCSV, parseCSV, compressImageFile } from "./utils.js";
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
@@ -1443,12 +1444,62 @@ function wireAddContactModal() {
 
 /* ======================= MESSAGE (Body Text) ======================= */
 
+function renderMessageImagePreview(url) {
+  const wrap = document.getElementById("message-image-preview-wrap");
+  const img = document.getElementById("message-image-preview");
+  if (url) {
+    img.src = url;
+    wrap.classList.remove("hidden");
+  } else {
+    img.src = "";
+    wrap.classList.add("hidden");
+  }
+}
+
 export async function initMessage() {
   const textEl = document.getElementById("message-text");
   const errorEl = document.getElementById("message-error");
+  const pickBtn = document.getElementById("pick-message-image-btn");
+  const fileInput = document.getElementById("message-image-input");
+  const removeBtn = document.getElementById("remove-message-image-btn");
   errorEl.classList.add("hidden");
 
   textEl.value = (await getSetting("message_text")) || "";
+  renderMessageImagePreview(await getSetting("poster_url"));
+
+  pickBtn.onclick = () => fileInput.click();
+
+  fileInput.onchange = async () => {
+    const file = fileInput.files[0];
+    fileInput.value = "";
+    if (!file) return;
+
+    pickBtn.disabled = true;
+    pickBtn.textContent = "Uploading…";
+    try {
+      const blob = await compressImageFile(file);
+      const path = `message/poster-${Date.now()}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(path, blob, { contentType: "image/jpeg" });
+      if (uploadError) throw uploadError;
+      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+
+      await setSetting("poster_url", pub.publicUrl);
+      renderMessageImagePreview(pub.publicUrl);
+      showToast("Image attached", "success");
+    } catch (err) {
+      showToast(err.message || "Image upload failed", "error");
+    }
+    pickBtn.disabled = false;
+    pickBtn.textContent = "Attach Image";
+  };
+
+  removeBtn.onclick = async () => {
+    await setSetting("poster_url", "");
+    renderMessageImagePreview("");
+    showToast("Image removed", "success");
+  };
 
   document.getElementById("save-message-btn").onclick = async () => {
     await setSetting("message_text", textEl.value);
