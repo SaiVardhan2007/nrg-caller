@@ -107,13 +107,27 @@ async function loadAndRenderCards() {
   (weekCalls || []).forEach((r) => { weekCallCounts[r.mob_no] = (weekCallCounts[r.mob_no] || 0) + 1; });
   // first row per mob_no wins — list is already newest-first
   const lastStatusByMob = {};
-  (ownHistory || []).forEach((r) => { if (!(r.mob_no in lastStatusByMob)) lastStatusByMob[r.mob_no] = r.remarks; });
+  const lastStatusTsByMob = {};
+  (ownHistory || []).forEach((r) => {
+    if (!(r.mob_no in lastStatusByMob)) { lastStatusByMob[r.mob_no] = r.remarks; lastStatusTsByMob[r.mob_no] = r.ts; }
+  });
 
   contacts.forEach((c) => {
     if (!cardState.has(c.id)) {
       const lastStatus = lastStatusByMob[c.mob_no] || null;
       cardState.set(c.id, { called: false, sent: false, submitted: !!lastStatus, lastStatus });
     }
+  });
+
+  // Postgrest has no default row order, so without an explicit sort the list
+  // can land in a different spot on every reload. Not-yet-submitted contacts
+  // sort by name (stable); submitted ones always sort after them, oldest
+  // submission first — so submitting a contact always sends it to the bottom.
+  contacts.sort((a, b) => {
+    const aSub = !!lastStatusByMob[a.mob_no], bSub = !!lastStatusByMob[b.mob_no];
+    if (aSub !== bSub) return aSub ? 1 : -1;
+    if (aSub) return new Date(lastStatusTsByMob[a.mob_no]) - new Date(lastStatusTsByMob[b.mob_no]);
+    return a.name.localeCompare(b.name);
   });
 
   listEl.innerHTML = contacts.map((c) => renderCard(c, weekCallCounts[c.mob_no] || 0)).join("");
@@ -319,6 +333,7 @@ async function submitCard(card, contactId, contact) {
   setTimeout(() => card.classList.remove("row-saved"), 1200);
   showToast("Thanks for submitting 🙏", "success", 1500);
   refreshSubmitButton(card, contactId);
+  card.parentElement.appendChild(card);
   updateStatsBarFromDom();
 }
 

@@ -107,7 +107,7 @@ function wireRefreshButton() {
 async function loadAndRenderCards() {
   const { data: assignments, error } = await supabase
     .from("assignments")
-    .select("id,status,submitted_at,contact_id,contacts(id,name,mob_no,ws,sessions_count,core_cultivation)")
+    .select("id,status,submitted_at,assigned_at,contact_id,contacts(id,name,mob_no,ws,sessions_count,core_cultivation)")
     .eq("user_name", currentUser.user_name)
     .eq("event_code", currentEventCode);
 
@@ -126,6 +126,19 @@ async function loadAndRenderCards() {
     if (!cardState.has(a.id)) {
       cardState.set(a.id, { called: false, sent: false, submitted: !!a.submitted_at, lastStatus: a.status });
     }
+  });
+
+  // Postgrest has no default row order, so without an explicit sort the list
+  // can land in a different spot on every reload (the bug: submitting a
+  // contact sometimes moved it to the bottom, sometimes to the middle).
+  // Not-yet-submitted contacts keep a stable position (by assignment time);
+  // submitted ones always sort after them, oldest-submitted first — so
+  // submitting a contact always sends it to the bottom, consistently.
+  assignments.sort((a, b) => {
+    if (!!a.submitted_at !== !!b.submitted_at) return a.submitted_at ? 1 : -1;
+    const aTime = a.submitted_at || a.assigned_at;
+    const bTime = b.submitted_at || b.assigned_at;
+    return new Date(aTime) - new Date(bTime);
   });
 
   const mobNos = assignments.map((a) => a.contacts.mob_no);
@@ -343,6 +356,7 @@ async function submitCard(card, assignmentId, contactId, contact) {
   setTimeout(() => card.classList.remove("row-saved"), 1200);
   showToast("Thanks for submitting 🙏", "success", 1500);
   refreshSubmitButton(card, assignmentId);
+  card.parentElement.appendChild(card);
   updateStatsBarFromDom();
 }
 

@@ -277,22 +277,23 @@ async function renderUsersTable() {
   });
 }
 
-// fair-share core: every contact goes to whichever eligible user currently
-// has the fewest, skipping anyone already at their call_limit. Ceiling, not
-// fill priority — e.g. 9 contacts across a 5-limit, a 4-limit, and an
-// unlimited user split 3/3/3, not 5/4/0. Mutates assignedCount as it goes.
-// Core-cultivated contacts never reach this pool (see fetchEventContactPool)
-// — that link is admin-only, made by setting Core Cultivation in Master
-// Contact, never automatic.
+// waterfall core: fills eligible users in order (table order — alphabetical
+// by user_name), each one up to its own call_limit, before spilling over to
+// the next. E.g. 10 contacts, user1 limit 7, user2 unlimited -> user1 gets
+// 7, user2 gets the remaining 3; 100 contacts under the same limits -> 7/93;
+// 5 contacts -> 5/0 (user2 never touched since user1's limit isn't reached).
+// Mutates assignedCount as it goes. Core-cultivated contacts never reach
+// this pool (see fetchEventContactPool) — that link is admin-only, made by
+// setting Core Cultivation in Master Contact, never automatic.
 function distributePool(pool, eligible, assignedCount, eventCode) {
   const capOf = (u) => (u.call_limit == null ? Infinity : u.call_limit);
   const rows = [];
   let unassignedCount = 0;
+  let idx = 0;
   for (const c of pool) {
-    const candidates = eligible.filter((u) => assignedCount[u.user_name] < capOf(u));
-    if (!candidates.length) { unassignedCount++; continue; }
-    candidates.sort((a, b) => assignedCount[a.user_name] - assignedCount[b.user_name]);
-    const pick = candidates[0];
+    while (idx < eligible.length && assignedCount[eligible[idx].user_name] >= capOf(eligible[idx])) idx++;
+    if (idx >= eligible.length) { unassignedCount++; continue; }
+    const pick = eligible[idx];
     // "All Events" mode passes eventCode="__ALL__" — each contact keeps its
     // own calling_purpose as the assignment's real event_code instead.
     rows.push({ contact_id: c.id, user_name: pick.user_name, event_code: c.calling_purpose || eventCode });
