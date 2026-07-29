@@ -1,4 +1,4 @@
-const CACHE_NAME = "fnrg-preaching-v31";
+const CACHE_NAME = "fnrg-preaching-v32";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -47,3 +47,4 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+

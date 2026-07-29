@@ -277,23 +277,32 @@ async function renderUsersTable() {
   });
 }
 
-// waterfall core: fills eligible users in order (table order — alphabetical
-// by user_name), each one up to its own call_limit, before spilling over to
-// the next. E.g. 10 contacts, user1 limit 7, user2 unlimited -> user1 gets
-// 7, user2 gets the remaining 3; 100 contacts under the same limits -> 7/93;
-// 5 contacts -> 5/0 (user2 never touched since user1's limit isn't reached).
-// Mutates assignedCount as it goes. Core-cultivated contacts never reach
-// this pool (see fetchEventContactPool) — that link is admin-only, made by
-// setting Core Cultivation in Master Contact, never automatic.
+// waterfall core: users with an explicit call_limit fill first (each one up
+// to its own cap, in table order), then unlimited users soak up whatever's
+// left, one at a time. Limited-first matters — table order is alphabetical
+// by user_name, so an unlimited user could otherwise sort ahead of a limited
+// one and swallow the whole pool before the limit ever kicks in. E.g. 10
+// contacts, one user limited to 7 and one unlimited -> 7/3 regardless of
+// which name is alphabetically first; 100 contacts under the same limits ->
+// 7/93; 5 contacts -> 5/0 (the unlimited user never touched since the
+// limited one's cap isn't reached). Mutates assignedCount as it goes.
+// Core-cultivated contacts never reach this pool (see fetchEventContactPool)
+// — that link is admin-only, made by setting Core Cultivation in Master
+// Contact, never automatic.
 function distributePool(pool, eligible, assignedCount, eventCode) {
   const capOf = (u) => (u.call_limit == null ? Infinity : u.call_limit);
+  const fillOrder = [...eligible].sort((a, b) => {
+    const aLimited = capOf(a) !== Infinity, bLimited = capOf(b) !== Infinity;
+    if (aLimited === bLimited) return 0; // stable sort keeps table order within each group
+    return aLimited ? -1 : 1;
+  });
   const rows = [];
   let unassignedCount = 0;
   let idx = 0;
   for (const c of pool) {
-    while (idx < eligible.length && assignedCount[eligible[idx].user_name] >= capOf(eligible[idx])) idx++;
-    if (idx >= eligible.length) { unassignedCount++; continue; }
-    const pick = eligible[idx];
+    while (idx < fillOrder.length && assignedCount[fillOrder[idx].user_name] >= capOf(fillOrder[idx])) idx++;
+    if (idx >= fillOrder.length) { unassignedCount++; continue; }
+    const pick = fillOrder[idx];
     // "All Events" mode passes eventCode="__ALL__" — each contact keeps its
     // own calling_purpose as the assignment's real event_code instead.
     rows.push({ contact_id: c.id, user_name: pick.user_name, event_code: c.calling_purpose || eventCode });
