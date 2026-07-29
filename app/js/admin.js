@@ -52,15 +52,17 @@ export async function initUsers() {
   const eventSelect = document.getElementById("event-select");
   const tagFilterGroup = document.getElementById("tag-filter-group");
 
-  // these five round-trips are all independent — run them together instead
-  // of one after another, since that was adding ~2s to this page's load.
-  const [, currentEvent, tagFilterValue] = await Promise.all([
+  // these round-trips are all independent — run them together instead of
+  // one after another, since that was adding ~2s to this page's load.
+  const [, tagFilterValue] = await Promise.all([
     loadEvents(),
-    getSetting("current_event"),
     getSetting("tag_filter"),
     renderUsersTable(),
   ]);
-  fillEventSelect(eventSelect, currentEvent, true);
+  // Always default to "All Events" here regardless of whichever single
+  // event is set as current elsewhere (Reception/Analytics/etc.) — this tab
+  // is for assigning across everything unless the admin narrows it down.
+  fillEventSelect(eventSelect, "__ALL__", true);
   const savedTags = (tagFilterValue || "").split(",").map((t) => t.trim()).filter(Boolean);
   tagFilterGroup.querySelectorAll("input").forEach((cb) => { cb.checked = savedTags.includes(cb.value); });
 
