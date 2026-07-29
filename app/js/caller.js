@@ -27,8 +27,7 @@ function statusCategory(status) {
 }
 
 const cardState = new Map(); // assignment.id -> { called, sent, submitted, lastStatus }
-let currentEventCode = "";
-let currentEventName = "";
+let eventNameByCode = {}; // assignments now span every event a caller was assigned in, not just one
 let messageText = "";
 let messageImageUrl = "";
 let currentUser = null;
@@ -48,19 +47,18 @@ export async function init(user) {
   const listEl = document.getElementById("caller-cards");
   listEl.innerHTML = SKELETON_CARD.repeat(3);
 
-  const [{ data: eventRow }, { data: msgRow }, { data: imgRow }] = await Promise.all([
-    supabase.from("settings").select("value").eq("key", "current_event").single(),
+  const [{ data: msgRow }, { data: imgRow }, { data: eventsData }] = await Promise.all([
     supabase.from("settings").select("value").eq("key", "message_text").single(),
     supabase.from("settings").select("value").eq("key", "poster_url").single(),
+    supabase.from("events").select("code,name"),
   ]);
-  currentEventCode = eventRow?.value || "";
   messageText = msgRow?.value || "";
   messageImageUrl = imgRow?.value || "";
+  eventNameByCode = {};
+  (eventsData || []).forEach((e) => { eventNameByCode[e.code] = e.name; });
 
-  const { data: eventInfo } = await supabase.from("events").select("name").eq("code", currentEventCode).single();
-  currentEventName = eventInfo?.name || currentEventCode;
-  document.getElementById("caller-event-title").textContent = currentEventName;
-  document.getElementById("dash-event-name").textContent = currentEventName;
+  document.getElementById("caller-event-title").textContent = "Your Calls";
+  document.getElementById("dash-event-name").textContent = "All Events";
 
   await loadAndRenderCards();
   wireReviewModal();
@@ -107,9 +105,8 @@ function wireRefreshButton() {
 async function loadAndRenderCards() {
   const { data: assignments, error } = await supabase
     .from("assignments")
-    .select("id,status,submitted_at,assigned_at,contact_id,contacts(id,name,mob_no,ws,sessions_count,core_cultivation)")
-    .eq("user_name", currentUser.user_name)
-    .eq("event_code", currentEventCode);
+    .select("id,status,submitted_at,assigned_at,event_code,contact_id,contacts(id,name,mob_no,ws,sessions_count,core_cultivation)")
+    .eq("user_name", currentUser.user_name);
 
   const listEl = document.getElementById("caller-cards");
   if (error) {
@@ -117,7 +114,7 @@ async function loadAndRenderCards() {
     return;
   }
   if (!assignments || !assignments.length) {
-    listEl.innerHTML = `<p class="loading-row">No contacts assigned to you yet for ${escapeHtml(currentEventName)}.</p>`;
+    listEl.innerHTML = `<p class="loading-row">No contacts assigned to you yet.</p>`;
     updateStatsBar([]);
     return;
   }
@@ -181,6 +178,7 @@ function renderCard(a, weekCallCount) {
       </div>
       <div class="call-card-row2">
         <div class="card-badges">
+          <span class="calls-link" style="cursor:default;">🏷️ ${escapeHtml(eventNameByCode[a.event_code] || a.event_code)}</span>
           <button class="sessions-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📋 Sessions: ${c.sessions_count}</button>
           <button class="calls-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📞 This week: ${weekCallCount}</button>
         </div>
@@ -273,7 +271,7 @@ function wireCard(assignments) {
     });
 
     card.querySelector(".row-submit-btn").addEventListener("click", () => {
-      submitCard(card, assignmentId, contactId, c);
+      submitCard(card, assignmentId, contactId, c, a.event_code);
     });
 
     card.querySelectorAll(".calls-link").forEach((btn) => {
@@ -290,7 +288,7 @@ function wireCard(assignments) {
   });
 }
 
-async function submitCard(card, assignmentId, contactId, contact) {
+async function submitCard(card, assignmentId, contactId, contact, eventCode) {
   const statusSelect = card.querySelector(".status-select");
   const submitBtn = card.querySelector(".row-submit-btn");
   const status = statusSelect.value;
@@ -307,7 +305,7 @@ async function submitCard(card, assignmentId, contactId, contact) {
     caller_name: currentUser.user_name,
     contact_name: contact.name,
     mob_no: contact.mob_no,
-    event_code: currentEventCode,
+    event_code: eventCode,
     remarks: status,
     addl_remarks: addl,
   });
@@ -327,7 +325,7 @@ async function submitCard(card, assignmentId, contactId, contact) {
           mob_no: contact.mob_no,
           name: contact.name,
           took_by: currentUser.user_name,
-          event_code: currentEventCode || null,
+          event_code: eventCode || null,
           ts: new Date().toISOString()
         });
       }
@@ -363,16 +361,12 @@ async function submitCard(card, assignmentId, contactId, contact) {
 // Lightweight dashboard-only refresh — usable on boot/refresh without loading
 // the full My Calls page (which also renders every call card).
 export async function refreshDashboardBadge(user) {
-  const { data: eventRow } = await supabase.from("settings").select("value").eq("key", "current_event").single();
-  const eventCode = eventRow?.value || "";
-  const { data: eventInfo } = await supabase.from("events").select("name").eq("code", eventCode).single();
-  document.getElementById("dash-event-name").textContent = eventInfo?.name || eventCode;
+  document.getElementById("dash-event-name").textContent = "All Events";
 
   const { data: assignments } = await supabase
     .from("assignments")
     .select("status")
-    .eq("user_name", user.user_name)
-    .eq("event_code", eventCode);
+    .eq("user_name", user.user_name);
 
   const total = assignments ? assignments.length : 0;
   const pending = (assignments || []).filter((a) => PENDING.includes((a.status || STATUS_DEFAULT).toLowerCase())).length;
