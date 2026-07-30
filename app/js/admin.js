@@ -1591,7 +1591,8 @@ function callOutcomeCategory(remarks) {
   const s = (remarks || "").toLowerCase();
   if (ANALYTICS_NEGATIVE.includes(s)) return "negative";
   if (ANALYTICS_POSITIVE.includes(s)) return "positive";
-  return "pending";
+  if (ANALYTICS_PENDING.includes(s)) return "pending";
+  return "negative"; // e.g. "Others" — a real (if miscellaneous) call outcome, not an uncalled contact
 }
 
 let currentAnalyticsParams = null;
