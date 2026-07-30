@@ -1067,9 +1067,16 @@
 
 <div id="general-data-modal" class="modal">
   <div class="modal-box modal-large">
-    <h3>General Data — All Users</h3>
+    <div class="modal-title-row">
+      <h3>General Data — All Users</h3>
+      <div class="zoom-controls">
+        <button id="general-data-zoom-out" class="btn btn-secondary" type="button" title="Zoom out">−</button>
+        <span id="general-data-zoom-level">100%</span>
+        <button id="general-data-zoom-in" class="btn btn-secondary" type="button" title="Zoom in">+</button>
+      </div>
+    </div>
     <p class="muted-text">Live snapshot of every caller with contacts currently assigned to them.</p>
-    <div class="table-wrap" style="max-height:60vh;">
+    <div id="general-data-table-wrap" class="table-wrap" style="max-height:60vh;">
       <table class="data-table">
         <thead><tr><th>S.No</th><th>User</th><th>Assigned</th><th>Positive</th><th>Pending</th><th>Completed %</th></tr></thead>
         <tbody id="general-data-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>

@@ -523,6 +523,10 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   max-width: 720px;
   width: 95%;
 }
+.modal-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.zoom-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.zoom-controls .btn { padding: 4px 12px; font-size: 15px; font-weight: 700; line-height: 1; }
+.zoom-controls span { font-size: 13px; font-weight: 600; color: var(--tulsi-dark); min-width: 38px; text-align: center; }
 .duplicate-comparison-container {
   display: grid;
   grid-template-columns: 1fr 1fr;

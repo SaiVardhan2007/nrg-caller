@@ -1650,6 +1650,22 @@ function wireGeneralDataModal() {
   document.getElementById("general-data-close").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
+  let generalDataZoom = 100;
+  const zoomWrap = document.getElementById("general-data-table-wrap");
+  const zoomLevel = document.getElementById("general-data-zoom-level");
+  const applyGeneralDataZoom = () => {
+    zoomWrap.style.zoom = generalDataZoom + "%";
+    zoomLevel.textContent = generalDataZoom + "%";
+  };
+  document.getElementById("general-data-zoom-in").onclick = () => {
+    generalDataZoom = Math.min(150, generalDataZoom + 10);
+    applyGeneralDataZoom();
+  };
+  document.getElementById("general-data-zoom-out").onclick = () => {
+    generalDataZoom = Math.max(50, generalDataZoom - 10);
+    applyGeneralDataZoom();
+  };
+
   document.getElementById("general-data-btn").onclick = async () => {
     modal.classList.add("active");
     const tbody = document.getElementById("general-data-body");
