@@ -1083,6 +1083,7 @@ async function openContactInfoModal(kind, mob, name, isNewContact = false) {
   const thead = document.getElementById("contact-info-thead");
   const tbody = document.getElementById("contact-info-body");
   const modalActions = modal.querySelector(".modal-actions");
+  document.getElementById("contact-info-search").classList.add("hidden");
   thead.innerHTML = "";
   tbody.innerHTML = `<tr><td class="loading-row">Loading…</td></tr>`;
   modal.classList.add("active");
@@ -1226,6 +1227,7 @@ async function openEventCallsModal(userName, isAll, eventCode, eventName, fromTs
   thead.innerHTML = `<tr><th>Time</th>${callerHeader}<th>Contact</th><th>Phone</th><th>Status</th></tr>`;
   tbody.innerHTML = `<tr><td class="loading-row">Loading…</td></tr>`;
   document.getElementById("contact-info-export-btn").classList.add("hidden");
+  document.getElementById("contact-info-search").classList.add("hidden");
   modal.classList.add("active");
 
   let query = supabase
@@ -1714,6 +1716,16 @@ async function openAnalyticsStatModal(statType) {
   tbody.innerHTML = `<tr><td class="loading-row">Loading…</td></tr>`;
   modal.classList.add("active");
 
+  const searchInput = document.getElementById("contact-info-search");
+  searchInput.value = "";
+  searchInput.classList.remove("hidden");
+  searchInput.oninput = () => {
+    const q = searchInput.value.trim().toLowerCase();
+    tbody.querySelectorAll("tr").forEach((tr) => {
+      tr.classList.toggle("hidden", !!q && !tr.textContent.toLowerCase().includes(q));
+    });
+  };
+
   const exportBtn = document.getElementById("contact-info-export-btn");
   exportBtn.classList.toggle("hidden", statType !== "pending");
   exportBtn.onclick = () => {
@@ -1807,7 +1819,7 @@ async function openAnalyticsStatModal(statType) {
     let title = statType === "positive" ? "Positive Responses" : "Calls Made";
     document.getElementById("contact-info-title").textContent = title;
     document.getElementById("contact-info-sub").textContent = isAll ? "All Users (Combined)" : userName;
-    thead.innerHTML = `<tr><th>Time</th>${isAll ? "<th>Caller</th>" : ""}<th>Name</th><th>Phone</th><th>Status</th></tr>`;
+    thead.innerHTML = `<tr><th>S.No</th><th>Time</th>${isAll ? "<th>Caller</th>" : ""}<th>Name</th><th>Phone</th><th>Status</th></tr>`;
 
     let query = supabase
       .from("call_responses")
@@ -1821,7 +1833,7 @@ async function openAnalyticsStatModal(statType) {
 
     const { data, error } = await query;
     if (error) {
-      tbody.innerHTML = `<tr><td colspan="${isAll ? 5 : 4}" class="loading-row">Error loading call responses.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${isAll ? 6 : 5}" class="loading-row">Error loading call responses.</td></tr>`;
       return;
     }
 
@@ -1831,15 +1843,16 @@ async function openAnalyticsStatModal(statType) {
     }
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="${isAll ? 5 : 4}" class="loading-row">No responses found.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${isAll ? 6 : 5}" class="loading-row">No responses found.</td></tr>`;
       return;
     }
 
     // group rows by caller so one person's calls sit together, not interleaved with others'
     filtered.sort((a, b) => a.caller_name.localeCompare(b.caller_name));
 
-    tbody.innerHTML = filtered.map((r) => `
+    tbody.innerHTML = filtered.map((r, idx) => `
       <tr>
+        <td data-label="S.No">${idx + 1}</td>
         <td data-label="Time">${new Date(r.ts).toLocaleString()}</td>
         ${isAll ? `<td data-label="Caller">${escapeHtml(r.caller_name)}</td>` : ""}
         <td data-label="Name">${escapeHtml(r.contact_name || "")}</td>
@@ -2514,6 +2527,7 @@ function renderNewContactsTable() {
       tbody2.innerHTML = sessions.length
         ? sessions.map((d, i) => `<tr><td data-label="#">${i + 1}</td><td data-label="Session Date">${d}</td></tr>`).join("")
         : `<tr><td colspan="2" class="loading-row">No sessions recorded.</td></tr>`;
+      document.getElementById("contact-info-search").classList.add("hidden");
       const modalActions = modal.querySelector(".modal-actions");
       modalActions.innerHTML = `<button id="contact-info-close" class="btn btn-secondary">Close</button>`;
       modalActions.querySelector("#contact-info-close").onclick = () => modal.classList.remove("active");

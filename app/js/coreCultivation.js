@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml } from "./utils.js";
+import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit } from "./utils.js";
 
 const STATUS_DEFAULT = ""; // "Not Done" is stored as an empty status, not the literal text
 const STATUS_OPTIONS = [
@@ -156,7 +156,14 @@ function renderCard(c, weekCallCount) {
         <select class="ws-select" data-ws="${c.ws || "NA"}">
           ${WS_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
         </select>
-        <span class="call-card-name">${escapeHtml(c.name)}</span>
+        <span class="call-card-name-wrap">
+          <span class="call-card-name name-display">${escapeHtml(c.name)}</span>
+          <span class="name-edit-wrap hidden">
+            <input type="text" class="name-edit-input" value="${escapeHtml(c.name)}" />
+            <button type="button" class="name-save-btn" title="Save">✓</button>
+            <button type="button" class="name-cancel-btn" title="Cancel">✕</button>
+          </span>
+        </span>
       </div>
       <div class="call-card-row2">
         <div class="card-badges">
@@ -223,6 +230,7 @@ function wireCard(contacts) {
     const c = contacts.find((x) => x.id === contactId);
 
     refreshSubmitButton(card, contactId);
+    wireCardNameEdit(card, contactId, c);
 
     card.querySelector(".ws-select").addEventListener("change", async (e) => {
       e.target.dataset.ws = e.target.value;

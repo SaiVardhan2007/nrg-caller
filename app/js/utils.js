@@ -1,3 +1,5 @@
+import { supabase } from "./supabaseClient.js";
+
 export function formatPhone(mob) {
   const d = String(mob || "").replace(/\D/g, "");
   if (d.length !== 10) return d;
@@ -94,6 +96,61 @@ export function showToast(message, kind = "success", duration = 3200) {
   toastTimer = setTimeout(() => {
     el.className = "toast";
   }, duration);
+}
+
+// Wires the double-click-to-edit-name markup shared by the "My Calls" and
+// Core Cultivation call cards (a `.call-card-name-wrap` containing a
+// `.name-display` span and a `.name-edit-wrap` with `.name-edit-input` /
+// `.name-save-btn` / `.name-cancel-btn`). `contact` is mutated in place on a
+// successful save so the caller's already-rendered card badges (data-name
+// attributes etc.) can be kept in sync by the caller if needed.
+export function wireCardNameEdit(card, contactId, contact) {
+  const wrap = card.querySelector(".call-card-name-wrap");
+  if (!wrap) return;
+  const display = wrap.querySelector(".name-display");
+  const editWrap = wrap.querySelector(".name-edit-wrap");
+  const input = wrap.querySelector(".name-edit-input");
+  const saveBtn = wrap.querySelector(".name-save-btn");
+  const cancelBtn = wrap.querySelector(".name-cancel-btn");
+
+  const startEdit = () => {
+    input.value = contact.name;
+    display.classList.add("hidden");
+    editWrap.classList.remove("hidden");
+    input.focus();
+    input.select();
+  };
+  const stopEdit = () => {
+    editWrap.classList.add("hidden");
+    display.classList.remove("hidden");
+  };
+
+  display.addEventListener("dblclick", startEdit);
+  cancelBtn.addEventListener("click", stopEdit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") saveBtn.click();
+    if (e.key === "Escape") stopEdit();
+  });
+
+  saveBtn.addEventListener("click", async () => {
+    const newName = input.value.trim();
+    if (!newName || newName === contact.name) {
+      stopEdit();
+      return;
+    }
+    saveBtn.disabled = true;
+    const { error } = await supabase.from("contacts").update({ name: newName }).eq("id", contactId);
+    saveBtn.disabled = false;
+    if (error) {
+      showToast("Could not update name. Try again.", "error");
+      return;
+    }
+    contact.name = newName;
+    display.textContent = newName;
+    card.querySelectorAll("[data-name]").forEach((el) => { el.dataset.name = newName; });
+    stopEdit();
+    showToast("Name updated", "success");
+  });
 }
 
 export function escapeHtml(s) {

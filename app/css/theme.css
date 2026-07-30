@@ -446,7 +446,20 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .call-card.row-error { background: #fef2f2; border-color: var(--danger); }
 
 .call-card-row1 { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.call-card-name { font-weight: 800; font-size: 16px; color: var(--text-main); flex: 1; letter-spacing: -0.01em; }
+.call-card-name-wrap { flex: 1; min-width: 0; }
+.call-card-name { font-weight: 800; font-size: 16px; color: var(--text-main); letter-spacing: -0.01em; cursor: pointer; }
+.name-edit-wrap { display: flex; align-items: center; gap: 6px; }
+.name-edit-input {
+  flex: 1; min-width: 0; padding: 5px 8px; font-size: 15px; font-weight: 700; font-family: inherit;
+  border: 1.5px solid var(--tulsi); border-radius: 6px; background: var(--surface); color: var(--text-main);
+}
+.name-edit-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(5,150,105,0.15); }
+.name-save-btn, .name-cancel-btn {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 6px; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.name-save-btn { background: var(--tulsi); color: #fff; }
+.name-cancel-btn { background: var(--sandstone); color: var(--text-main); }
 .call-card-row1 select.ws-select {
   width: 40px; height: 40px; min-width: 40px; padding: 0;
   font-size: 13px; font-weight: 800; text-align: center; text-align-last: center;
@@ -524,6 +537,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   width: 95%;
 }
 .modal-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#contact-info-search { margin: 12px 0; }
 .zoom-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .zoom-controls .btn { padding: 4px 12px; font-size: 15px; font-weight: 700; line-height: 1; }
 .zoom-controls span { font-size: 13px; font-weight: 600; color: var(--tulsi-dark); min-width: 38px; text-align: center; }
