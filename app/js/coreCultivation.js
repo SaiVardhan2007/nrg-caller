@@ -289,30 +289,6 @@ async function submitCard(card, contactId, contact) {
     addl_remarks: addl,
   });
 
-  if (status === "Joining the session") {
-    try {
-      const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
-      const { data: recentAtt } = await supabase
-        .from("session_attendance")
-        .select("id")
-        .eq("mob_no", contact.mob_no)
-        .gte("ts", eightHoursAgo)
-        .limit(1);
-
-      if (!recentAtt || recentAtt.length === 0) {
-        await supabase.from("session_attendance").insert({
-          mob_no: contact.mob_no,
-          name: contact.name,
-          took_by: currentUser.user_name,
-          event_code: eventCode,
-          ts: new Date().toISOString()
-        });
-      }
-    } catch (err) {
-      console.warn("Could not auto-mark session attendance:", err);
-    }
-  }
-
   card.classList.remove("row-saving");
   if (error) {
     card.classList.add("row-error");
