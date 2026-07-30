@@ -186,11 +186,11 @@ async function openHelpRequestsModal(mob, name) {
 
 async function renderHelpRequestsList() {
   const tbody = document.getElementById("help-requests-body");
-  tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
 
   const { data } = await supabase
     .from("help_requests")
-    .select("id,message,created_at,resolved")
+    .select("id,message,created_at,resolved,response")
     .eq("mob_no", helpRequestsContext.mob)
     .order("created_at", { ascending: false });
 
@@ -201,9 +201,10 @@ async function renderHelpRequestsList() {
           <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
           <td data-label="Question">${escapeHtml(r.message)}</td>
           <td data-label="Status"><button class="cell-chip${r.resolved ? "" : " danger"} resolve-help-btn" data-id="${r.id}" data-resolved="${r.resolved}">${r.resolved ? "✓ Resolved" : "✕ Unresolved"}</button></td>
+          <td data-label="Response"><button class="cell-chip respond-help-btn" data-id="${r.id}" data-response="${escapeHtml(r.response || "")}">${r.response ? "✎ Edit" : "+ Add"}</button>${r.response ? `<div class="muted-text" style="margin-top:4px;">${escapeHtml(r.response)}</div>` : ""}</td>
           <td data-label=""><button class="cell-chip danger delete-help-btn" data-id="${r.id}">Delete</button></td>
         </tr>`).join("")
-    : `<tr><td colspan="5" class="loading-row">No questions asked yet.</td></tr>`;
+    : `<tr><td colspan="6" class="loading-row">No questions asked yet.</td></tr>`;
 
   tbody.querySelectorAll(".resolve-help-btn").forEach((btn) => {
     btn.onclick = async () => {
@@ -211,6 +212,19 @@ async function renderHelpRequestsList() {
       await supabase.from("help_requests").update({ resolved: newResolved }).eq("id", btn.dataset.id);
       await renderHelpRequestsList();
       renderOneToOneTable();
+    };
+  });
+
+  tbody.querySelectorAll(".respond-help-btn").forEach((btn) => {
+    btn.onclick = async () => {
+      const val = prompt("Response to the boy's question:", btn.dataset.response || "");
+      if (val === null) return;
+      const { error } = await supabase.from("help_requests").update({ response: val.trim() || null }).eq("id", btn.dataset.id);
+      if (error) {
+        showToast("Failed: " + error.message, "error");
+        return;
+      }
+      await renderHelpRequestsList();
     };
   });
 
@@ -405,11 +419,11 @@ function wireOneToOneRequestForm() {
 
 async function renderUserQuestions() {
   const tbody = document.getElementById("one-to-one-user-questions-body");
-  tbody.innerHTML = `<tr><td colspan="3" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Loading…</td></tr>`;
 
   const { data } = await supabase
     .from("help_requests")
-    .select("id,message,created_at,resolved")
+    .select("id,message,created_at,resolved,response")
     .eq("mob_no", currentContactMob)
     .order("created_at", { ascending: false });
 
@@ -419,8 +433,9 @@ async function renderUserQuestions() {
           <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
           <td data-label="Question">${escapeHtml(r.message)}</td>
           <td data-label="Status"><button class="cell-chip${r.resolved ? "" : " danger"} user-resolve-btn" data-id="${r.id}" data-resolved="${r.resolved}">${r.resolved ? "✓ Resolved" : "✕ Unresolved"}</button></td>
+          <td data-label="Response">${r.response ? escapeHtml(r.response) : `<span class="muted-text">Awaiting response…</span>`}</td>
         </tr>`).join("")
-    : `<tr><td colspan="3" class="loading-row">You haven't asked anything yet.</td></tr>`;
+    : `<tr><td colspan="4" class="loading-row">You haven't asked anything yet.</td></tr>`;
 
   tbody.querySelectorAll(".user-resolve-btn").forEach((btn) => {
     btn.onclick = async () => {
