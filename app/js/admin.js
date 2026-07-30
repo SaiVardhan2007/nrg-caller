@@ -1617,15 +1617,16 @@ function renderAssignedContactsTable() {
   }
 
   assignedBody.innerHTML = rows.length
-    ? rows.map((a) => `
+    ? rows.map((a, idx) => `
         <tr>
+          <td data-label="S.No">${idx + 1}</td>
           <td data-label="Caller">${escapeHtml(a.user_name)}</td>
           <td data-label="Name">${escapeHtml(a.contacts?.name || "—")}</td>
           <td data-label="Phone">${formatPhone(a.contacts?.mob_no || "")}</td>
           <td data-label="Status">${escapeHtml(a.status || "Not Done")}</td>
           <td data-label="Called?">${(a.status || "Not Done") !== "Not Done" ? "✅" : "—"}</td>
         </tr>`).join("")
-    : `<tr><td colspan="5" class="loading-row">No contacts currently assigned.</td></tr>`;
+    : `<tr><td colspan="6" class="loading-row">No contacts currently assigned.</td></tr>`;
 }
 
 let assignedContactsFiltersWired = false;
@@ -1652,7 +1653,7 @@ function wireGeneralDataModal() {
   document.getElementById("general-data-btn").onclick = async () => {
     modal.classList.add("active");
     const tbody = document.getElementById("general-data-body");
-    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
 
     const { data: assignments } = await supabase.from("assignments").select("user_name,status");
 
@@ -1668,10 +1669,11 @@ function wireGeneralDataModal() {
 
     const rows = Object.entries(stats).filter(([, s]) => s.assigned > 0).sort((a, b) => a[0].localeCompare(b[0]));
     tbody.innerHTML = rows.length
-      ? rows.map(([name, s]) => {
+      ? rows.map(([name, s], idx) => {
           const completedPct = s.assigned > 0 ? Math.round(((s.assigned - s.pending) / s.assigned) * 100) + "%" : "—";
           return `
           <tr>
+            <td data-label="S.No">${idx + 1}</td>
             <td data-label="User">${escapeHtml(name)}</td>
             <td data-label="Assigned">${s.assigned}</td>
             <td data-label="Positive">${s.positive}</td>
@@ -1679,7 +1681,7 @@ function wireGeneralDataModal() {
             <td data-label="Completed %">${completedPct}</td>
           </tr>`;
         }).join("")
-      : `<tr><td colspan="5" class="loading-row">No contacts currently assigned to anyone.</td></tr>`;
+      : `<tr><td colspan="6" class="loading-row">No contacts currently assigned to anyone.</td></tr>`;
   };
 }
 
@@ -1927,7 +1929,7 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   document.getElementById("analytics-total-assigned").textContent = totalAssigned;
 
   const byEventBody = document.getElementById("analytics-by-event-body");
-  const eventRows = eventsToShow.map((e) => {
+  const eventRows = eventsToShow.map((e, idx) => {
     let assigned = 0;
     let called = 0;
     let left = 0;
@@ -1947,13 +1949,14 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
     }
     return `
       <tr class="clickable-row" data-event-code="${e.code}" data-event-name="${escapeHtml(e.name)}">
+        <td data-label="S.No">${idx + 1}</td>
         <td data-label="Event">${escapeHtml(e.name)}</td>
         <td data-label="Assigned">${assigned}</td>
         <td data-label="Called">${called}</td>
         <td data-label="Pending">${left}</td>
       </tr>`;
   }).join("");
-  byEventBody.innerHTML = eventRows || `<tr><td colspan="4" class="loading-row">No data yet.</td></tr>`;
+  byEventBody.innerHTML = eventRows || `<tr><td colspan="5" class="loading-row">No data yet.</td></tr>`;
   byEventBody.querySelectorAll("tr[data-event-code]").forEach((row) => {
     row.addEventListener("click", () => {
       openEventCallsModal(userName, isAll, row.dataset.eventCode, row.dataset.eventName, fromTs, toTs);
@@ -1990,7 +1993,7 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   if (cultivated) cultivated.sort((a, b) => (a.core_cultivation || "").localeCompare(b.core_cultivation || ""));
   const cultivationBody = document.getElementById("analytics-cultivation-body");
   if (!cultivated || !cultivated.length) {
-    cultivationBody.innerHTML = `<tr><td colspan="5" class="loading-row">No contacts cultivated${isAll ? "" : " to this user"}.</td></tr>`;
+    cultivationBody.innerHTML = `<tr><td colspan="6" class="loading-row">No contacts cultivated${isAll ? "" : " to this user"}.</td></tr>`;
   } else {
     const mobNos = cultivated.map((c) => c.mob_no);
     let callHistoryQuery = supabase.from("call_responses").select("mob_no,caller_name,ts").in("mob_no", mobNos).order("ts", { ascending: false });
@@ -2007,10 +2010,11 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
       totalCallsByMob[key] = (totalCallsByMob[key] || 0) + 1;
       if (!lastCalled[key]) lastCalled[key] = r.ts;
     });
-    cultivationBody.innerHTML = cultivated.map((c) => {
+    cultivationBody.innerHTML = cultivated.map((c, idx) => {
       const key = keyOf(c.mob_no, c.core_cultivation);
       return `
       <tr>
+        <td data-label="S.No">${idx + 1}</td>
         <td data-label="Cultivator">${escapeHtml(c.core_cultivation || "")}</td>
         <td data-label="Name">${escapeHtml(c.name)}</td>
         <td data-label="Phone">${formatPhone(c.mob_no)}</td>
@@ -2035,7 +2039,7 @@ export async function initReceptionAnalytics() {
   const toInput = document.getElementById("reception-analytics-to");
   if (!fromInput.value) {
     const d = new Date();
-    d.setDate(d.getDate() - 30);
+    d.setDate(d.getDate() - 5);
     fromInput.value = d.toISOString().slice(0, 10);
     toInput.value = new Date().toISOString().slice(0, 10);
   }

@@ -302,13 +302,21 @@ export async function init(user) {
   });
 }
 
+// "Today" is always IST midnight, not the device's local midnight — reception
+// tablets/PCs have shown up with the wrong system timezone (or even the wrong
+// clock), which silently pulled in the previous evening's markings.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+function startOfTodayIST() {
+  const nowIst = new Date(Date.now() + IST_OFFSET_MS);
+  return new Date(Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate()) - IST_OFFSET_MS);
+}
+
 async function loadTodayAttendance() {
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
   const { data, error } = await supabase
     .from("session_attendance")
     .select("mob_no,name,ts,event_code")
-    .gte("ts", startOfDay.toISOString())
+    .gte("ts", startOfTodayIST().toISOString())
     .order("ts", { ascending: false });
   return error ? [] : (data || []);
 }
