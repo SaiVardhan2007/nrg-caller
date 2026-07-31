@@ -781,6 +781,7 @@ const WS_ADMIN_OPTIONS = ["NA", "W", "S"];
 const GENDER_ADMIN_OPTIONS = ["", "M", "F"];
 const ADMIN_TAG_TO_USERS_OPTIONS = ["", "Don't Call", "Coordinator", "Janata", "Call", "Core", "Assigned"];
 const ADMIN_TAG_OPTIONS = ["", "LIT", "Folk HYD", "Focus"];
+const GYC_STATUS_OPTIONS = ["", "Attended", "Registered", "Not Intrested", "Not Registered"];
 
 // every column-header filter dropdown in Master Contact, paired with the
 // contacts column it filters on.
@@ -791,6 +792,7 @@ const COLUMN_FILTER_FIELDS = [
   ["contacts-filter-tag", "admin_tag"],
   ["contacts-filter-cultivation", "core_cultivation"],
   ["contacts-filter-purpose", "calling_purpose"],
+  ["contacts-filter-gyc-status", "gyc_status"],
 ];
 
 // free-text columns (Name, PG Name) only ever offer an All / Blank Only
@@ -842,7 +844,7 @@ async function syncCoordinatorUser(contact, tagValue) {
 
 async function renderContactsTable(searchTerm = "") {
   const tbody = document.getElementById("contacts-table-body");
-  tbody.innerHTML = `<tr><td colspan="15" class="loading-row">Loading contacts…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="16" class="loading-row">Loading contacts…</td></tr>`;
 
   const sortSelect = document.getElementById("contacts-sort");
   const sortVal = sortSelect ? sortSelect.value : "s_no-asc";
@@ -891,11 +893,11 @@ async function renderContactsTable(searchTerm = "") {
 
   const { data, error } = await query.limit(2000);
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="15" class="loading-row">Could not load contacts.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="16" class="loading-row">Could not load contacts.</td></tr>`;
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="15" class="loading-row">No contacts found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="16" class="loading-row">No contacts found.</td></tr>`;
     return;
   }
 
@@ -974,6 +976,11 @@ async function renderContactsTable(searchTerm = "") {
         <select class="inline-edit" data-field="calling_purpose">
           <option value="">—</option>
           ${eventsCache.map((e) => `<option value="${e.code}" ${e.code === (c.calling_purpose || "") ? "selected" : ""}>${e.code}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="GYC Status">
+        <select class="inline-edit" data-field="gyc_status">
+          ${GYC_STATUS_OPTIONS.map((t) => `<option value="${t}" ${t === (c.gyc_status || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
         </select>
       </td>
       <td data-label="Admin Review"><button class="cell-chip admin-review-link" data-id="${c.id}" data-name="${escapeHtml(c.name)}" data-review="${escapeHtml(c.admin_remarks || "")}">${c.admin_remarks ? "✎ Edit" : "+ Add"}</button></td>
@@ -1163,6 +1170,7 @@ async function openContactInfoModal(kind, mob, name, isNewContact = false) {
         { name: "Admin Tag", value: escapeHtml(contact.admin_tag || "—") },
         { name: "Core Cultivation", value: escapeHtml(contact.core_cultivation || "—") },
         { name: "Calling Purpose", value: escapeHtml(contact.calling_purpose || "—") },
+        { name: "GYC Status", value: escapeHtml(contact.gyc_status || "—") },
         { name: "Admin Remarks", value: escapeHtml(contact.admin_remarks || "—") }
       ];
       tbody.innerHTML = fields.map(f => `
@@ -1357,7 +1365,7 @@ function wireContactsSearch() {
 
 const CONTACT_CSV_HEADERS = [
   "S No", "Time Stamp", "Name", "Phone", "PG Name", "Profession", "Gender", "Sessions", "Calls", "Admin Tag to Users",
-  "Admin Tag", "Core Cultivation", "Calling Purpose", "Company Name", "Admin Remarks",
+  "Admin Tag", "Core Cultivation", "Calling Purpose", "GYC Status", "Company Name", "Admin Remarks",
 ];
 
 let contactsImportExportWired = false;
@@ -1372,7 +1380,7 @@ function wireContactsImportExport() {
         c.s_no ?? i + 1, c.created_at ? new Date(c.created_at).toLocaleString() : "", c.name, c.mob_no,
         c.pg_name || "", c.ws || "NA", c.gender || "", c.sessions_count, c.calls_count,
         c.admin_tag_to_users || "", c.admin_tag || "", c.core_cultivation || "", c.calling_purpose || "",
-        c.company_name || "", c.admin_remarks || "",
+        c.gyc_status || "", c.company_name || "", c.admin_remarks || "",
       ]);
     });
     downloadCSV(`nrg-master-contact-${todayStamp()}.csv`, rows);

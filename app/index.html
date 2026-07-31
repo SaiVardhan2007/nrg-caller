@@ -270,11 +270,22 @@
                   <option value="">—</option>
                 </select>
               </th>
+              <th>
+                <div class="th-label">GYC Status</div>
+                <select id="contacts-filter-gyc-status" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                  <option value="Attended">Attended</option>
+                  <option value="Registered">Registered</option>
+                  <option value="Not Intrested">Not Intrested</option>
+                  <option value="Not Registered">Not Registered</option>
+                </select>
+              </th>
               <th>Admin Review</th><th></th>
             </tr>
           </thead>
           <tbody id="contacts-table-body">
-            <tr><td colspan="15" class="loading-row">Loading contacts…</td></tr>
+            <tr><td colspan="16" class="loading-row">Loading contacts…</td></tr>
           </tbody>
         </table>
       </div>
