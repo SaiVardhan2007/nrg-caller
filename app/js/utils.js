@@ -6,6 +6,14 @@ export function formatPhone(mob) {
   return d.slice(0, 5) + " " + d.slice(5);
 }
 
+// Strips everything but digits, then keeps the last 10 — so pasting with a
+// "+91"/"091" country code or spaces/dashes still lands on the real 10-digit
+// number instead of getting cut off at whatever came first.
+export function normalizePhoneInput(raw) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
 export function telHref(mob) {
   return "tel:+91" + String(mob || "").replace(/\D/g, "");
 }

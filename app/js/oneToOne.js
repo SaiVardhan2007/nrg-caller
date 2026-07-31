@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, formatPhone, escapeHtml } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, normalizePhoneInput } from "./utils.js";
 import { setSession } from "./auth.js";
 
 /* ======================= ADMIN: One to One ======================= */
@@ -120,7 +120,7 @@ function wireOneToOneSearch() {
   let found = null;
 
   input.oninput = async (e) => {
-    const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+    const digits = normalizePhoneInput(e.target.value);
     e.target.value = digits;
     resultEl.classList.add("hidden");
     notFoundEl.classList.add("hidden");

@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, formatPhone, escapeHtml } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, normalizePhoneInput } from "./utils.js";
 
 let wired = false;
 
@@ -18,12 +18,12 @@ export async function init(currentUser) {
   const submitBtn = document.getElementById("collection-submit");
 
   phoneInput.addEventListener("input", (e) => {
-    e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10);
+    e.target.value = normalizePhoneInput(e.target.value);
   });
 
   submitBtn.addEventListener("click", async () => {
     const name = nameInput.value.trim();
-    const phone = phoneInput.value.trim();
+    const phone = normalizePhoneInput(phoneInput.value);
     const profession = professionSelect.value;
     const gender = genderSelect.value;
     const staying = stayingInput.value.trim();

@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { STORAGE_BUCKET } from "./config.js";
-import { showToast, formatPhone, escapeHtml, downloadCSV, exportTableToCSV, parseCSV, compressImageFile } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, downloadCSV, exportTableToCSV, parseCSV, compressImageFile, normalizePhoneInput } from "./utils.js";
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
@@ -48,15 +48,42 @@ function getCheckedTags(tagFilterGroup) {
   return Array.from(tagFilterGroup.querySelectorAll("input:checked")).map((cb) => cb.value);
 }
 
+// "" (both/neither checked) = no GFY filter, "attended" = only gyc_status ===
+// 'Attended', "not_attended" = anything else (including blank) counts as not attended.
+function getGfyFilter(gfyGroup) {
+  const attended = gfyGroup.querySelector("#gfy-filter-attended").checked;
+  const notAttended = gfyGroup.querySelector("#gfy-filter-not-attended").checked;
+  if (attended && !notAttended) return "attended";
+  if (notAttended && !attended) return "not_attended";
+  return "";
+}
+
+// Both boxes are allowed to be checked (no filter) but not both unchecked —
+// unchecking the last one just re-checks it so there's always a valid state.
+function wireGfyFilterGroup(gfyGroup) {
+  const attendedCb = gfyGroup.querySelector("#gfy-filter-attended");
+  const notAttendedCb = gfyGroup.querySelector("#gfy-filter-not-attended");
+  [attendedCb, notAttendedCb].forEach((cb) => {
+    cb.addEventListener("change", () => {
+      if (!attendedCb.checked && !notAttendedCb.checked) {
+        cb.checked = true;
+        showToast("At least one GFY filter must stay enabled.", "error");
+      }
+    });
+  });
+}
+
 export async function initUsers() {
   const eventSelect = document.getElementById("event-select");
   const tagFilterGroup = document.getElementById("tag-filter-group");
+  const gfyGroup = document.getElementById("gfy-filter-group");
 
   // these round-trips are all independent — run them together instead of
   // one after another, since that was adding ~2s to this page's load.
-  const [, tagFilterValue] = await Promise.all([
+  const [, tagFilterValue, gfyFilterValue] = await Promise.all([
     loadEvents(),
     getSetting("tag_filter"),
+    getSetting("gfy_filter"),
     renderUsersTable(),
   ]);
   // Always default to "All Events" here regardless of whichever single
@@ -65,9 +92,12 @@ export async function initUsers() {
   fillEventSelect(eventSelect, "__ALL__", true);
   const savedTags = (tagFilterValue || "").split(",").map((t) => t.trim()).filter(Boolean);
   tagFilterGroup.querySelectorAll("input").forEach((cb) => { cb.checked = savedTags.includes(cb.value); });
+  gfyGroup.querySelector("#gfy-filter-attended").checked = gfyFilterValue !== "not_attended";
+  gfyGroup.querySelector("#gfy-filter-not-attended").checked = gfyFilterValue !== "attended";
 
-  wireAssignButton(eventSelect, tagFilterGroup);
-  wireRebalanceButton(eventSelect, tagFilterGroup);
+  wireAssignButton(eventSelect, tagFilterGroup, gfyGroup);
+  wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup);
+  wireGfyFilterGroup(gfyGroup);
   wireDisassignButton();
   wireAutoAssignSelectAll();
   wireAddUserModal();
@@ -324,11 +354,13 @@ function distributePool(pool, eligible, assignedCount, eventCode) {
 // Rebalance, and (in SQL) the continuous trigger.
 // eventCode === "__ALL__" pools contacts across every event at once (each one
 // still keeps its own calling_purpose as its assignment's event_code).
-async function fetchEventContactPool(eventCode, tagFilters) {
+// gfyFilter: "" (no filter), "attended" (gyc_status === 'Attended' only), or
+// "not_attended" (anything else, including blank, counts as not attended).
+async function fetchEventContactPool(eventCode, tagFilters, gfyFilter = "") {
   const allEvents = eventCode === "__ALL__";
   let query = supabase
     .from("contacts")
-    .select("id,core_cultivation,admin_tag_to_users,calling_purpose");
+    .select("id,core_cultivation,admin_tag_to_users,calling_purpose,gyc_status");
   query = allEvents ? query.not("calling_purpose", "is", null) : query.eq("calling_purpose", eventCode);
   if (tagFilters.length) {
     // When specific tags are selected, only include contacts with those tags
@@ -336,6 +368,11 @@ async function fetchEventContactPool(eventCode, tagFilters) {
   } else {
     // No tag filter: include all except Don't Call (nulls are included)
     query = query.or("admin_tag_to_users.is.null,admin_tag_to_users.neq.Don't Call");
+  }
+  if (gfyFilter === "attended") {
+    query = query.eq("gyc_status", "Attended");
+  } else if (gfyFilter === "not_attended") {
+    query = query.or("gyc_status.is.null,gyc_status.neq.Attended");
   }
   const { data, error } = await query;
   if (error) throw error;
@@ -447,7 +484,7 @@ function wireAutoAssignSelectAll() {
   };
 }
 
-function wireAssignButton(eventSelect, tagFilterGroup) {
+function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup) {
   const btn = document.getElementById("assign-btn");
   const summary = document.getElementById("assign-summary");
   btn.onclick = async () => {
@@ -463,6 +500,7 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
 
       const eventCode = eventSelect.value;
       const tagFilters = getCheckedTags(tagFilterGroup);
+      const gfyFilter = getGfyFilter(gfyGroup);
 
       // 2. Archive and remove all existing assignments across all events first.
       // This ensures no user is assigned to more than one event simultaneously
@@ -474,11 +512,12 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
       // alone, since Reception/Analytics rely on that setting elsewhere.
       if (eventCode !== "__ALL__") await setSetting("current_event", eventCode);
       await setSetting("tag_filter", tagFilters.join(", "));
+      await setSetting("gfy_filter", gfyFilter);
 
       // existingForEvent will now be empty since we cleared it above
       const alreadyAssignedIds = new Set();
 
-      const pool = (await fetchEventContactPool(eventCode, tagFilters)).filter((c) => !alreadyAssignedIds.has(c.id));
+      const pool = (await fetchEventContactPool(eventCode, tagFilters, gfyFilter)).filter((c) => !alreadyAssignedIds.has(c.id));
 
       // 3. Read the settings directly from the DOM to avoid race conditions with unsaved inputs
       const eligible = [];
@@ -564,7 +603,7 @@ function wireAssignButton(eventSelect, tagFilterGroup) {
   };
 }
 
-function wireRebalanceButton(eventSelect, tagFilterGroup) {
+function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup) {
   const btn = document.getElementById("rebalance-btn");
   const summary = document.getElementById("assign-summary");
   btn.onclick = async () => {
@@ -573,8 +612,9 @@ function wireRebalanceButton(eventSelect, tagFilterGroup) {
     try {
       const eventCode = eventSelect.value;
       const tagFilters = getCheckedTags(tagFilterGroup);
+      const gfyFilter = getGfyFilter(gfyGroup);
 
-      const eligiblePool = await fetchEventContactPool(eventCode, tagFilters);
+      const eligiblePool = await fetchEventContactPool(eventCode, tagFilters, gfyFilter);
 
       let existingQuery = supabase.from("assignments").select("id,contact_id,user_name,status");
       if (eventCode !== "__ALL__") existingQuery = existingQuery.eq("event_code", eventCode);
@@ -636,10 +676,13 @@ function wireAddUserModal() {
   const cancelBtn = document.getElementById("add-user-cancel");
   const submitBtn = document.getElementById("add-user-submit");
   const errorEl = document.getElementById("add-user-error");
+  const phoneInput = document.getElementById("add-user-phone");
+
+  phoneInput.addEventListener("input", (e) => { e.target.value = normalizePhoneInput(e.target.value); });
 
   openBtn.onclick = () => {
     document.getElementById("add-user-name").value = "";
-    document.getElementById("add-user-phone").value = "";
+    phoneInput.value = "";
     document.getElementById("add-user-role").value = "Coordinator";
     document.getElementById("add-user-limit").value = "";
     document.getElementById("add-user-auto").checked = true;
@@ -653,7 +696,7 @@ function wireAddUserModal() {
   submitBtn.onclick = async () => {
     if (saving) return;
     const name = document.getElementById("add-user-name").value.trim();
-    const phone = document.getElementById("add-user-phone").value.trim();
+    const phone = normalizePhoneInput(phoneInput.value);
     const role = document.getElementById("add-user-role").value;
     const limitVal = document.getElementById("add-user-limit").value;
     const auto = document.getElementById("add-user-auto").checked;
@@ -937,7 +980,12 @@ async function renderContactsTable(searchTerm = "") {
   }
 
   if (searchTerm) {
-    query = query.or(`name.ilike.%${searchTerm}%,mob_no.ilike.%${searchTerm}%`);
+    // A pasted phone number may carry a "+91"/country-code prefix or spaces —
+    // also try the normalized last-10-digits so it still matches mob_no.
+    const normalizedPhone = normalizePhoneInput(searchTerm);
+    query = normalizedPhone.length === 10 && normalizedPhone !== searchTerm
+      ? query.or(`name.ilike.%${searchTerm}%,mob_no.ilike.%${searchTerm}%,mob_no.ilike.%${normalizedPhone}%`)
+      : query.or(`name.ilike.%${searchTerm}%,mob_no.ilike.%${searchTerm}%`);
   }
 
   // "All" (default) applies no filter; picking a real value shows only rows
@@ -1305,45 +1353,6 @@ function wireContactInfoModal() {
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 }
 
-async function openEventCallsModal(userName, isAll, eventCode, eventName, fromTs, toTs) {
-  const modal = document.getElementById("contact-info-modal");
-  document.getElementById("contact-info-title").textContent = `${eventName} — Calls Made`;
-  document.getElementById("contact-info-sub").textContent = isAll ? "All Users (Combined)" : userName;
-  const thead = document.getElementById("contact-info-thead");
-  const tbody = document.getElementById("contact-info-body");
-  const callerHeader = isAll ? "<th>Caller</th>" : "";
-  thead.innerHTML = `<tr><th>Time</th>${callerHeader}<th>Contact</th><th>Phone</th><th>Status</th></tr>`;
-  tbody.innerHTML = `<tr><td class="loading-row">Loading…</td></tr>`;
-  document.getElementById("contact-info-export-btn").classList.add("hidden");
-  document.getElementById("contact-info-search").classList.add("hidden");
-  modal.classList.add("active");
-
-  let query = supabase
-    .from("call_responses")
-    .select("ts,caller_name,contact_name,mob_no,remarks,addl_remarks")
-    .eq("event_code", eventCode)
-    .order("ts", { ascending: false });
-  if (!isAll) query = query.eq("caller_name", userName);
-  if (fromTs) query = query.gte("ts", fromTs);
-  if (toTs) query = query.lte("ts", toTs);
-  const { data } = await query;
-
-  // group rows by caller so one person's calls sit together, not interleaved with others'
-  if (data) data.sort((a, b) => a.caller_name.localeCompare(b.caller_name));
-
-  const colspan = isAll ? 5 : 4;
-  tbody.innerHTML = (data && data.length)
-    ? data.map((r) => `
-        <tr>
-          <td data-label="Time">${new Date(r.ts).toLocaleString()}</td>
-          ${isAll ? `<td data-label="Caller">${escapeHtml(r.caller_name)}</td>` : ""}
-          <td data-label="Contact">${escapeHtml(r.contact_name || "")}</td>
-          <td data-label="Phone">${formatPhone(r.mob_no)}</td>
-          <td data-label="Status">${escapeHtml(r.remarks)}${r.addl_remarks ? " — " + escapeHtml(r.addl_remarks) : ""}</td>
-        </tr>`).join("")
-    : `<tr><td colspan="${colspan}" class="loading-row">No calls made for this event in the selected range.</td></tr>`;
-}
-
 let adminReviewContactId = null;
 
 function openAdminReviewModal(contactId, name, existingReview) {
@@ -1499,14 +1508,16 @@ function openAddContactModal() {
 
 function wireAddContactModal() {
   const modal = document.getElementById("add-contact-modal");
+  const phoneInput = document.getElementById("add-contact-phone");
   document.getElementById("add-contact-btn").onclick = openAddContactModal;
   document.getElementById("add-contact-cancel").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+  phoneInput.addEventListener("input", (e) => { e.target.value = normalizePhoneInput(e.target.value); });
 
   let saving = false;
   document.getElementById("add-contact-submit").onclick = async () => {
     if (saving) return;
-    const phone = document.getElementById("add-contact-phone").value.trim();
+    const phone = normalizePhoneInput(phoneInput.value);
     const name = document.getElementById("add-contact-name").value.trim();
     const errorEl = document.getElementById("add-contact-error");
     if (!name || !/^[0-9]{10}$/.test(phone)) {
@@ -1660,8 +1671,6 @@ export async function initAnalytics() {
       const rows = [
         [`Calls Made: ${document.getElementById("analytics-total-calls").textContent}`],
         [],
-        ["By Event"], ...readTable(document.getElementById("analytics-by-event-body").closest("table")),
-        [],
         ["Currently Assigned Contacts"], ...readTable(document.getElementById("analytics-assigned-body").closest("table")),
         [],
         ["Core Cultivation Health"], ...readTable(document.getElementById("analytics-cultivation-body").closest("table")),
@@ -1742,18 +1751,21 @@ function wireGeneralDataModal() {
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
   let generalDataZoom = 100;
-  const zoomWrap = document.getElementById("general-data-table-wrap");
+  const zoomBox = document.getElementById("general-data-modal-box");
   const zoomLevel = document.getElementById("general-data-zoom-level");
   const applyGeneralDataZoom = () => {
-    zoomWrap.style.zoom = generalDataZoom + "%";
+    // `zoom` (not transform: scale) re-lays out the whole modal box at the
+    // target size — text and borders stay crisp for screenshots instead of
+    // being rastered/blurred the way a CSS transform scale would be.
+    zoomBox.style.zoom = generalDataZoom + "%";
     zoomLevel.textContent = generalDataZoom + "%";
   };
   document.getElementById("general-data-zoom-in").onclick = () => {
-    generalDataZoom = Math.min(150, generalDataZoom + 10);
+    generalDataZoom = Math.min(200, generalDataZoom + 10);
     applyGeneralDataZoom();
   };
   document.getElementById("general-data-zoom-out").onclick = () => {
-    generalDataZoom = Math.max(50, generalDataZoom - 10);
+    generalDataZoom = Math.max(40, generalDataZoom - 10);
     applyGeneralDataZoom();
   };
 
@@ -1983,60 +1995,20 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   document.getElementById("analytics-total-calls").textContent = (callsInRange || []).length;
   document.getElementById("analytics-positive-calls").textContent = outcomeCounts.positive;
 
-  // by-event: assigned (live for the current event, historical rounds otherwise —
-  // switching events snapshots the outgoing round then clears the board) / called / left.
-  // "called" is scoped to the same from/to range as the Calls Made card above,
-  // so the count here always matches what the click-through popup shows.
-  const eventsToShow = eventFilter ? eventsCache.filter((e) => e.code === eventFilter) : eventsCache;
-  let rangedCallsQuery = supabase.from("call_responses").select("event_code");
-  if (!isAll) rangedCallsQuery = rangedCallsQuery.eq("caller_name", userName);
-  if (fromTs) rangedCallsQuery = rangedCallsQuery.gte("ts", fromTs);
-  if (toTs) rangedCallsQuery = rangedCallsQuery.lte("ts", toTs);
   let liveAssignmentsQuery = supabase.from("assignments").select("event_code");
   if (!isAll) liveAssignmentsQuery = liveAssignmentsQuery.eq("user_name", userName);
-  let roundsQuery = supabase.from("assignment_rounds").select("event_code,assigned_count,called_count,left_count,round_ended_at");
-  if (!isAll) roundsQuery = roundsQuery.eq("user_name", userName);
 
   let pendingQuery = supabase.from("assignments").select("id", { count: "exact", head: true }).in("status", ["Not Done", "yet to call", ""]);
   if (eventFilter) pendingQuery = pendingQuery.eq("event_code", eventFilter);
   if (!isAll) pendingQuery = pendingQuery.eq("user_name", userName);
 
-  const [{ count: pendingCount }, { data: liveAssignments }, { data: rounds }, { data: rangedCalls }] = await Promise.all([
+  const [{ count: pendingCount }, { data: liveAssignments }] = await Promise.all([
     pendingQuery,
     liveAssignmentsQuery,
-    roundsQuery,
-    rangedCallsQuery,
   ]);
   if (isStale()) return;
 
   document.getElementById("analytics-pending-calls").textContent = pendingCount || 0;
-
-  const liveCounts = {};
-  (liveAssignments || []).forEach((a) => { liveCounts[a.event_code] = (liveCounts[a.event_code] || 0) + 1; });
-  
-  // Every time admin (re-)assigns an event, the outgoing round is snapshotted
-  // into a fresh set of rows here — so an event that's been assigned multiple
-  // times over its life has multiple rounds on file. Only the most recent
-  // round represents "how things stand", so sum within that round only
-  // instead of across every historical round ever taken (which double/triple
-  // counted and inflated Total Assigned).
-  const roundsByEvent = {};
-  (rounds || []).forEach((r) => {
-    (roundsByEvent[r.event_code] || (roundsByEvent[r.event_code] = [])).push(r);
-  });
-  const roundTotals = {};
-  const roundCalled = {};
-  const roundLeft = {};
-  Object.entries(roundsByEvent).forEach(([code, rows]) => {
-    const latestTs = rows.reduce((max, r) => (r.round_ended_at > max ? r.round_ended_at : max), rows[0].round_ended_at);
-    const latestRows = rows.filter((r) => r.round_ended_at === latestTs);
-    roundTotals[code] = latestRows.reduce((sum, r) => sum + r.assigned_count, 0);
-    roundCalled[code] = latestRows.reduce((sum, r) => sum + (r.called_count || 0), 0);
-    roundLeft[code] = latestRows.reduce((sum, r) => sum + (r.left_count || 0), 0);
-  });
-  
-  const callTotals = {};
-  (rangedCalls || []).forEach((c) => { if (c.event_code) callTotals[c.event_code] = (callTotals[c.event_code] || 0) + 1; });
 
   // Total Assigned reflects only who is actually assigned right now (the live
   // round) — matching the "Assigned Contacts Details" drill-down, which can
@@ -2045,41 +2017,6 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   // round totals here made the tile disagree with its own drill-down.
   const totalAssigned = (liveAssignments || []).filter((a) => !eventFilter || a.event_code === eventFilter).length;
   document.getElementById("analytics-total-assigned").textContent = totalAssigned;
-
-  const byEventBody = document.getElementById("analytics-by-event-body");
-  const eventRows = eventsToShow.map((e, idx) => {
-    let assigned = 0;
-    let called = 0;
-    let left = 0;
-
-    if (e.code === currentEventCode) {
-      assigned = liveCounts[e.code] || 0;
-      called = callTotals[e.code] || 0;
-      left = Math.max(assigned - called, 0);
-    } else {
-      assigned = roundTotals[e.code] || 0;
-      called = roundCalled[e.code] || 0;
-      left = roundLeft[e.code] || 0;
-      // Fallback for older legacy data
-      if (assigned > 0 && called === 0 && left === 0) {
-        left = assigned;
-      }
-    }
-    return `
-      <tr class="clickable-row" data-event-code="${e.code}" data-event-name="${escapeHtml(e.name)}">
-        <td data-label="S.No">${idx + 1}</td>
-        <td data-label="Event">${escapeHtml(e.name)}</td>
-        <td data-label="Assigned">${assigned}</td>
-        <td data-label="Called">${called}</td>
-        <td data-label="Pending">${left}</td>
-      </tr>`;
-  }).join("");
-  byEventBody.innerHTML = eventRows || `<tr><td colspan="5" class="loading-row">No data yet.</td></tr>`;
-  byEventBody.querySelectorAll("tr[data-event-code]").forEach((row) => {
-    row.addEventListener("click", () => {
-      openEventCallsModal(userName, isAll, row.dataset.eventCode, row.dataset.eventName, fromTs, toTs);
-    });
-  });
 
   // currently assigned contacts (always reflects the live/current round)
   // If no current event is set, show all live assignments across every event

@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { formatPhone, debounce, showToast, timeHM, escapeHtml } from "./utils.js";
+import { formatPhone, debounce, showToast, timeHM, escapeHtml, normalizePhoneInput } from "./utils.js";
 
 let currentUser = null;
 let foundContact = null;
@@ -148,7 +148,7 @@ export async function init(user) {
   updateNewSubmitGating();
 
   searchInput.addEventListener("input", (e) => {
-    const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+    const digits = normalizePhoneInput(e.target.value);
     e.target.value = digits;
     resultEl.classList.add("hidden");
     notFoundEl.classList.add("hidden");

@@ -15,6 +15,7 @@ declare
   cur_event text;
   tag_filter_raw text;
   tag_list text[];
+  gfy_filter_raw text;
   target_user text;
 begin
   select value into cur_event from settings where key = 'current_event';
@@ -44,6 +45,16 @@ begin
     if new.admin_tag_to_users is null or not (new.admin_tag_to_users = any(tag_list)) then
       return new;
     end if;
+  end if;
+
+  -- GFY filter: 'attended' only lets gyc_status = 'Attended' through;
+  -- 'not_attended' lets everything else through (including blank).
+  select value into gfy_filter_raw from settings where key = 'gfy_filter';
+  if gfy_filter_raw = 'attended' and new.gyc_status is distinct from 'Attended' then
+    return new;
+  end if;
+  if gfy_filter_raw = 'not_attended' and new.gyc_status = 'Attended' then
+    return new;
   end if;
 
   -- already assigned for this event? nothing to do

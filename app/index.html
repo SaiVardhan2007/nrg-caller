@@ -121,6 +121,11 @@
             <label class="tag-check"><input type="checkbox" value="Core" /> Core</label>
             <label class="tag-check"><input type="checkbox" value="Assigned" /> Assigned</label>
           </div>
+          <div class="field inline tag-check-group" id="gfy-filter-group">
+            <span>GFY Filter</span>
+            <label class="tag-check"><input type="checkbox" id="gfy-filter-attended" checked /> GFY Attended</label>
+            <label class="tag-check"><input type="checkbox" id="gfy-filter-not-attended" checked /> GFY Not Attended</label>
+          </div>
           <button id="assign-btn" class="btn btn-primary">Assign Contacts</button>
           <button id="rebalance-btn" class="btn btn-secondary">⚖ Rebalance Unfinished</button>
           <button id="disassign-btn" class="btn btn-secondary" style="color:var(--danger); border-color:var(--danger);">✕ Disassign All</button>
@@ -326,16 +331,6 @@
       </div>
 
       <div class="panel">
-        <h3 class="section-title">By Event — Assigned / Called / Pending</h3>
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead><tr><th>S.No</th><th>Event</th><th>Assigned</th><th>Called</th><th>Pending</th></tr></thead>
-            <tbody id="analytics-by-event-body"><tr><td colspan="5" class="loading-row">Pick a user above.</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="panel">
         <h3 class="section-title">Currently Assigned Contacts</h3>
         <div class="table-wrap">
           <table class="data-table">
@@ -459,7 +454,7 @@
       <div class="panel">
         <h3 class="section-title">Add a Contact</h3>
         <label class="field"><span>Name</span><input id="collection-name" type="text" /></label>
-        <label class="field"><span>Phone Number</span><input id="collection-phone" type="tel" inputmode="numeric" maxlength="10" /></label>
+        <label class="field"><span>Phone Number</span><input id="collection-phone" type="tel" inputmode="numeric" /></label>
         <label class="field">
           <span>Profession</span>
           <select id="collection-profession">
@@ -922,7 +917,7 @@
   <div class="modal-box">
     <h3 id="add-user-title">Add User</h3>
     <label class="field"><span>User Name</span><input id="add-user-name" type="text" /></label>
-    <label class="field"><span>Phone (Password)</span><input id="add-user-phone" type="tel" maxlength="10" /></label>
+    <label class="field"><span>Phone (Password)</span><input id="add-user-phone" type="tel" inputmode="numeric" /></label>
     <label class="field"><span>Role</span>
       <select id="add-user-role"><option>Coordinator</option><option>Admin</option><option>Reception</option></select>
     </label>
@@ -939,7 +934,7 @@
 <div id="add-contact-modal" class="modal">
   <div class="modal-box">
     <h3 id="add-contact-title">Add Contact</h3>
-    <label class="field"><span>Phone Number</span><input id="add-contact-phone" type="tel" maxlength="10" /></label>
+    <label class="field"><span>Phone Number</span><input id="add-contact-phone" type="tel" inputmode="numeric" /></label>
     <label class="field"><span>Name</span><input id="add-contact-name" type="text" /></label>
     <label class="field"><span>PG Name</span><input id="add-contact-pg" type="text" /></label>
     <label class="field"><span>Company / College Name</span><input id="add-contact-company" type="text" /></label>
@@ -1079,7 +1074,7 @@
 </div>
 
 <div id="general-data-modal" class="modal">
-  <div class="modal-box modal-large">
+  <div class="modal-box modal-large" id="general-data-modal-box">
     <div class="modal-title-row">
       <h3>General Data — All Users</h3>
       <div class="zoom-controls">
@@ -1089,7 +1084,7 @@
       </div>
     </div>
     <p class="muted-text">Live snapshot of every caller with contacts currently assigned to them.</p>
-    <div id="general-data-table-wrap" class="table-wrap" style="max-height:60vh;">
+    <div id="general-data-table-wrap" class="table-wrap">
       <table class="data-table">
         <thead><tr><th>S.No</th><th>User</th><th>Assigned</th><th>Positive</th><th>Pending</th><th>Completed %</th></tr></thead>
         <tbody id="general-data-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>

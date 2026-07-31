@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit } from "./utils.js";
+import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit, normalizePhoneInput } from "./utils.js";
 
 const STATUS_DEFAULT = ""; // "Not Done" is stored as an empty status, not the literal text
 const STATUS_OPTIONS = [
@@ -77,7 +77,7 @@ function wireSearch() {
 
 function applySearchFilter() {
   const q = document.getElementById("caller-search").value.trim().toLowerCase();
-  const qDigits = q.replace(/\D/g, "");
+  const qDigits = normalizePhoneInput(q);
   document.querySelectorAll("#caller-cards .call-card").forEach((card) => {
     if (!q) { card.classList.remove("hidden"); return; }
     const name = (card.querySelector(".call-card-name")?.textContent || "").toLowerCase();
