@@ -775,6 +775,84 @@ export async function initContacts() {
   wireAdminReviewModal();
   wireDeleteContactModal();
   wireContactsImportExport();
+  wireContactsColumnReorder();
+}
+
+// Master Contact's column order is user-draggable (like Excel) and persisted
+// locally per browser; the "" key is the trailing, non-draggable Delete
+// column, always kept last so dragging can never push it out of place.
+const CONTACTS_COLUMN_ORDER_KEY = "nrg-contacts-column-order";
+const DEFAULT_CONTACTS_COLUMNS = [
+  "S.No", "Time Stamp", "Name", "Phone", "PG Name", "Profession", "Gender", "Sessions", "Calls",
+  "Admin Tag to Users", "Admin Tag", "Core Cultivation", "Calling Purpose", "GFY Status", "Admin Review", "",
+];
+
+function getContactsColumnOrder() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CONTACTS_COLUMN_ORDER_KEY));
+    if (Array.isArray(saved) && saved.length === DEFAULT_CONTACTS_COLUMNS.length && DEFAULT_CONTACTS_COLUMNS.every((k) => saved.includes(k))) {
+      return saved;
+    }
+  } catch { /* fall through to default */ }
+  return DEFAULT_CONTACTS_COLUMNS;
+}
+
+function applyContactsColumnOrder(order) {
+  const table = document.getElementById("contacts-table");
+  if (!table) return;
+  const rows = [table.querySelector("thead tr"), ...table.querySelectorAll("tbody tr")];
+  rows.forEach((row) => {
+    if (!row) return;
+    const byKey = new Map(Array.from(row.children).map((cell) => [cell.dataset.label ?? "", cell]));
+    order.forEach((key) => {
+      const cell = byKey.get(key);
+      if (cell) row.appendChild(cell);
+    });
+  });
+}
+
+let contactsColumnReorderWired = false;
+function wireContactsColumnReorder() {
+  if (contactsColumnReorderWired) return;
+  contactsColumnReorderWired = true;
+
+  const headRow = document.querySelector("#contacts-table thead tr");
+  let dragKey = null;
+
+  headRow.querySelectorAll("th[draggable='true']").forEach((th) => {
+    th.addEventListener("dragstart", () => {
+      dragKey = th.dataset.label ?? "";
+      th.classList.add("dragging-col");
+    });
+    th.addEventListener("dragend", () => {
+      th.classList.remove("dragging-col");
+      headRow.querySelectorAll("th").forEach((t) => t.classList.remove("drag-over-col"));
+    });
+    th.addEventListener("dragover", (e) => e.preventDefault());
+    th.addEventListener("dragenter", () => th.classList.add("drag-over-col"));
+    th.addEventListener("dragleave", () => th.classList.remove("drag-over-col"));
+    th.addEventListener("drop", (e) => {
+      e.preventDefault();
+      th.classList.remove("drag-over-col");
+      const dropKey = th.dataset.label ?? "";
+      if (!dragKey || dragKey === dropKey) return;
+
+      const order = getContactsColumnOrder().slice();
+      const from = order.indexOf(dragKey);
+      const to = order.indexOf(dropKey);
+      if (from === -1 || to === -1) return;
+      order.splice(from, 1);
+      order.splice(to, 0, dragKey);
+      localStorage.setItem(CONTACTS_COLUMN_ORDER_KEY, JSON.stringify(order));
+      applyContactsColumnOrder(order);
+    });
+  });
+
+  document.getElementById("contacts-reset-columns-btn").addEventListener("click", () => {
+    localStorage.removeItem(CONTACTS_COLUMN_ORDER_KEY);
+    applyContactsColumnOrder(DEFAULT_CONTACTS_COLUMNS);
+    showToast("Column order reset", "success");
+  });
 }
 
 const WS_ADMIN_OPTIONS = ["NA", "W", "S"];
@@ -988,6 +1066,8 @@ async function renderContactsTable(searchTerm = "") {
     </tr>
   `;
   }).join("");
+
+  applyContactsColumnOrder(getContactsColumnOrder());
 
   tbody.querySelectorAll(".inline-edit").forEach((el) => {
     el.addEventListener("change", async (e) => {

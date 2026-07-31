@@ -185,28 +185,29 @@
         </label>
         <button id="add-contact-btn" class="btn btn-secondary">+ Add Contact</button>
         <button id="contacts-export-btn" class="btn btn-secondary">⬇ Export CSV</button>
+        <button id="contacts-reset-columns-btn" class="btn btn-secondary" title="Restore the default column order">↺ Reset Columns</button>
       </div>
       <div class="table-wrap">
         <table class="data-table" id="contacts-table">
           <thead>
             <tr>
-              <th>S.No</th><th>Time Stamp</th>
-              <th>
+              <th draggable="true" data-label="S.No">S.No</th><th draggable="true" data-label="Time Stamp">Time Stamp</th>
+              <th draggable="true" data-label="Name">
                 <div class="th-label">Name</div>
                 <select id="contacts-filter-name" class="th-filter">
                   <option value="__ALL__">All</option>
                   <option value="__BLANK__">Blank Only</option>
                 </select>
               </th>
-              <th>Phone</th>
-              <th>
+              <th draggable="true" data-label="Phone">Phone</th>
+              <th draggable="true" data-label="PG Name">
                 <div class="th-label">PG Name</div>
                 <select id="contacts-filter-pg-name" class="th-filter">
                   <option value="__ALL__">All</option>
                   <option value="__BLANK__">Blank Only</option>
                 </select>
               </th>
-              <th>
+              <th draggable="true" data-label="Profession">
                 <div class="th-label">Profession</div>
                 <select id="contacts-filter-ws" class="th-filter">
                   <option value="__ALL__">All</option>
@@ -216,7 +217,7 @@
                   <option value="S">S</option>
                 </select>
               </th>
-              <th>
+              <th draggable="true" data-label="Gender">
                 <div class="th-label">Gender</div>
                 <select id="contacts-filter-gender" class="th-filter">
                   <option value="__ALL__">All</option>
@@ -225,15 +226,15 @@
                   <option value="F">F</option>
                 </select>
               </th>
-              <th>
+              <th draggable="true" data-label="Sessions">
                 <div class="th-label">Sessions</div>
                 <input type="number" min="0" id="contacts-filter-sessions" class="th-filter" placeholder="All" />
               </th>
-              <th>
+              <th draggable="true" data-label="Calls">
                 <div class="th-label">Calls</div>
                 <input type="number" min="0" id="contacts-filter-calls" class="th-filter" placeholder="All" />
               </th>
-              <th>
+              <th draggable="true" data-label="Admin Tag to Users">
                 <div class="th-label">Admin Tag to Users</div>
                 <select id="contacts-filter-tag-to-users" class="th-filter">
                   <option value="__ALL__">All</option>
@@ -246,7 +247,7 @@
                   <option value="Assigned">Assigned</option>
                 </select>
               </th>
-              <th>
+              <th draggable="true" data-label="Admin Tag">
                 <div class="th-label">Admin Tag</div>
                 <select id="contacts-filter-tag" class="th-filter">
                   <option value="__ALL__">All</option>
@@ -256,21 +257,21 @@
                   <option value="Focus">Focus</option>
                 </select>
               </th>
-              <th>
+              <th draggable="true" data-label="Core Cultivation">
                 <div class="th-label">Core Cultivation</div>
                 <select id="contacts-filter-cultivation" class="th-filter">
                   <option value="__ALL__">All</option>
                   <option value="">—</option>
                 </select>
               </th>
-              <th>
+              <th draggable="true" data-label="Calling Purpose">
                 <div class="th-label">Calling Purpose</div>
                 <select id="contacts-filter-purpose" class="th-filter">
                   <option value="__ALL__">All</option>
                   <option value="">—</option>
                 </select>
               </th>
-              <th>
+              <th draggable="true" data-label="GFY Status">
                 <div class="th-label">GFY Status</div>
                 <select id="contacts-filter-gyc-status" class="th-filter">
                   <option value="__ALL__">All</option>
@@ -281,7 +282,7 @@
                   <option value="Not Registered">Not Registered</option>
                 </select>
               </th>
-              <th>Admin Review</th><th></th>
+              <th draggable="true" data-label="Admin Review">Admin Review</th><th data-label=""></th>
             </tr>
           </thead>
           <tbody id="contacts-table-body">
