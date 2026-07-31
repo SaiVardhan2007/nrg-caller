@@ -978,7 +978,7 @@ async function renderContactsTable(searchTerm = "") {
           ${eventsCache.map((e) => `<option value="${e.code}" ${e.code === (c.calling_purpose || "") ? "selected" : ""}>${e.code}</option>`).join("")}
         </select>
       </td>
-      <td data-label="GYC Status">
+      <td data-label="GFY Status">
         <select class="inline-edit" data-field="gyc_status">
           ${GYC_STATUS_OPTIONS.map((t) => `<option value="${t}" ${t === (c.gyc_status || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
         </select>
@@ -1170,7 +1170,7 @@ async function openContactInfoModal(kind, mob, name, isNewContact = false) {
         { name: "Admin Tag", value: escapeHtml(contact.admin_tag || "—") },
         { name: "Core Cultivation", value: escapeHtml(contact.core_cultivation || "—") },
         { name: "Calling Purpose", value: escapeHtml(contact.calling_purpose || "—") },
-        { name: "GYC Status", value: escapeHtml(contact.gyc_status || "—") },
+        { name: "GFY Status", value: escapeHtml(contact.gyc_status || "—") },
         { name: "Admin Remarks", value: escapeHtml(contact.admin_remarks || "—") }
       ];
       tbody.innerHTML = fields.map(f => `
@@ -1365,7 +1365,7 @@ function wireContactsSearch() {
 
 const CONTACT_CSV_HEADERS = [
   "S No", "Time Stamp", "Name", "Phone", "PG Name", "Profession", "Gender", "Sessions", "Calls", "Admin Tag to Users",
-  "Admin Tag", "Core Cultivation", "Calling Purpose", "GYC Status", "Company Name", "Admin Remarks",
+  "Admin Tag", "Core Cultivation", "Calling Purpose", "GFY Status", "Company Name", "Admin Remarks",
 ];
 
 let contactsImportExportWired = false;
