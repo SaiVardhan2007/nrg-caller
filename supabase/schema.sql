@@ -280,8 +280,7 @@ insert into settings (key, value) values
   ('current_event', 'GIC'),
   ('tag_filter',    ''),          -- empty = all tags
   ('gfy_filter',    ''),          -- empty = no GFY Attended/Not Attended filter
-  ('message_text',  ''),          -- Body Text E3
-  ('poster_url',    '')
+  ('message_text',  '')           -- Body Text E3
 on conflict (key) do nothing;
 
 -- users from the Admin Page sheet

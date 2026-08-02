@@ -1,6 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { STORAGE_BUCKET } from "./config.js";
-import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, compressImageFile, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS } from "./utils.js";
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
@@ -74,10 +73,40 @@ function wireGfyFilterGroup(gfyGroup) {
   });
 }
 
+// Optional "collected between" window on top of the event/tag/GFY filters, so
+// a round can be built from just the contacts gathered during one drive. Off
+// by default — when off (or when both boxes are empty) every timestamp counts.
+// Returns null for "no time filter", else ISO bounds for contacts.created_at.
+function getTimeRange(tsGroup) {
+  if (!tsGroup || !tsGroup.querySelector("#ts-filter-enabled").checked) return null;
+  const from = tsGroup.querySelector("#ts-filter-from").value;
+  const to = tsGroup.querySelector("#ts-filter-to").value;
+  if (!from && !to) return null;
+  // datetime-local values are local wall-clock; new Date() reads them as local
+  // and toISOString converts to the UTC that created_at is stored in.
+  return {
+    from: from ? new Date(from).toISOString() : null,
+    to: to ? new Date(to).toISOString() : null,
+    label: `${from ? new Date(from).toLocaleString() : "any time"} → ${to ? new Date(to).toLocaleString() : "now"}`,
+  };
+}
+
+function wireTimestampFilter(tsGroup) {
+  if (!tsGroup) return;
+  const enabled = tsGroup.querySelector("#ts-filter-enabled");
+  const from = tsGroup.querySelector("#ts-filter-from");
+  const to = tsGroup.querySelector("#ts-filter-to");
+  enabled.addEventListener("change", () => {
+    from.disabled = to.disabled = !enabled.checked;
+    if (enabled.checked) from.focus();
+  });
+}
+
 export async function initUsers() {
   const eventSelect = document.getElementById("event-select");
   const tagFilterGroup = document.getElementById("tag-filter-group");
   const gfyGroup = document.getElementById("gfy-filter-group");
+  const tsGroup = document.getElementById("timestamp-filter-group");
 
   // these round-trips are all independent — run them together instead of
   // one after another, since that was adding ~2s to this page's load.
@@ -96,9 +125,10 @@ export async function initUsers() {
   gfyGroup.querySelector("#gfy-filter-attended").checked = gfyFilterValue !== "not_attended";
   gfyGroup.querySelector("#gfy-filter-not-attended").checked = gfyFilterValue !== "attended";
 
-  wireAssignButton(eventSelect, tagFilterGroup, gfyGroup);
-  wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup);
+  wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup);
+  wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup);
   wireGfyFilterGroup(gfyGroup);
+  wireTimestampFilter(tsGroup);
   wireDisassignButton();
   wireAutoAssignSelectAll();
   wireAddUserModal();
@@ -357,7 +387,9 @@ function distributePool(pool, eligible, assignedCount, eventCode) {
 // still keeps its own calling_purpose as its assignment's event_code).
 // gfyFilter: "" (no filter), "attended" (gyc_status === 'Attended GFY' only), or
 // "not_attended" (anything else, including blank, counts as not attended).
-async function fetchEventContactPool(eventCode, tagFilters, gfyFilter = "") {
+// timeRange: null for every timestamp, else {from, to} ISO bounds on created_at
+// (either end may be null for an open-ended window).
+async function fetchEventContactPool(eventCode, tagFilters, gfyFilter = "", timeRange = null) {
   const allEvents = eventCode === "__ALL__";
   let query = supabase
     .from("contacts")
@@ -374,6 +406,10 @@ async function fetchEventContactPool(eventCode, tagFilters, gfyFilter = "") {
     query = query.eq("gyc_status", "Attended GFY");
   } else if (gfyFilter === "not_attended") {
     query = query.or("gyc_status.is.null,gyc_status.neq.Attended GFY");
+  }
+  if (timeRange) {
+    if (timeRange.from) query = query.gte("created_at", timeRange.from);
+    if (timeRange.to) query = query.lte("created_at", timeRange.to);
   }
   const { data, error } = await query;
   if (error) throw error;
@@ -485,7 +521,7 @@ function wireAutoAssignSelectAll() {
   };
 }
 
-function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup) {
+function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
   const btn = document.getElementById("assign-btn");
   const summary = document.getElementById("assign-summary");
   btn.onclick = async () => {
@@ -505,6 +541,7 @@ function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup) {
       const eventCode = eventSelect.value;
       const tagFilters = getCheckedTags(tagFilterGroup);
       const gfyFilter = getGfyFilter(gfyGroup);
+      const timeRange = getTimeRange(tsGroup);
 
       // 2. Archive and remove all existing assignments across all events first.
       // This ensures no user is assigned to more than one event simultaneously
@@ -521,7 +558,7 @@ function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup) {
       // existingForEvent will now be empty since we cleared it above
       const alreadyAssignedIds = new Set();
 
-      const pool = (await fetchEventContactPool(eventCode, tagFilters, gfyFilter)).filter((c) => !alreadyAssignedIds.has(c.id));
+      const pool = (await fetchEventContactPool(eventCode, tagFilters, gfyFilter, timeRange)).filter((c) => !alreadyAssignedIds.has(c.id));
 
       // 3. Read the settings directly from the DOM to avoid race conditions with unsaved inputs
       const eligible = [];
@@ -595,6 +632,7 @@ function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup) {
       }
 
       summary.textContent = `Assigned ${rows.length} new contact(s) across ${eligible.length} caller(s).` +
+        (timeRange ? ` Limited to contacts collected ${timeRange.label}.` : "") +
         (unassignedCount ? ` ${unassignedCount} left unassigned (no eligible user under their limit).` : "");
       showToast("Contacts assigned successfully! 🎉", "success");
       await renderUsersTable();
@@ -607,7 +645,7 @@ function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup) {
   };
 }
 
-function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup) {
+function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
   const btn = document.getElementById("rebalance-btn");
   const summary = document.getElementById("assign-summary");
   btn.onclick = async () => {
@@ -617,8 +655,9 @@ function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup) {
       const eventCode = eventSelect.value;
       const tagFilters = getCheckedTags(tagFilterGroup);
       const gfyFilter = getGfyFilter(gfyGroup);
+      const timeRange = getTimeRange(tsGroup);
 
-      const eligiblePool = await fetchEventContactPool(eventCode, tagFilters, gfyFilter);
+      const eligiblePool = await fetchEventContactPool(eventCode, tagFilters, gfyFilter, timeRange);
 
       let existingQuery = supabase.from("assignments").select("id,contact_id,user_name,status");
       if (eventCode !== "__ALL__") existingQuery = existingQuery.eq("event_code", eventCode);
@@ -662,6 +701,7 @@ function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup) {
 
       summary.textContent = `Rebalanced ${rows.length} not-yet-called contact(s) across ${eligible.length} caller(s). ` +
         `${inProgress.length} already in-progress/completed left untouched.` +
+        (timeRange ? ` Limited to contacts collected ${timeRange.label}.` : "") +
         (unassignedCount ? ` ${unassignedCount} left unassigned (no eligible user under their limit).` : "");
       showToast("Rebalanced successfully! ⚖", "success");
       await renderUsersTable();
@@ -823,6 +863,7 @@ export async function initContacts() {
   wireDeleteContactModal();
   wireContactsImportExport();
   wireContactsColumnReorder();
+  wireContactsSelectAndAssign();
 }
 
 // Master Contact's column order is user-draggable (like Excel) and persisted
@@ -1010,8 +1051,11 @@ function populateFilterSelect(select, values, blankLabel = "—") {
 }
 
 async function renderContactsTable(searchTerm = "") {
+  // Any change of search/sort/filter rebuilds the visible set, so a selection
+  // made against the old view would be invisible but still counted — drop it.
+  clearContactSelection();
   const tbody = document.getElementById("contacts-table-body");
-  tbody.innerHTML = `<tr><td colspan="17" class="loading-row">Loading contacts…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="18" class="loading-row">Loading contacts…</td></tr>`;
 
   const sortSelect = document.getElementById("contacts-sort");
   const sortVal = sortSelect ? sortSelect.value : "s_no-asc";
@@ -1065,11 +1109,11 @@ async function renderContactsTable(searchTerm = "") {
 
   const { data, error } = await query.limit(2000);
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="17" class="loading-row">Could not load contacts.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="18" class="loading-row">Could not load contacts.</td></tr>`;
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="17" class="loading-row">No contacts found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="18" class="loading-row">No contacts found.</td></tr>`;
     return;
   }
 
@@ -1111,6 +1155,7 @@ async function renderContactsTable(searchTerm = "") {
     }
     return `
     <tr data-id="${c.id}"${rowClass ? ` class="${rowClass}"` : ""}>
+      <td class="select-col no-export" data-label="Select"><input type="checkbox" class="contact-select" /></td>
       <td data-label="S.No">${anyFilterActive ? i + 1 : (c.s_no ?? i + 1)}</td>
       <td data-label="Time Stamp">${c.created_at ? new Date(c.created_at).toLocaleString() : ""}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(c.name)}" /></td>
@@ -1163,6 +1208,17 @@ async function renderContactsTable(searchTerm = "") {
   }).join("");
 
   applyContactsColumnOrder(getContactsColumnOrder());
+  applyContactsSelectMode();
+
+  tbody.querySelectorAll(".contact-select").forEach((cb) => {
+    cb.addEventListener("change", (e) => {
+      const id = e.target.closest("tr").dataset.id;
+      if (e.target.checked) selectedContactIds.add(id);
+      else selectedContactIds.delete(id);
+      syncContactsSelectAll();
+      updateContactsAssignButton();
+    });
+  });
 
   tbody.querySelectorAll(".inline-edit").forEach((el) => {
     el.addEventListener("change", async (e) => {
@@ -1246,6 +1302,16 @@ async function renderContactsTable(searchTerm = "") {
         if (target.tagName === "INPUT" || target.tagName === "SELECT" || target.closest("button") || target.closest(".info-link") || target.closest(".admin-review-link") || target.closest("td[data-label='Phone']")) {
           return;
         }
+        // On a phone the rows stack as cards and the tick box is easy to miss,
+        // so while selecting, tapping the card is the tick.
+        if (contactsSelectMode) {
+          const cb = row.querySelector(".contact-select");
+          if (cb) {
+            cb.checked = !cb.checked;
+            cb.dispatchEvent(new Event("change"));
+          }
+          return;
+        }
         const inputMob = row.querySelector("input[data-field='mob_no']") || row.querySelector("td[data-label='Phone'] input");
         const inputName = row.querySelector("input[data-field='name']") || row.querySelector("td[data-label='Name'] input");
         const mob = inputMob ? inputMob.value : "";
@@ -1258,6 +1324,271 @@ async function renderContactsTable(searchTerm = "") {
   });
 
   lastContactsData = data;
+}
+
+/* ============ MASTER CONTACT: SELECT & ASSIGN ============
+   The Users & Assignment tab builds a round from event + tag + GFY + time
+   filters. This does the same job from the other end: sort/filter Master
+   Contact however you like, tick the contacts you want (or all of the ones
+   currently shown), and hand exactly those to the coordinators you pick. The
+   result lands in the same `assignments` table, so Assigned Count / Completed
+   Calls / Completed % on Users & Assignment report it identically. */
+
+let contactsSelectMode = false;
+const selectedContactIds = new Set();
+
+function updateContactsAssignButton() {
+  const btn = document.getElementById("contacts-assign-btn");
+  if (!btn) return;
+  btn.textContent = `Assign Selected (${selectedContactIds.size})`;
+  btn.disabled = selectedContactIds.size === 0;
+}
+
+function clearContactSelection() {
+  selectedContactIds.clear();
+  const all = document.getElementById("contacts-select-all");
+  if (all) { all.checked = false; all.indeterminate = false; }
+  updateContactsAssignButton();
+}
+
+// header checkbox reflects the rows actually on screen: all / none / partial.
+// The thead is hidden on phones, so the toolbar button mirrors it there.
+function syncContactsSelectAll() {
+  const boxes = [...document.querySelectorAll("#contacts-table-body .contact-select")];
+  const checked = boxes.filter((b) => b.checked).length;
+  const allChecked = boxes.length > 0 && checked === boxes.length;
+  const all = document.getElementById("contacts-select-all");
+  if (all) {
+    all.checked = allChecked;
+    all.indeterminate = checked > 0 && !allChecked;
+  }
+  const btn = document.getElementById("contacts-select-all-btn");
+  if (btn) btn.textContent = allChecked ? "Clear Selection" : "Select All Shown";
+}
+
+// ticks (or unticks) every row currently rendered — i.e. everything left after
+// the admin's search, header filters and sort, which is the whole point.
+function setAllShownSelected(checked) {
+  document.querySelectorAll("#contacts-table-body .contact-select").forEach((cb) => {
+    cb.checked = checked;
+    const id = cb.closest("tr").dataset.id;
+    if (checked) selectedContactIds.add(id);
+    else selectedContactIds.delete(id);
+  });
+  syncContactsSelectAll();
+  updateContactsAssignButton();
+}
+
+function applyContactsSelectMode() {
+  const table = document.getElementById("contacts-table");
+  if (table) table.classList.toggle("select-mode", contactsSelectMode);
+  ["contacts-assign-btn", "contacts-select-all-btn"].forEach((id) => {
+    document.getElementById(id)?.classList.toggle("hidden", !contactsSelectMode);
+  });
+  const modeBtn = document.getElementById("contacts-select-mode-btn");
+  if (modeBtn) modeBtn.textContent = contactsSelectMode ? "✕ Cancel Select" : "☑ Select";
+  // leaving select mode empties the set without touching the boxes, so bring
+  // the rendered ticks back in line with it either way.
+  document.querySelectorAll("#contacts-table-body .contact-select").forEach((cb) => {
+    cb.checked = selectedContactIds.has(cb.closest("tr").dataset.id);
+  });
+  syncContactsSelectAll();
+  updateContactsAssignButton();
+}
+
+let contactsSelectWired = false;
+function wireContactsSelectAndAssign() {
+  if (contactsSelectWired) return;
+  contactsSelectWired = true;
+
+  document.getElementById("contacts-select-mode-btn").addEventListener("click", () => {
+    contactsSelectMode = !contactsSelectMode;
+    if (!contactsSelectMode) clearContactSelection();
+    applyContactsSelectMode();
+  });
+
+  document.getElementById("contacts-select-all").addEventListener("change", (e) => {
+    setAllShownSelected(e.target.checked);
+  });
+
+  document.getElementById("contacts-select-all-btn").addEventListener("click", () => {
+    const boxes = [...document.querySelectorAll("#contacts-table-body .contact-select")];
+    setAllShownSelected(!(boxes.length > 0 && boxes.every((b) => b.checked)));
+  });
+
+  document.getElementById("contacts-assign-btn").addEventListener("click", openContactsAssignModal);
+
+  const modal = document.getElementById("contacts-assign-modal");
+  document.getElementById("contacts-assign-cancel").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+  document.getElementById("contacts-assign-users-all").addEventListener("change", (e) => {
+    document.querySelectorAll("#contacts-assign-users-body .assign-user-check").forEach((cb) => { cb.checked = e.target.checked; });
+  });
+  document.getElementById("contacts-assign-submit").onclick = runContactsAssign;
+}
+
+async function openContactsAssignModal() {
+  if (!selectedContactIds.size) {
+    showToast("Tick at least one contact first.", "error");
+    return;
+  }
+  const modal = document.getElementById("contacts-assign-modal");
+  const body = document.getElementById("contacts-assign-users-body");
+  document.getElementById("contacts-assign-error").classList.add("hidden");
+  document.getElementById("contacts-assign-count").textContent =
+    `${selectedContactIds.size} contact(s) selected in Master Contact.`;
+  document.getElementById("contacts-assign-replace").checked = true;
+  document.getElementById("contacts-assign-users-all").checked = false;
+  body.innerHTML = `<tr><td colspan="4" class="loading-row">Loading coordinators…</td></tr>`;
+  modal.classList.add("active");
+
+  const [{ data: users }, { data: assigned }, currentEvent] = await Promise.all([
+    supabase.from("users").select("id,user_name,call_limit,auto_assign").eq("role", "Coordinator").order("user_name"),
+    supabase.from("assignments").select("user_name"),
+    getSetting("current_event"),
+    loadEvents(),
+  ]);
+
+  // Every assignment row needs an event_code, and a hand-picked contact may
+  // have no Calling Purpose of its own — this is the fallback for those.
+  fillEventSelect(document.getElementById("contacts-assign-event"), currentEvent || "", false);
+
+  const load = {};
+  (assigned || []).forEach((a) => { load[a.user_name] = (load[a.user_name] || 0) + 1; });
+
+  body.innerHTML = (users || []).length
+    ? users.map((u) => `
+        <tr data-id="${u.id}" data-user="${escapeHtml(u.user_name)}">
+          <td><input type="checkbox" class="assign-user-check" ${u.auto_assign ? "checked" : ""} /></td>
+          <td>${escapeHtml(u.user_name)}</td>
+          <td class="assigned-count">${load[u.user_name] || 0}</td>
+          <td><input type="number" min="0" class="assign-user-limit inline-edit" value="${u.call_limit ?? ""}" placeholder="No limit" /></td>
+        </tr>`).join("")
+    : `<tr><td colspan="4" class="loading-row">No coordinators found.</td></tr>`;
+}
+
+async function runContactsAssign() {
+  const modal = document.getElementById("contacts-assign-modal");
+  const submitBtn = document.getElementById("contacts-assign-submit");
+  const errEl = document.getElementById("contacts-assign-error");
+  const summary = document.getElementById("contacts-assign-summary");
+  errEl.classList.add("hidden");
+
+  // Table order is alphabetical, which distributePool relies on to fill
+  // limited callers before the unlimited ones — keep it.
+  const eligible = [];
+  document.querySelectorAll("#contacts-assign-users-body tr[data-user]").forEach((row) => {
+    if (!row.querySelector(".assign-user-check")?.checked) return;
+    const limitVal = row.querySelector(".assign-user-limit").value.trim();
+    const parsed = parseInt(limitVal, 10);
+    eligible.push({
+      id: row.dataset.id,
+      user_name: row.dataset.user,
+      call_limit: limitVal === "" || Number.isNaN(parsed) ? null : parsed,
+    });
+  });
+  if (!eligible.length) {
+    errEl.textContent = "Select at least one coordinator to assign to.";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  const replace = document.getElementById("contacts-assign-replace").checked;
+  const fallbackEvent = document.getElementById("contacts-assign-event").value || "";
+  const confirmMsg = `Assign ${selectedContactIds.size} selected contact(s) to ${eligible.length} coordinator(s)?` +
+    (replace
+      ? " Every caller's current list is archived and replaced first."
+      : " Existing assignments are kept, and any selected contact already assigned is skipped.");
+  if (!confirm(confirmMsg)) return;
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Assigning…";
+  try {
+    // Limits typed here are the same field Users & Assignment edits — persist
+    // them so both screens agree on each caller's cap.
+    await Promise.all(eligible.map((u) => supabase.from("users").update({ call_limit: u.call_limit }).eq("id", u.id)));
+
+    const picked = lastContactsData.filter((c) => selectedContactIds.has(c.id));
+    // "Don't Call" and coordinators-as-contacts are never callable anywhere
+    // else in the app, so an explicit tick doesn't override that either.
+    const blockedTag = picked.filter((c) => c.admin_tag_to_users === "Don't Call" || c.admin_tag_to_users === "Coordinator");
+    let pool = picked.filter((c) => !blockedTag.includes(c));
+    const noEvent = pool.filter((c) => !(c.calling_purpose || fallbackEvent));
+    pool = pool.filter((c) => c.calling_purpose || fallbackEvent);
+
+    const assignedCount = {};
+    eligible.forEach((u) => { assignedCount[u.user_name] = 0; });
+
+    let alreadyAssigned = 0;
+    if (replace) {
+      await archiveAndClearAssignments();
+    } else {
+      // keep limits honest across clicks: existing load counts toward the cap,
+      // and a contact somebody already holds isn't handed out twice.
+      const { data: existing, error: exErr } = await supabase.from("assignments").select("contact_id,user_name");
+      if (exErr) throw exErr;
+      const taken = new Set((existing || []).map((a) => a.contact_id));
+      (existing || []).forEach((a) => { if (a.user_name in assignedCount) assignedCount[a.user_name]++; });
+      const before = pool.length;
+      pool = pool.filter((c) => !taken.has(c.id));
+      alreadyAssigned = before - pool.length;
+    }
+
+    // Core Cultivation still wins where it can — a cultivated contact goes to
+    // their cultivator if that person is one of the selected callers and has
+    // room; otherwise they fall into the shared pool rather than being dropped.
+    const rows = [];
+    const generalPool = [];
+    const eligibleMap = {};
+    eligible.forEach((u) => { eligibleMap[u.user_name] = u; });
+    pool.forEach((c) => {
+      const cultivator = c.core_cultivation;
+      if (cultivator && cultivator in assignedCount) {
+        const cap = eligibleMap[cultivator].call_limit == null ? Infinity : eligibleMap[cultivator].call_limit;
+        if (assignedCount[cultivator] < cap) {
+          rows.push({ contact_id: c.id, user_name: cultivator, event_code: c.calling_purpose || fallbackEvent });
+          assignedCount[cultivator]++;
+          return;
+        }
+      }
+      generalPool.push(c);
+    });
+
+    const { rows: generalRows, unassignedCount } = distributePool(generalPool, eligible, assignedCount, fallbackEvent);
+    rows.push(...generalRows);
+
+    if (rows.length) {
+      const { error: insErr } = await supabase.from("assignments").insert(rows);
+      if (insErr) throw insErr;
+    }
+
+    const { data: freshUsers } = await supabase.from("users").select("id,user_name,role,call_limit,auto_assign");
+    if (freshUsers) {
+      usersCache = freshUsers;
+      await mirrorAssignedCounts(usersCache);
+    }
+
+    const notes = [
+      unassignedCount ? `${unassignedCount} left unassigned (no selected caller under their limit)` : "",
+      alreadyAssigned ? `${alreadyAssigned} skipped (already assigned)` : "",
+      blockedTag.length ? `${blockedTag.length} skipped (Don't Call / Coordinator)` : "",
+      noEvent.length ? `${noEvent.length} skipped (no Calling Purpose and no fallback event)` : "",
+    ].filter(Boolean);
+    summary.textContent = `Assigned ${rows.length} contact(s) to ${eligible.length} caller(s).` +
+      (notes.length ? ` ${notes.join("; ")}.` : "");
+
+    modal.classList.remove("active");
+    showToast(`Assigned ${rows.length} contact(s) 🎉`, "success");
+    contactsSelectMode = false;
+    clearContactSelection();
+    await renderContactsTable(document.getElementById("contacts-search").value.trim());
+  } catch (err) {
+    errEl.textContent = "Assignment failed: " + err.message;
+    errEl.classList.remove("hidden");
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Assign Contacts";
+  }
 }
 
 const INFO_MODAL_TITLES = { sessions: "Session Attendance", calls: "Calling History", reviews: "User Reviews" };
@@ -1629,62 +1960,12 @@ function wireAddContactModal() {
 
 /* ======================= MESSAGE (Body Text) ======================= */
 
-function renderMessageImagePreview(url) {
-  const wrap = document.getElementById("message-image-preview-wrap");
-  const img = document.getElementById("message-image-preview");
-  if (url) {
-    img.src = url;
-    wrap.classList.remove("hidden");
-  } else {
-    img.src = "";
-    wrap.classList.add("hidden");
-  }
-}
-
 export async function initMessage() {
   const textEl = document.getElementById("message-text");
   const errorEl = document.getElementById("message-error");
-  const pickBtn = document.getElementById("pick-message-image-btn");
-  const fileInput = document.getElementById("message-image-input");
-  const removeBtn = document.getElementById("remove-message-image-btn");
   errorEl.classList.add("hidden");
 
   textEl.value = (await getSetting("message_text")) || "";
-  renderMessageImagePreview(await getSetting("poster_url"));
-
-  pickBtn.onclick = () => fileInput.click();
-
-  fileInput.onchange = async () => {
-    const file = fileInput.files[0];
-    fileInput.value = "";
-    if (!file) return;
-
-    pickBtn.disabled = true;
-    pickBtn.textContent = "Uploading…";
-    try {
-      const blob = await compressImageFile(file);
-      const path = `message/poster-${Date.now()}.jpg`;
-      const { error: uploadError } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(path, blob, { contentType: "image/jpeg" });
-      if (uploadError) throw uploadError;
-      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-
-      await setSetting("poster_url", pub.publicUrl);
-      renderMessageImagePreview(pub.publicUrl);
-      showToast("Image attached", "success");
-    } catch (err) {
-      showToast(err.message || "Image upload failed", "error");
-    }
-    pickBtn.disabled = false;
-    pickBtn.textContent = "Attach Image";
-  };
-
-  removeBtn.onclick = async () => {
-    await setSetting("poster_url", "");
-    renderMessageImagePreview("");
-    showToast("Image removed", "success");
-  };
 
   document.getElementById("save-message-btn").onclick = async () => {
     await setSetting("message_text", textEl.value);
@@ -2537,7 +2818,7 @@ function renderNewContactsTable() {
   const summaryEl = document.getElementById("new-contacts-summary");
 
   if (!newContactsCache.length) {
-    tbody.innerHTML = `<tr><td colspan="17" class="loading-row">No new contacts found in Google Sheets.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="18" class="loading-row">No new contacts found in Google Sheets.</td></tr>`;
     summaryEl.textContent = "Checked just now. All clear!";
     return;
   }

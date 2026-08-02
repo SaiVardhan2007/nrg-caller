@@ -77,7 +77,7 @@ Assignment is **not stored on the contact** — it is its own record (who, which
 
 ### 4d. WhatsApp message (Body Text)
 
-The **E3 box holds the current message** — the one every caller's **Send Message** button uses. When a new event comes, admin writes the new message in E3 and moves/keeps older messages in the other boxes below. Only E3 is ever sent. A **poster image** accompanies the message (see §6 for how sending works).
+The **E3 box holds the current message** — the one every caller's **Send Message** button uses. When a new event comes, admin writes the new message in E3 and moves/keeps older messages in the other boxes below. Only E3 is ever sent. The message is text only — attaching a poster image was removed.
 
 ---
 
@@ -105,7 +105,7 @@ When a caller logs in, they see **their assigned contacts for the current event*
 - **Name** of the contact (+ small details: sessions attended so far).
 - **W/S dropdown** — Working / Student / NA, same as v1.
 - **📞 Call** — taps open the phone dialer with the number.
-- **💬 Send Message** — shares the admin's E3 message **plus the poster image** to that person's WhatsApp; caller just presses send.
+- **💬 Send Message** — opens that person's WhatsApp with the admin's E3 message ready to go; caller just presses send.
 - **Response dropdown** — the v1 options list (Not Done, Joining the session, Will try to attend, Next Week will join, Busy, Wrong Number, Out of station, Didn't Receive – Sent in WhatsApp, Out of Network Coverage, Shifted to Home town, Only Online session, Sunday Available, Will come for Saturday, evening Shift, Don't Call him again, Yet To Call, Others → free text).
 - **Submit** — saves the response **instantly** (no waiting spinner; the card updates the moment you tap).
 
@@ -196,4 +196,4 @@ No frameworks-for-the-sake-of-frameworks, no complex logic. Every feature above 
 4. **Message** — E3 is always the live message; older messages parked in other boxes. Only E3 is sent. ✅
 5. **Contact Collection** — open to all users. ✅
 6. **Submit gating** — first submission requires tap-phone → set status → send message, in order. After first submission, status changes can be re-submitted freely without calling/messaging again. ✅
-7. **Poster image** — yes, sent along with the message. Note: a plain WhatsApp link (`wa.me`) cannot attach an image — that is a WhatsApp limitation, not ours. Solution: the Send Message button uses the phone's native share (Web Share API) to hand WhatsApp the **image + text together**; on devices where that isn't supported, the app opens WhatsApp with the text and offers the poster as a one-tap download to attach. ✅
+7. **Poster image** — removed. Messages are text only. A plain WhatsApp link (`wa.me`) cannot attach an image, and both workarounds tried (native share, and a link-preview card served from `/api/poster-preview`) were dropped — the share sheet cannot carry the recipient's number, and the preview card cluttered the message.

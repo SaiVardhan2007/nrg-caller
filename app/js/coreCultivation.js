@@ -34,7 +34,6 @@ function statusCategory(status) {
 // guaranteed to exist for every core-cultivated contact
 const cardState = new Map(); // contact.id -> { called, sent, submitted, lastStatus }
 let messageText = "";
-let messageImageUrl = "";
 let currentUser = null;
 
 const SKELETON_CARD = `
@@ -52,12 +51,9 @@ export async function init(user) {
   const listEl = document.getElementById("cc-cards");
   listEl.innerHTML = SKELETON_CARD.repeat(3);
 
-  const [{ data: msgRow }, { data: imgRow }] = await Promise.all([
-    supabase.from("settings").select("value").eq("key", "message_text").single(),
-    supabase.from("settings").select("value").eq("key", "poster_url").single(),
-  ]);
+  const { data: msgRow } = await supabase
+    .from("settings").select("value").eq("key", "message_text").single();
   messageText = msgRow?.value || "";
-  messageImageUrl = imgRow?.value || "";
 
   await loadAndRenderCards();
   wireReviewModal();
@@ -275,7 +271,7 @@ function wireCard(contacts) {
     });
 
     card.querySelector(".send-btn").addEventListener("click", () => {
-      sendWhatsAppMessage(c.mob_no, c.name, messageText, messageImageUrl);
+      sendWhatsAppMessage(c.mob_no, c.name, messageText);
       cardState.get(contactId).sent = true;
       refreshSubmitButton(card, contactId);
     });

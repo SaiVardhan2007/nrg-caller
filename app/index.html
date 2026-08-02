@@ -126,6 +126,11 @@
             <label class="tag-check"><input type="checkbox" id="gfy-filter-attended" checked /> GFY Attended</label>
             <label class="tag-check"><input type="checkbox" id="gfy-filter-not-attended" checked /> GFY Not Attended</label>
           </div>
+          <div class="field inline tag-check-group" id="timestamp-filter-group">
+            <label class="tag-check"><input type="checkbox" id="ts-filter-enabled" /> Time Stamp</label>
+            <label class="tag-check ts-range">From <input type="datetime-local" id="ts-filter-from" disabled /></label>
+            <label class="tag-check ts-range">To <input type="datetime-local" id="ts-filter-to" disabled /></label>
+          </div>
           <button id="assign-btn" class="btn btn-primary">Assign Contacts</button>
           <button id="rebalance-btn" class="btn btn-secondary">⚖ Rebalance Unfinished</button>
           <button id="disassign-btn" class="btn btn-secondary" style="color:var(--danger); border-color:var(--danger);">✕ Disassign All</button>
@@ -189,6 +194,9 @@
           </select>
         </label>
         <button id="add-contact-btn" class="btn btn-secondary">+ Add Contact</button>
+        <button id="contacts-select-mode-btn" class="btn btn-secondary" title="Pick contacts to assign">☑ Select</button>
+        <button id="contacts-select-all-btn" class="btn btn-secondary hidden">Select All Shown</button>
+        <button id="contacts-assign-btn" class="btn btn-primary hidden">Assign Selected (0)</button>
         <button id="contacts-export-btn" class="btn btn-secondary">⬇ Export Excel</button>
         <button id="contacts-reset-columns-btn" class="btn btn-secondary" title="Restore the default column order">↺ Reset Columns</button>
         <span class="hscroll-controls">
@@ -196,10 +204,12 @@
           <button id="contacts-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
         </span>
       </div>
+      <p id="contacts-assign-summary" class="muted-text"></p>
       <div class="table-wrap drag-scroll" id="contacts-table-wrap">
         <table class="data-table" id="contacts-table">
           <thead>
             <tr>
+              <th class="select-col no-export" data-label="Select"><input type="checkbox" id="contacts-select-all" title="Select every contact shown" /></th>
               <th draggable="true" data-label="S.No">S.No</th><th draggable="true" data-label="Time Stamp">Time Stamp</th>
               <th draggable="true" data-label="Name">
                 <div class="th-label">Name</div>
@@ -304,7 +314,7 @@
             </tr>
           </thead>
           <tbody id="contacts-table-body">
-            <tr><td colspan="17" class="loading-row">Loading contacts…</td></tr>
+            <tr><td colspan="18" class="loading-row">Loading contacts…</td></tr>
           </tbody>
         </table>
       </div>
@@ -578,17 +588,6 @@
           <p class="field-hint">Every message starts with "Hare Krishna &lt;name&gt;" automatically — write only the body below (you can still use {name} again anywhere in it).</p>
           <textarea id="message-text" rows="5" placeholder="Hope you're joining this thursday's session..."></textarea>
         </label>
-
-        <div class="field">
-          <span>Attached Image (optional)</span>
-          <p class="field-hint">WhatsApp shows this as a photo preview card right under the message, on every device — no extra taps needed. Images are auto-compressed before upload.</p>
-          <div id="message-image-preview-wrap" class="message-image-preview-wrap hidden">
-            <img id="message-image-preview" alt="Attached image preview" />
-            <button id="remove-message-image-btn" class="btn btn-secondary" type="button">Remove Image</button>
-          </div>
-          <input type="file" id="message-image-input" accept="image/*" class="hidden" />
-          <button id="pick-message-image-btn" class="btn btn-secondary" type="button">Attach Image</button>
-        </div>
 
         <button id="save-message-btn" class="btn btn-primary">Save Message</button>
         <div id="message-error" class="field-error hidden"></div>
@@ -968,6 +967,38 @@
     <div class="modal-actions">
       <button id="add-user-cancel" class="btn btn-secondary">Cancel</button>
       <button id="add-user-submit" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="contacts-assign-modal" class="modal">
+  <div class="modal-box modal-large">
+    <h3>Assign Selected Contacts</h3>
+    <p id="contacts-assign-count" class="muted-text"></p>
+    <label class="field"><span>Event for contacts with no Calling Purpose</span>
+      <select id="contacts-assign-event"></select>
+    </label>
+    <label class="field checkbox">
+      <input id="contacts-assign-replace" type="checkbox" checked />
+      <span>Replace current assignments (archives every caller's existing list first, same as Assign Contacts)</span>
+    </label>
+    <div class="table-wrap">
+      <table class="data-table" id="contacts-assign-users-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="contacts-assign-users-all" title="Select all coordinators" /></th>
+            <th>Coordinator</th>
+            <th>Current Load</th>
+            <th>Call Limit (blank = no limit)</th>
+          </tr>
+        </thead>
+        <tbody id="contacts-assign-users-body"></tbody>
+      </table>
+    </div>
+    <div id="contacts-assign-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="contacts-assign-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="contacts-assign-submit" class="btn btn-primary">Assign Contacts</button>
     </div>
   </div>
 </div>

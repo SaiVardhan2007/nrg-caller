@@ -108,8 +108,6 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .tag-check input { width: auto; accent-color: var(--tulsi); }
 .field-error { color: var(--danger); font-size: 13px; margin: -8px 0 14px; font-weight: 500; }
 .field-hint { color: var(--text-muted); font-size: 12.5px; margin: -2px 0 6px; }
-.message-image-preview-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-.message-image-preview-wrap img { width: 84px; height: 84px; object-fit: cover; border-radius: var(--radius-sm); border: 1.5px solid var(--sandstone); }
 #caller-search { margin-bottom: 14px; }
 .field-warning { color: var(--warning); font-size: 13px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px; }
 
@@ -537,10 +535,6 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .collection-card-phone { font-size: 13px; color: var(--text-muted); }
 .collection-card-remarks { font-size: 13px; margin-top: 4px; color: var(--text-main); }
 
-/* ============ POSTER ============ */
-.poster-preview-wrap { margin-bottom: 16px; }
-.poster-preview { max-width: 100%; border-radius: 12px; border: 1px solid var(--sandstone); display: block; margin-bottom: 8px; }
-
 /* ============ MODALS ============ */
 .modal {
   display: none; position: fixed; inset: 0; background: rgba(20,25,20,0.55);
@@ -656,6 +650,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #contacts-table td:not([data-label="S.No"]):not([data-label="Name"]):not([data-label="Phone"]):not([data-label="Calling Purpose"]):not([data-label="Sessions"]):not([data-label="Admin Tag to Users"]),
   #new-contacts-table td:not([data-label="S.No"]):not([data-label="Name"]):not([data-label="Phone"]):not([data-label="Calling Purpose"]):not([data-label="Sessions"]):not([data-label="Admin Tag to Users"]) {
     display: none !important;
+  }
+
+  /* …except the tick box while assigning, which has to stay reachable. */
+  #contacts-table.select-mode td[data-label="Select"] {
+    display: flex !important;
+    width: 10% !important;
+    padding: 2px 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
 
   /* Hide labels in mobile view for contacts tables */
@@ -779,6 +782,25 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   .stats-bar .stat:last-child:nth-child(odd) {
     grid-column: span 2 !important;
   }
+
+  /* My Calls and Core Cultivation have exactly three: keep them on one line,
+     all the same width, instead of dropping Pending onto its own full-width
+     row. Tighter padding and type so three still fit a narrow phone. */
+  #caller-section .stats-bar,
+  #core-cultivation-section .stats-bar {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+  }
+  #caller-section .stats-bar .stat:last-child:nth-child(odd),
+  #core-cultivation-section .stats-bar .stat:last-child:nth-child(odd) {
+    grid-column: auto !important;
+  }
+  #caller-section .stat,
+  #core-cultivation-section .stat { padding: 12px 4px; }
+  #caller-section .stat-num,
+  #core-cultivation-section .stat-num { font-size: 22px; }
+  #caller-section .stat-label,
+  #core-cultivation-section .stat-label { font-size: 10px; letter-spacing: 0; }
 }
 
 /* Copy-to-clipboard phone cell highlights */
@@ -982,3 +1004,25 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .status-field:has(.status-select.status-positive) { border-color: var(--tulsi); background: #ecfdf5; }
 .status-field:has(.status-select.status-negative) { border-color: #fca5a5; background: #fef2f2; }
 .status-field:has(.status-select.status-negative) .status-select { color: #991b1b; }
+
+/* ============ MASTER CONTACT: SELECT & ASSIGN ============
+   The tick column only takes up space while the admin is in select mode —
+   the rest of the time Master Contact keeps its normal width. */
+#contacts-table .select-col { display: none; }
+#contacts-table.select-mode .select-col {
+  display: table-cell; text-align: center; width: 38px; padding-left: 8px; padding-right: 8px;
+}
+#contacts-table .select-col input { width: 17px; height: 17px; cursor: pointer; accent-color: var(--tulsi); }
+#contacts-table.select-mode tbody tr:has(.contact-select:checked) { background: rgba(5, 150, 105, 0.08); }
+#contacts-assign-users-table input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--tulsi); }
+#contacts-assign-users-table .assign-user-limit { width: 120px; }
+#contacts-assign-summary:empty { display: none; }
+
+/* The assign window's From/To sit inside their pill and grey out until the
+   Time Stamp box is ticked. */
+#timestamp-filter-group .ts-range { gap: 6px; font-weight: 600; color: var(--text-muted); }
+#timestamp-filter-group .ts-range input {
+  width: auto; font-size: 12.5px; padding: 2px 6px; border: 1.5px solid var(--sandstone);
+  border-radius: 8px; background: #fff;
+}
+#timestamp-filter-group .ts-range input:disabled { opacity: 0.5; cursor: not-allowed; }

@@ -41,7 +41,6 @@
 ## v1 things CONFIRMED KEPT (user, 2026-07-17)
 
 - W/S dropdown (W / S / NA) — column added to Master Contact.
-- Poster image with the message — sent via native share (image + text together); text-only wa.me fallback with poster download where share isn't supported.
 - Submit gating, stricter than v1: tap phone → set status → send message → Submit unlocks. After first submission, re-submitting a changed status is free (no call/message needed).
 - Full v1 response options list.
 

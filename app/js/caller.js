@@ -33,7 +33,6 @@ function statusCategory(status) {
 const cardState = new Map(); // assignment.id -> { called, sent, submitted, lastStatus }
 let eventNameByCode = {}; // assignments now span every event a caller was assigned in, not just one
 let messageText = "";
-let messageImageUrl = "";
 let currentUser = null;
 
 const SKELETON_CARD = `
@@ -51,13 +50,11 @@ export async function init(user) {
   const listEl = document.getElementById("caller-cards");
   listEl.innerHTML = SKELETON_CARD.repeat(3);
 
-  const [{ data: msgRow }, { data: imgRow }, { data: eventsData }] = await Promise.all([
+  const [{ data: msgRow }, { data: eventsData }] = await Promise.all([
     supabase.from("settings").select("value").eq("key", "message_text").single(),
-    supabase.from("settings").select("value").eq("key", "poster_url").single(),
     supabase.from("events").select("code,name"),
   ]);
   messageText = msgRow?.value || "";
-  messageImageUrl = imgRow?.value || "";
   eventNameByCode = {};
   (eventsData || []).forEach((e) => { eventNameByCode[e.code] = e.name; });
 
@@ -295,7 +292,7 @@ function wireCard(assignments) {
     });
 
     card.querySelector(".send-btn").addEventListener("click", () => {
-      sendWhatsAppMessage(c.mob_no, c.name, messageText, messageImageUrl);
+      sendWhatsAppMessage(c.mob_no, c.name, messageText);
       cardState.get(assignmentId).sent = true;
       refreshSubmitButton(card, assignmentId);
     });
