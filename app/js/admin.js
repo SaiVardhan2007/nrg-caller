@@ -1151,7 +1151,7 @@ async function renderContactsTable(searchTerm = "") {
       </td>
       <td data-label="GFY/AOMC">
         <select class="inline-edit" data-field="gyc_status">
-          ${GYC_STATUS_OPTIONS.map((t) => `<option value="${t}" ${t === (c.gyc_status || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+          ${(GYC_STATUS_OPTIONS.includes(c.gyc_status || "") ? GYC_STATUS_OPTIONS : [...GYC_STATUS_OPTIONS, c.gyc_status]).map((t) => `<option value="${escapeHtml(t)}" ${t === (c.gyc_status || "") ? "selected" : ""}>${escapeHtml(t) || "—"}</option>`).join("")}
         </select>
       </td>
       <td data-label="Admin Review"><button class="cell-chip admin-review-link" data-id="${c.id}" data-name="${escapeHtml(c.name)}" data-review="${escapeHtml(c.admin_remarks || "")}">${c.admin_remarks ? "✎ Edit" : "+ Add"}</button></td>

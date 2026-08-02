@@ -188,6 +188,23 @@ export function startOfLast4Weeks() {
   return d;
 }
 
+// The GFY/AOMC picker on a call card. "GFY/AOMC" is the field's name, shown as
+// a chip beside the control — not an option inside it, which made it read like
+// a selectable value. Any value already on the contact is rendered even if it
+// isn't in GYC_STATUS_OPTIONS (older records still hold retired values), so a
+// caller can see what's set and only fill in the genuinely empty ones.
+export function gycSelectHtml(currentValue) {
+  const current = currentValue || "";
+  const options = GYC_STATUS_OPTIONS.includes(current) ? GYC_STATUS_OPTIONS : [...GYC_STATUS_OPTIONS, current];
+  return `
+    <span class="gyc-field${current ? " is-set" : ""}">
+      <span class="gyc-field-label">GFY/AOMC</span>
+      <select class="gyc-select" aria-label="GFY/AOMC">
+        ${options.map((o) => `<option value="${escapeHtml(o)}" ${o === current ? "selected" : ""}>${o ? escapeHtml(o) : "— not set —"}</option>`).join("")}
+      </select>
+    </span>`;
+}
+
 export const ADMIN_TAG_TO_USERS_OPTIONS = ["", "Don't Call", "Coordinator", "Janata", "Call", "Core", "Assigned"];
 
 // Contacts tagged "Coordinator" (admin_tag_to_users) are meant to appear as

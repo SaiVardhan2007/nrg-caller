@@ -47,13 +47,13 @@ begin
     end if;
   end if;
 
-  -- GFY filter: 'attended' only lets gyc_status = 'Attended' through;
+  -- GFY filter: 'attended' only lets gyc_status = 'Attended GFY' through;
   -- 'not_attended' lets everything else through (including blank).
   select value into gfy_filter_raw from settings where key = 'gfy_filter';
-  if gfy_filter_raw = 'attended' and new.gyc_status is distinct from 'Attended' then
+  if gfy_filter_raw = 'attended' and new.gyc_status is distinct from 'Attended GFY' then
     return new;
   end if;
-  if gfy_filter_raw = 'not_attended' and new.gyc_status = 'Attended' then
+  if gfy_filter_raw = 'not_attended' and new.gyc_status = 'Attended GFY' then
     return new;
   end if;
 

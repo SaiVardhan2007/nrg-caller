@@ -39,14 +39,16 @@ create table if not exists contacts (
   core_cultivation text,                        -- user_name of permanent cultivator
   calling_purpose  text,                        -- event code: GIC / RY / JSTM / ...
   one_to_one_status boolean not null default false, -- in the One to One (with Prabhu) roster
-  gyc_status       text check (gyc_status in ('Attended','Registered','Not Intrested','Not Registered')),
+  gyc_status       text check (gyc_status in ('Intrested GFY','Not Intrested GFY','Attended GFY','Intrested AOMC','Not Intrested AOMC','Attended AOMC')),
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
 
 alter table contacts add column if not exists gender text check (gender in ('M','F'));
 alter table contacts add column if not exists one_to_one_status boolean not null default false;
-alter table contacts add column if not exists gyc_status text check (gyc_status in ('Attended','Registered','Not Intrested','Not Registered'));
+alter table contacts add column if not exists gyc_status text check (gyc_status in ('Intrested GFY','Not Intrested GFY','Attended GFY','Intrested AOMC','Not Intrested AOMC','Attended AOMC'));
+-- Existing databases: see supabase/gfy-aomc-values.sql to migrate the old
+-- four-value constraint and its data onto the list above.
 
 -- No sheet: live assignment state (erased & rebuilt when admin switches event)
 create table if not exists assignments (

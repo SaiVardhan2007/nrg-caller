@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit, cardNameDisplayHtml, normalizePhoneInput, GYC_STATUS_OPTIONS, startOfLast4Weeks } from "./utils.js";
+import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit, cardNameDisplayHtml, normalizePhoneInput, gycSelectHtml, startOfLast4Weeks } from "./utils.js";
 
 const STATUS_DEFAULT = ""; // an un-called contact has an empty status, shown as a blank option
 const STATUS_OPTIONS = [
@@ -189,9 +189,7 @@ function renderCard(a, weekCallCount) {
         <select class="status-select status-${category}">
           ${STATUS_OPTIONS.map((o) => `<option value="${o.value}" ${o.value === (a.status || STATUS_DEFAULT) ? "selected" : ""}>${o.label}</option>`).join("")}
         </select>
-        <select class="gyc-select" title="GFY/AOMC">
-          ${GYC_STATUS_OPTIONS.map((o) => `<option value="${o}" ${o === (c.gyc_status || "") ? "selected" : ""}>${o || "GFY/AOMC"}</option>`).join("")}
-        </select>
+        ${gycSelectHtml(c.gyc_status)}
       </div>
       <div class="call-card-review${st.review ? "" : " hidden"}">
         <span class="review-note-label">📝 Comment:</span>
@@ -278,11 +276,12 @@ function wireCard(assignments) {
     card.querySelector(".gyc-select").addEventListener("change", async (e) => {
       const { error } = await supabase.from("contacts").update({ gyc_status: e.target.value || null }).eq("id", contactId);
       if (error) {
-        showToast("Could not save GFY status.", "error");
+        showToast("Could not save GFY/AOMC: " + error.message, "error");
         return;
       }
       c.gyc_status = e.target.value || null;
-      showToast("GFY status updated", "success", 1200);
+      e.target.closest(".gyc-field").classList.toggle("is-set", !!c.gyc_status);
+      showToast("GFY/AOMC updated", "success", 1200);
     });
 
     // Lets a caller reopen/adjust the note without having to re-pick the status.
