@@ -802,9 +802,10 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .table-wrap.drag-scroll.is-dragging * { user-select: none; }
 
 /* ---- Call card: GFY status + saved comment ---- */
-.call-card-row3 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.call-card-row3 .status-select { flex: 1 1 55%; min-width: 0; }
-.call-card-row3 .gyc-field { flex: 1 1 40%; min-width: 0; }
+/* Call status and Org share the row, half each. */
+.call-card-row3 { display: flex; gap: 8px; align-items: center; }
+.call-card-row3 .status-select { flex: 1 1 50%; min-width: 0; }
+.call-card-row3 .org-field { flex: 1 1 50%; min-width: 0; }
 .call-card-review {
   display: flex; align-items: flex-start; gap: 6px;
   margin-top: 8px; padding: 8px 10px;
@@ -838,6 +839,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   align-items: stretch;
   flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--border, #d8e0dc);
   border-radius: 999px;
   overflow: hidden;
@@ -872,7 +874,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .gyc-field:focus-within { border-color: var(--brand, #047857); }
 /* Already answered: colour the chip so callers can scan for the blanks. */
 .gyc-field.is-set { border-color: var(--brand, #047857); background: rgba(4, 120, 87, 0.06); }
-.gyc-field.is-set .gyc-field-label { background: var(--brand, #047857); color: #fff; border-right-color: var(--brand, #047857); }
+.gyc-field.is-set .gyc-field-label { display: none; }
 .gyc-field.is-set .gyc-select { color: var(--brand, #047857); }
 
 /* Org (company / college) on a call card — same labelled-chip shape as the
@@ -882,6 +884,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   display: flex;
   align-items: stretch;
   width: 100%;
+  min-width: 0;
   border: 1px solid var(--border, #d8e0dc);
   border-radius: 999px;
   overflow: hidden;
@@ -903,6 +906,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .org-field .org-input {
   flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
   margin: 0;
   border: none;
   border-radius: 0;
@@ -910,9 +914,20 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   font-size: 13px;
   font-weight: 600;
   padding: 8px 10px;
+  text-overflow: ellipsis;
 }
 .org-field .org-input:focus { outline: none; }
 .org-field:focus-within { border-color: var(--brand, #047857); }
 .org-field.is-set { border-color: var(--brand, #047857); background: rgba(4, 120, 87, 0.06); }
-.org-field.is-set .org-field-label { background: var(--brand, #047857); color: #fff; border-right-color: var(--brand, #047857); }
+.org-field.is-set .org-field-label { display: none; }
 .org-field.is-set .org-input { color: var(--brand, #047857); }
+
+/* Row 2 packs the badges, the phone pill and the GFY/AOMC picker; the picker
+   trails the number and wraps under it only when there is genuinely no room. */
+.call-card-row2 { flex-wrap: wrap; }
+.card-phone-group { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
+.card-phone-group .phone-pill { flex: 0 0 auto; }
+.call-card-row2 .gyc-field { flex: 1 1 auto; min-width: 0; }
+.call-card-row2 .gyc-field .gyc-select { padding: 6px 8px; font-size: 12px; }
+.call-card-row2 .gyc-field.is-set .gyc-select { padding-left: 12px; }
+.call-card-row3 .org-field.is-set .org-input { padding-left: 12px; }

@@ -1,4 +1,5 @@
--- Run this once in the Supabase SQL editor.
+-- APPLIED to the live database on 2026-08-02. Kept as the record of the
+-- change, and for rebuilding the schema from scratch.
 --
 -- contacts.gyc_status carried a CHECK constraint pinned to the original four
 -- values, so saving any of the new GFY/AOMC states was rejected outright —

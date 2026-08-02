@@ -165,15 +165,15 @@ function renderCard(c, weekCallCount) {
           <button class="sessions-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📋 Sessions: ${c.sessions_count}</button>
           <button class="calls-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📞 Last 4 weeks: ${weekCallCount}</button>
         </div>
-        <a class="phone-pill" href="${telHref(c.mob_no)}">📞 ${formatPhone(c.mob_no)}</a>
+        <div class="card-phone-group">
+          <a class="phone-pill" href="${telHref(c.mob_no)}">📞 ${formatPhone(c.mob_no)}</a>
+          ${gycSelectHtml(c.gyc_status)}
+        </div>
       </div>
       <div class="call-card-row3">
         <select class="status-select status-${category}">
           ${STATUS_OPTIONS.map((o) => `<option value="${o.value}" ${o.value === status ? "selected" : ""}>${o.label}</option>`).join("")}
         </select>
-        ${gycSelectHtml(c.gyc_status)}
-      </div>
-      <div class="call-card-row-org">
         ${orgFieldHtml(c.company_name)}
       </div>
       <div class="call-card-review${st.review ? "" : " hidden"}">
