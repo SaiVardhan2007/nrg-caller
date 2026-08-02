@@ -106,12 +106,25 @@ export function showToast(message, kind = "success", duration = 3200) {
   }, duration);
 }
 
+// What a nameless contact shows instead of a blank span — without it there is
+// nothing on the card to double-click, so the name could never be filled in.
+export const EMPTY_NAME_LABEL = "+ Add name";
+
+// Renders the `.name-display` span for a card, handling the no-name case.
+export function cardNameDisplayHtml(name) {
+  return name
+    ? `<span class="call-card-name name-display">${escapeHtml(name)}</span>`
+    : `<span class="call-card-name name-display is-empty">${EMPTY_NAME_LABEL}</span>`;
+}
+
 // Wires the double-click-to-edit-name markup shared by the "My Calls" and
 // Core Cultivation call cards (a `.call-card-name-wrap` containing a
 // `.name-display` span and a `.name-edit-wrap` with `.name-edit-input` /
 // `.name-save-btn` / `.name-cancel-btn`). `contact` is mutated in place on a
 // successful save so the caller's already-rendered card badges (data-name
 // attributes etc.) can be kept in sync by the caller if needed.
+// A contact with no name shows a "+ Add name" prompt that opens the editor on
+// a single click — double-clicking a blank space isn't discoverable.
 export function wireCardNameEdit(card, contactId, contact) {
   const wrap = card.querySelector(".call-card-name-wrap");
   if (!wrap) return;
@@ -122,7 +135,7 @@ export function wireCardNameEdit(card, contactId, contact) {
   const cancelBtn = wrap.querySelector(".name-cancel-btn");
 
   const startEdit = () => {
-    input.value = contact.name;
+    input.value = contact.name || "";
     display.classList.add("hidden");
     editWrap.classList.remove("hidden");
     input.focus();
@@ -134,6 +147,7 @@ export function wireCardNameEdit(card, contactId, contact) {
   };
 
   display.addEventListener("dblclick", startEdit);
+  display.addEventListener("click", () => { if (!contact.name) startEdit(); });
   cancelBtn.addEventListener("click", stopEdit);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") saveBtn.click();
@@ -155,10 +169,49 @@ export function wireCardNameEdit(card, contactId, contact) {
     }
     contact.name = newName;
     display.textContent = newName;
+    display.classList.remove("is-empty");
     card.querySelectorAll("[data-name]").forEach((el) => { el.dataset.name = newName; });
     stopEdit();
     showToast("Name updated", "success");
   });
+}
+
+export const GYC_STATUS_OPTIONS = ["", "Attended", "Registered", "Not Intrested", "Not Registered", "Intrested in AOMC"];
+
+// Call-history badges in My Calls / Core Cultivation look back four weeks
+// (28 days), not just the current Mon–Sun week — callers need the longer
+// arc to see whether a contact has gone quiet.
+export function startOfLast4Weeks() {
+  const d = new Date();
+  d.setDate(d.getDate() - 28);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+export const ADMIN_TAG_TO_USERS_OPTIONS = ["", "Don't Call", "Coordinator", "Janata", "Call", "Core", "Assigned"];
+
+// Contacts tagged "Coordinator" (admin_tag_to_users) are meant to appear as
+// login accounts on the Users & Assignment page — this keeps that in sync
+// both ways: tagging in adds them there, un-tagging removes the account this
+// created. Matched by phone (login_pw doubles as the contact's phone for
+// these accounts, same link initUserOneToOne relies on). Shared by Master
+// Contacts (admin.js) and Reception's Today's Attendance (reception.js).
+export async function syncCoordinatorUser(contact, tagValue) {
+  const { data: existing } = await supabase.from("users").select("id,role").eq("login_pw", contact.mob_no).maybeSingle();
+  if (tagValue === "Coordinator") {
+    if (existing) {
+      if (existing.role !== "Coordinator") {
+        await supabase.from("users").update({ role: "Coordinator", user_name: contact.name }).eq("id", existing.id);
+      }
+    } else {
+      const { error } = await supabase.from("users").insert({
+        user_name: contact.name, login_pw: contact.mob_no, role: "Coordinator", auto_assign: true,
+      });
+      if (error) showToast("Tagged as Coordinator, but couldn't add to Users: " + error.message, "warning");
+    }
+  } else if (existing && existing.role === "Coordinator") {
+    await supabase.from("users").delete().eq("id", existing.id);
+  }
 }
 
 export function escapeHtml(s) {
@@ -167,29 +220,19 @@ export function escapeHtml(s) {
   }[c]));
 }
 
-/* ============ CSV import / export ============ */
+/* ============ Excel import / export ============ */
 
-function csvEscape(value) {
-  const s = String(value ?? "");
-  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-}
-
-export function downloadCSV(filename, rows) {
-  const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\r\n");
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+// `rows` is an array-of-arrays (first row = headers). Downloads a single-sheet .xlsx workbook.
+export function downloadExcel(filename, rows, sheetName = "Sheet1") {
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, filename);
 }
 
 // exports a rendered <table class="data-table"> as-is (header labels + current cell text) —
 // used for read-only/computed views where there's no separate underlying data array to export from.
-export function exportTableToCSV(table, filename) {
+export function exportTableToExcel(table, filename) {
   const rows = [];
   rows.push(Array.from(table.querySelectorAll("thead th:not(.no-export)")).map((th) => th.textContent.trim()));
   table.querySelectorAll("tbody tr").forEach((tr) => {
@@ -199,10 +242,11 @@ export function exportTableToCSV(table, filename) {
       return td.textContent.trim();
     }));
   });
-  downloadCSV(filename, rows);
+  downloadExcel(filename, rows);
 }
 
 // minimal RFC4180-ish CSV parser: handles quoted fields with embedded commas/newlines/escaped quotes.
+// still used for importing bulk contacts from pasted/uploaded CSV — see parseCSV callers.
 export function parseCSV(text) {
   const rows = [];
   let row = [];

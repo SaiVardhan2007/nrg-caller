@@ -793,3 +793,40 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 
 /* Portal is intentionally light-mode only, regardless of the device's system
    theme — a prior dark-mode media query used to override the palette here. */
+
+/* ---- Master Contact horizontal panning ---- */
+.hscroll-controls { display: inline-flex; gap: 4px; }
+.hscroll-btn { padding: 8px 12px; min-width: 0; font-size: 13px; line-height: 1; }
+.table-wrap.drag-scroll { cursor: grab; scroll-behavior: smooth; overscroll-behavior-x: contain; }
+.table-wrap.drag-scroll.is-dragging { cursor: grabbing; scroll-behavior: auto; user-select: none; }
+.table-wrap.drag-scroll.is-dragging * { user-select: none; }
+
+/* ---- Call card: GFY status + saved comment ---- */
+.call-card-row3 { display: flex; gap: 8px; align-items: center; }
+.call-card-row3 .status-select { flex: 1 1 auto; min-width: 0; }
+.call-card-row3 .gyc-select { flex: 0 1 40%; min-width: 0; }
+.call-card-review {
+  display: flex; align-items: flex-start; gap: 6px;
+  margin-top: 8px; padding: 8px 10px;
+  background: var(--surface-2, rgba(4, 120, 87, 0.06));
+  border-left: 3px solid var(--brand, #047857);
+  border-radius: 6px; font-size: 13px; line-height: 1.4;
+}
+.call-card-review.hidden { display: none; }
+.review-note-label { font-weight: 600; white-space: nowrap; opacity: 0.8; }
+.review-note-text { flex: 1 1 auto; word-break: break-word; }
+.review-note-edit {
+  flex: 0 0 auto; background: none; border: none; cursor: pointer;
+  font-size: 14px; padding: 0 2px; opacity: 0.65;
+}
+.review-note-edit:hover { opacity: 1; }
+
+/* A contact with no name yet: a tappable prompt instead of an empty span. */
+.call-card-name.name-display.is-empty {
+  font-weight: 600;
+  font-style: italic;
+  color: var(--brand, #047857);
+  opacity: 0.75;
+  border-bottom: 1px dashed currentColor;
+}
+.call-card-name.name-display.is-empty:hover { opacity: 1; }

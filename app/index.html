@@ -160,7 +160,7 @@
 
       <div class="panel-row">
         <button id="add-user-btn" class="btn btn-secondary">+ Add User</button>
-        <button id="users-export-btn" class="btn btn-secondary">⬇ Export CSV</button>
+        <button id="users-export-btn" class="btn btn-secondary">⬇ Export Excel</button>
         <button id="users-import-btn" class="btn btn-secondary">⬆ Import CSV</button>
         <input id="users-import-file" type="file" accept=".csv" class="hidden" />
       </div>
@@ -189,10 +189,14 @@
           </select>
         </label>
         <button id="add-contact-btn" class="btn btn-secondary">+ Add Contact</button>
-        <button id="contacts-export-btn" class="btn btn-secondary">⬇ Export CSV</button>
+        <button id="contacts-export-btn" class="btn btn-secondary">⬇ Export Excel</button>
         <button id="contacts-reset-columns-btn" class="btn btn-secondary" title="Restore the default column order">↺ Reset Columns</button>
+        <span class="hscroll-controls">
+          <button id="contacts-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+          <button id="contacts-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+        </span>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap drag-scroll" id="contacts-table-wrap">
         <table class="data-table" id="contacts-table">
           <thead>
             <tr>
@@ -276,8 +280,8 @@
                   <option value="">—</option>
                 </select>
               </th>
-              <th draggable="true" data-label="GFY Status">
-                <div class="th-label">GFY Status</div>
+              <th draggable="true" data-label="GFY/AOMC">
+                <div class="th-label">GFY/AOMC</div>
                 <select id="contacts-filter-gyc-status" class="th-filter">
                   <option value="__ALL__">All</option>
                   <option value="">—</option>
@@ -285,6 +289,7 @@
                   <option value="Registered">Registered</option>
                   <option value="Not Intrested">Not Intrested</option>
                   <option value="Not Registered">Not Registered</option>
+                  <option value="Intrested in AOMC">Intrested in AOMC</option>
                 </select>
               </th>
               <th draggable="true" data-label="Admin Review">Admin Review</th><th data-label=""></th>
@@ -318,7 +323,7 @@
             <select id="analytics-event-select"><option value="">All events</option></select>
           </label>
           <button id="analytics-run-btn" class="btn btn-primary">View</button>
-          <button id="analytics-export-btn" class="btn btn-secondary">⬇ Export CSV</button>
+          <button id="analytics-export-btn" class="btn btn-secondary">⬇ Export Excel</button>
           <button id="general-data-btn" class="btn btn-secondary">📊 General Data</button>
         </div>
       </div>
@@ -349,7 +354,7 @@
                   <div class="th-label">Status</div>
                   <select id="analytics-assigned-filter-status" class="th-filter">
                     <option value="__ALL__">All</option>
-                    <option value="">Not Done</option>
+                    <option value=""></option>
                   </select>
                 </th>
                 <th>
@@ -395,7 +400,7 @@
             <select id="reception-analytics-event-select"></select>
           </label>
           <button id="reception-analytics-run-btn" class="btn btn-primary">View</button>
-          <button id="reception-analytics-export-btn" class="btn btn-secondary">⬇ Export CSV</button>
+          <button id="reception-analytics-export-btn" class="btn btn-secondary">⬇ Export Excel</button>
         </div>
       </div>
 
@@ -527,8 +532,8 @@
       </div>
 
       <div class="panel">
-        <h3 class="section-title">Contact Collection Submissions</h3>
-        <p class="muted-text">Leads submitted from the Contact Collection card — Add promotes to Master Contact.</p>
+        <h3 class="section-title">Pending New Contacts (Awaiting Approval)</h3>
+        <p class="muted-text">Everything added from Reception, Contact Collection and Master Contact's “+ Add Contact” waits here — Add promotes it to Master Contact.</p>
       </div>
       <div class="table-wrap">
         <table class="data-table" id="collection-submissions-admin-table">
@@ -543,11 +548,12 @@
               <th>Staying</th>
               <th>Comment</th>
               <th>Collected By</th>
+              <th>Source</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="collection-submissions-admin-body">
-            <tr><td colspan="10" class="loading-row">Loading…</td></tr>
+            <tr><td colspan="11" class="loading-row">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -627,6 +633,15 @@
           <label class="field"><span>Profession</span>
             <select id="reception-edit-ws"><option value="">— select —</option><option value="NA">NA</option><option value="W">W</option><option value="S">S</option></select>
           </label>
+          <label class="field"><span>GFY/AOMC</span>
+            <select id="reception-edit-gyc-status">
+              <option value="">— select —</option>
+              <option value="Attended">Attended</option>
+              <option value="Registered">Registered</option>
+              <option value="Not Intrested">Not Intrested</option>
+              <option value="Not Registered">Not Registered</option>
+            </select>
+          </label>
           <label class="field">
             <span>Session Name</span>
             <select id="reception-session-name"></select>
@@ -650,6 +665,15 @@
             <label class="field"><span>Event</span>
               <select id="reception-new-event"></select>
             </label>
+            <label class="field"><span>GFY/AOMC</span>
+              <select id="reception-new-gyc-status">
+                <option value="">— select —</option>
+                <option value="Attended">Attended</option>
+                <option value="Registered">Registered</option>
+                <option value="Not Intrested">Not Intrested</option>
+                <option value="Not Registered">Not Registered</option>
+              </select>
+            </label>
             <div id="reception-new-error" class="field-error hidden"></div>
             <button id="reception-new-submit" type="submit" class="btn btn-primary btn-block">Save &amp; Mark Attendance</button>
           </form>
@@ -661,6 +685,7 @@
           <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
             <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
             <select id="reception-attendance-sort" class="inline-edit" style="width:160px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
+              <option value="completion" selected>% Completion</option>
               <option value="name">Name (A-Z)</option>
               <option value="phone">Phone Number</option>
               <option value="time">Time (Latest)</option>
@@ -668,9 +693,9 @@
           </label>
         </div>
         <table class="data-table">
-          <thead><tr><th>Name</th><th>Phone</th><th>Time</th><th>Session</th></tr></thead>
+          <thead><tr><th>Name</th><th>Phone</th><th>Time</th><th>Session</th><th>Admin Tag to Users</th></tr></thead>
           <tbody id="reception-attendance-body">
-            <tr><td colspan="4" class="loading-row">No attendance marked today.</td></tr>
+            <tr><td colspan="5" class="loading-row">No attendance marked today.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1016,7 +1041,7 @@
       </table>
     </div>
     <div class="modal-actions">
-      <button id="contact-info-export-btn" class="btn btn-secondary hidden">⬇ Export CSV</button>
+      <button id="contact-info-export-btn" class="btn btn-secondary hidden">⬇ Export Excel</button>
       <button id="contact-info-close" class="btn btn-secondary">Close</button>
     </div>
   </div>
@@ -1110,6 +1135,7 @@
   </div>
 </div>
 
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <script type="module" src="js/main.js"></script>
 </body>
 </html>

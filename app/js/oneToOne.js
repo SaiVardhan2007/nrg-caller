@@ -188,11 +188,20 @@ async function renderHelpRequestsList() {
   const tbody = document.getElementById("help-requests-body");
   tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
 
-  const { data } = await supabase
+  // select("*") rather than an explicit column list: on databases where the
+  // later `response` column was never migrated in, naming it makes PostgREST
+  // reject the whole query — which showed up as a non-zero help count with an
+  // empty modal. Any error is now surfaced instead of looking like "no rows".
+  const { data, error } = await supabase
     .from("help_requests")
-    .select("id,message,created_at,resolved,response")
+    .select("*")
     .eq("mob_no", helpRequestsContext.mob)
     .order("created_at", { ascending: false });
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Could not load questions: ${escapeHtml(error.message)}</td></tr>`;
+    return;
+  }
 
   tbody.innerHTML = (data && data.length)
     ? data.map((r, i) => `

@@ -154,6 +154,21 @@ create table if not exists contact_collection (
 );
 create index if not exists idx_contact_collection_mob_no on contact_collection(mob_no);
 
+-- This queue now also receives contacts added from Reception and from Master
+-- Contact's "+ Add Contact" (nothing writes straight to `contacts` any more),
+-- so it carries every field those forms collect and cannot require
+-- profession/gender. See supabase/new-contacts-queue.sql for the migration.
+alter table contact_collection alter column profession drop not null;
+alter table contact_collection alter column gender     drop not null;
+alter table contact_collection add column if not exists ws              text;
+alter table contact_collection add column if not exists company_name    text;
+alter table contact_collection add column if not exists calling_purpose text;
+alter table contact_collection add column if not exists gyc_status      text;
+alter table contact_collection add column if not exists admin_tag       text;
+alter table contact_collection add column if not exists admin_tag_to_users text;
+alter table contact_collection add column if not exists core_cultivation   text;
+alter table contact_collection add column if not exists source          text;
+
 -- ============ TRIGGERS ============
 
 -- keep updated_at fresh

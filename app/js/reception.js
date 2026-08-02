@@ -1,5 +1,16 @@
 import { supabase } from "./supabaseClient.js";
-import { formatPhone, debounce, showToast, timeHM, escapeHtml, normalizePhoneInput } from "./utils.js";
+import { formatPhone, debounce, showToast, timeHM, escapeHtml, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser } from "./utils.js";
+
+// Profile fields used to compute each contact's "% completion" for the
+// Today's Attendance default sort — deliberately excludes name/phone
+// (always present) and computed/admin-only fields (sessions, calls, remarks).
+const PROFILE_COMPLETION_FIELDS = ["pg_name", "ws", "gender", "company_name", "calling_purpose", "core_cultivation", "admin_tag_to_users", "admin_tag", "gyc_status"];
+
+function completionPercent(contact) {
+  if (!contact) return 0;
+  const filled = PROFILE_COMPLETION_FIELDS.filter((f) => contact[f] !== null && contact[f] !== undefined && contact[f] !== "").length;
+  return Math.round((filled / PROFILE_COMPLETION_FIELDS.length) * 100);
+}
 
 let currentUser = null;
 let foundContact = null;
@@ -36,6 +47,7 @@ export async function init(user) {
   const nameInput = document.getElementById("reception-edit-name");
   const pgInput = document.getElementById("reception-edit-pg");
   const wsSelect = document.getElementById("reception-edit-ws");
+  const gycStatusSelect = document.getElementById("reception-edit-gyc-status");
 
   // required fields shown while marking attendance — until every one of these
   // is filled in, we can't be sure who this actually is, so gate the button
@@ -82,6 +94,7 @@ export async function init(user) {
   nameInput.addEventListener("change", (e) => saveField("name", e.target.value.trim()));
   pgInput.addEventListener("change", (e) => saveField("pg_name", e.target.value.trim()));
   wsSelect.addEventListener("change", (e) => saveField("ws", e.target.value));
+  gycStatusSelect.addEventListener("change", (e) => saveField("gyc_status", e.target.value));
 
   const doSearch = debounce(async (digits) => {
     loader.classList.remove("hidden");
@@ -90,7 +103,7 @@ export async function init(user) {
 
     const { data, error } = await supabase
       .from("contacts")
-      .select("id,name,mob_no,pg_name,ws,sessions_count")
+      .select("id,name,mob_no,pg_name,ws,gyc_status,sessions_count")
       .eq("mob_no", digits)
       .maybeSingle();
 
@@ -120,6 +133,7 @@ export async function init(user) {
     nameInput.value = data.name || "";
     pgInput.value = data.pg_name || "";
     wsSelect.value = data.ws || "";
+    gycStatusSelect.value = data.gyc_status || "";
 
     updateMarkButtonGating();
     resultEl.classList.remove("hidden");
@@ -249,35 +263,51 @@ export async function init(user) {
     submitBtn.disabled = true;
     submitBtn.textContent = "Saving…";
 
-    const { data: newContact, error: insertErr } = await supabase
-      .from("contacts")
-      .insert({
-        mob_no: searchedDigits,
-        name,
-        pg_name: document.getElementById("reception-new-pg").value.trim() || null,
-        company_name: document.getElementById("reception-new-company").value.trim() || null,
-        ws: document.getElementById("reception-new-ws").value,
-        gender: document.getElementById("reception-new-gender").value || null,
-        calling_purpose: document.getElementById("reception-new-event").value || null,
-      })
-      .select("id,name,mob_no,sessions_count")
-      .single();
-
-    if (insertErr) {
+    // New contacts are never written straight to Master Contact any more: they
+    // queue on the admin's New Contacts page for manual promotion. Attendance
+    // is still marked right away, since session_attendance keys off the phone
+    // number and does not need a contacts row to exist yet.
+    const { data: dupContact } = await supabase.from("contacts").select("id").eq("mob_no", searchedDigits).maybeSingle();
+    const { data: dupQueued } = await supabase.from("contact_collection").select("id").eq("mob_no", searchedDigits).maybeSingle();
+    if (dupContact || dupQueued) {
       saving = false;
       updateNewSubmitGating();
       submitBtn.textContent = "Save & Mark Attendance";
-      newContactError.textContent = insertErr.message.includes("duplicate")
+      newContactError.textContent = dupContact
         ? "This phone number is already registered."
-        : "Could not save. Try again.";
+        : "This number is already waiting for admin approval on the New Contacts page.";
       newContactError.classList.remove("hidden");
       return;
     }
 
     const eventCode = document.getElementById("reception-new-event").value.trim();
+    const { error: insertErr } = await supabase
+      .from("contact_collection")
+      .insert({
+        mob_no: searchedDigits,
+        name,
+        staying: document.getElementById("reception-new-pg").value.trim() || null,
+        company_name: document.getElementById("reception-new-company").value.trim() || null,
+        ws: document.getElementById("reception-new-ws").value,
+        gender: document.getElementById("reception-new-gender").value || null,
+        calling_purpose: eventCode || null,
+        gyc_status: document.getElementById("reception-new-gyc-status").value || null,
+        collected_by: currentUser.user_name,
+        source: "Reception",
+      });
+
+    if (insertErr) {
+      saving = false;
+      updateNewSubmitGating();
+      submitBtn.textContent = "Save & Mark Attendance";
+      newContactError.textContent = "Could not save. Try again.";
+      newContactError.classList.remove("hidden");
+      return;
+    }
+
     const { error: attendErr } = await supabase.from("session_attendance").insert({
-      mob_no: newContact.mob_no,
-      name: newContact.name,
+      mob_no: searchedDigits,
+      name,
       took_by: currentUser.user_name,
       event_code: eventCode || null,
     });
@@ -286,9 +316,9 @@ export async function init(user) {
     submitBtn.textContent = "Save & Mark Attendance";
 
     if (attendErr) {
-      showToast("Contact registered, but attendance could not be marked. Try marking it again.", "warning");
+      showToast("Sent to admin for approval, but attendance could not be marked. Try marking it again.", "warning");
     } else {
-      showToast(`${newContact.name} registered and attendance marked 🙏`, "success");
+      showToast(`${name}: attendance marked, sent to admin for approval 🙏`, "success");
       renderTodayList();
     }
 
@@ -318,21 +348,35 @@ async function loadTodayAttendance() {
     .select("mob_no,name,ts,event_code")
     .gte("ts", startOfTodayIST().toISOString())
     .order("ts", { ascending: false });
-  return error ? [] : (data || []);
+  if (error) return [];
+  const rows = data || [];
+
+  const mobNos = [...new Set(rows.map((r) => r.mob_no))];
+  const contactsByMob = new Map();
+  if (mobNos.length) {
+    const { data: contacts } = await supabase
+      .from("contacts")
+      .select("mob_no,pg_name,ws,gender,company_name,calling_purpose,core_cultivation,admin_tag_to_users,admin_tag,gyc_status,name")
+      .in("mob_no", mobNos);
+    (contacts || []).forEach((c) => contactsByMob.set(c.mob_no, c));
+  }
+  rows.forEach((r) => { r.contact = contactsByMob.get(r.mob_no) || null; });
+  return rows;
 }
 
 async function renderTodayList() {
   const tbody = document.getElementById("reception-attendance-body");
   const list = await loadTodayAttendance();
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="loading-row">No attendance marked today.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">No attendance marked today.</td></tr>`;
     return;
   }
   // "Name"/"Phone" both group repeat markings for the same person (by mob_no,
   // the actual identity key — not the name text, which can vary between
   // markings) together, just ordering the groups differently; "Time" keeps
-  // the natural latest-first order.
-  const sortMode = document.getElementById("reception-attendance-sort")?.value || "name";
+  // the natural latest-first order; "Completion" is the default — most
+  // incomplete profiles surface first so reception can flag them.
+  const sortMode = document.getElementById("reception-attendance-sort")?.value || "completion";
   let sorted;
   if (sortMode === "name" || sortMode === "phone") {
     const groups = new Map();
@@ -347,6 +391,8 @@ async function renderTodayList() {
       groupArr.sort((a, b) => (a[0].mob_no || "").localeCompare(b[0].mob_no || ""));
     }
     sorted = groupArr.flat();
+  } else if (sortMode === "completion") {
+    sorted = [...list].sort((a, b) => completionPercent(b.contact) - completionPercent(a.contact));
   } else {
     sorted = list;
   }
@@ -356,6 +402,28 @@ async function renderTodayList() {
       <td data-label="Phone" class="phone-cell">${formatPhone(r.mob_no)}</td>
       <td data-label="Time">${timeHM(r.ts)}</td>
       <td data-label="Session">${escapeHtml(r.event_code || "")}</td>
+      <td data-label="Admin Tag to Users">
+        <select class="inline-edit attendance-admin-tag" data-mob="${r.mob_no}" data-name="${escapeHtml(r.name || "")}">
+          ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (r.contact?.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+        </select>
+      </td>
     </tr>
   `).join("");
+
+  tbody.querySelectorAll(".attendance-admin-tag").forEach((select) => {
+    select.addEventListener("change", async (e) => {
+      const mob = e.target.dataset.mob;
+      const name = e.target.dataset.name;
+      const value = e.target.value || null;
+      const { error } = await supabase.from("contacts").update({ admin_tag_to_users: value }).eq("mob_no", mob);
+      if (error) {
+        showToast("Update failed: " + error.message, "error");
+        return;
+      }
+      await syncCoordinatorUser({ name, mob_no: mob }, value);
+      const row = list.find((r) => r.mob_no === mob);
+      if (row?.contact) row.contact.admin_tag_to_users = value;
+      showToast("Admin tag updated", "success");
+    });
+  });
 }

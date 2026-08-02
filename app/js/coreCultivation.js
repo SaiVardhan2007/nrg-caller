@@ -1,9 +1,9 @@
 import { supabase } from "./supabaseClient.js";
-import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit } from "./utils.js";
+import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit, cardNameDisplayHtml, GYC_STATUS_OPTIONS, startOfLast4Weeks } from "./utils.js";
 
-const STATUS_DEFAULT = ""; // "Not Done" is stored as an empty status, not the literal text
+const STATUS_DEFAULT = ""; // an un-called contact has an empty status, shown as a blank option
 const STATUS_OPTIONS = [
-  { value: "", label: "Not Done" },
+  { value: "", label: "" },
   { value: "Joining the session", label: "Joining the session" },
   { value: "Next Week will join", label: "Next Week will join" },
   { value: "Out of Station", label: "Out of Station" },
@@ -18,6 +18,10 @@ const PENDING = ["not done", "yet to call", ""];
 // "yet to call again" kept for older rows already saved under the previous label
 const NEGATIVE = ["out of station", "wrong number", "shifted to home town", "yet to call again", "need to call again", "available on weekend"];
 const WS_OPTIONS = ["NA", "W", "S"];
+// Sending the WhatsApp invite only gates Submit for the two statuses where the
+// contact actually intends to come — for "Wrong Number", "Out of Station" etc.
+// there is nothing worth sending, so a call alone is enough.
+const MESSAGE_REQUIRED_STATUSES = ["Joining the session", "Next Week will join"];
 
 function statusCategory(status) {
   const s = (status || "").toLowerCase();
@@ -84,7 +88,7 @@ function wireRefreshButton() {
 async function loadAndRenderCards() {
   const { data: contacts, error } = await supabase
     .from("contacts")
-    .select("id,name,mob_no,ws,sessions_count,calling_purpose")
+    .select("id,name,mob_no,ws,sessions_count,calling_purpose,gyc_status")
     .eq("core_cultivation", currentUser.user_name);
 
   const listEl = document.getElementById("cc-cards");
@@ -100,7 +104,7 @@ async function loadAndRenderCards() {
 
   const mobNos = contacts.map((c) => c.mob_no);
   const [{ data: weekCalls }, { data: ownHistory }] = await Promise.all([
-    supabase.from("call_responses").select("mob_no").in("mob_no", mobNos).gte("ts", startOfWeek().toISOString()),
+    supabase.from("call_responses").select("mob_no").in("mob_no", mobNos).gte("ts", startOfLast4Weeks().toISOString()),
     supabase.from("call_responses").select("mob_no,remarks,ts").eq("caller_name", currentUser.user_name).in("mob_no", mobNos).order("ts", { ascending: false }),
   ]);
   const weekCallCounts = {};
@@ -115,7 +119,7 @@ async function loadAndRenderCards() {
   contacts.forEach((c) => {
     if (!cardState.has(c.id)) {
       const lastStatus = lastStatusByMob[c.mob_no] || null;
-      cardState.set(c.id, { called: false, sent: false, submitted: !!lastStatus, lastStatus });
+      cardState.set(c.id, { called: false, sent: false, submitted: !!lastStatus, lastStatus, review: "" });
     }
   });
 
@@ -135,16 +139,6 @@ async function loadAndRenderCards() {
   updateStatsBar(contacts);
 }
 
-function startOfWeek() {
-  const d = new Date();
-  const day = d.getDay(); // 0 = Sun ... 6 = Sat
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diffToMonday);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-}
-
 function renderCard(c, weekCallCount) {
   const st = cardState.get(c.id);
   const status = st.lastStatus || STATUS_DEFAULT;
@@ -157,9 +151,9 @@ function renderCard(c, weekCallCount) {
           ${WS_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
         </select>
         <span class="call-card-name-wrap">
-          <span class="call-card-name name-display">${escapeHtml(c.name)}</span>
+          ${cardNameDisplayHtml(c.name)}
           <span class="name-edit-wrap hidden">
-            <input type="text" class="name-edit-input" value="${escapeHtml(c.name)}" />
+            <input type="text" class="name-edit-input" value="${escapeHtml(c.name || "")}" />
             <button type="button" class="name-save-btn" title="Save">✓</button>
             <button type="button" class="name-cancel-btn" title="Cancel">✕</button>
           </span>
@@ -169,7 +163,7 @@ function renderCard(c, weekCallCount) {
         <div class="card-badges">
           <span class="calls-link" style="cursor:default;">🌱 ${escapeHtml(c.calling_purpose || "—")}</span>
           <button class="sessions-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📋 Sessions: ${c.sessions_count}</button>
-          <button class="calls-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📞 This week: ${weekCallCount}</button>
+          <button class="calls-link" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">📞 Last 4 weeks: ${weekCallCount}</button>
         </div>
         <a class="phone-pill" href="${telHref(c.mob_no)}">📞 ${formatPhone(c.mob_no)}</a>
       </div>
@@ -177,6 +171,14 @@ function renderCard(c, weekCallCount) {
         <select class="status-select status-${category}">
           ${STATUS_OPTIONS.map((o) => `<option value="${o.value}" ${o.value === status ? "selected" : ""}>${o.label}</option>`).join("")}
         </select>
+        <select class="gyc-select" title="GFY/AOMC">
+          ${GYC_STATUS_OPTIONS.map((o) => `<option value="${o}" ${o === (c.gyc_status || "") ? "selected" : ""}>${o || "GFY/AOMC"}</option>`).join("")}
+        </select>
+      </div>
+      <div class="call-card-review${st.review ? "" : " hidden"}">
+        <span class="review-note-label">📝 Comment:</span>
+        <span class="review-note-text">${escapeHtml(st.review || "")}</span>
+        <button type="button" class="review-note-edit" title="Edit comment">✎</button>
       </div>
       <div class="call-card-row4">
         <button class="btn btn-secondary send-btn">💬 Send Message</button>
@@ -212,7 +214,8 @@ function refreshSubmitButton(card, contactId) {
     submitBtn.textContent = "Submit";
     return;
   }
-  if (st.called && st.sent) {
+  const needsMessage = MESSAGE_REQUIRED_STATUSES.includes(status);
+  if (st.called && (st.sent || !needsMessage)) {
     submitBtn.disabled = false;
     submitBtn.textContent = "Submit";
   } else if (!st.called) {
@@ -253,6 +256,20 @@ function wireCard(contacts) {
       refreshSubmitButton(card, contactId);
     });
 
+    card.querySelector(".gyc-select").addEventListener("change", async (e) => {
+      const { error } = await supabase.from("contacts").update({ gyc_status: e.target.value || null }).eq("id", contactId);
+      if (error) {
+        showToast("Could not save GFY status.", "error");
+        return;
+      }
+      c.gyc_status = e.target.value || null;
+      showToast("GFY status updated", "success", 1200);
+    });
+
+    card.querySelector(".review-note-edit").addEventListener("click", () => {
+      openReviewModal(card, contactId, c);
+    });
+
     card.querySelector(".send-btn").addEventListener("click", () => {
       sendWhatsAppMessage(c.mob_no, c.name, messageText, messageImageUrl);
       cardState.get(contactId).sent = true;
@@ -281,7 +298,7 @@ async function submitCard(card, contactId, contact) {
   const statusSelect = card.querySelector(".status-select");
   const submitBtn = card.querySelector(".row-submit-btn");
   const status = statusSelect.value;
-  const addl = statusSelect.dataset.review || null;
+  const addl = (cardState.get(contactId).review || "").trim() || null;
   const eventCode = contact.calling_purpose || null;
 
   submitBtn.disabled = true;
@@ -352,9 +369,18 @@ function updateStatsBarFromDom() {
 // path there for "Others" / core-cultivated cards).
 let pendingReview = null;
 
+// Paints the saved comment back onto the card so it stays visible, and
+// survives a later status change instead of silently disappearing.
+function renderCardReview(card, contactId) {
+  const text = cardState.get(contactId).review || "";
+  const row = card.querySelector(".call-card-review");
+  row.querySelector(".review-note-text").textContent = text;
+  row.classList.toggle("hidden", !text);
+}
+
 function openReviewModal(card, contactId, contact) {
   pendingReview = { card, contactId };
-  document.getElementById("review-input").value = "";
+  document.getElementById("review-input").value = cardState.get(contactId).review || "";
   document.getElementById("review-error").classList.add("hidden");
   document.getElementById("review-skip").textContent = "Cancel";
   document.getElementById("review-confirm").textContent = "Submit";
@@ -391,7 +417,8 @@ function wireReviewModal() {
     const { card, contactId } = pendingReview;
     modal.classList.remove("active");
     pendingReview = null;
-    card.querySelector(".status-select").dataset.review = input.value.trim();
+    cardState.get(contactId).review = input.value.trim();
+    renderCardReview(card, contactId);
     refreshSubmitButton(card, contactId);
   };
   input.addEventListener("keydown", (e) => {

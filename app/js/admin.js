@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { STORAGE_BUCKET } from "./config.js";
-import { showToast, formatPhone, escapeHtml, downloadCSV, exportTableToCSV, parseCSV, compressImageFile, normalizePhoneInput } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, compressImageFile, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS } from "./utils.js";
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
@@ -488,6 +488,9 @@ function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup) {
   const btn = document.getElementById("assign-btn");
   const summary = document.getElementById("assign-summary");
   btn.onclick = async () => {
+    // Assigning rewrites every caller's list, so make it a deliberate action
+    // rather than something a stray click can trigger.
+    if (!confirm("Assign contacts to all eligible callers now? This rebuilds their call lists based on the current event, filters and call limits.")) return;
     btn.disabled = true;
     btn.textContent = "Assigning…";
     try {
@@ -748,7 +751,7 @@ function wireUsersImportExport() {
     (users || []).forEach((u) => {
       rows.push([u.user_name, u.login_pw, u.role, u.call_limit ?? "", counts[u.user_name] || 0, u.auto_assign ? "Yes" : "No"]);
     });
-    downloadCSV(`nrg-users-${todayStamp()}.csv`, rows);
+    downloadExcel(`nrg-users-${todayStamp()}.xlsx`, rows);
   });
 
   const fileInput = document.getElementById("users-import-file");
@@ -827,7 +830,7 @@ export async function initContacts() {
 const CONTACTS_COLUMN_ORDER_KEY = "nrg-contacts-column-order";
 const DEFAULT_CONTACTS_COLUMNS = [
   "S.No", "Time Stamp", "Name", "Phone", "PG Name", "Profession", "Gender", "Sessions", "Calls",
-  "Admin Tag to Users", "Admin Tag", "Core Cultivation", "Calling Purpose", "GFY Status", "Admin Review", "",
+  "Admin Tag to Users", "Admin Tag", "Core Cultivation", "Calling Purpose", "GFY/AOMC", "Admin Review", "",
 ];
 
 function getContactsColumnOrder() {
@@ -896,13 +899,77 @@ function wireContactsColumnReorder() {
     applyContactsColumnOrder(DEFAULT_CONTACTS_COLUMNS);
     showToast("Column order reset", "success");
   });
+
+  wireHorizontalScroll();
+}
+
+// Master Contact is far wider than any screen, so panning it is a first-class
+// action here: click-and-drag anywhere on the table, shift+wheel (or a plain
+// wheel when there is nothing left to scroll vertically), the ◀ ▶ buttons, or
+// the arrow keys once the table has focus.
+function wireHorizontalScroll() {
+  const wrap = document.getElementById("contacts-table-wrap");
+  if (!wrap || wrap.dataset.hscrollWired) return;
+  wrap.dataset.hscrollWired = "1";
+
+  const PAGE = () => Math.max(240, wrap.clientWidth * 0.8);
+  document.getElementById("contacts-scroll-left").addEventListener("click", () => {
+    wrap.scrollBy({ left: -PAGE(), behavior: "smooth" });
+  });
+  document.getElementById("contacts-scroll-right").addEventListener("click", () => {
+    wrap.scrollBy({ left: PAGE(), behavior: "smooth" });
+  });
+
+  wrap.addEventListener("wheel", (e) => {
+    if (!e.shiftKey && Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // real trackpad h-scroll: leave it alone
+    if (!e.shiftKey) return;
+    e.preventDefault();
+    wrap.scrollLeft += e.deltaY;
+  }, { passive: false });
+
+  // Drag-to-pan. Ignored when the press starts on something interactive so
+  // inline edits, dropdowns and the draggable column headers still work.
+  let dragging = false, startX = 0, startScroll = 0, moved = false;
+  const INTERACTIVE = "input, select, textarea, button, a, th[draggable='true']";
+
+  wrap.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || e.target.closest(INTERACTIVE)) return;
+    dragging = true;
+    moved = false;
+    startX = e.clientX;
+    startScroll = wrap.scrollLeft;
+  });
+  wrap.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    if (!moved && Math.abs(dx) < 4) return; // let real clicks through untouched
+    if (!moved) {
+      moved = true;
+      wrap.classList.add("is-dragging");
+      wrap.setPointerCapture(e.pointerId);
+    }
+    e.preventDefault();
+    wrap.scrollLeft = startScroll - dx;
+  });
+  const endDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    wrap.classList.remove("is-dragging");
+    if (moved && wrap.hasPointerCapture?.(e.pointerId)) wrap.releasePointerCapture(e.pointerId);
+  };
+  wrap.addEventListener("pointerup", endDrag);
+  wrap.addEventListener("pointercancel", endDrag);
+
+  wrap.addEventListener("keydown", (e) => {
+    if (e.target.closest("input, select, textarea")) return;
+    if (e.key === "ArrowRight") { e.preventDefault(); wrap.scrollBy({ left: PAGE(), behavior: "smooth" }); }
+    if (e.key === "ArrowLeft") { e.preventDefault(); wrap.scrollBy({ left: -PAGE(), behavior: "smooth" }); }
+  });
 }
 
 const WS_ADMIN_OPTIONS = ["NA", "W", "S"];
 const GENDER_ADMIN_OPTIONS = ["", "M", "F"];
-const ADMIN_TAG_TO_USERS_OPTIONS = ["", "Don't Call", "Coordinator", "Janata", "Call", "Core", "Assigned"];
 const ADMIN_TAG_OPTIONS = ["", "LIT", "Folk HYD", "Focus"];
-const GYC_STATUS_OPTIONS = ["", "Attended", "Registered", "Not Intrested", "Not Registered"];
 
 // every column-header filter dropdown in Master Contact, paired with the
 // contacts column it filters on.
@@ -938,29 +1005,6 @@ function populateFilterSelect(select, values, blankLabel = "—") {
   select.innerHTML = `<option value="__ALL__">All</option><option value="">${blankLabel}</option>` +
     values.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
   select.value = [...select.options].some((o) => o.value === current) ? current : "__ALL__";
-}
-
-// Contacts tagged "Coordinator" (admin_tag_to_users) are meant to appear as
-// login accounts on the Users & Assignment page — this keeps that in sync
-// both ways: tagging in adds them there, un-tagging removes the account this
-// created. Matched by phone (login_pw doubles as the contact's phone for
-// these accounts, same link initUserOneToOne relies on).
-async function syncCoordinatorUser(contact, tagValue) {
-  const { data: existing } = await supabase.from("users").select("id,role").eq("login_pw", contact.mob_no).maybeSingle();
-  if (tagValue === "Coordinator") {
-    if (existing) {
-      if (existing.role !== "Coordinator") {
-        await supabase.from("users").update({ role: "Coordinator", user_name: contact.name }).eq("id", existing.id);
-      }
-    } else {
-      const { error } = await supabase.from("users").insert({
-        user_name: contact.name, login_pw: contact.mob_no, role: "Coordinator", auto_assign: true,
-      });
-      if (error) showToast("Tagged as Coordinator, but couldn't add to Users: " + error.message, "warning");
-    }
-  } else if (existing && existing.role === "Coordinator") {
-    await supabase.from("users").delete().eq("id", existing.id);
-  }
 }
 
 async function renderContactsTable(searchTerm = "") {
@@ -1068,7 +1112,7 @@ async function renderContactsTable(searchTerm = "") {
       <td data-label="S.No">${anyFilterActive ? i + 1 : (c.s_no ?? i + 1)}</td>
       <td data-label="Time Stamp">${c.created_at ? new Date(c.created_at).toLocaleString() : ""}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(c.name)}" /></td>
-      <td data-label="Phone"><input class="inline-edit" data-field="mob_no" maxlength="10" value="${c.mob_no}" /></td>
+      <td data-label="Phone"><input class="inline-edit" data-field="mob_no" value="${c.mob_no}" /></td>
       <td data-label="PG Name"><input class="inline-edit" data-field="pg_name" value="${escapeHtml(c.pg_name || "")}" /></td>
       <td data-label="Profession">
         <select class="inline-edit" data-field="ws">
@@ -1104,7 +1148,7 @@ async function renderContactsTable(searchTerm = "") {
           ${eventsCache.map((e) => `<option value="${e.code}" ${e.code === (c.calling_purpose || "") ? "selected" : ""}>${e.code}</option>`).join("")}
         </select>
       </td>
-      <td data-label="GFY Status">
+      <td data-label="GFY/AOMC">
         <select class="inline-edit" data-field="gyc_status">
           ${GYC_STATUS_OPTIONS.map((t) => `<option value="${t}" ${t === (c.gyc_status || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
         </select>
@@ -1125,10 +1169,14 @@ async function renderContactsTable(searchTerm = "") {
       const contact = data.find((c) => c.id === id);
       let value = e.target.value.trim();
 
-      if (field === "mob_no" && !/^[0-9]{10}$/.test(value)) {
-        showToast("Phone number must be exactly 10 digits.", "error");
-        e.target.value = contact.mob_no;
-        return;
+      if (field === "mob_no") {
+        value = normalizePhoneInput(value);
+        if (value.length !== 10) {
+          showToast("Phone number must be exactly 10 digits.", "error");
+          e.target.value = contact.mob_no;
+          return;
+        }
+        e.target.value = value;
       }
       if (field === "name" && !value) {
         showToast("Name cannot be empty.", "error");
@@ -1298,7 +1346,7 @@ async function openContactInfoModal(kind, mob, name, isNewContact = false) {
         { name: "Admin Tag", value: escapeHtml(contact.admin_tag || "—") },
         { name: "Core Cultivation", value: escapeHtml(contact.core_cultivation || "—") },
         { name: "Calling Purpose", value: escapeHtml(contact.calling_purpose || "—") },
-        { name: "GFY Status", value: escapeHtml(contact.gyc_status || "—") },
+        { name: "GFY/AOMC", value: escapeHtml(contact.gyc_status || "—") },
         { name: "Admin Remarks", value: escapeHtml(contact.admin_remarks || "—") }
       ];
       tbody.innerHTML = fields.map(f => `
@@ -1454,7 +1502,7 @@ function wireContactsSearch() {
 
 const CONTACT_CSV_HEADERS = [
   "S No", "Time Stamp", "Name", "Phone", "PG Name", "Profession", "Gender", "Sessions", "Calls", "Admin Tag to Users",
-  "Admin Tag", "Core Cultivation", "Calling Purpose", "GFY Status", "Company Name", "Admin Remarks",
+  "Admin Tag", "Core Cultivation", "Calling Purpose", "GFY/AOMC", "Company Name", "Admin Remarks",
 ];
 
 let contactsImportExportWired = false;
@@ -1472,7 +1520,7 @@ function wireContactsImportExport() {
         c.gyc_status || "", c.company_name || "", c.admin_remarks || "",
       ]);
     });
-    downloadCSV(`nrg-master-contact-${todayStamp()}.csv`, rows);
+    downloadExcel(`nrg-master-contact-${todayStamp()}.xlsx`, rows);
   });
 }
 
@@ -1525,10 +1573,13 @@ function wireAddContactModal() {
       errorEl.classList.remove("hidden");
       return;
     }
+    // Every new contact goes through the New Contacts review queue now — even
+    // one typed in here — so there is a single place where contacts enter
+    // Master Contact and nothing lands in it unreviewed.
     const payload = {
       mob_no: phone,
       name,
-      pg_name: document.getElementById("add-contact-pg").value.trim() || null,
+      staying: document.getElementById("add-contact-pg").value.trim() || null,
       company_name: document.getElementById("add-contact-company").value.trim() || null,
       ws: document.getElementById("add-contact-ws").value,
       gender: document.getElementById("add-contact-gender").value || null,
@@ -1536,26 +1587,38 @@ function wireAddContactModal() {
       admin_tag: document.getElementById("add-contact-tag").value || null,
       core_cultivation: document.getElementById("add-contact-cultivator").value || null,
       calling_purpose: document.getElementById("add-contact-event").value || null,
+      collected_by: "Admin",
+      source: "Master Contact",
     };
 
     saving = true;
     document.getElementById("add-contact-submit").textContent = "Saving…";
-    const { error } = await supabase.from("contacts").insert(payload);
+    const [{ data: dupContact }, { data: dupQueued }] = await Promise.all([
+      supabase.from("contacts").select("id").eq("mob_no", phone).maybeSingle(),
+      supabase.from("contact_collection").select("id").eq("mob_no", phone).maybeSingle(),
+    ]);
+    if (dupContact || dupQueued) {
+      saving = false;
+      document.getElementById("add-contact-submit").textContent = "Save";
+      errorEl.textContent = dupContact
+        ? "This phone number already exists in Master Contact."
+        : "This number is already waiting in the New Contacts queue.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+
+    const { error } = await supabase.from("contact_collection").insert(payload);
     saving = false;
     document.getElementById("add-contact-submit").textContent = "Save";
 
     if (error) {
-      errorEl.textContent = error.message.includes("duplicate") ? "This phone number already exists." : error.message;
+      errorEl.textContent = error.message;
       errorEl.classList.remove("hidden");
       return;
     }
-    if (payload.admin_tag_to_users === "Coordinator") {
-      await syncCoordinatorUser({ name, mob_no: phone }, "Coordinator");
-    }
 
     modal.classList.remove("active");
-    showToast("Contact added", "success");
-    renderContactsTable(document.getElementById("contacts-search").value.trim());
+    showToast("Sent to New Contacts for review", "success");
   };
 }
 
@@ -1646,10 +1709,9 @@ export async function initAnalytics() {
     eventsCache.map((e) => `<option value="${e.code}">${e.name} (${e.code})</option>`).join("");
 
   if (!fromInput.value) {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    fromInput.value = d.toISOString().slice(0, 10);
-    toInput.value = new Date().toISOString().slice(0, 10);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    fromInput.value = todayStr;
+    toInput.value = todayStr;
   }
 
   const run = () => runAnalytics(userSelect.value, fromInput.value, toInput.value, eventSelect.value);
@@ -1675,7 +1737,7 @@ export async function initAnalytics() {
         [],
         ["Core Cultivation Health"], ...readTable(document.getElementById("analytics-cultivation-body").closest("table")),
       ];
-      downloadCSV(`nrg-analytics-${todayStamp()}.csv`, rows);
+      downloadExcel(`nrg-analytics-${todayStamp()}.xlsx`, rows);
     });
   }
   if (userSelect.value) run();
@@ -1723,7 +1785,7 @@ function renderAssignedContactsTable() {
           <td data-label="Caller">${escapeHtml(a.user_name)}</td>
           <td data-label="Name">${escapeHtml(a.contacts?.name || "—")}</td>
           <td data-label="Phone">${formatPhone(a.contacts?.mob_no || "")}</td>
-          <td data-label="Status">${escapeHtml(a.status || "Not Done")}</td>
+          <td data-label="Status">${escapeHtml(a.status || "")}</td>
           <td data-label="Called?">${(a.status || "Not Done") !== "Not Done" ? "✅" : "—"}</td>
         </tr>`).join("")
     : `<tr><td colspan="6" class="loading-row">No contacts currently assigned.</td></tr>`;
@@ -1833,7 +1895,7 @@ async function openAnalyticsStatModal(statType) {
     tbody.querySelectorAll("tr").forEach((tr) => {
       rows.push(Array.from(tr.children).map((td) => td.textContent.trim()));
     });
-    downloadCSV(`nrg-pending-contacts-${todayStamp()}.csv`, rows);
+    downloadExcel(`nrg-pending-contacts-${todayStamp()}.xlsx`, rows);
   };
 
   if (statType === "assigned") {
@@ -2035,7 +2097,7 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   populateFilterSelect(
     document.getElementById("analytics-assigned-filter-status"),
     [...new Set(lastAssignedContacts.map((a) => a.status))].filter(Boolean).sort(),
-    "Not Done"
+    ""
   );
   renderAssignedContactsTable();
 
@@ -2105,7 +2167,7 @@ export async function initReceptionAnalytics() {
     document.getElementById("reception-analytics-run-btn").addEventListener("click", run);
     document.getElementById("reception-analytics-export-btn").addEventListener("click", () => {
       const table = document.getElementById("reception-analytics-attendance-body").closest("table");
-      exportTableToCSV(table, `nrg-reception-analytics-${todayStamp()}.csv`);
+      exportTableToExcel(table, `nrg-reception-analytics-${todayStamp()}.xlsx`);
     });
   }
   run();
@@ -2243,25 +2305,27 @@ let isResolvingDuplicates = false;
 let isFetchingNewContacts = false;
 let newContactsWired = false;
 
-// Leads submitted from the user-facing Contact Collection card. Separate,
-// much simpler pipeline than the Sheets-based New Contacts table above —
-// Add promotes straight into Master Contact (skipped if the phone's already
-// there; admin resolves that manually), Delete just dismisses the lead.
+// The review queue every new contact now passes through — Contact Collection,
+// Reception's "not found" form, and Master Contact's "+ Add Contact" all land
+// here rather than writing to `contacts` directly. Separate, much simpler
+// pipeline than the Sheets-based New Contacts table above: Add promotes into
+// Master Contact (skipped if the phone's already there; admin resolves that
+// manually), Delete just dismisses the lead.
 async function renderCollectionSubmissions() {
   const tbody = document.getElementById("collection-submissions-admin-body");
-  tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Loading…</td></tr>`;
 
   const { data, error } = await supabase
     .from("contact_collection")
-    .select("id,name,mob_no,profession,gender,staying,comment,collected_by,created_at")
+    .select("*")
     .order("created_at", { ascending: false });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Could not load submissions.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Could not load submissions.</td></tr>`;
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">No submissions yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">No submissions yet.</td></tr>`;
     return;
   }
 
@@ -2271,11 +2335,12 @@ async function renderCollectionSubmissions() {
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name">${escapeHtml(r.name)}</td>
       <td data-label="Phone" class="phone-cell">${formatPhone(r.mob_no)}</td>
-      <td data-label="Profession">${escapeHtml(r.profession)}</td>
-      <td data-label="Gender">${escapeHtml(r.gender)}</td>
+      <td data-label="Profession">${escapeHtml(r.ws || r.profession || "—")}</td>
+      <td data-label="Gender">${escapeHtml(r.gender || "—")}</td>
       <td data-label="Staying">${escapeHtml(r.staying || "—")}</td>
       <td data-label="Comment">${escapeHtml(r.comment || "—")}</td>
       <td data-label="Collected By">${escapeHtml(r.collected_by || "—")}</td>
+      <td data-label="Source">${escapeHtml(r.source || "Contact Collection")}</td>
       <td data-label="">
         <button class="cell-chip collection-add-btn" data-id="${r.id}">+ Add</button>
         <button class="cell-chip danger collection-delete-btn" data-id="${r.id}">Delete</button>
@@ -2297,14 +2362,26 @@ async function renderCollectionSubmissions() {
       const { error: insErr } = await supabase.from("contacts").insert({
         mob_no: row.mob_no,
         name: row.name,
-        gender: row.gender,
+        gender: row.gender || null,
         pg_name: row.staying || null,
-        ws: row.profession || "NA",
+        // Contact Collection asks for a free-text "profession"; Reception and
+        // Master Contact send a real W/S value, so prefer that when present.
+        ws: row.ws || row.profession || "NA",
+        company_name: row.company_name || null,
+        calling_purpose: row.calling_purpose || null,
+        gyc_status: row.gyc_status || null,
+        admin_tag: row.admin_tag || null,
+        admin_tag_to_users: row.admin_tag_to_users || null,
+        core_cultivation: row.core_cultivation || null,
+        admin_remarks: row.comment || null,
       });
       if (insErr) {
         showToast("Add failed: " + insErr.message, "error");
         btn.disabled = false;
         return;
+      }
+      if (row.admin_tag_to_users === "Coordinator") {
+        await syncCoordinatorUser({ name: row.name, mob_no: row.mob_no }, "Coordinator");
       }
       await supabase.from("contact_collection").delete().eq("id", row.id);
       showToast(`${row.name} added to Master Contact`, "success");
@@ -2441,7 +2518,7 @@ function renderNewContactsTable() {
         <td data-label="S.No">${idx + 1}</td>
         <td data-label="Time Stamp">${c.time_stamp ? new Date(c.time_stamp).toLocaleString() : "—"}</td>
         <td data-label="Name"><input class="inline-edit new-contact-inline-edit" data-field="name" data-index="${idx}" value="${escapeHtml(c.name)}" /></td>
-        <td data-label="Phone"><input class="inline-edit new-contact-inline-edit" data-field="mob_no" data-index="${idx}" maxlength="10" value="${c.mob_no}" /></td>
+        <td data-label="Phone"><input class="inline-edit new-contact-inline-edit" data-field="mob_no" data-index="${idx}" value="${c.mob_no}" /></td>
         <td data-label="PG Name"><input class="inline-edit new-contact-inline-edit" data-field="pg_name" data-index="${idx}" value="${escapeHtml(c.pg_name || "")}" /></td>
         <td data-label="Profession">
           <select class="inline-edit new-contact-ws-select" data-index="${idx}">
@@ -2528,7 +2605,12 @@ function renderNewContactsTable() {
     input.addEventListener("change", (e) => {
       const idx = parseInt(e.target.dataset.index, 10);
       const field = e.target.dataset.field;
-      newContactsCache[idx][field] = e.target.value.trim() || null;
+      let value = e.target.value.trim();
+      if (field === "mob_no") {
+        value = normalizePhoneInput(value);
+        e.target.value = value;
+      }
+      newContactsCache[idx][field] = value || null;
     });
   });
 
@@ -2977,45 +3059,21 @@ export async function downloadAllDbData() {
       }
     }
 
-    // Build individual CSVs and combine into a single downloadable file
-    // Since we can't create ZIP without a library, we'll create a single CSV workbook
-    // with clear section separators, or download each table individually.
-    // Better approach: create a single combined text file with all tables clearly separated.
-
-    let output = "";
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
 
+    const wb = XLSX.utils.book_new();
     for (const table of DB_TABLES) {
       const rows = allData[table];
-      output += `\n===== TABLE: ${table.toUpperCase()} (${rows.length} rows) =====\n`;
-
-      if (!rows.length) {
-        output += "(empty)\n";
-        continue;
-      }
-
-      const headers = Object.keys(rows[0]);
-      output += headers.join(",") + "\n";
-      rows.forEach((row) => {
-        output += headers.map((h) => {
-          let v = row[h];
-          if (v === null || v === undefined) return "";
-          v = String(v).replace(/"/g, '""');
-          return v.includes(",") || v.includes("\n") || v.includes('"') ? `"${v}"` : v;
-        }).join(",") + "\n";
-      });
+      const aoa = rows.length
+        ? [Object.keys(rows[0]), ...rows.map((row) => Object.keys(rows[0]).map((h) => {
+            const v = row[h];
+            return v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : v;
+          }))]
+        : [["(empty)"]];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb, ws, table.slice(0, 31)); // Excel sheet names cap at 31 chars
     }
-
-    // Trigger download
-    const blob = new Blob([output], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `FNRG_Preaching_Full_DB_${timestamp}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    XLSX.writeFile(wb, `FNRG_Preaching_Full_DB_${timestamp}.xlsx`);
 
     showToast(`Exported ${DB_TABLES.length} tables successfully! 📁`, "success");
   } catch (err) {
