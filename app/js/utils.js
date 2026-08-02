@@ -176,7 +176,7 @@ export function wireCardNameEdit(card, contactId, contact) {
   });
 }
 
-export const GYC_STATUS_OPTIONS = ["", "Attended", "Registered", "Not Intrested", "Not Registered", "Intrested in AOMC"];
+export const GYC_STATUS_OPTIONS = ["", "Intrested GFY", "Not Intrested GFY", "Attended GFY", "Intrested AOMC", "Not Intrested AOMC", "Attended AOMC"];
 
 // Call-history badges in My Calls / Core Cultivation look back four weeks
 // (28 days), not just the current Mon–Sun week — callers need the longer

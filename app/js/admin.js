@@ -49,7 +49,8 @@ function getCheckedTags(tagFilterGroup) {
 }
 
 // "" (both/neither checked) = no GFY filter, "attended" = only gyc_status ===
-// 'Attended', "not_attended" = anything else (including blank) counts as not attended.
+// 'Attended GFY', "not_attended" = anything else (including blank) counts as
+// not attended.
 function getGfyFilter(gfyGroup) {
   const attended = gfyGroup.querySelector("#gfy-filter-attended").checked;
   const notAttended = gfyGroup.querySelector("#gfy-filter-not-attended").checked;
@@ -354,7 +355,7 @@ function distributePool(pool, eligible, assignedCount, eventCode) {
 // Rebalance, and (in SQL) the continuous trigger.
 // eventCode === "__ALL__" pools contacts across every event at once (each one
 // still keeps its own calling_purpose as its assignment's event_code).
-// gfyFilter: "" (no filter), "attended" (gyc_status === 'Attended' only), or
+// gfyFilter: "" (no filter), "attended" (gyc_status === 'Attended GFY' only), or
 // "not_attended" (anything else, including blank, counts as not attended).
 async function fetchEventContactPool(eventCode, tagFilters, gfyFilter = "") {
   const allEvents = eventCode === "__ALL__";
@@ -370,9 +371,9 @@ async function fetchEventContactPool(eventCode, tagFilters, gfyFilter = "") {
     query = query.or("admin_tag_to_users.is.null,admin_tag_to_users.neq.Don't Call");
   }
   if (gfyFilter === "attended") {
-    query = query.eq("gyc_status", "Attended");
+    query = query.eq("gyc_status", "Attended GFY");
   } else if (gfyFilter === "not_attended") {
-    query = query.or("gyc_status.is.null,gyc_status.neq.Attended");
+    query = query.or("gyc_status.is.null,gyc_status.neq.Attended GFY");
   }
   const { data, error } = await query;
   if (error) throw error;
