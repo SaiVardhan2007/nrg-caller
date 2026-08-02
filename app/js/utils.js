@@ -205,6 +205,20 @@ export function gycSelectHtml(currentValue) {
     </span>`;
 }
 
+// The call-status picker, wearing the same labelled-chip shape as the other
+// two card fields: "Call Status" names it while it is empty, and once a status
+// is picked the name drops away so the answer alone occupies the space.
+export function statusSelectHtml(options, current, category) {
+  const value = current || "";
+  return `
+    <span class="status-field${value ? " is-set" : ""}">
+      <span class="status-field-label">Call Status</span>
+      <select class="status-select status-${category}" aria-label="Call status">
+        ${options.map((o) => `<option value="${escapeHtml(o.value)}" ${o.value === value ? "selected" : ""}>${o.label ? escapeHtml(o.label) : "— not set —"}</option>`).join("")}
+      </select>
+    </span>`;
+}
+
 // Free-text "where they work or study" for a call card. Editable by callers
 // because they are the ones who find it out on the call; blank until then.
 export function orgFieldHtml(currentValue) {

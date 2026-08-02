@@ -19,5 +19,7 @@ alter table contact_collection add column if not exists core_cultivation   text;
 alter table contact_collection add column if not exists source          text;
 
 -- Older databases may predate the One to One answer column; without it the
--- help-requests modal errors out and renders as "no questions asked".
+-- help-requests lists error out and render as "no questions asked", and the
+-- admin's response never saves. APPLIED to the live database on 2026-08-02;
+-- the contact_collection changes above are still pending.
 alter table help_requests add column if not exists response text;

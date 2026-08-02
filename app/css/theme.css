@@ -496,11 +496,13 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 
 .call-card-row2 { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
 .card-badges { display: flex; flex-wrap: wrap; gap: 6px; }
-.calls-link {
+.calls-link,
+.sessions-link {
   background: rgba(5,150,105,0.08); border: none; color: var(--tulsi-dark); font-size: 12px; font-weight: 700;
   cursor: pointer; padding: 6px 10px; border-radius: 20px; transition: background 0.15s ease; white-space: nowrap;
 }
-.calls-link:hover { background: rgba(5,150,105,0.16); }
+.calls-link:hover,
+.sessions-link:hover { background: rgba(5,150,105,0.16); }
 .phone-pill {
   background: var(--grad-tulsi); color: #fff; text-decoration: none; font-weight: 700;
   padding: 8px 16px; border-radius: 20px; font-size: 14px; white-space: nowrap;
@@ -509,7 +511,6 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .phone-pill:active { transform: scale(0.96); }
 
 .call-card-row3 { margin-bottom: 12px; }
-.call-card-row3 select.status-select { width: 100%; font-weight: 600; }
 .status-select.status-positive { border-color: var(--tulsi); background: #ecfdf5; color: var(--tulsi-dark); }
 .status-select.status-negative { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
 .status-select.status-neutral { border-color: var(--sandstone); }
@@ -804,7 +805,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 /* ---- Call card: GFY status + saved comment ---- */
 /* Call status and Org share the row, half each. */
 .call-card-row3 { display: flex; gap: 8px; align-items: center; }
-.call-card-row3 .status-select { flex: 1 1 50%; min-width: 0; }
+.call-card-row3 .status-field { flex: 1 1 50%; min-width: 0; }
 .call-card-row3 .org-field { flex: 1 1 50%; min-width: 0; }
 .call-card-review {
   display: flex; align-items: flex-start; gap: 6px;
@@ -931,3 +932,53 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .call-card-row2 .gyc-field .gyc-select { padding: 6px 8px; font-size: 12px; }
 .call-card-row2 .gyc-field.is-set .gyc-select { padding-left: 12px; }
 .call-card-row3 .org-field.is-set .org-input { padding-left: 12px; }
+
+/* Call status wears the same labelled-chip shape as GFY/AOMC and Org: the
+   field's name while it is empty, the answer alone once one is picked. */
+.status-field {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border, #d8e0dc);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface, #fff);
+}
+.status-field-label {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-muted, #6b7c75);
+  background: var(--surface-2, #f1f5f3);
+  border-right: 1px solid var(--border, #d8e0dc);
+}
+.status-field .status-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 8px;
+  cursor: pointer;
+}
+.status-field .status-select:focus { outline: none; }
+.status-field:focus-within { border-color: var(--brand, #047857); }
+.status-field.is-set { border-color: var(--brand, #047857); background: rgba(4, 120, 87, 0.06); }
+.status-field.is-set .status-field-label { display: none; }
+.status-field.is-set .status-select { padding-left: 12px; }
+/* Keep the positive/negative read of a picked status now that the chip, not
+   the bare select, draws the border. Falls back to the plain .is-set green
+   where :has() is unavailable. */
+.status-field:has(.status-select.status-positive) { border-color: var(--tulsi); background: #ecfdf5; }
+.status-field:has(.status-select.status-negative) { border-color: #fca5a5; background: #fef2f2; }
+.status-field:has(.status-select.status-negative) .status-select { color: #991b1b; }

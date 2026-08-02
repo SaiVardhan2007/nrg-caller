@@ -430,11 +430,19 @@ async function renderUserQuestions() {
   const tbody = document.getElementById("one-to-one-user-questions-body");
   tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Loading…</td></tr>`;
 
-  const { data } = await supabase
+  // select("*") and a surfaced error, for the same reason as the admin modal:
+  // naming a column the database doesn't have makes PostgREST reject the whole
+  // query, which then reads as "you haven't asked anything yet".
+  const { data, error } = await supabase
     .from("help_requests")
-    .select("id,message,created_at,resolved,response")
+    .select("*")
     .eq("mob_no", currentContactMob)
     .order("created_at", { ascending: false });
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Could not load your questions: ${escapeHtml(error.message)}</td></tr>`;
+    return;
+  }
 
   tbody.innerHTML = (data && data.length)
     ? data.map((r) => `

@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit, cardNameDisplayHtml, gycSelectHtml, orgFieldHtml, saveContactOrg, startOfLast4Weeks } from "./utils.js";
+import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit, cardNameDisplayHtml, statusSelectHtml, gycSelectHtml, orgFieldHtml, saveContactOrg, startOfLast4Weeks } from "./utils.js";
 
 const STATUS_DEFAULT = ""; // an un-called contact has an empty status, shown as a blank option
 const STATUS_OPTIONS = [
@@ -171,14 +171,11 @@ function renderCard(c, weekCallCount) {
         </div>
       </div>
       <div class="call-card-row3">
-        <select class="status-select status-${category}">
-          ${STATUS_OPTIONS.map((o) => `<option value="${o.value}" ${o.value === status ? "selected" : ""}>${o.label}</option>`).join("")}
-        </select>
+        ${statusSelectHtml(STATUS_OPTIONS, status, category)}
         ${orgFieldHtml(c.company_name)}
       </div>
       <div class="call-card-review${st.review ? "" : " hidden"}">
-        <span class="review-note-label">📝 Comment:</span>
-        <span class="review-note-text">${escapeHtml(st.review || "")}</span>
+        <span class="review-note-text">📝 ${escapeHtml(st.review || "")}</span>
         <button type="button" class="review-note-edit" title="Edit comment">✎</button>
       </div>
       <div class="call-card-row4">
@@ -249,6 +246,7 @@ function wireCard(contacts) {
     card.querySelector(".status-select").addEventListener("change", (e) => {
       e.target.classList.remove("status-positive", "status-negative", "status-neutral");
       e.target.classList.add(`status-${statusCategory(e.target.value)}`);
+      e.target.closest(".status-field").classList.toggle("is-set", !!e.target.value);
       if (e.target.value && e.target.value !== STATUS_DEFAULT) {
         // every contact here is under core cultivation, so a comment is
         // always required, not just for "Others" like on the regular My Calls page.
@@ -380,7 +378,7 @@ let pendingReview = null;
 function renderCardReview(card, contactId) {
   const text = cardState.get(contactId).review || "";
   const row = card.querySelector(".call-card-review");
-  row.querySelector(".review-note-text").textContent = text;
+  row.querySelector(".review-note-text").textContent = text ? `📝 ${text}` : "";
   row.classList.toggle("hidden", !text);
 }
 

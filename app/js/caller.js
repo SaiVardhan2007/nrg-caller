@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit, cardNameDisplayHtml, normalizePhoneInput, gycSelectHtml, orgFieldHtml, saveContactOrg, startOfLast4Weeks } from "./utils.js";
+import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit, cardNameDisplayHtml, normalizePhoneInput, statusSelectHtml, gycSelectHtml, orgFieldHtml, saveContactOrg, startOfLast4Weeks } from "./utils.js";
 
 const STATUS_DEFAULT = ""; // an un-called contact has an empty status, shown as a blank option
 const STATUS_OPTIONS = [
@@ -189,14 +189,11 @@ function renderCard(a, weekCallCount) {
         </div>
       </div>
       <div class="call-card-row3">
-        <select class="status-select status-${category}">
-          ${STATUS_OPTIONS.map((o) => `<option value="${o.value}" ${o.value === (a.status || STATUS_DEFAULT) ? "selected" : ""}>${o.label}</option>`).join("")}
-        </select>
+        ${statusSelectHtml(STATUS_OPTIONS, a.status || STATUS_DEFAULT, category)}
         ${orgFieldHtml(c.company_name)}
       </div>
       <div class="call-card-review${st.review ? "" : " hidden"}">
-        <span class="review-note-label">📝 Comment:</span>
-        <span class="review-note-text">${escapeHtml(st.review || "")}</span>
+        <span class="review-note-text">📝 ${escapeHtml(st.review || "")}</span>
         <button type="button" class="review-note-edit" title="Edit comment">✎</button>
       </div>
       <div class="call-card-row4">
@@ -269,6 +266,7 @@ function wireCard(assignments) {
     card.querySelector(".status-select").addEventListener("change", (e) => {
       e.target.classList.remove("status-positive", "status-negative", "status-neutral");
       e.target.classList.add(`status-${statusCategory(e.target.value)}`);
+      e.target.closest(".status-field").classList.toggle("is-set", !!e.target.value);
       if (e.target.value && e.target.value !== STATUS_DEFAULT) {
         const mandatory = e.target.value === "Others" || !!c.core_cultivation;
         openReviewModal(card, assignmentId, c, mandatory);
@@ -427,7 +425,7 @@ let pendingReview = null;
 function renderCardReview(card, assignmentId) {
   const text = cardState.get(assignmentId).review || "";
   const row = card.querySelector(".call-card-review");
-  row.querySelector(".review-note-text").textContent = text;
+  row.querySelector(".review-note-text").textContent = text ? `📝 ${text}` : "";
   row.classList.toggle("hidden", !text);
 }
 
