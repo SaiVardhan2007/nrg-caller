@@ -47,6 +47,7 @@ export async function init(user) {
   const nameInput = document.getElementById("reception-edit-name");
   const pgInput = document.getElementById("reception-edit-pg");
   const wsSelect = document.getElementById("reception-edit-ws");
+  const companyInput = document.getElementById("reception-edit-company");
   const gycStatusSelect = document.getElementById("reception-edit-gyc-status");
 
   // required fields shown while marking attendance — until every one of these
@@ -93,6 +94,7 @@ export async function init(user) {
   }
   nameInput.addEventListener("change", (e) => saveField("name", e.target.value.trim()));
   pgInput.addEventListener("change", (e) => saveField("pg_name", e.target.value.trim()));
+  companyInput.addEventListener("change", (e) => saveField("company_name", e.target.value.trim()));
   wsSelect.addEventListener("change", (e) => saveField("ws", e.target.value));
   gycStatusSelect.addEventListener("change", (e) => saveField("gyc_status", e.target.value));
 
@@ -103,7 +105,7 @@ export async function init(user) {
 
     const { data, error } = await supabase
       .from("contacts")
-      .select("id,name,mob_no,pg_name,ws,gyc_status,sessions_count")
+      .select("id,name,mob_no,pg_name,company_name,ws,gyc_status,sessions_count")
       .eq("mob_no", digits)
       .maybeSingle();
 
@@ -132,6 +134,7 @@ export async function init(user) {
     document.getElementById("reception-sessions").textContent = `Sessions attended: ${data.sessions_count}`;
     nameInput.value = data.name || "";
     pgInput.value = data.pg_name || "";
+    companyInput.value = data.company_name || "";
     wsSelect.value = data.ws || "";
     gycStatusSelect.value = data.gyc_status || "";
 

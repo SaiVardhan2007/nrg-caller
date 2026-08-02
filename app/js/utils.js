@@ -205,6 +205,33 @@ export function gycSelectHtml(currentValue) {
     </span>`;
 }
 
+// Free-text "where they work or study" for a call card. Editable by callers
+// because they are the ones who find it out on the call; blank until then.
+export function orgFieldHtml(currentValue) {
+  const v = currentValue || "";
+  return `
+    <span class="org-field${v ? " is-set" : ""}">
+      <span class="org-field-label">Org</span>
+      <input type="text" class="org-input" value="${escapeHtml(v)}" placeholder="Company / College" aria-label="Org (company or college)" />
+    </span>`;
+}
+
+// Saves an org edit and keeps `contact` and the chip styling in sync. Returns
+// true when it actually wrote, so callers can decide whether to toast.
+export async function saveContactOrg(input, contactId, contact) {
+  const value = input.value.trim();
+  if (value === (contact.company_name || "")) return false;
+  const { error } = await supabase.from("contacts").update({ company_name: value || null }).eq("id", contactId);
+  if (error) {
+    showToast("Could not save Org: " + error.message, "error");
+    input.value = contact.company_name || "";
+    return false;
+  }
+  contact.company_name = value || null;
+  input.closest(".org-field").classList.toggle("is-set", !!value);
+  return true;
+}
+
 export const ADMIN_TAG_TO_USERS_OPTIONS = ["", "Don't Call", "Coordinator", "Janata", "Call", "Core", "Assigned"];
 
 // Contacts tagged "Coordinator" (admin_tag_to_users) are meant to appear as

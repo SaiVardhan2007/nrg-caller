@@ -216,6 +216,13 @@
                   <option value="__BLANK__">Blank Only</option>
                 </select>
               </th>
+              <th draggable="true" data-label="Org">
+                <div class="th-label">Org</div>
+                <select id="contacts-filter-org" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="__BLANK__">Blank Only</option>
+                </select>
+              </th>
               <th draggable="true" data-label="Profession">
                 <div class="th-label">Profession</div>
                 <select id="contacts-filter-ws" class="th-filter">
@@ -297,7 +304,7 @@
             </tr>
           </thead>
           <tbody id="contacts-table-body">
-            <tr><td colspan="16" class="loading-row">Loading contacts…</td></tr>
+            <tr><td colspan="17" class="loading-row">Loading contacts…</td></tr>
           </tbody>
         </table>
       </div>
@@ -631,6 +638,7 @@
           <div id="reception-sessions" class="reception-sessions"></div>
           <label class="field"><span>Name</span><input id="reception-edit-name" type="text" /></label>
           <label class="field"><span>PG / Flat Name</span><input id="reception-edit-pg" type="text" /></label>
+          <label class="field"><span>Org (Company / College)</span><input id="reception-edit-company" type="text" /></label>
           <label class="field"><span>Profession</span>
             <select id="reception-edit-ws"><option value="">— select —</option><option value="NA">NA</option><option value="W">W</option><option value="S">S</option></select>
           </label>
@@ -658,7 +666,7 @@
           <form id="reception-new-contact-form" class="hidden">
             <label class="field"><span>Name</span><input id="reception-new-name" type="text" required /></label>
             <label class="field"><span>PG / Flat Name</span><input id="reception-new-pg" type="text" /></label>
-            <label class="field"><span>Company / College Name</span><input id="reception-new-company" type="text" /></label>
+            <label class="field"><span>Org (Company / College)</span><input id="reception-new-company" type="text" /></label>
             <label class="field"><span>Profession</span>
               <select id="reception-new-ws"><option value="NA">NA</option><option value="W">W</option><option value="S">S</option></select>
             </label>
@@ -967,7 +975,7 @@
     <label class="field"><span>Phone Number</span><input id="add-contact-phone" type="tel" inputmode="numeric" /></label>
     <label class="field"><span>Name</span><input id="add-contact-name" type="text" /></label>
     <label class="field"><span>PG Name</span><input id="add-contact-pg" type="text" /></label>
-    <label class="field"><span>Company / College Name</span><input id="add-contact-company" type="text" /></label>
+    <label class="field"><span>Org (Company / College)</span><input id="add-contact-company" type="text" /></label>
     <label class="field"><span>Profession</span>
       <select id="add-contact-ws"><option value="NA">NA</option><option value="W">W</option><option value="S">S</option></select>
     </label>

@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit, cardNameDisplayHtml, gycSelectHtml, startOfLast4Weeks } from "./utils.js";
+import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit, cardNameDisplayHtml, gycSelectHtml, orgFieldHtml, saveContactOrg, startOfLast4Weeks } from "./utils.js";
 
 const STATUS_DEFAULT = ""; // an un-called contact has an empty status, shown as a blank option
 const STATUS_OPTIONS = [
@@ -88,7 +88,7 @@ function wireRefreshButton() {
 async function loadAndRenderCards() {
   const { data: contacts, error } = await supabase
     .from("contacts")
-    .select("id,name,mob_no,ws,sessions_count,calling_purpose,gyc_status")
+    .select("id,name,mob_no,ws,sessions_count,calling_purpose,gyc_status,company_name")
     .eq("core_cultivation", currentUser.user_name);
 
   const listEl = document.getElementById("cc-cards");
@@ -172,6 +172,9 @@ function renderCard(c, weekCallCount) {
           ${STATUS_OPTIONS.map((o) => `<option value="${o.value}" ${o.value === status ? "selected" : ""}>${o.label}</option>`).join("")}
         </select>
         ${gycSelectHtml(c.gyc_status)}
+      </div>
+      <div class="call-card-row-org">
+        ${orgFieldHtml(c.company_name)}
       </div>
       <div class="call-card-review${st.review ? "" : " hidden"}">
         <span class="review-note-label">📝 Comment:</span>
@@ -263,6 +266,10 @@ function wireCard(contacts) {
       c.gyc_status = e.target.value || null;
       e.target.closest(".gyc-field").classList.toggle("is-set", !!c.gyc_status);
       showToast("GFY/AOMC updated", "success", 1200);
+    });
+
+    card.querySelector(".org-input").addEventListener("change", async (e) => {
+      if (await saveContactOrg(e.target, contactId, c)) showToast("Org updated", "success", 1200);
     });
 
     card.querySelector(".review-note-edit").addEventListener("click", () => {

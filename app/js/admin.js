@@ -830,7 +830,7 @@ export async function initContacts() {
 // column, always kept last so dragging can never push it out of place.
 const CONTACTS_COLUMN_ORDER_KEY = "nrg-contacts-column-order";
 const DEFAULT_CONTACTS_COLUMNS = [
-  "S.No", "Time Stamp", "Name", "Phone", "PG Name", "Profession", "Gender", "Sessions", "Calls",
+  "S.No", "Time Stamp", "Name", "Phone", "PG Name", "Org", "Profession", "Gender", "Sessions", "Calls",
   "Admin Tag to Users", "Admin Tag", "Core Cultivation", "Calling Purpose", "GFY/AOMC", "Admin Review", "",
 ];
 
@@ -989,6 +989,7 @@ const COLUMN_FILTER_FIELDS = [
 const BLANK_ONLY_FILTER_FIELDS = [
   ["contacts-filter-name", "name"],
   ["contacts-filter-pg-name", "pg_name"],
+  ["contacts-filter-org", "company_name"],
 ];
 
 // numeric columns (Sessions, Calls) filter to an exact count typed in.
@@ -1010,7 +1011,7 @@ function populateFilterSelect(select, values, blankLabel = "—") {
 
 async function renderContactsTable(searchTerm = "") {
   const tbody = document.getElementById("contacts-table-body");
-  tbody.innerHTML = `<tr><td colspan="16" class="loading-row">Loading contacts…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="17" class="loading-row">Loading contacts…</td></tr>`;
 
   const sortSelect = document.getElementById("contacts-sort");
   const sortVal = sortSelect ? sortSelect.value : "s_no-asc";
@@ -1064,11 +1065,11 @@ async function renderContactsTable(searchTerm = "") {
 
   const { data, error } = await query.limit(2000);
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="16" class="loading-row">Could not load contacts.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="17" class="loading-row">Could not load contacts.</td></tr>`;
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="16" class="loading-row">No contacts found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="17" class="loading-row">No contacts found.</td></tr>`;
     return;
   }
 
@@ -1115,6 +1116,7 @@ async function renderContactsTable(searchTerm = "") {
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(c.name)}" /></td>
       <td data-label="Phone"><input class="inline-edit" data-field="mob_no" value="${c.mob_no}" /></td>
       <td data-label="PG Name"><input class="inline-edit" data-field="pg_name" value="${escapeHtml(c.pg_name || "")}" /></td>
+      <td data-label="Org"><input class="inline-edit" data-field="company_name" value="${escapeHtml(c.company_name || "")}" /></td>
       <td data-label="Profession">
         <select class="inline-edit" data-field="ws">
           ${WS_ADMIN_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
@@ -1314,6 +1316,7 @@ async function openContactInfoModal(kind, mob, name, isNewContact = false) {
         { name: "Name", value: escapeHtml(contact.name) },
         { name: "Phone", value: formatPhone(contact.mob_no) },
         { name: "PG Name", value: escapeHtml(contact.pg_name || "—") },
+        { name: "Org", value: escapeHtml(contact.company_name || "—") },
         { name: "Profession (W/S)", value: escapeHtml(contact.ws || "—") },
         { name: "Gender", value: escapeHtml(contact.gender || "—") },
         { name: "Admin Tag to Users", value: escapeHtml(contact.admin_tag_to_users || "—") },
@@ -1339,6 +1342,7 @@ async function openContactInfoModal(kind, mob, name, isNewContact = false) {
         { name: "Name", value: escapeHtml(contact.name) },
         { name: "Phone", value: formatPhone(contact.mob_no) },
         { name: "PG Name", value: escapeHtml(contact.pg_name || "—") },
+        { name: "Org", value: escapeHtml(contact.company_name || "—") },
         { name: "Profession (W/S)", value: escapeHtml(contact.ws || "—") },
         { name: "Gender", value: escapeHtml(contact.gender || "—") },
         { name: "Sessions", value: contact.sessions_count || 0 },
@@ -1502,8 +1506,8 @@ function wireContactsSearch() {
 }
 
 const CONTACT_CSV_HEADERS = [
-  "S No", "Time Stamp", "Name", "Phone", "PG Name", "Profession", "Gender", "Sessions", "Calls", "Admin Tag to Users",
-  "Admin Tag", "Core Cultivation", "Calling Purpose", "GFY/AOMC", "Company Name", "Admin Remarks",
+  "S No", "Time Stamp", "Name", "Phone", "PG Name", "Org", "Profession", "Gender", "Sessions", "Calls",
+  "Admin Tag to Users", "Admin Tag", "Core Cultivation", "Calling Purpose", "GFY/AOMC", "Admin Remarks",
 ];
 
 let contactsImportExportWired = false;
@@ -1516,9 +1520,9 @@ function wireContactsImportExport() {
     lastContactsData.forEach((c, i) => {
       rows.push([
         c.s_no ?? i + 1, c.created_at ? new Date(c.created_at).toLocaleString() : "", c.name, c.mob_no,
-        c.pg_name || "", c.ws || "NA", c.gender || "", c.sessions_count, c.calls_count,
+        c.pg_name || "", c.company_name || "", c.ws || "NA", c.gender || "", c.sessions_count, c.calls_count,
         c.admin_tag_to_users || "", c.admin_tag || "", c.core_cultivation || "", c.calling_purpose || "",
-        c.gyc_status || "", c.company_name || "", c.admin_remarks || "",
+        c.gyc_status || "", c.admin_remarks || "",
       ]);
     });
     downloadExcel(`nrg-master-contact-${todayStamp()}.xlsx`, rows);
