@@ -2304,6 +2304,7 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
 let newContactsPollInterval = null;
 let sheetsWebhookUrl = "";
 let newContactsCache = [];
+let newContactsCoordinators = [];
 let duplicateQueue = [];
 let currentDuplicateIndex = 0;
 let isResolvingDuplicates = false;
@@ -2318,19 +2319,20 @@ let newContactsWired = false;
 // manually), Delete just dismisses the lead.
 async function renderCollectionSubmissions() {
   const tbody = document.getElementById("collection-submissions-admin-body");
-  tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="13" class="loading-row">Loading…</td></tr>`;
 
-  const { data, error } = await supabase
-    .from("contact_collection")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const [{ data, error }, { data: coordinators }] = await Promise.all([
+    supabase.from("contact_collection").select("*").order("created_at", { ascending: false }),
+    supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
+  ]);
+  if (coordinators) newContactsCoordinators = coordinators;
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Could not load submissions.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" class="loading-row">Could not load submissions.</td></tr>`;
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">No submissions yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" class="loading-row">No submissions yet.</td></tr>`;
     return;
   }
 
@@ -2346,12 +2348,42 @@ async function renderCollectionSubmissions() {
       <td data-label="Comment">${escapeHtml(r.comment || "—")}</td>
       <td data-label="Collected By">${escapeHtml(r.collected_by || "—")}</td>
       <td data-label="Source">${escapeHtml(r.source || "Contact Collection")}</td>
+      <td data-label="Core Cultivation">
+        <select class="inline-edit collection-field" data-id="${r.id}" data-field="core_cultivation">
+          <option value="">—</option>
+          ${newContactsCoordinators.map((u) => `<option value="${escapeHtml(u.user_name)}" ${u.user_name === (r.core_cultivation || "") ? "selected" : ""}>${escapeHtml(u.user_name)}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="GFY/AOMC">
+        <select class="inline-edit collection-field" data-id="${r.id}" data-field="gyc_status">
+          ${GYC_STATUS_OPTIONS.map((t) => `<option value="${escapeHtml(t)}" ${t === (r.gyc_status || "") ? "selected" : ""}>${escapeHtml(t) || "—"}</option>`).join("")}
+        </select>
+      </td>
       <td data-label="">
         <button class="cell-chip collection-add-btn" data-id="${r.id}">+ Add</button>
         <button class="cell-chip danger collection-delete-btn" data-id="${r.id}">Delete</button>
       </td>
     </tr>
   `).join("");
+
+  // Filled in here rather than after promotion: the admin decides cultivation
+  // and GFY/AOMC while reviewing, and "+ Add" then carries them into Master
+  // Contact along with everything else the row already holds.
+  tbody.querySelectorAll(".collection-field").forEach((select) => {
+    select.addEventListener("change", async (e) => {
+      const id = e.target.dataset.id;
+      const field = e.target.dataset.field;
+      const value = e.target.value || null;
+      const row = data.find((r) => r.id === id);
+      const { error: updErr } = await supabase.from("contact_collection").update({ [field]: value }).eq("id", id);
+      if (updErr) {
+        showToast("Update failed: " + updErr.message, "error");
+        e.target.value = row?.[field] ?? "";
+        return;
+      }
+      if (row) row[field] = value;
+    });
+  });
 
   tbody.querySelectorAll(".collection-add-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -2461,8 +2493,6 @@ export function stopNewContactsPolling() {
   }
 }
 
-let newContactsCoordinators = [];
-
 async function loadNewContacts(forceShowLoading = false) {
   if (isResolvingDuplicates) return;
   if (isFetchingNewContacts) return;
@@ -2507,7 +2537,7 @@ function renderNewContactsTable() {
   const summaryEl = document.getElementById("new-contacts-summary");
 
   if (!newContactsCache.length) {
-    tbody.innerHTML = `<tr><td colspan="16" class="loading-row">No new contacts found in Google Sheets.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="17" class="loading-row">No new contacts found in Google Sheets.</td></tr>`;
     summaryEl.textContent = "Checked just now. All clear!";
     return;
   }
@@ -2559,6 +2589,11 @@ function renderNewContactsTable() {
             ${eventsCache.map((e) => `<option value="${e.code}" ${e.code === selectedEvent ? "selected" : ""}>${e.code}</option>`).join("")}
           </select>
         </td>
+        <td data-label="GFY/AOMC">
+          <select class="inline-edit new-contact-gyc-select" data-index="${idx}">
+            ${GYC_STATUS_OPTIONS.map((t) => `<option value="${escapeHtml(t)}" ${t === (c.gyc_status || "") ? "selected" : ""}>${escapeHtml(t) || "—"}</option>`).join("")}
+          </select>
+        </td>
         <td data-label="User Reviews"><button class="cell-chip" disabled>—</button></td>
         <td data-label="Admin Review"><button class="cell-chip new-contact-review-btn" data-index="${idx}">${c.admin_remarks ? "✎ Edit" : "+ Add"}</button></td>
         <td data-label="Actions" class="no-export">
@@ -2596,6 +2631,12 @@ function renderNewContactsTable() {
     select.addEventListener("change", (e) => {
       const idx = parseInt(e.target.dataset.index, 10);
       newContactsCache[idx].admin_tag = e.target.value || null;
+    });
+  });
+
+  tbody.querySelectorAll(".new-contact-gyc-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      newContactsCache[Number(e.target.dataset.index)].gyc_status = e.target.value || null;
     });
   });
 
@@ -2766,6 +2807,7 @@ async function promoteSingleContact(newContact) {
               admin_tag: newContact.admin_tag || null,
               core_cultivation: newContact.core_cultivation || null,
               calling_purpose: newContact.calling_purpose || null,
+              gyc_status: newContact.gyc_status || null,
               admin_remarks: newContact.admin_remarks || null
             })
             .eq("mob_no", newContact.mob_no);
@@ -2794,6 +2836,7 @@ async function promoteSingleContact(newContact) {
           admin_tag: newContact.admin_tag || null,
           core_cultivation: newContact.core_cultivation || null,
           calling_purpose: newContact.calling_purpose || null,
+          gyc_status: newContact.gyc_status || null,
           admin_remarks: newContact.admin_remarks || null
         });
 
@@ -2942,6 +2985,7 @@ async function addAllNewContacts() {
         admin_tag: c.admin_tag || null,
         core_cultivation: c.core_cultivation || null,
         calling_purpose: c.calling_purpose || null,
+        gyc_status: c.gyc_status || null,
         admin_remarks: c.admin_remarks || null
       }));
 
@@ -3008,6 +3052,7 @@ function runBulkDuplicateResolution() {
             admin_tag: dupItem.newContact.admin_tag || null,
             core_cultivation: dupItem.newContact.core_cultivation || null,
             calling_purpose: dupItem.newContact.calling_purpose || null,
+            gyc_status: dupItem.newContact.gyc_status || null,
             admin_remarks: dupItem.newContact.admin_remarks || null
           })
           .eq("mob_no", dupItem.newContact.mob_no);

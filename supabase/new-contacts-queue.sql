@@ -1,4 +1,5 @@
--- Run this once in the Supabase SQL editor.
+-- APPLIED to the live database on 2026-08-02. Kept as the record of the
+-- change, and for rebuilding the schema from scratch.
 --
 -- New contacts added from Reception, Contact Collection and Master Contact no
 -- longer land straight in `contacts` — they queue in `contact_collection` and
@@ -20,6 +21,5 @@ alter table contact_collection add column if not exists source          text;
 
 -- Older databases may predate the One to One answer column; without it the
 -- help-requests lists error out and render as "no questions asked", and the
--- admin's response never saves. APPLIED to the live database on 2026-08-02;
--- the contact_collection changes above are still pending.
+-- admin's response never saves.
 alter table help_requests add column if not exists response text;
