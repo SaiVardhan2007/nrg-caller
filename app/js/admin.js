@@ -2689,7 +2689,7 @@ function renderReceptionAttendanceTable() {
           <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${r.mob_no}" data-name="${escapeHtml(r.name || "")}">${r.contact?.sessions_count ?? 0}</button></td>
           <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${r.mob_no}" data-name="${escapeHtml(r.name || "")}">${r.contact?.calls_count ?? 0}</button></td>
           <td data-label="Marked By">${escapeHtml(r.took_by)}</td>
-          <td class="no-export"><button class="cell-chip danger attendance-delete-btn" data-id="${r.id}" data-name="${escapeHtml(r.name || "")}">✕ Delete</button></td>
+          <td data-label="Actions" class="no-export"><button class="cell-chip danger attendance-delete-btn" data-id="${r.id}" data-name="${escapeHtml(r.name || "")}">✕ Delete</button></td>
         </tr>`;
       }).join("")
     : `<tr><td colspan="10" class="loading-row">${lastReceptionAttendanceRows.length ? "No attendance rows match these filters." : "No attendance marked in this range."}</td></tr>`;
