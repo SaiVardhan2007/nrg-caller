@@ -356,7 +356,13 @@ export function enableWordAutocorrect(el) {
 const columnReorderState = new Map(); // tableId -> { getOrder, applyOrder }
 
 function columnKeyOf(cell) {
-  return cell.dataset.label ?? cell.textContent.trim();
+  if (cell.dataset.label) return cell.dataset.label;
+  // Filterable <th> cells hold a ".th-label" div beside the actual filter
+  // control (a <select>/<input>) — textContent alone would pull in the
+  // filter's option text too, so it's checked ahead of the plain fallback.
+  const label = cell.querySelector(".th-label");
+  if (label) return label.textContent.trim();
+  return cell.textContent.trim();
 }
 
 // opts.columns lets a caller pin an explicit default order (and storage
