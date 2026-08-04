@@ -2012,7 +2012,10 @@ export async function initAnalytics() {
       const readTable = (tableEl) => {
         const rows = [Array.from(tableEl.querySelectorAll("thead th")).map((th) => (th.querySelector(".th-label")?.textContent || th.textContent).trim())];
         tableEl.querySelectorAll("tbody tr").forEach((tr) => {
-          rows.push(Array.from(tr.children).map((td) => td.textContent.trim()));
+          rows.push(Array.from(tr.children).map((td) => {
+            const field = td.querySelector("input, select");
+            return field ? field.value : td.textContent.trim();
+          }));
         });
         return rows;
       };
@@ -2073,8 +2076,38 @@ function renderAssignedContactsTable() {
           <td data-label="Phone">${formatPhone(a.contacts?.mob_no || "")}</td>
           <td data-label="Status">${escapeHtml(a.status || "")}</td>
           <td data-label="Called?">${(a.status || "Not Done") !== "Not Done" ? "✅" : "—"}</td>
+          <td data-label="Admin Tag to Users">
+            <select class="inline-edit assigned-admin-tag" data-mob="${a.contacts?.mob_no || ""}" data-name="${escapeHtml(a.contacts?.name || "")}">
+              ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (a.contacts?.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+            </select>
+          </td>
+          <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${a.contacts?.mob_no || ""}" data-name="${escapeHtml(a.contacts?.name || "")}">${a.contacts?.sessions_count ?? 0}</button></td>
+          <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${a.contacts?.mob_no || ""}" data-name="${escapeHtml(a.contacts?.name || "")}">${a.contacts?.calls_count ?? 0}</button></td>
         </tr>`).join("")
-    : `<tr><td colspan="6" class="loading-row">No contacts currently assigned.</td></tr>`;
+    : `<tr><td colspan="9" class="loading-row">No contacts currently assigned.</td></tr>`;
+
+  assignedBody.querySelectorAll(".info-link").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      openContactInfoModal(e.target.dataset.kind, e.target.dataset.mob, e.target.dataset.name);
+    });
+  });
+
+  assignedBody.querySelectorAll(".assigned-admin-tag").forEach((select) => {
+    select.addEventListener("change", async (e) => {
+      const mob = e.target.dataset.mob;
+      const name = e.target.dataset.name;
+      const value = e.target.value || null;
+      const { error } = await supabase.from("contacts").update({ admin_tag_to_users: value }).eq("mob_no", mob);
+      if (error) {
+        showToast("Update failed: " + error.message, "error");
+        return;
+      }
+      await syncCoordinatorUser({ name, mob_no: mob }, value);
+      const row = lastAssignedContacts.find((a) => a.contacts?.mob_no === mob);
+      if (row?.contacts) row.contacts.admin_tag_to_users = value;
+      showToast("Admin tag updated", "success");
+    });
+  });
 }
 
 let assignedContactsFiltersWired = false;
@@ -2368,7 +2401,7 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
 
   // currently assigned contacts (always reflects the live/current round)
   // If no current event is set, show all live assignments across every event
-  let assignedQuery = supabase.from("assignments").select("user_name,status,event_code,contacts(name,mob_no)");
+  let assignedQuery = supabase.from("assignments").select("user_name,status,event_code,contacts(name,mob_no,admin_tag_to_users,sessions_count,calls_count)");
   if (currentEventCode) assignedQuery = assignedQuery.eq("event_code", currentEventCode);
   if (!isAll) assignedQuery = assignedQuery.eq("user_name", userName);
   const { data: assignedContacts } = await assignedQuery;
@@ -2387,8 +2420,15 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   );
   renderAssignedContactsTable();
 
+  const formatOrdinalDate = (ts) => {
+    const d = new Date(ts);
+    const day = d.getDate();
+    const suffix = day % 10 === 1 && day !== 11 ? "st" : day % 10 === 2 && day !== 12 ? "nd" : day % 10 === 3 && day !== 13 ? "rd" : "th";
+    const month = d.toLocaleString("en-US", { month: "short" });
+    return `${day}${suffix} ${month} ${d.getFullYear()}`;
+  };
   // core cultivation health: is the cultivator actually calling the people cultivated to them?
-  let cultivatedQuery = supabase.from("contacts").select("name,mob_no,core_cultivation");
+  let cultivatedQuery = supabase.from("contacts").select("name,mob_no,core_cultivation,admin_tag_to_users,sessions_count,calls_count");
   cultivatedQuery = isAll ? cultivatedQuery.not("core_cultivation", "is", null) : cultivatedQuery.eq("core_cultivation", userName);
   const { data: cultivated } = await cultivatedQuery;
   if (isStale()) return;
@@ -2396,7 +2436,7 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   if (cultivated) cultivated.sort((a, b) => (a.core_cultivation || "").localeCompare(b.core_cultivation || ""));
   const cultivationBody = document.getElementById("analytics-cultivation-body");
   if (!cultivated || !cultivated.length) {
-    cultivationBody.innerHTML = `<tr><td colspan="6" class="loading-row">No contacts cultivated${isAll ? "" : " to this user"}.</td></tr>`;
+    cultivationBody.innerHTML = `<tr><td colspan="9" class="loading-row">No contacts cultivated${isAll ? "" : " to this user"}.</td></tr>`;
   } else {
     const mobNos = cultivated.map((c) => c.mob_no);
     let callHistoryQuery = supabase.from("call_responses").select("mob_no,caller_name,ts").in("mob_no", mobNos).order("ts", { ascending: false });
@@ -2422,9 +2462,37 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
         <td data-label="Name">${escapeHtml(c.name)}</td>
         <td data-label="Phone">${formatPhone(c.mob_no)}</td>
         <td data-label="Total Calls">${totalCallsByMob[key] || 0}</td>
-        <td data-label="Last Called">${lastCalled[key] ? new Date(lastCalled[key]).toLocaleDateString() : "Never called"}</td>
+        <td data-label="Last Called">${lastCalled[key] ? formatOrdinalDate(lastCalled[key]) : "Never called"}</td>
+        <td data-label="Admin Tag to Users">
+          <select class="inline-edit cultivation-admin-tag" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">
+            ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (c.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+          </select>
+        </td>
+        <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.sessions_count ?? 0}</button></td>
+        <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.calls_count ?? 0}</button></td>
       </tr>`;
     }).join("");
+
+    cultivationBody.querySelectorAll(".info-link").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        openContactInfoModal(e.target.dataset.kind, e.target.dataset.mob, e.target.dataset.name);
+      });
+    });
+
+    cultivationBody.querySelectorAll(".cultivation-admin-tag").forEach((select) => {
+      select.addEventListener("change", async (e) => {
+        const mob = e.target.dataset.mob;
+        const name = e.target.dataset.name;
+        const value = e.target.value || null;
+        const { error } = await supabase.from("contacts").update({ admin_tag_to_users: value }).eq("mob_no", mob);
+        if (error) {
+          showToast("Update failed: " + error.message, "error");
+          return;
+        }
+        await syncCoordinatorUser({ name, mob_no: mob }, value);
+        showToast("Admin tag updated", "success");
+      });
+    });
   }
 }
 
@@ -2434,6 +2502,7 @@ let receptionAnalyticsWired = false;
 
 export async function initReceptionAnalytics() {
   await loadEvents();
+  wireContactInfoModal();
   const eventSelect = document.getElementById("reception-analytics-event-select");
   eventSelect.innerHTML = `<option value="">All events</option>` +
     eventsCache.map((e) => `<option value="${e.code}">${e.name} (${e.code})</option>`).join("");
@@ -2512,6 +2581,17 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
   document.getElementById("reception-analytics-attendance-count").textContent = rows.length;
   const tbody = document.getElementById("reception-analytics-attendance-body");
 
+  // per-contact Admin Tag/Sessions/Calls shown alongside each attendance row —
+  // session_attendance has no FK to contacts, so fetch by mob_no like the
+  // Reception page's own Today's Attendance list does.
+  const mobNos = [...new Set(rows.map((r) => r.mob_no))];
+  const contactsByMob = new Map();
+  if (mobNos.length) {
+    const { data: contacts } = await supabase.from("contacts").select("mob_no,admin_tag_to_users,sessions_count,calls_count").in("mob_no", mobNos);
+    (contacts || []).forEach((c) => contactsByMob.set(c.mob_no, c));
+  }
+  if (isStale()) return;
+
   // Group repeat markings for the same phone number together (most-recent
   // group first, newest record within a group first) instead of leaving
   // duplicates scattered across the plain time-desc order.
@@ -2530,6 +2610,7 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
         const isDuplicate = dupGroup.length > 1;
         const isOldest = isDuplicate && dupGroup[dupGroup.length - 1].id === r.id;
         const rowClass = isDuplicate ? (isOldest ? "contact-original" : "contact-duplicate") : "";
+        const contact = contactsByMob.get(r.mob_no);
         return `
         <tr data-id="${r.id}"${rowClass ? ` class="${rowClass}"` : ""}>
           <td data-label="S.No">${idx + 1}</td>
@@ -2542,11 +2623,41 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
               ${eventsCache.map((e) => `<option value="${e.code}" ${e.code === (r.event_code || "") ? "selected" : ""}>${e.code}</option>`).join("")}
             </select>
           </td>
+          <td data-label="Admin Tag to Users">
+            <select class="inline-edit reception-analytics-admin-tag" data-mob="${r.mob_no}" data-name="${escapeHtml(r.name || "")}">
+              ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (contact?.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+            </select>
+          </td>
+          <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${r.mob_no}" data-name="${escapeHtml(r.name || "")}">${contact?.sessions_count ?? 0}</button></td>
+          <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${r.mob_no}" data-name="${escapeHtml(r.name || "")}">${contact?.calls_count ?? 0}</button></td>
           <td data-label="Marked By">${escapeHtml(r.took_by)}</td>
           <td class="no-export"><button class="cell-chip danger attendance-delete-btn" data-id="${r.id}" data-name="${escapeHtml(r.name || "")}">✕ Delete</button></td>
         </tr>`;
       }).join("")
-    : `<tr><td colspan="7" class="loading-row">No attendance marked in this range.</td></tr>`;
+    : `<tr><td colspan="10" class="loading-row">No attendance marked in this range.</td></tr>`;
+
+  tbody.querySelectorAll(".info-link").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      openContactInfoModal(e.target.dataset.kind, e.target.dataset.mob, e.target.dataset.name);
+    });
+  });
+
+  tbody.querySelectorAll(".reception-analytics-admin-tag").forEach((select) => {
+    select.addEventListener("change", async (e) => {
+      const mob = e.target.dataset.mob;
+      const name = e.target.dataset.name;
+      const value = e.target.value || null;
+      const { error } = await supabase.from("contacts").update({ admin_tag_to_users: value }).eq("mob_no", mob);
+      if (error) {
+        showToast("Update failed: " + error.message, "error");
+        return;
+      }
+      await syncCoordinatorUser({ name, mob_no: mob }, value);
+      const c = contactsByMob.get(mob);
+      if (c) c.admin_tag_to_users = value;
+      showToast("Admin tag updated", "success");
+    });
+  });
 
   // Wire event change dropdowns
   tbody.querySelectorAll(".attendance-event-select").forEach((sel) => {

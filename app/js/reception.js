@@ -359,7 +359,7 @@ async function loadTodayAttendance() {
   if (mobNos.length) {
     const { data: contacts } = await supabase
       .from("contacts")
-      .select("mob_no,pg_name,ws,gender,company_name,calling_purpose,core_cultivation,admin_tag_to_users,admin_tag,gyc_status,name")
+      .select("mob_no,pg_name,ws,gender,company_name,calling_purpose,core_cultivation,admin_tag_to_users,admin_tag,gyc_status,name,sessions_count,calls_count")
       .in("mob_no", mobNos);
     (contacts || []).forEach((c) => contactsByMob.set(c.mob_no, c));
   }
@@ -371,7 +371,7 @@ async function renderTodayList() {
   const tbody = document.getElementById("reception-attendance-body");
   const list = await loadTodayAttendance();
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">No attendance marked today.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="loading-row">No attendance marked today.</td></tr>`;
     return;
   }
   // "Name"/"Phone" both group repeat markings for the same person (by mob_no,
@@ -410,6 +410,8 @@ async function renderTodayList() {
           ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (r.contact?.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
         </select>
       </td>
+      <td data-label="Sessions">${r.contact?.sessions_count ?? 0}</td>
+      <td data-label="Calls">${r.contact?.calls_count ?? 0}</td>
     </tr>
   `).join("");
 

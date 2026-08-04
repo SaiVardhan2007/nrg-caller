@@ -218,6 +218,18 @@ drop trigger if exists trg_calls_bump on call_responses;
 create trigger trg_calls_bump after insert on call_responses
   for each row execute function bump_calls_count();
 
+-- call response delete -> contacts.calls_count - 1 (keeps the badge in sync
+-- with admin bulk-deletes of call_responses rows)
+create or replace function unbump_calls_count() returns trigger language plpgsql as $$
+begin
+  update contacts set calls_count = greatest(calls_count - 1, 0) where mob_no = old.mob_no;
+  return old;
+end $$;
+
+drop trigger if exists trg_calls_unbump on call_responses;
+create trigger trg_calls_unbump after delete on call_responses
+  for each row execute function unbump_calls_count();
+
 -- contact calling_purpose change -> delete old assignment
 create or replace function handle_contact_calling_purpose_change() returns trigger language plpgsql as $$
 begin
