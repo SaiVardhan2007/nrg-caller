@@ -356,7 +356,7 @@
       <div class="panel">
         <h3 class="section-title">Currently Assigned Contacts</h3>
         <div class="table-wrap">
-          <table class="data-table">
+          <table class="data-table" id="analytics-assigned-table">
             <thead>
               <tr>
                 <th>S.No</th>
@@ -383,9 +383,27 @@
                     <option value="no">No</option>
                   </select>
                 </th>
-                <th>Admin Tag to Users</th>
-                <th>Sessions</th>
-                <th>Calls</th>
+                <th>
+                  <div class="th-label">Admin Tag to Users</div>
+                  <select id="analytics-assigned-filter-admin-tag" class="th-filter">
+                    <option value="__ALL__">All</option>
+                    <option value="">—</option>
+                    <option value="Don't Call">Don't Call</option>
+                    <option value="Coordinator">Coordinator</option>
+                    <option value="Janata">Janata</option>
+                    <option value="Call">Call</option>
+                    <option value="Core">Core</option>
+                    <option value="Assigned">Assigned</option>
+                  </select>
+                </th>
+                <th>
+                  <div class="th-label">Sessions</div>
+                  <input type="number" min="0" id="analytics-assigned-filter-sessions" class="th-filter" placeholder="All" />
+                </th>
+                <th>
+                  <div class="th-label">Calls</div>
+                  <input type="number" min="0" id="analytics-assigned-filter-calls" class="th-filter" placeholder="All" />
+                </th>
               </tr>
             </thead>
             <tbody id="analytics-assigned-body"></tbody>
@@ -396,8 +414,38 @@
       <div class="panel">
         <h3 class="section-title">Core Cultivation Health</h3>
         <div class="table-wrap">
-          <table class="data-table">
-            <thead><tr><th>S.No</th><th>Cultivator</th><th>Name</th><th>Phone</th><th>Total Calls</th><th>Last Called</th><th>Admin Tag to Users</th><th>Sessions</th><th>Calls</th></tr></thead>
+          <table class="data-table" id="analytics-cultivation-table">
+            <thead>
+              <tr>
+                <th>S.No</th>
+                <th>Cultivator</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Total Calls</th>
+                <th>Last Called</th>
+                <th>
+                  <div class="th-label">Admin Tag to Users</div>
+                  <select id="analytics-cultivation-filter-admin-tag" class="th-filter">
+                    <option value="__ALL__">All</option>
+                    <option value="">—</option>
+                    <option value="Don't Call">Don't Call</option>
+                    <option value="Coordinator">Coordinator</option>
+                    <option value="Janata">Janata</option>
+                    <option value="Call">Call</option>
+                    <option value="Core">Core</option>
+                    <option value="Assigned">Assigned</option>
+                  </select>
+                </th>
+                <th>
+                  <div class="th-label">Sessions</div>
+                  <input type="number" min="0" id="analytics-cultivation-filter-sessions" class="th-filter" placeholder="All" />
+                </th>
+                <th>
+                  <div class="th-label">Calls</div>
+                  <input type="number" min="0" id="analytics-cultivation-filter-calls" class="th-filter" placeholder="All" />
+                </th>
+              </tr>
+            </thead>
             <tbody id="analytics-cultivation-body"></tbody>
           </table>
         </div>
@@ -436,8 +484,39 @@
       <div class="panel">
         <h3 class="section-title">Attendance in Range</h3>
         <div class="table-wrap">
-          <table class="data-table">
-            <thead><tr><th>S.No</th><th>Time</th><th>Name</th><th>Phone</th><th>Event</th><th>Admin Tag to Users</th><th>Sessions</th><th>Calls</th><th>Marked By</th><th class="no-export"></th></tr></thead>
+          <table class="data-table" id="reception-analytics-attendance-table">
+            <thead>
+              <tr>
+                <th>S.No</th>
+                <th>Time</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Event</th>
+                <th>
+                  <div class="th-label">Admin Tag to Users</div>
+                  <select id="reception-analytics-filter-admin-tag" class="th-filter">
+                    <option value="__ALL__">All</option>
+                    <option value="">—</option>
+                    <option value="Don't Call">Don't Call</option>
+                    <option value="Coordinator">Coordinator</option>
+                    <option value="Janata">Janata</option>
+                    <option value="Call">Call</option>
+                    <option value="Core">Core</option>
+                    <option value="Assigned">Assigned</option>
+                  </select>
+                </th>
+                <th>
+                  <div class="th-label">Sessions</div>
+                  <input type="number" min="0" id="reception-analytics-filter-sessions" class="th-filter" placeholder="All" />
+                </th>
+                <th>
+                  <div class="th-label">Calls</div>
+                  <input type="number" min="0" id="reception-analytics-filter-calls" class="th-filter" placeholder="All" />
+                </th>
+                <th>Marked By</th>
+                <th class="no-export"></th>
+              </tr>
+            </thead>
             <tbody id="reception-analytics-attendance-body"><tr><td colspan="10" class="loading-row">Pick a range above.</td></tr></tbody>
           </table>
         </div>
@@ -499,7 +578,7 @@
           </select>
         </label>
         <label class="field"><span>Staying (optional)</span><input id="collection-staying" type="text" placeholder="PG / hostel / home…" /></label>
-        <label class="field"><span>Additional Comment (optional)</span><textarea id="collection-comment" rows="2"></textarea></label>
+        <label class="field"><span>Additional Comment (optional)</span><textarea id="collection-comment" rows="2" spellcheck="true" autocorrect="on" autocapitalize="sentences"></textarea></label>
         <div id="collection-error" class="field-error hidden"></div>
         <button id="collection-submit" class="btn btn-primary">Submit</button>
       </div>
@@ -711,7 +790,35 @@
           </label>
         </div>
         <table class="data-table">
-          <thead><tr><th>Name</th><th>Phone</th><th>Time</th><th>Session</th><th>Admin Tag to Users</th><th>Sessions</th><th>Calls</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Time</th>
+              <th>Session</th>
+              <th>
+                <div class="th-label">Admin Tag to Users</div>
+                <select id="reception-attendance-filter-admin-tag" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                  <option value="Don't Call">Don't Call</option>
+                  <option value="Coordinator">Coordinator</option>
+                  <option value="Janata">Janata</option>
+                  <option value="Call">Call</option>
+                  <option value="Core">Core</option>
+                  <option value="Assigned">Assigned</option>
+                </select>
+              </th>
+              <th>
+                <div class="th-label">Sessions</div>
+                <input type="number" min="0" id="reception-attendance-filter-sessions" class="th-filter" placeholder="All" />
+              </th>
+              <th>
+                <div class="th-label">Calls</div>
+                <input type="number" min="0" id="reception-attendance-filter-calls" class="th-filter" placeholder="All" />
+              </th>
+            </tr>
+          </thead>
           <tbody id="reception-attendance-body">
             <tr><td colspan="7" class="loading-row">No attendance marked today.</td></tr>
           </tbody>
@@ -1118,7 +1225,7 @@
     <h3>Help Asked by the Boy</h3>
     <p id="help-requests-sub" class="muted-text"></p>
     <div class="table-wrap" style="max-height:300px;">
-      <table class="data-table">
+      <table class="data-table" id="help-requests-table">
         <thead><tr><th>S.No</th><th>Time</th><th>Question</th><th>Status</th><th>Response</th><th></th></tr></thead>
         <tbody id="help-requests-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
       </table>
@@ -1134,7 +1241,7 @@
     <h3>Remarks by SNKD</h3>
     <p id="remarks-sub" class="muted-text"></p>
     <div class="table-wrap" style="max-height:220px;">
-      <table class="data-table">
+      <table class="data-table" id="remarks-table">
         <thead><tr><th>S.No</th><th>Time</th><th>Remark</th><th></th></tr></thead>
         <tbody id="remarks-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
       </table>
@@ -1160,7 +1267,7 @@
     </div>
     <p class="muted-text">Live snapshot of every caller with contacts currently assigned to them.</p>
     <div id="general-data-table-wrap" class="table-wrap">
-      <table class="data-table">
+      <table class="data-table" id="general-data-table">
         <thead><tr><th>S.No</th><th>User</th><th>Assigned</th><th>Positive</th><th>Pending</th><th>Completed %</th></tr></thead>
         <tbody id="general-data-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
       </table>

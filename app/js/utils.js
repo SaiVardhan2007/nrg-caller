@@ -301,6 +301,158 @@ export function parseCSV(text) {
   });
 }
 
+/* ============ Autocorrect ============ */
+
+// Deliberately small and conservative: only known, unambiguous typos get fixed
+// as-you-type. Names and anything else not in this list are left alone for the
+// browser's native spellcheck (red underline) to flag instead.
+const AUTOCORRECT_MAP = {
+  thers: "there", teh: "the", hte: "the", adn: "and", nad: "and", taht: "that",
+  wnat: "want", cant: "can't", dont: "don't", wont: "won't", didnt: "didn't",
+  doesnt: "doesn't", isnt: "isn't", wasnt: "wasn't", arent: "aren't",
+  im: "I'm", ive: "I've", youre: "you're", theyre: "they're", weve: "we've",
+  becuase: "because", becasue: "because", becouse: "because",
+  recieve: "receive", recieved: "received", recieving: "receiving",
+  seperate: "separate", definately: "definitely", definetely: "definitely",
+  occured: "occurred", untill: "until", wich: "which",
+  cud: "could", shud: "should", wud: "would",
+  tommorow: "tomorrow", alot: "a lot",
+  thankyou: "thank you", plz: "please", pls: "please",
+};
+
+// Wires "typo → correction" replacement on a text input/textarea: as soon as a
+// word boundary (space or punctuation) is typed, the word right before it is
+// looked up in AUTOCORRECT_MAP and swapped in-place, case-matched to what was
+// typed. Only fires on real typing (inputType "insertText") so IME composition,
+// paste, and programmatic value changes are left untouched.
+export function enableWordAutocorrect(el) {
+  el.addEventListener("input", (e) => {
+    if (e.inputType !== "insertText" || !e.data || !/[\s.,!?;:)]/.test(e.data)) return;
+    const cursor = el.selectionStart;
+    const boundaryIndex = cursor - 1;
+    if (boundaryIndex < 0) return;
+    const value = el.value;
+    const match = value.slice(0, boundaryIndex).match(/[A-Za-z']+$/);
+    if (!match) return;
+    const word = match[0];
+    const fix = AUTOCORRECT_MAP[word.toLowerCase()];
+    if (!fix) return;
+    const corrected = word[0] === word[0].toUpperCase() ? fix[0].toUpperCase() + fix.slice(1) : fix;
+    const wordStart = boundaryIndex - word.length;
+    el.value = value.slice(0, wordStart) + corrected + value.slice(boundaryIndex);
+    const newCursor = wordStart + corrected.length + 1;
+    el.setSelectionRange(newCursor, newCursor);
+  });
+}
+
+/* ============ Column drag-reorder ============ */
+
+// Lets a user drag any <th> to reorder its column, spreadsheet-style, on any
+// table. Order is persisted per table in localStorage and survives tbody
+// re-renders — call reapplyColumnOrder(tableId) after replacing tbody.innerHTML
+// so freshly rendered rows pick up whatever order was saved. Columns are
+// matched between <th> and <td> by data-label (falling back to trimmed text
+// content), so most tables need no markup changes beyond a stable table id.
+const columnReorderState = new Map(); // tableId -> { getOrder, applyOrder }
+
+function columnKeyOf(cell) {
+  return cell.dataset.label ?? cell.textContent.trim();
+}
+
+// opts.columns lets a caller pin an explicit default order (and storage
+// shape) instead of deriving one from the DOM — used where a column was
+// already excluded from an existing saved order and must stay excluded.
+// opts.force re-wires even if this table id was already wired — needed for
+// a table whose <thead> is swapped for a different column set at runtime
+// (e.g. one modal table reused across several "kinds" of data).
+export function initColumnDragReorder(tableId, opts = {}) {
+  const table = document.getElementById(tableId);
+  if (!table || (table.dataset.colDragWired && !opts.force)) return;
+  table.dataset.colDragWired = "1";
+  const headRow = table.querySelector("thead tr");
+  if (!headRow) return;
+
+  const storageKey = opts.storageKey || `nrg-col-order:${tableId}`;
+  const defaultOrder = opts.columns || Array.from(headRow.children).map(columnKeyOf);
+
+  const getOrder = () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey));
+      if (Array.isArray(saved) && saved.length === defaultOrder.length && defaultOrder.every((k) => saved.includes(k))) {
+        return saved;
+      }
+    } catch { /* fall through to default */ }
+    return defaultOrder;
+  };
+
+  const applyOrder = (order) => {
+    const rows = [headRow, ...table.querySelectorAll("tbody tr")];
+    rows.forEach((row) => {
+      const byKey = new Map(Array.from(row.children).map((cell) => [columnKeyOf(cell), cell]));
+      order.forEach((key) => {
+        const cell = byKey.get(key);
+        if (cell) row.appendChild(cell);
+      });
+    });
+  };
+
+  columnReorderState.set(tableId, { getOrder, applyOrder });
+
+  let dragKey = null;
+  headRow.querySelectorAll("th").forEach((th) => {
+    const label = columnKeyOf(th);
+    if (!label || th.classList.contains("no-export") || th.classList.contains("select-col")) return;
+    th.draggable = true;
+    th.classList.add("col-draggable");
+    th.addEventListener("dragstart", () => {
+      dragKey = label;
+      th.classList.add("dragging-col");
+    });
+    th.addEventListener("dragend", () => {
+      th.classList.remove("dragging-col");
+      headRow.querySelectorAll("th").forEach((t) => t.classList.remove("drag-over-col"));
+    });
+    th.addEventListener("dragover", (e) => e.preventDefault());
+    th.addEventListener("dragenter", () => th.classList.add("drag-over-col"));
+    th.addEventListener("dragleave", () => th.classList.remove("drag-over-col"));
+    th.addEventListener("drop", (e) => {
+      e.preventDefault();
+      th.classList.remove("drag-over-col");
+      const dropKey = label;
+      if (!dragKey || dragKey === dropKey) return;
+
+      const order = getOrder().slice();
+      const from = order.indexOf(dragKey);
+      const to = order.indexOf(dropKey);
+      if (from === -1 || to === -1) return;
+      order.splice(from, 1);
+      order.splice(to, 0, dragKey);
+      localStorage.setItem(storageKey, JSON.stringify(order));
+      applyOrder(order);
+    });
+  });
+
+  applyOrder(getOrder());
+
+  if (opts.resetBtnId) {
+    const btn = document.getElementById(opts.resetBtnId);
+    if (btn) {
+      btn.addEventListener("click", () => {
+        localStorage.removeItem(storageKey);
+        applyOrder(defaultOrder);
+        showToast("Column order reset", "success");
+      });
+    }
+  }
+}
+
+// Re-applies a table's saved column order after its tbody has been
+// re-rendered. No-op if the table hasn't been wired via initColumnDragReorder.
+export function reapplyColumnOrder(tableId) {
+  const state = columnReorderState.get(tableId);
+  if (state) state.applyOrder(state.getOrder());
+}
+
 export function copyToClipboard(text, element) {
   navigator.clipboard.writeText(text).then(() => {
     // Show a floating "Copied!" badge near the element

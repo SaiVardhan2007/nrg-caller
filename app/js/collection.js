@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, formatPhone, escapeHtml, normalizePhoneInput } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, normalizePhoneInput, enableWordAutocorrect } from "./utils.js";
 
 let wired = false;
 
@@ -14,6 +14,7 @@ export async function init(currentUser) {
   const genderSelect = document.getElementById("collection-gender");
   const stayingInput = document.getElementById("collection-staying");
   const commentInput = document.getElementById("collection-comment");
+  enableWordAutocorrect(commentInput);
   const errorEl = document.getElementById("collection-error");
   const submitBtn = document.getElementById("collection-submit");
 

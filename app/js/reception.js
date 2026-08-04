@@ -37,6 +37,13 @@ export async function init(user) {
   const sortSelect = document.getElementById("reception-attendance-sort");
   sortSelect.addEventListener("change", renderTodayList);
 
+  const adminTagFilter = document.getElementById("reception-attendance-filter-admin-tag");
+  if (adminTagFilter) adminTagFilter.addEventListener("change", renderTodayList);
+  ["reception-attendance-filter-sessions", "reception-attendance-filter-calls"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("input", renderTodayList);
+  });
+
   if (wired) return;
   wired = true;
 
@@ -369,9 +376,21 @@ async function loadTodayAttendance() {
 
 async function renderTodayList() {
   const tbody = document.getElementById("reception-attendance-body");
-  const list = await loadTodayAttendance();
-  if (!list.length) {
+  const fullList = await loadTodayAttendance();
+  if (!fullList.length) {
     tbody.innerHTML = `<tr><td colspan="7" class="loading-row">No attendance marked today.</td></tr>`;
+    return;
+  }
+
+  const adminTagFilter = document.getElementById("reception-attendance-filter-admin-tag")?.value ?? "__ALL__";
+  const sessionsFilter = document.getElementById("reception-attendance-filter-sessions")?.value ?? "";
+  const callsFilter = document.getElementById("reception-attendance-filter-calls")?.value ?? "";
+  let list = fullList;
+  if (adminTagFilter !== "__ALL__") list = list.filter((r) => (r.contact?.admin_tag_to_users || "") === adminTagFilter);
+  if (sessionsFilter !== "") list = list.filter((r) => (r.contact?.sessions_count ?? 0) === parseInt(sessionsFilter, 10));
+  if (callsFilter !== "") list = list.filter((r) => (r.contact?.calls_count ?? 0) === parseInt(callsFilter, 10));
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="loading-row">No attendance rows match these filters.</td></tr>`;
     return;
   }
   // "Name"/"Phone" both group repeat markings for the same person (by mob_no,

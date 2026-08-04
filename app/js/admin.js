@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS, initColumnDragReorder, reapplyColumnOrder } from "./utils.js";
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
@@ -134,6 +134,7 @@ export async function initUsers() {
   wireAddUserModal();
   wireManageEventsModal();
   wireUsersImportExport();
+  initColumnDragReorder("users-table");
 }
 
 async function refreshEventsEverywhere(selectedCode) {
@@ -169,6 +170,8 @@ async function renderManageEventsList() {
       <td data-label=""><button class="cell-chip danger delete-event-btn">Delete</button></td>
     </tr>
   `).join("");
+
+  reapplyColumnOrder("manage-events-table");
 
   tbody.querySelectorAll(".event-name-input").forEach((input) => {
     input.addEventListener("change", async (e) => {
@@ -221,6 +224,7 @@ function wireManageEventsModal() {
     document.getElementById("add-event-name").value = "";
     document.getElementById("add-event-error").classList.add("hidden");
     modal.classList.add("active");
+    initColumnDragReorder("manage-events-table");
     renderManageEventsList();
   };
   document.getElementById("add-event-cancel").onclick = () => modal.classList.remove("active");
@@ -311,6 +315,8 @@ async function renderUsersTable() {
     </tr>
   `;
   }).join("");
+
+  reapplyColumnOrder("users-table");
 
   tbody.querySelectorAll(".limit-input").forEach((input) => {
     input.addEventListener("change", async (e) => {
@@ -867,81 +873,23 @@ export async function initContacts() {
 }
 
 // Master Contact's column order is user-draggable (like Excel) and persisted
-// locally per browser; the "" key is the trailing, non-draggable Delete
-// column, always kept last so dragging can never push it out of place.
+// locally per browser via the generic initColumnDragReorder() helper (see
+// utils.js); the "" key is the trailing, non-draggable Delete column, always
+// kept last so dragging can never push it out of place. The explicit column
+// list (rather than deriving it from the DOM) preserves everyone's
+// already-saved localStorage order from before this was generalized.
 const CONTACTS_COLUMN_ORDER_KEY = "nrg-contacts-column-order";
 const DEFAULT_CONTACTS_COLUMNS = [
   "S.No", "Time Stamp", "Name", "Phone", "PG Name", "Org", "Profession", "Gender", "Sessions", "Calls",
   "Admin Tag to Users", "Admin Tag", "Core Cultivation", "Calling Purpose", "GFY/AOMC", "Admin Review", "",
 ];
 
-function getContactsColumnOrder() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(CONTACTS_COLUMN_ORDER_KEY));
-    if (Array.isArray(saved) && saved.length === DEFAULT_CONTACTS_COLUMNS.length && DEFAULT_CONTACTS_COLUMNS.every((k) => saved.includes(k))) {
-      return saved;
-    }
-  } catch { /* fall through to default */ }
-  return DEFAULT_CONTACTS_COLUMNS;
-}
-
-function applyContactsColumnOrder(order) {
-  const table = document.getElementById("contacts-table");
-  if (!table) return;
-  const rows = [table.querySelector("thead tr"), ...table.querySelectorAll("tbody tr")];
-  rows.forEach((row) => {
-    if (!row) return;
-    const byKey = new Map(Array.from(row.children).map((cell) => [cell.dataset.label ?? "", cell]));
-    order.forEach((key) => {
-      const cell = byKey.get(key);
-      if (cell) row.appendChild(cell);
-    });
-  });
-}
-
-let contactsColumnReorderWired = false;
 function wireContactsColumnReorder() {
-  if (contactsColumnReorderWired) return;
-  contactsColumnReorderWired = true;
-
-  const headRow = document.querySelector("#contacts-table thead tr");
-  let dragKey = null;
-
-  headRow.querySelectorAll("th[draggable='true']").forEach((th) => {
-    th.addEventListener("dragstart", () => {
-      dragKey = th.dataset.label ?? "";
-      th.classList.add("dragging-col");
-    });
-    th.addEventListener("dragend", () => {
-      th.classList.remove("dragging-col");
-      headRow.querySelectorAll("th").forEach((t) => t.classList.remove("drag-over-col"));
-    });
-    th.addEventListener("dragover", (e) => e.preventDefault());
-    th.addEventListener("dragenter", () => th.classList.add("drag-over-col"));
-    th.addEventListener("dragleave", () => th.classList.remove("drag-over-col"));
-    th.addEventListener("drop", (e) => {
-      e.preventDefault();
-      th.classList.remove("drag-over-col");
-      const dropKey = th.dataset.label ?? "";
-      if (!dragKey || dragKey === dropKey) return;
-
-      const order = getContactsColumnOrder().slice();
-      const from = order.indexOf(dragKey);
-      const to = order.indexOf(dropKey);
-      if (from === -1 || to === -1) return;
-      order.splice(from, 1);
-      order.splice(to, 0, dragKey);
-      localStorage.setItem(CONTACTS_COLUMN_ORDER_KEY, JSON.stringify(order));
-      applyContactsColumnOrder(order);
-    });
+  initColumnDragReorder("contacts-table", {
+    storageKey: CONTACTS_COLUMN_ORDER_KEY,
+    columns: DEFAULT_CONTACTS_COLUMNS,
+    resetBtnId: "contacts-reset-columns-btn",
   });
-
-  document.getElementById("contacts-reset-columns-btn").addEventListener("click", () => {
-    localStorage.removeItem(CONTACTS_COLUMN_ORDER_KEY);
-    applyContactsColumnOrder(DEFAULT_CONTACTS_COLUMNS);
-    showToast("Column order reset", "success");
-  });
-
   wireHorizontalScroll();
 }
 
@@ -1207,7 +1155,7 @@ async function renderContactsTable(searchTerm = "") {
   `;
   }).join("");
 
-  applyContactsColumnOrder(getContactsColumnOrder());
+  reapplyColumnOrder("contacts-table");
   applyContactsSelectMode();
 
   tbody.querySelectorAll(".contact-select").forEach((cb) => {
@@ -1425,6 +1373,7 @@ function wireContactsSelectAndAssign() {
     document.querySelectorAll("#contacts-assign-users-body .assign-user-check").forEach((cb) => { cb.checked = e.target.checked; });
   });
   document.getElementById("contacts-assign-submit").onclick = runContactsAssign;
+  initColumnDragReorder("contacts-assign-users-table");
 }
 
 async function openContactsAssignModal() {
@@ -1459,12 +1408,14 @@ async function openContactsAssignModal() {
   body.innerHTML = (users || []).length
     ? users.map((u) => `
         <tr data-id="${u.id}" data-user="${escapeHtml(u.user_name)}">
-          <td><input type="checkbox" class="assign-user-check" ${u.auto_assign ? "checked" : ""} /></td>
-          <td>${escapeHtml(u.user_name)}</td>
-          <td class="assigned-count">${load[u.user_name] || 0}</td>
-          <td><input type="number" min="0" class="assign-user-limit inline-edit" value="${u.call_limit ?? ""}" placeholder="No limit" /></td>
+          <td data-label=""><input type="checkbox" class="assign-user-check" ${u.auto_assign ? "checked" : ""} /></td>
+          <td data-label="Coordinator">${escapeHtml(u.user_name)}</td>
+          <td data-label="Current Load" class="assigned-count">${load[u.user_name] || 0}</td>
+          <td data-label="Call Limit (blank = no limit)"><input type="number" min="0" class="assign-user-limit inline-edit" value="${u.call_limit ?? ""}" placeholder="No limit" /></td>
         </tr>`).join("")
     : `<tr><td colspan="4" class="loading-row">No coordinators found.</td></tr>`;
+
+  reapplyColumnOrder("contacts-assign-users-table");
 }
 
 async function runContactsAssign() {
@@ -1607,12 +1558,15 @@ async function openContactInfoModal(kind, mob, name, isNewContact = false) {
 
   if (kind === "sessions") {
     thead.innerHTML = `<tr><th>Time</th><th>Marked By</th><th>Event</th></tr>`;
+    initColumnDragReorder("contact-info-table", { storageKey: "nrg-col-order:contact-info-sessions", force: true });
     const { data } = await supabase.from("session_attendance").select("ts,took_by,event_code").eq("mob_no", mob).order("ts", { ascending: false });
     tbody.innerHTML = (data && data.length)
       ? data.map((r) => `<tr><td data-label="Time">${new Date(r.ts).toLocaleString()}</td><td data-label="Marked By">${escapeHtml(r.took_by)}</td><td data-label="Event">${escapeHtml(r.event_code || "—")}</td></tr>`).join("")
       : `<tr><td colspan="3" class="loading-row">No sessions attended yet.</td></tr>`;
+    reapplyColumnOrder("contact-info-table");
   } else if (kind === "calls") {
     thead.innerHTML = `<tr><th>Time</th><th>Caller</th><th>Event</th><th>Status</th><th>Comment</th></tr>`;
+    initColumnDragReorder("contact-info-table", { storageKey: "nrg-col-order:contact-info-calls", force: true });
     const { data } = await supabase.from("call_responses").select("ts,caller_name,event_code,remarks,addl_remarks").eq("mob_no", mob).order("ts", { ascending: false });
     tbody.innerHTML = (data && data.length)
       ? data.map((r) => `
@@ -1624,6 +1578,7 @@ async function openContactInfoModal(kind, mob, name, isNewContact = false) {
             <td data-label="Comment">${escapeHtml(r.addl_remarks || "—")}</td>
           </tr>`).join("")
       : `<tr><td colspan="5" class="loading-row">No calls made yet.</td></tr>`;
+    reapplyColumnOrder("contact-info-table");
   } else if (kind === "reviews") {
     thead.innerHTML = `<tr><th>Caller</th><th>What they said</th></tr>`;
     const { data } = await supabase.from("call_responses").select("ts,caller_name,remarks,addl_remarks").eq("mob_no", mob).order("ts", { ascending: false });
@@ -1981,6 +1936,7 @@ export async function initAnalytics() {
   await loadEvents();
   wireContactInfoModal();
   wireAssignedContactsFilters();
+  wireCultivationFilters();
   wireGeneralDataModal();
   const userSelect = document.getElementById("analytics-user-select");
   const eventSelect = document.getElementById("analytics-event-select");
@@ -2045,6 +2001,14 @@ function callOutcomeCategory(remarks) {
   return "negative"; // any other/unrecognized status is a real outcome, not an uncalled contact
 }
 
+function formatOrdinalDate(ts) {
+  const d = new Date(ts);
+  const day = d.getDate();
+  const suffix = day % 10 === 1 && day !== 11 ? "st" : day % 10 === 2 && day !== 12 ? "nd" : day % 10 === 3 && day !== 13 ? "rd" : "th";
+  const month = d.toLocaleString("en-US", { month: "short" });
+  return `${day}${suffix} ${month} ${d.getFullYear()}`;
+}
+
 let currentAnalyticsParams = null;
 let lastAssignedContacts = [];
 
@@ -2056,6 +2020,9 @@ function renderAssignedContactsTable() {
   const callerFilter = document.getElementById("analytics-assigned-filter-caller")?.value ?? "__ALL__";
   const statusFilter = document.getElementById("analytics-assigned-filter-status")?.value ?? "__ALL__";
   const calledFilter = document.getElementById("analytics-assigned-filter-called")?.value ?? "__ALL__";
+  const adminTagFilter = document.getElementById("analytics-assigned-filter-admin-tag")?.value ?? "__ALL__";
+  const sessionsFilter = document.getElementById("analytics-assigned-filter-sessions")?.value ?? "";
+  const callsFilter = document.getElementById("analytics-assigned-filter-calls")?.value ?? "";
 
   let rows = lastAssignedContacts;
   if (callerFilter !== "__ALL__") rows = rows.filter((a) => a.user_name === callerFilter);
@@ -2066,6 +2033,9 @@ function renderAssignedContactsTable() {
     const wantCalled = calledFilter === "yes";
     rows = rows.filter((a) => (((a.status || "Not Done") !== "Not Done")) === wantCalled);
   }
+  if (adminTagFilter !== "__ALL__") rows = rows.filter((a) => (a.contacts?.admin_tag_to_users || "") === adminTagFilter);
+  if (sessionsFilter !== "") rows = rows.filter((a) => (a.contacts?.sessions_count ?? 0) === parseInt(sessionsFilter, 10));
+  if (callsFilter !== "") rows = rows.filter((a) => (a.contacts?.calls_count ?? 0) === parseInt(callsFilter, 10));
 
   assignedBody.innerHTML = rows.length
     ? rows.map((a, idx) => `
@@ -2085,6 +2055,8 @@ function renderAssignedContactsTable() {
           <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${a.contacts?.mob_no || ""}" data-name="${escapeHtml(a.contacts?.name || "")}">${a.contacts?.calls_count ?? 0}</button></td>
         </tr>`).join("")
     : `<tr><td colspan="9" class="loading-row">No contacts currently assigned.</td></tr>`;
+
+  reapplyColumnOrder("analytics-assigned-table");
 
   assignedBody.querySelectorAll(".info-link").forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -2114,10 +2086,15 @@ let assignedContactsFiltersWired = false;
 function wireAssignedContactsFilters() {
   if (assignedContactsFiltersWired) return;
   assignedContactsFiltersWired = true;
-  ["analytics-assigned-filter-caller", "analytics-assigned-filter-status", "analytics-assigned-filter-called"].forEach((id) => {
+  ["analytics-assigned-filter-caller", "analytics-assigned-filter-status", "analytics-assigned-filter-called", "analytics-assigned-filter-admin-tag"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.addEventListener("change", renderAssignedContactsTable);
   });
+  ["analytics-assigned-filter-sessions", "analytics-assigned-filter-calls"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("input", renderAssignedContactsTable);
+  });
+  initColumnDragReorder("analytics-assigned-table");
 }
 
 // one-glance snapshot across every Coordinator's current live assignment load
@@ -2149,6 +2126,8 @@ function wireGeneralDataModal() {
     generalDataZoom = Math.max(40, generalDataZoom - 10);
     applyGeneralDataZoom();
   };
+
+  initColumnDragReorder("general-data-table");
 
   document.getElementById("general-data-btn").onclick = async () => {
     modal.classList.add("active");
@@ -2182,6 +2161,7 @@ function wireGeneralDataModal() {
           </tr>`;
         }).join("")
       : `<tr><td colspan="6" class="loading-row">No contacts currently assigned to anyone.</td></tr>`;
+    reapplyColumnOrder("general-data-table");
   };
 }
 
@@ -2221,6 +2201,7 @@ async function openAnalyticsStatModal(statType) {
     document.getElementById("contact-info-title").textContent = "Assigned Contacts Details";
     document.getElementById("contact-info-sub").textContent = isAll ? "All Users (Combined)" : userName;
     thead.innerHTML = `<tr><th>S.No</th>${isAll ? "<th>Caller</th>" : ""}<th>Name</th><th>Phone</th><th>Campaign</th></tr>`;
+    initColumnDragReorder("contact-info-table", { storageKey: "nrg-col-order:contact-info-assigned", force: true });
 
     let query = supabase
       .from("assignments")
@@ -2253,10 +2234,12 @@ async function openAnalyticsStatModal(statType) {
         <td data-label="Campaign">${escapeHtml(a.event_code)}</td>
       </tr>
     `).join("");
+    reapplyColumnOrder("contact-info-table");
   } else if (statType === "pending") {
     document.getElementById("contact-info-title").textContent = "Pending Contacts Details";
     document.getElementById("contact-info-sub").textContent = isAll ? "All Users (Combined)" : userName;
     thead.innerHTML = `<tr><th>S.No</th>${isAll ? "<th>Caller</th>" : ""}<th>Name</th><th>Phone</th><th>Campaign</th></tr>`;
+    initColumnDragReorder("contact-info-table", { storageKey: "nrg-col-order:contact-info-pending", force: true });
 
     let query = supabase
       .from("assignments")
@@ -2295,12 +2278,14 @@ async function openAnalyticsStatModal(statType) {
         <td data-label="Campaign">${escapeHtml(a.event_code)}</td>
       </tr>
     `).join("");
+    reapplyColumnOrder("contact-info-table");
   } else {
     // call response stats (calls or positive)
     let title = statType === "positive" ? "Positive Responses" : "Calls Made";
     document.getElementById("contact-info-title").textContent = title;
     document.getElementById("contact-info-sub").textContent = isAll ? "All Users (Combined)" : userName;
     thead.innerHTML = `<tr><th>S.No</th><th>Time</th>${isAll ? "<th>Caller</th>" : ""}<th>Name</th><th>Phone</th><th>Status</th></tr>`;
+    initColumnDragReorder("contact-info-table", { storageKey: "nrg-col-order:contact-info-callstats", force: true });
 
     let query = supabase
       .from("call_responses")
@@ -2341,6 +2326,7 @@ async function openAnalyticsStatModal(statType) {
         <td data-label="Status">${escapeHtml(r.remarks)}${r.addl_remarks ? " — " + escapeHtml(r.addl_remarks) : ""}</td>
       </tr>
     `).join("");
+    reapplyColumnOrder("contact-info-table");
   }
 }
 
@@ -2420,13 +2406,6 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   );
   renderAssignedContactsTable();
 
-  const formatOrdinalDate = (ts) => {
-    const d = new Date(ts);
-    const day = d.getDate();
-    const suffix = day % 10 === 1 && day !== 11 ? "st" : day % 10 === 2 && day !== 12 ? "nd" : day % 10 === 3 && day !== 13 ? "rd" : "th";
-    const month = d.toLocaleString("en-US", { month: "short" });
-    return `${day}${suffix} ${month} ${d.getFullYear()}`;
-  };
   // core cultivation health: is the cultivator actually calling the people cultivated to them?
   let cultivatedQuery = supabase.from("contacts").select("name,mob_no,core_cultivation,admin_tag_to_users,sessions_count,calls_count");
   cultivatedQuery = isAll ? cultivatedQuery.not("core_cultivation", "is", null) : cultivatedQuery.eq("core_cultivation", userName);
@@ -2434,9 +2413,9 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   if (isStale()) return;
   // group rows by cultivator so one person's contacts sit together, not interleaved with others'
   if (cultivated) cultivated.sort((a, b) => (a.core_cultivation || "").localeCompare(b.core_cultivation || ""));
-  const cultivationBody = document.getElementById("analytics-cultivation-body");
+  lastCultivationEmptyMessage = `No contacts cultivated${isAll ? "" : " to this user"}.`;
   if (!cultivated || !cultivated.length) {
-    cultivationBody.innerHTML = `<tr><td colspan="9" class="loading-row">No contacts cultivated${isAll ? "" : " to this user"}.</td></tr>`;
+    lastCultivationRows = [];
   } else {
     const mobNos = cultivated.map((c) => c.mob_no);
     let callHistoryQuery = supabase.from("call_responses").select("mob_no,caller_name,ts").in("mob_no", mobNos).order("ts", { ascending: false });
@@ -2453,16 +2432,55 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
       totalCallsByMob[key] = (totalCallsByMob[key] || 0) + 1;
       if (!lastCalled[key]) lastCalled[key] = r.ts;
     });
-    cultivationBody.innerHTML = cultivated.map((c, idx) => {
+    lastCultivationRows = cultivated.map((c) => {
       const key = keyOf(c.mob_no, c.core_cultivation);
-      return `
+      return {
+        cultivator: c.core_cultivation || "",
+        name: c.name,
+        mob_no: c.mob_no,
+        admin_tag_to_users: c.admin_tag_to_users,
+        sessions_count: c.sessions_count,
+        calls_count: c.calls_count,
+        totalCalls: totalCallsByMob[key] || 0,
+        lastCalledTs: lastCalled[key] || null,
+      };
+    });
+  }
+  renderCultivationTable();
+}
+
+let lastCultivationRows = [];
+let lastCultivationEmptyMessage = "No contacts cultivated.";
+
+// re-applies the Admin Tag/Sessions/Calls header filters over the
+// already-fetched cultivation list — no re-query needed, this table's data
+// is small and local (same pattern as renderAssignedContactsTable).
+function renderCultivationTable() {
+  const cultivationBody = document.getElementById("analytics-cultivation-body");
+  if (!cultivationBody) return;
+  const adminTagFilter = document.getElementById("analytics-cultivation-filter-admin-tag")?.value ?? "__ALL__";
+  const sessionsFilter = document.getElementById("analytics-cultivation-filter-sessions")?.value ?? "";
+  const callsFilter = document.getElementById("analytics-cultivation-filter-calls")?.value ?? "";
+
+  let rows = lastCultivationRows;
+  if (adminTagFilter !== "__ALL__") rows = rows.filter((c) => (c.admin_tag_to_users || "") === adminTagFilter);
+  if (sessionsFilter !== "") rows = rows.filter((c) => (c.sessions_count ?? 0) === parseInt(sessionsFilter, 10));
+  if (callsFilter !== "") rows = rows.filter((c) => (c.calls_count ?? 0) === parseInt(callsFilter, 10));
+
+  if (!rows.length) {
+    const msg = lastCultivationRows.length ? "No contacts match these filters." : lastCultivationEmptyMessage;
+    cultivationBody.innerHTML = `<tr><td colspan="9" class="loading-row">${msg}</td></tr>`;
+    return;
+  }
+
+  cultivationBody.innerHTML = rows.map((c, idx) => `
       <tr>
         <td data-label="S.No">${idx + 1}</td>
-        <td data-label="Cultivator">${escapeHtml(c.core_cultivation || "")}</td>
+        <td data-label="Cultivator">${escapeHtml(c.cultivator)}</td>
         <td data-label="Name">${escapeHtml(c.name)}</td>
         <td data-label="Phone">${formatPhone(c.mob_no)}</td>
-        <td data-label="Total Calls">${totalCallsByMob[key] || 0}</td>
-        <td data-label="Last Called">${lastCalled[key] ? formatOrdinalDate(lastCalled[key]) : "Never called"}</td>
+        <td data-label="Total Calls">${c.totalCalls}</td>
+        <td data-label="Last Called">${c.lastCalledTs ? formatOrdinalDate(c.lastCalledTs) : "Never called"}</td>
         <td data-label="Admin Tag to Users">
           <select class="inline-edit cultivation-admin-tag" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">
             ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (c.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
@@ -2470,30 +2488,45 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
         </td>
         <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.sessions_count ?? 0}</button></td>
         <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.calls_count ?? 0}</button></td>
-      </tr>`;
-    }).join("");
+      </tr>`).join("");
 
-    cultivationBody.querySelectorAll(".info-link").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        openContactInfoModal(e.target.dataset.kind, e.target.dataset.mob, e.target.dataset.name);
-      });
-    });
+  reapplyColumnOrder("analytics-cultivation-table");
 
-    cultivationBody.querySelectorAll(".cultivation-admin-tag").forEach((select) => {
-      select.addEventListener("change", async (e) => {
-        const mob = e.target.dataset.mob;
-        const name = e.target.dataset.name;
-        const value = e.target.value || null;
-        const { error } = await supabase.from("contacts").update({ admin_tag_to_users: value }).eq("mob_no", mob);
-        if (error) {
-          showToast("Update failed: " + error.message, "error");
-          return;
-        }
-        await syncCoordinatorUser({ name, mob_no: mob }, value);
-        showToast("Admin tag updated", "success");
-      });
+  cultivationBody.querySelectorAll(".info-link").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      openContactInfoModal(e.target.dataset.kind, e.target.dataset.mob, e.target.dataset.name);
     });
-  }
+  });
+
+  cultivationBody.querySelectorAll(".cultivation-admin-tag").forEach((select) => {
+    select.addEventListener("change", async (e) => {
+      const mob = e.target.dataset.mob;
+      const name = e.target.dataset.name;
+      const value = e.target.value || null;
+      const { error } = await supabase.from("contacts").update({ admin_tag_to_users: value }).eq("mob_no", mob);
+      if (error) {
+        showToast("Update failed: " + error.message, "error");
+        return;
+      }
+      await syncCoordinatorUser({ name, mob_no: mob }, value);
+      const row = lastCultivationRows.find((c) => c.mob_no === mob);
+      if (row) row.admin_tag_to_users = value;
+      showToast("Admin tag updated", "success");
+    });
+  });
+}
+
+let cultivationFiltersWired = false;
+function wireCultivationFilters() {
+  if (cultivationFiltersWired) return;
+  cultivationFiltersWired = true;
+  const el = document.getElementById("analytics-cultivation-filter-admin-tag");
+  if (el) el.addEventListener("change", renderCultivationTable);
+  ["analytics-cultivation-filter-sessions", "analytics-cultivation-filter-calls"].forEach((id) => {
+    const input = document.getElementById(id);
+    if (input) input.addEventListener("input", renderCultivationTable);
+  });
+  initColumnDragReorder("analytics-cultivation-table");
 }
 
 /* ======================= RECEPTION ANALYTICS ======================= */
@@ -2503,6 +2536,7 @@ let receptionAnalyticsWired = false;
 export async function initReceptionAnalytics() {
   await loadEvents();
   wireContactInfoModal();
+  wireReceptionAttendanceFilters();
   const eventSelect = document.getElementById("reception-analytics-event-select");
   eventSelect.innerHTML = `<option value="">All events</option>` +
     eventsCache.map((e) => `<option value="${e.code}">${e.name} (${e.code})</option>`).join("");
@@ -2604,13 +2638,37 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
   groupArr.sort((a, b) => new Date(b[0].ts) - new Date(a[0].ts));
   const sorted = groupArr.flat();
 
+  lastReceptionAttendanceRows = sorted.map((r) => {
+    const dupGroup = groups.get(r.mob_no);
+    const isDuplicate = dupGroup.length > 1;
+    const isOldest = isDuplicate && dupGroup[dupGroup.length - 1].id === r.id;
+    return { ...r, contact: contactsByMob.get(r.mob_no) || null, isDuplicate, isOldest };
+  });
+  currentReceptionAnalyticsParams = { eventCode, fromDate, toDate };
+  renderReceptionAttendanceTable();
+}
+
+let lastReceptionAttendanceRows = [];
+let currentReceptionAnalyticsParams = null;
+
+// re-applies the Admin Tag/Sessions/Calls header filters over the
+// already-fetched attendance list — no re-query needed (same pattern as
+// renderAssignedContactsTable / renderCultivationTable).
+function renderReceptionAttendanceTable() {
+  const tbody = document.getElementById("reception-analytics-attendance-body");
+  if (!tbody) return;
+  const adminTagFilter = document.getElementById("reception-analytics-filter-admin-tag")?.value ?? "__ALL__";
+  const sessionsFilter = document.getElementById("reception-analytics-filter-sessions")?.value ?? "";
+  const callsFilter = document.getElementById("reception-analytics-filter-calls")?.value ?? "";
+
+  let sorted = lastReceptionAttendanceRows;
+  if (adminTagFilter !== "__ALL__") sorted = sorted.filter((r) => (r.contact?.admin_tag_to_users || "") === adminTagFilter);
+  if (sessionsFilter !== "") sorted = sorted.filter((r) => (r.contact?.sessions_count ?? 0) === parseInt(sessionsFilter, 10));
+  if (callsFilter !== "") sorted = sorted.filter((r) => (r.contact?.calls_count ?? 0) === parseInt(callsFilter, 10));
+
   tbody.innerHTML = sorted.length
     ? sorted.map((r, idx) => {
-        const dupGroup = groups.get(r.mob_no);
-        const isDuplicate = dupGroup.length > 1;
-        const isOldest = isDuplicate && dupGroup[dupGroup.length - 1].id === r.id;
-        const rowClass = isDuplicate ? (isOldest ? "contact-original" : "contact-duplicate") : "";
-        const contact = contactsByMob.get(r.mob_no);
+        const rowClass = r.isDuplicate ? (r.isOldest ? "contact-original" : "contact-duplicate") : "";
         return `
         <tr data-id="${r.id}"${rowClass ? ` class="${rowClass}"` : ""}>
           <td data-label="S.No">${idx + 1}</td>
@@ -2625,16 +2683,18 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
           </td>
           <td data-label="Admin Tag to Users">
             <select class="inline-edit reception-analytics-admin-tag" data-mob="${r.mob_no}" data-name="${escapeHtml(r.name || "")}">
-              ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (contact?.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+              ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (r.contact?.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
             </select>
           </td>
-          <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${r.mob_no}" data-name="${escapeHtml(r.name || "")}">${contact?.sessions_count ?? 0}</button></td>
-          <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${r.mob_no}" data-name="${escapeHtml(r.name || "")}">${contact?.calls_count ?? 0}</button></td>
+          <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${r.mob_no}" data-name="${escapeHtml(r.name || "")}">${r.contact?.sessions_count ?? 0}</button></td>
+          <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${r.mob_no}" data-name="${escapeHtml(r.name || "")}">${r.contact?.calls_count ?? 0}</button></td>
           <td data-label="Marked By">${escapeHtml(r.took_by)}</td>
           <td class="no-export"><button class="cell-chip danger attendance-delete-btn" data-id="${r.id}" data-name="${escapeHtml(r.name || "")}">✕ Delete</button></td>
         </tr>`;
       }).join("")
-    : `<tr><td colspan="10" class="loading-row">No attendance marked in this range.</td></tr>`;
+    : `<tr><td colspan="10" class="loading-row">${lastReceptionAttendanceRows.length ? "No attendance rows match these filters." : "No attendance marked in this range."}</td></tr>`;
+
+  reapplyColumnOrder("reception-analytics-attendance-table");
 
   tbody.querySelectorAll(".info-link").forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -2653,8 +2713,7 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
         return;
       }
       await syncCoordinatorUser({ name, mob_no: mob }, value);
-      const c = contactsByMob.get(mob);
-      if (c) c.admin_tag_to_users = value;
+      lastReceptionAttendanceRows.filter((r) => r.mob_no === mob).forEach((r) => { if (r.contact) r.contact.admin_tag_to_users = value; });
       showToast("Admin tag updated", "success");
     });
   });
@@ -2686,9 +2745,23 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
         return;
       }
       showToast("Attendance record deleted", "success");
+      const { eventCode, fromDate, toDate } = currentReceptionAnalyticsParams;
       runReceptionAnalytics(eventCode, fromDate, toDate);
     });
   });
+}
+
+let receptionAttendanceFiltersWired = false;
+function wireReceptionAttendanceFilters() {
+  if (receptionAttendanceFiltersWired) return;
+  receptionAttendanceFiltersWired = true;
+  const el = document.getElementById("reception-analytics-filter-admin-tag");
+  if (el) el.addEventListener("change", renderReceptionAttendanceTable);
+  ["reception-analytics-filter-sessions", "reception-analytics-filter-calls"].forEach((id) => {
+    const input = document.getElementById(id);
+    if (input) input.addEventListener("input", renderReceptionAttendanceTable);
+  });
+  initColumnDragReorder("reception-analytics-attendance-table");
 }
 
 /* ======================= NEW CONTACTS & DUPLICATE RESOLUTION ======================= */
@@ -2757,6 +2830,8 @@ async function renderCollectionSubmissions() {
       </td>
     </tr>
   `).join("");
+
+  reapplyColumnOrder("collection-submissions-admin-table");
 
   // Filled in here rather than after promotion: the admin decides cultivation
   // and GFY/AOMC while reviewing, and "+ Add" then carries them into Master
@@ -2850,6 +2925,9 @@ export async function initNewContacts() {
         initNewContacts(); // resume
       }
     });
+
+    initColumnDragReorder("collection-submissions-admin-table");
+    initColumnDragReorder("new-contacts-table");
   }
 
   // Independent of the Sheets bridge below — always load regardless of
@@ -2997,6 +3075,8 @@ function renderNewContactsTable() {
       </tr>
     `;
   }).join("");
+
+  reapplyColumnOrder("new-contacts-table");
 
   tbody.querySelectorAll(".new-contact-ws-select").forEach((select) => {
     select.addEventListener("change", (e) => {

@@ -399,9 +399,10 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #contacts-table th[data-label="Calling Purpose"], #contacts-table td[data-label="Calling Purpose"] select { min-width: 100px !important; width: 100px !important; }
 #contacts-table th[data-label="GFY Status"], #contacts-table td[data-label="GFY Status"] select { min-width: 105px !important; width: 105px !important; }
 
-#contacts-table th[draggable="true"] { cursor: grab; user-select: none; }
-#contacts-table th.dragging-col { opacity: 0.4; }
-#contacts-table th.drag-over-col { box-shadow: inset 3px 0 0 var(--tulsi); }
+/* Any table wired via initColumnDragReorder() gets these column-drag cues. */
+.data-table th.col-draggable { cursor: grab; user-select: none; }
+.data-table th.dragging-col { opacity: 0.4; }
+.data-table th.drag-over-col { box-shadow: inset 3px 0 0 var(--tulsi); }
 .inline-edit:hover { border-color: var(--sandstone); background: var(--surface); }
 .inline-edit:focus { outline: none; border-color: var(--tulsi); background: var(--surface); box-shadow: 0 0 0 3px rgba(5,150,105,0.12); }
 .loading-row { text-align: center; color: var(--text-muted); padding: 26px !important; font-size: 14px; animation: pulseFade 1.4s ease-in-out infinite; }

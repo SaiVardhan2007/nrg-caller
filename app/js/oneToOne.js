@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, formatPhone, escapeHtml, normalizePhoneInput } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, normalizePhoneInput, initColumnDragReorder, reapplyColumnOrder } from "./utils.js";
 import { setSession } from "./auth.js";
 
 /* ======================= ADMIN: One to One ======================= */
@@ -12,6 +12,7 @@ export async function initAdminOneToOne(currentUser) {
   wireOneToOneSearch();
   wireHelpRequestsModal();
   wireRemarksModal();
+  initColumnDragReorder("one-to-one-table");
   await renderOneToOneTable();
 }
 
@@ -88,6 +89,8 @@ async function renderOneToOneTable() {
     </tr>
   `;
   }).join("");
+
+  reapplyColumnOrder("one-to-one-table");
 
   tbody.querySelectorAll(".help-requests-link").forEach((btn) => {
     btn.onclick = (e) => openHelpRequestsModal(e.target.dataset.mob, e.target.dataset.name);
@@ -215,6 +218,8 @@ async function renderHelpRequestsList() {
         </tr>`).join("")
     : `<tr><td colspan="6" class="loading-row">No questions asked yet.</td></tr>`;
 
+  reapplyColumnOrder("help-requests-table");
+
   tbody.querySelectorAll(".resolve-help-btn").forEach((btn) => {
     btn.onclick = async () => {
       const newResolved = btn.dataset.resolved !== "true";
@@ -251,6 +256,7 @@ function wireHelpRequestsModal() {
   const modal = document.getElementById("help-requests-modal");
   document.getElementById("help-requests-close").onclick = () => modal.classList.remove("active");
   modal.onclick = (e) => { if (e.target === modal) modal.classList.remove("active"); };
+  initColumnDragReorder("help-requests-table");
 }
 
 async function openRemarksModal(mob, name) {
@@ -282,6 +288,8 @@ async function renderRemarksList() {
         </tr>`).join("")
     : `<tr><td colspan="4" class="loading-row">No remarks yet.</td></tr>`;
 
+  reapplyColumnOrder("remarks-table");
+
   tbody.querySelectorAll(".delete-remark-btn").forEach((btn) => {
     btn.onclick = async () => {
       if (!confirm("Delete this remark?")) return;
@@ -296,6 +304,7 @@ function wireRemarksModal() {
   const modal = document.getElementById("remarks-modal");
   document.getElementById("remarks-close").onclick = () => modal.classList.remove("active");
   modal.onclick = (e) => { if (e.target === modal) modal.classList.remove("active"); };
+  initColumnDragReorder("remarks-table");
 
   document.getElementById("remarks-add").onclick = async () => {
     const text = document.getElementById("remarks-text").value.trim();
