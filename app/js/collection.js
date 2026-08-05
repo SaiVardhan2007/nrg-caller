@@ -1,10 +1,11 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, formatPhone, escapeHtml, normalizePhoneInput, enableWordAutocorrect } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, normalizePhoneInput, enableWordAutocorrect, initHorizontalScroll } from "./utils.js";
 
 let wired = false;
 
 export async function init(currentUser) {
   await renderSubmissions(currentUser.user_name);
+  initHorizontalScroll("collection-submissions-table-wrap");
   if (wired) return;
   wired = true;
 

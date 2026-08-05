@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, formatPhone, escapeHtml, normalizePhoneInput, initColumnDragReorder, reapplyColumnOrder } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, normalizePhoneInput, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll } from "./utils.js";
 import { setSession } from "./auth.js";
 
 /* ======================= ADMIN: One to One ======================= */
@@ -13,6 +13,7 @@ export async function initAdminOneToOne(currentUser) {
   wireHelpRequestsModal();
   wireRemarksModal();
   initColumnDragReorder("one-to-one-table");
+  initHorizontalScroll("one-to-one-table-wrap");
   await renderOneToOneTable();
 }
 
@@ -390,6 +391,7 @@ export async function initUserOneToOne(currentUser) {
   currentContactMob = contact.mob_no;
   contentEl.classList.remove("hidden");
   wireUserOneToOneForm();
+  initHorizontalScroll("one-to-one-user-questions-wrap");
   await renderUserQuestions();
 }
 

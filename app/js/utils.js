@@ -461,6 +461,85 @@ export function reapplyColumnOrder(tableId) {
   if (state) state.applyOrder(state.getOrder());
 }
 
+/* ============ Horizontal scroll ============ */
+
+// Wide tables need panning as a first-class action, not just a thin native
+// scrollbar: click-and-drag anywhere on the table, shift+wheel (or a plain
+// wheel when there's nothing left to scroll vertically), ◀ ▶ buttons, or the
+// arrow keys once something inside the table has focus. Originally built for
+// Master Contact; generalized here so any table-wrap can opt in with one call.
+// Pass leftBtnId/rightBtnId to reuse buttons already placed in a toolbar
+// (Master Contact's pattern) — omitted, a small ◀ ▶ pair is created and
+// inserted just above the wrap.
+export function initHorizontalScroll(wrapId, { leftBtnId, rightBtnId } = {}) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap || wrap.dataset.hscrollWired) return;
+  wrap.dataset.hscrollWired = "1";
+  wrap.classList.add("drag-scroll");
+
+  let leftBtn = leftBtnId && document.getElementById(leftBtnId);
+  let rightBtn = rightBtnId && document.getElementById(rightBtnId);
+  if (!leftBtn || !rightBtn) {
+    const controls = document.createElement("div");
+    controls.className = "hscroll-controls hscroll-controls-floating";
+    controls.innerHTML =
+      `<button type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>` +
+      `<button type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>`;
+    wrap.parentNode.insertBefore(controls, wrap);
+    [leftBtn, rightBtn] = controls.children;
+  }
+
+  const PAGE = () => Math.max(240, wrap.clientWidth * 0.8);
+  leftBtn.addEventListener("click", () => wrap.scrollBy({ left: -PAGE(), behavior: "smooth" }));
+  rightBtn.addEventListener("click", () => wrap.scrollBy({ left: PAGE(), behavior: "smooth" }));
+
+  wrap.addEventListener("wheel", (e) => {
+    if (!e.shiftKey && Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // real trackpad h-scroll: leave it alone
+    if (!e.shiftKey) return;
+    e.preventDefault();
+    wrap.scrollLeft += e.deltaY;
+  }, { passive: false });
+
+  // Drag-to-pan. Ignored when the press starts on something interactive so
+  // inline edits, dropdowns and draggable column headers still work.
+  let dragging = false, startX = 0, startScroll = 0, moved = false;
+  const INTERACTIVE = "input, select, textarea, button, a, th[draggable='true']";
+
+  wrap.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || e.target.closest(INTERACTIVE)) return;
+    dragging = true;
+    moved = false;
+    startX = e.clientX;
+    startScroll = wrap.scrollLeft;
+  });
+  wrap.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    if (!moved && Math.abs(dx) < 4) return; // let real clicks through untouched
+    if (!moved) {
+      moved = true;
+      wrap.classList.add("is-dragging");
+      wrap.setPointerCapture(e.pointerId);
+    }
+    e.preventDefault();
+    wrap.scrollLeft = startScroll - dx;
+  });
+  const endDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    wrap.classList.remove("is-dragging");
+    if (moved && wrap.hasPointerCapture?.(e.pointerId)) wrap.releasePointerCapture(e.pointerId);
+  };
+  wrap.addEventListener("pointerup", endDrag);
+  wrap.addEventListener("pointercancel", endDrag);
+
+  wrap.addEventListener("keydown", (e) => {
+    if (e.target.closest("input, select, textarea")) return;
+    if (e.key === "ArrowRight") { e.preventDefault(); wrap.scrollBy({ left: PAGE(), behavior: "smooth" }); }
+    if (e.key === "ArrowLeft") { e.preventDefault(); wrap.scrollBy({ left: -PAGE(), behavior: "smooth" }); }
+  });
+}
+
 export function copyToClipboard(text, element) {
   navigator.clipboard.writeText(text).then(() => {
     // Show a floating "Copied!" badge near the element

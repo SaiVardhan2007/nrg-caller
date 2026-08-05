@@ -258,6 +258,88 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .caller-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .caller-title-row .section-title { margin-bottom: 0; }
 .btn-refresh { padding: 8px 14px; font-size: 13px; white-space: nowrap; }
+.btn-sm { padding: 7px 14px; font-size: 13px; }
+.panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-weight: 800; color: var(--tulsi-dark); font-size: 15px; }
+
+/* ============ MESSAGE TEMPLATES (sticky notes) ============ */
+.sticky-note-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 18px;
+  margin-top: 10px;
+}
+.sticky-note {
+  position: relative;
+  flex: 0 0 auto;
+  width: fit-content;
+  max-width: min(100%, 420px);
+  min-width: 160px;
+  padding: 12px 18px 22px;
+  border-radius: 4px 16px 16px 16px;
+  box-shadow: var(--shadow), 0 1px 0 rgba(0,0,0,0.04);
+  transition: transform 0.18s cubic-bezier(0.16,1,0.3,1), box-shadow 0.18s ease;
+}
+.sticky-note--active { box-shadow: 0 0 0 2px var(--tulsi), var(--shadow); }
+.sticky-note--active:hover { box-shadow: 0 0 0 2px var(--tulsi), var(--shadow-lg); }
+.sticky-note:nth-child(4n+1) { background: linear-gradient(135deg, #fffbe0, #fef3c7); transform: rotate(-0.6deg); }
+.sticky-note:nth-child(4n+2) { background: linear-gradient(135deg, #ecfdf5, #d1fae5); transform: rotate(0.5deg); }
+.sticky-note:nth-child(4n+3) { background: linear-gradient(135deg, #fff7ed, #ffedd5); transform: rotate(0.7deg); }
+.sticky-note:nth-child(4n+4) { background: linear-gradient(135deg, #eef2ff, #e0e7ff); transform: rotate(-0.5deg); }
+.sticky-note:hover { transform: rotate(0deg) scale(1.02); box-shadow: var(--shadow-lg); z-index: 1; }
+.sticky-note::after {
+  content: "";
+  position: absolute;
+  right: 0; bottom: 0;
+  width: 0; height: 0;
+  border-style: solid;
+  border-width: 0 0 18px 18px;
+  border-color: transparent transparent rgba(0,0,0,0.09) transparent;
+  border-bottom-right-radius: 4px;
+}
+.sticky-note-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.sticky-note-icons { display: flex; gap: 4px; }
+.sticky-note-pill {
+  border: none;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  line-height: 1.6;
+}
+.sticky-note-pill--active { background: rgba(4,120,87,0.15); color: var(--tulsi-dark); cursor: default; }
+.template-activate-btn {
+  background: rgba(0,0,0,0.06);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.template-activate-btn:hover { background: rgba(0,0,0,0.12); color: var(--text-main); }
+.sticky-note-action-btn {
+  background: rgba(255,255,255,0.55);
+  border: none;
+  border-radius: 8px;
+  width: 26px; height: 26px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-main);
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+.sticky-note-action-btn:hover { background: rgba(255,255,255,0.9); }
+.sticky-note-action-btn:active { transform: scale(0.9); }
+.sticky-note-heading { font-weight: 800; margin: 0 0 8px; color: var(--text-main); font-size: 14.5px; }
+.sticky-note-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-main);
+}
+.sticky-note-empty { color: var(--text-muted); font-size: 13px; }
 
 .table-wrap {
   overflow-x: auto;
@@ -269,7 +351,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 .data-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--card-radius); }
 @media (min-width: 641px) {
-  #contacts-table, #new-contacts-table {
+  #contacts-table, #collection-submissions-admin-table {
     min-width: 1400px;
   }
 }
@@ -280,6 +362,9 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   background: var(--tulsi-dark); color: #fff; text-align: left;
   padding: 8px 10px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 700;
 }
+/* Users & Assignment headers stay on one line — the table is narrow enough
+   that wrapping just makes the header row taller for no benefit. */
+#users-table th { white-space: nowrap; }
 .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--sandstone); font-size: 13px; }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tbody tr { transition: background 0.12s ease; }
@@ -660,7 +745,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 
   /* Filter columns in admin contact tables for ultra-clean mobile views */
   #contacts-table td:not([data-label="S.No"]):not([data-label="Name"]):not([data-label="Phone"]):not([data-label="Calling Purpose"]):not([data-label="Sessions"]):not([data-label="Admin Tag to Users"]),
-  #new-contacts-table td:not([data-label="S.No"]):not([data-label="Name"]):not([data-label="Phone"]):not([data-label="Calling Purpose"]):not([data-label="Sessions"]):not([data-label="Admin Tag to Users"]) {
+  #collection-submissions-admin-table td:not([data-label="S.No"]):not([data-label="Name"]):not([data-label="Phone"]):not([data-label="Calling Purpose"]):not([data-label="Sessions"]):not([data-label="Admin Tag to Users"]) {
     display: none !important;
   }
 
@@ -675,12 +760,12 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 
   /* Hide labels in mobile view for contacts tables */
   #contacts-table td[data-label]::before,
-  #new-contacts-table td[data-label]::before {
+  #collection-submissions-admin-table td[data-label]::before {
     display: none !important;
   }
 
   /* Two rows layout structure: S.No (6%) + Name (60%) + Phone (30%) on Row 1; Sessions (18%) + Admin Tag to Users (44%) + Calling Purpose (34%) on Row 2 */
-  #contacts-table td[data-label="S.No"], #new-contacts-table td[data-label="S.No"] {
+  #contacts-table td[data-label="S.No"], #collection-submissions-admin-table td[data-label="S.No"] {
     width: 6% !important;
     padding: 2px 0 !important;
     display: flex !important;
@@ -688,32 +773,32 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     justify-content: center !important;
     font-weight: 600;
   }
-  #contacts-table td[data-label="Name"], #new-contacts-table td[data-label="Name"] {
+  #contacts-table td[data-label="Name"], #collection-submissions-admin-table td[data-label="Name"] {
     width: 60% !important;
     padding: 2px 0 !important;
     display: flex !important;
     align-items: center !important;
   }
-  #contacts-table td[data-label="Phone"], #new-contacts-table td[data-label="Phone"] {
+  #contacts-table td[data-label="Phone"], #collection-submissions-admin-table td[data-label="Phone"] {
     width: 30% !important;
     padding: 2px 0 !important;
     display: flex !important;
     align-items: center !important;
   }
-  #contacts-table td[data-label="Sessions"], #new-contacts-table td[data-label="Sessions"] {
+  #contacts-table td[data-label="Sessions"], #collection-submissions-admin-table td[data-label="Sessions"] {
     width: 18% !important;
     padding: 2px 0 !important;
     display: flex !important;
     align-items: center !important;
     justify-content: flex-start !important;
   }
-  #contacts-table td[data-label="Admin Tag to Users"], #new-contacts-table td[data-label="Admin Tag to Users"] {
+  #contacts-table td[data-label="Admin Tag to Users"], #collection-submissions-admin-table td[data-label="Admin Tag to Users"] {
     width: 44% !important;
     padding: 2px 0 !important;
     display: flex !important;
     align-items: center !important;
   }
-  #contacts-table td[data-label="Calling Purpose"], #new-contacts-table td[data-label="Calling Purpose"] {
+  #contacts-table td[data-label="Calling Purpose"], #collection-submissions-admin-table td[data-label="Calling Purpose"] {
     width: 34% !important;
     padding: 2px 0 !important;
     display: flex !important;
@@ -722,15 +807,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 
   /* Ensure inputs/selects in Row 1 take full width of container */
   #contacts-table td[data-label="Phone"] input,
-  #new-contacts-table td[data-label="Phone"] input,
+  #collection-submissions-admin-table td[data-label="Phone"] input,
   #contacts-table td[data-label="Name"] input,
-  #new-contacts-table td[data-label="Name"] input {
+  #collection-submissions-admin-table td[data-label="Name"] input {
     width: 100% !important;
     min-width: 0 !important;
   }
 
   #contacts-table td[data-label="Sessions"] button::before,
-  #new-contacts-table td[data-label="Sessions"] button::before {
+  #collection-submissions-admin-table td[data-label="Sessions"] button::before {
     content: "S: ";
     font-size: 12px;
     font-weight: bold;
@@ -739,8 +824,8 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   /* Give inputs/selects in cards subtle borders for clear mobile editability */
   #contacts-table td input.inline-edit,
   #contacts-table td select.inline-edit,
-  #new-contacts-table td input.inline-edit,
-  #new-contacts-table td select.inline-edit {
+  #collection-submissions-admin-table td input.inline-edit,
+  #collection-submissions-admin-table td select.inline-edit {
     font-size: 13px !important;
     padding: 4px 6px !important;
     border: 1px solid var(--sandstone) !important;
@@ -749,19 +834,20 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   }
 
   /* Hover states for interactive mobile contact cards and compact sizes */
-  #contacts-table tbody tr, #new-contacts-table tbody tr {
+  #contacts-table tbody tr, #collection-submissions-admin-table tbody tr {
     cursor: pointer;
     transition: background-color 0.2s ease, transform 0.15s ease;
     margin-bottom: 8px !important;
     padding: 6px 8px !important;
     gap: 4px 2% !important;
   }
-  #contacts-table tbody tr:hover, #new-contacts-table tbody tr:hover {
+  #contacts-table tbody tr:hover, #collection-submissions-admin-table tbody tr:hover {
     background-color: #f3f4f6;
   }
 
   /* Full width for long columns */
   .data-table td[data-label="Name"],
+  .data-table td[data-label="Time"],
   .data-table td[data-label="Time Stamp"],
   .data-table td[data-label="User Reviews"],
   .data-table td[data-label="Admin Review"],
@@ -829,12 +915,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 /* Portal is intentionally light-mode only, regardless of the device's system
    theme — a prior dark-mode media query used to override the palette here. */
 
-/* ---- Master Contact horizontal panning ---- */
+/* ---- Horizontal panning (Master Contact + initHorizontalScroll callers) ---- */
 .hscroll-controls { display: inline-flex; gap: 4px; }
 .hscroll-btn { padding: 8px 12px; min-width: 0; font-size: 13px; line-height: 1; }
 .table-wrap.drag-scroll { cursor: grab; scroll-behavior: smooth; overscroll-behavior-x: contain; }
 .table-wrap.drag-scroll.is-dragging { cursor: grabbing; scroll-behavior: auto; user-select: none; }
 .table-wrap.drag-scroll.is-dragging * { user-select: none; }
+/* Auto-inserted ◀▶ pair for pages that didn't hand-place their own buttons —
+   sits flush right, just above its table. */
+.hscroll-controls-floating { display: flex; justify-content: flex-end; margin-bottom: 6px; }
 
 /* ---- Call card: GFY status + saved comment ---- */
 /* Call status and Org share the row, half each. */
@@ -1038,3 +1127,99 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   border-radius: 8px; background: #fff;
 }
 #timestamp-filter-group .ts-range input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ============ USERS & ASSIGNMENT TOOLBAR ============
+   A row of pill-shaped action + filter buttons that all share one visual
+   language — same height, radius and lift, whether it opens a dropdown
+   (Admin Tag/GFY/Time Stamp) or fires an action (Assign/Rebalance/Export). */
+.users-toolbar { gap: 10px; }
+.users-toolbar .btn.toolbar-btn {
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 13.5px;
+}
+.users-toolbar .btn.toolbar-btn:hover:not(:disabled) { transform: translateY(-1px); }
+
+.filter-dropdown { position: relative; }
+.filter-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--surface);
+  border: 1.5px solid var(--sandstone);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--tulsi-dark);
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+.filter-toggle-btn:hover { border-color: var(--tulsi); background: rgba(5,150,105,0.05); transform: translateY(-1px); }
+.filter-toggle-btn:active { transform: scale(0.97); }
+.filter-toggle-icon { font-size: 14px; line-height: 1; }
+.filter-toggle-caret { font-size: 10px; opacity: 0.55; transition: transform 0.18s ease; margin-left: 1px; }
+.filter-dropdown.open .filter-toggle-btn { border-color: var(--tulsi); background: rgba(5,150,105,0.08); box-shadow: 0 0 0 4px rgba(5,150,105,0.12); }
+.filter-dropdown.open .filter-toggle-caret { transform: rotate(180deg); }
+.filter-toggle-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px;
+  background: var(--grad-tulsi); color: #fff; font-size: 11px; font-weight: 800;
+}
+
+.filter-dropdown-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  background: var(--surface);
+  border: 1px solid var(--sandstone);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 14px;
+  min-width: 240px;
+  max-width: 320px;
+}
+.filter-dropdown.open .filter-dropdown-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  animation: fadeUp 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (max-width: 640px) {
+  .filter-dropdown-panel { left: 0; right: 0; width: 100%; max-width: none; }
+  .filter-toggle-btn { width: 100%; justify-content: space-between; }
+}
+
+/* ============ ANALYTICS: GENERAL DATA MODAL ============
+   Six short columns — no reason this ever needs its own scrollbar, so the
+   inner wrap's overflow/height cap (meant for the wide Master Contact
+   tables) is turned off here and the S.No column is left to size itself
+   instead of inheriting the generic 32px cap that was clipping "S.No". */
+#general-data-table-wrap {
+  overflow: visible;
+  max-height: none;
+}
+#general-data-table th:nth-child(1),
+#general-data-table td:first-child {
+  width: auto !important;
+  min-width: 40px !important;
+  max-width: none !important;
+  white-space: nowrap;
+  text-align: center;
+}
+/* Zoom +/- scales the whole modal box (not just the text), growing/shrinking
+   around its top-center so it stays anchored under the title row. The modal
+   backdrop scrolls if a zoomed-in box grows taller than the viewport. */
+#general-data-modal-box {
+  transform: scale(1);
+  transform-origin: top center;
+  transition: transform 0.15s ease;
+}
+#general-data-modal.active {
+  overflow-y: auto;
+}

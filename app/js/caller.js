@@ -550,9 +550,13 @@ function subscribeRealtime() {
   realtimeWired = true;
   supabase
     .channel("assignments-live")
-    .on("postgres_changes", { event: "*", schema: "public", table: "assignments" }, () => {
-      if (document.getElementById("caller-section").classList.contains("hidden")) return;
-      loadAndRenderCards();
-    })
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "assignments", filter: `user_name=eq.${currentUser.user_name}` },
+      () => {
+        if (document.getElementById("caller-section").classList.contains("hidden")) return;
+        loadAndRenderCards();
+      }
+    )
     .subscribe();
 }

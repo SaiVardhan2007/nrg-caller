@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS, initColumnDragReorder, reapplyColumnOrder } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll } from "./utils.js";
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
@@ -69,8 +69,66 @@ function wireGfyFilterGroup(gfyGroup) {
         cb.checked = true;
         showToast("At least one GFY filter must stay enabled.", "error");
       }
+      updateGfyFilterBadge(gfyGroup);
     });
   });
+}
+
+// Small counters on the toolbar filter buttons, so an admin can see a filter
+// is narrowed down without opening its dropdown.
+function updateTagFilterBadge(tagFilterGroup) {
+  const badge = document.getElementById("tag-filter-badge");
+  if (!badge) return;
+  const count = getCheckedTags(tagFilterGroup).length;
+  badge.textContent = String(count);
+  badge.classList.toggle("hidden", count === 0);
+}
+
+function updateGfyFilterBadge(gfyGroup) {
+  const badge = document.getElementById("gfy-filter-badge");
+  if (!badge) return;
+  badge.classList.toggle("hidden", getGfyFilter(gfyGroup) === "");
+}
+
+function updateTimestampFilterBadge(tsGroup) {
+  const badge = document.getElementById("ts-filter-badge");
+  if (!badge) return;
+  badge.classList.toggle("hidden", !tsGroup.querySelector("#ts-filter-enabled").checked);
+}
+
+// Turns the three filter groups into click-to-open dropdown panels, closing
+// whichever else is open and dismissing on an outside click/Escape. Wired
+// with .onclick (not addEventListener) since initUsers() re-runs every time
+// this tab is opened, and re-assignment is idempotent.
+const FILTER_DROPDOWN_IDS = [
+  ["tag-filter-dropdown", "tag-filter-toggle"],
+  ["gfy-filter-dropdown", "gfy-filter-toggle"],
+  ["timestamp-filter-dropdown", "timestamp-filter-toggle"],
+];
+let filterDropdownsWired = false;
+function wireFilterDropdowns() {
+  FILTER_DROPDOWN_IDS.forEach(([dropdownId, toggleId]) => {
+    const dropdown = document.getElementById(dropdownId);
+    const toggle = document.getElementById(toggleId);
+    if (!dropdown || !toggle) return;
+    toggle.onclick = (e) => {
+      e.stopPropagation();
+      const opening = !dropdown.classList.contains("open");
+      FILTER_DROPDOWN_IDS.forEach(([otherId]) => {
+        if (otherId !== dropdownId) document.getElementById(otherId)?.classList.remove("open");
+      });
+      dropdown.classList.toggle("open", opening);
+      toggle.setAttribute("aria-expanded", String(opening));
+    };
+    const panel = dropdown.querySelector(".filter-dropdown-panel");
+    if (panel) panel.onclick = (e) => e.stopPropagation();
+  });
+
+  if (filterDropdownsWired) return;
+  filterDropdownsWired = true;
+  const closeAll = () => FILTER_DROPDOWN_IDS.forEach(([dropdownId]) => document.getElementById(dropdownId)?.classList.remove("open"));
+  document.addEventListener("click", closeAll);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAll(); });
 }
 
 // Optional "collected between" window on top of the event/tag/GFY filters, so
@@ -99,6 +157,7 @@ function wireTimestampFilter(tsGroup) {
   enabled.addEventListener("change", () => {
     from.disabled = to.disabled = !enabled.checked;
     if (enabled.checked) from.focus();
+    updateTimestampFilterBadge(tsGroup);
   });
 }
 
@@ -121,20 +180,28 @@ export async function initUsers() {
   // is for assigning across everything unless the admin narrows it down.
   fillEventSelect(eventSelect, "__ALL__", true);
   const savedTags = (tagFilterValue || "").split(",").map((t) => t.trim()).filter(Boolean);
-  tagFilterGroup.querySelectorAll("input").forEach((cb) => { cb.checked = savedTags.includes(cb.value); });
+  tagFilterGroup.querySelectorAll("input").forEach((cb) => {
+    cb.checked = savedTags.includes(cb.value);
+    cb.onchange = () => updateTagFilterBadge(tagFilterGroup);
+  });
   gfyGroup.querySelector("#gfy-filter-attended").checked = gfyFilterValue !== "not_attended";
   gfyGroup.querySelector("#gfy-filter-not-attended").checked = gfyFilterValue !== "attended";
+  updateTagFilterBadge(tagFilterGroup);
+  updateGfyFilterBadge(gfyGroup);
+  updateTimestampFilterBadge(tsGroup);
 
   wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup);
   wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup);
   wireGfyFilterGroup(gfyGroup);
   wireTimestampFilter(tsGroup);
+  wireFilterDropdowns();
   wireDisassignButton();
   wireAutoAssignSelectAll();
   wireAddUserModal();
   wireManageEventsModal();
   wireUsersImportExport();
   initColumnDragReorder("users-table");
+  initHorizontalScroll("users-table-wrap");
 }
 
 async function refreshEventsEverywhere(selectedCode) {
@@ -670,11 +737,14 @@ function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
       const { data: existing, error: existingErr } = await existingQuery;
       if (existingErr) throw existingErr;
 
-      // only ever touch contacts nobody has acted on yet — a caller's status
-      // (anything but the untouched default) means they've started or
-      // finished, so that contact stays exactly where it is.
-      const untouched = (existing || []).filter((a) => (a.status || "Not Done") === "Not Done");
-      const inProgress = (existing || []).filter((a) => (a.status || "Not Done") !== "Not Done");
+      // touch contacts nobody has acted on yet, plus ones tagged "Need to Call
+      // Again" — everything else (a real outcome logged) stays exactly where it is.
+      const isRebalanceable = (a) => {
+        const status = a.status || "Not Done";
+        return status === "Not Done" || status === "Need to Call Again";
+      };
+      const untouched = (existing || []).filter(isRebalanceable);
+      const inProgress = (existing || []).filter((a) => !isRebalanceable(a));
 
       if (untouched.length) {
         const { error: delErr } = await supabase.from("assignments").delete().in("id", untouched.map((a) => a.id));
@@ -705,7 +775,7 @@ function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
 
       await mirrorAssignedCounts(usersCache);
 
-      summary.textContent = `Rebalanced ${rows.length} not-yet-called contact(s) across ${eligible.length} caller(s). ` +
+      summary.textContent = `Rebalanced ${rows.length} not-yet-called/need-to-call-again contact(s) across ${eligible.length} caller(s). ` +
         `${inProgress.length} already in-progress/completed left untouched.` +
         (timeRange ? ` Limited to contacts collected ${timeRange.label}.` : "") +
         (unassignedCount ? ` ${unassignedCount} left unassigned (no eligible user under their limit).` : "");
@@ -890,71 +960,7 @@ function wireContactsColumnReorder() {
     columns: DEFAULT_CONTACTS_COLUMNS,
     resetBtnId: "contacts-reset-columns-btn",
   });
-  wireHorizontalScroll();
-}
-
-// Master Contact is far wider than any screen, so panning it is a first-class
-// action here: click-and-drag anywhere on the table, shift+wheel (or a plain
-// wheel when there is nothing left to scroll vertically), the ◀ ▶ buttons, or
-// the arrow keys once the table has focus.
-function wireHorizontalScroll() {
-  const wrap = document.getElementById("contacts-table-wrap");
-  if (!wrap || wrap.dataset.hscrollWired) return;
-  wrap.dataset.hscrollWired = "1";
-
-  const PAGE = () => Math.max(240, wrap.clientWidth * 0.8);
-  document.getElementById("contacts-scroll-left").addEventListener("click", () => {
-    wrap.scrollBy({ left: -PAGE(), behavior: "smooth" });
-  });
-  document.getElementById("contacts-scroll-right").addEventListener("click", () => {
-    wrap.scrollBy({ left: PAGE(), behavior: "smooth" });
-  });
-
-  wrap.addEventListener("wheel", (e) => {
-    if (!e.shiftKey && Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // real trackpad h-scroll: leave it alone
-    if (!e.shiftKey) return;
-    e.preventDefault();
-    wrap.scrollLeft += e.deltaY;
-  }, { passive: false });
-
-  // Drag-to-pan. Ignored when the press starts on something interactive so
-  // inline edits, dropdowns and the draggable column headers still work.
-  let dragging = false, startX = 0, startScroll = 0, moved = false;
-  const INTERACTIVE = "input, select, textarea, button, a, th[draggable='true']";
-
-  wrap.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0 || e.target.closest(INTERACTIVE)) return;
-    dragging = true;
-    moved = false;
-    startX = e.clientX;
-    startScroll = wrap.scrollLeft;
-  });
-  wrap.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-    const dx = e.clientX - startX;
-    if (!moved && Math.abs(dx) < 4) return; // let real clicks through untouched
-    if (!moved) {
-      moved = true;
-      wrap.classList.add("is-dragging");
-      wrap.setPointerCapture(e.pointerId);
-    }
-    e.preventDefault();
-    wrap.scrollLeft = startScroll - dx;
-  });
-  const endDrag = (e) => {
-    if (!dragging) return;
-    dragging = false;
-    wrap.classList.remove("is-dragging");
-    if (moved && wrap.hasPointerCapture?.(e.pointerId)) wrap.releasePointerCapture(e.pointerId);
-  };
-  wrap.addEventListener("pointerup", endDrag);
-  wrap.addEventListener("pointercancel", endDrag);
-
-  wrap.addEventListener("keydown", (e) => {
-    if (e.target.closest("input, select, textarea")) return;
-    if (e.key === "ArrowRight") { e.preventDefault(); wrap.scrollBy({ left: PAGE(), behavior: "smooth" }); }
-    if (e.key === "ArrowLeft") { e.preventDefault(); wrap.scrollBy({ left: -PAGE(), behavior: "smooth" }); }
-  });
+  initHorizontalScroll("contacts-table-wrap", { leftBtnId: "contacts-scroll-left", rightBtnId: "contacts-scroll-right" });
 }
 
 const WS_ADMIN_OPTIONS = ["NA", "W", "S"];
@@ -1845,10 +1851,19 @@ function openAddContactModal() {
   document.getElementById("add-contact-modal").classList.add("active");
 }
 
+let addContactModalWired = false;
 function wireAddContactModal() {
+  // Lives on the New Contacts page now, but initContacts() (Master Contact)
+  // used to be the only caller — re-wiring the button itself is idempotent
+  // (plain assignment) so it's safe from both, while the modal's own
+  // listeners below only need attaching once, guarded so revisiting either
+  // page doesn't stack duplicate "click outside to close" handlers.
+  document.getElementById("add-contact-btn").onclick = openAddContactModal;
+  if (addContactModalWired) return;
+  addContactModalWired = true;
+
   const modal = document.getElementById("add-contact-modal");
   const phoneInput = document.getElementById("add-contact-phone");
-  document.getElementById("add-contact-btn").onclick = openAddContactModal;
   document.getElementById("add-contact-cancel").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
   phoneInput.addEventListener("input", (e) => { e.target.value = normalizePhoneInput(e.target.value); });
@@ -1913,18 +1928,136 @@ function wireAddContactModal() {
   };
 }
 
-/* ======================= MESSAGE (Body Text) ======================= */
+/* ======================= MESSAGE TEMPLATES (sticky notes) ======================= */
+/* Exactly one template is "active" at a time — its text is what's written to
+   the message_text setting that callers/core-cultivation actually send. */
 
 export async function initMessage() {
-  const textEl = document.getElementById("message-text");
-  const errorEl = document.getElementById("message-error");
-  errorEl.classList.add("hidden");
+  await loadAndRenderTemplates();
+  wireTemplateModal();
+}
 
-  textEl.value = (await getSetting("message_text")) || "";
+let messageTemplates = [];
+let editingTemplateId = null;
 
-  document.getElementById("save-message-btn").onclick = async () => {
-    await setSetting("message_text", textEl.value);
-    showToast("Message saved", "success");
+async function loadAndRenderTemplates() {
+  const raw = await getSetting("message_templates");
+  try {
+    messageTemplates = raw ? JSON.parse(raw) : [];
+  } catch {
+    messageTemplates = [];
+  }
+
+  if (!messageTemplates.some((t) => t.active)) {
+    if (messageTemplates.length) {
+      messageTemplates[0].active = true;
+      await persistTemplates();
+    } else {
+      const legacyText = (await getSetting("message_text")) || "";
+      if (legacyText.trim()) {
+        messageTemplates.push({ id: newTemplateId(), heading: "Current Message", text: legacyText, active: true });
+        await persistTemplates();
+      }
+    }
+  }
+
+  renderMessageTemplates();
+}
+
+function newTemplateId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function persistTemplates() {
+  await setSetting("message_templates", JSON.stringify(messageTemplates));
+  const active = messageTemplates.find((t) => t.active);
+  await setSetting("message_text", active ? active.text : "");
+}
+
+function renderMessageTemplates() {
+  const grid = document.getElementById("message-templates-grid");
+  if (!messageTemplates.length) {
+    grid.innerHTML = `<p class="sticky-note-empty">No templates yet — add one to get started.</p>`;
+    return;
+  }
+  grid.innerHTML = messageTemplates.map((t) => `
+    <div class="sticky-note ${t.active ? "sticky-note--active" : ""}" data-id="${t.id}">
+      <div class="sticky-note-actions">
+        ${t.active
+          ? `<span class="sticky-note-pill sticky-note-pill--active">● Active</span>`
+          : `<button type="button" class="sticky-note-pill template-activate-btn">Activate</button>`}
+        <span class="sticky-note-icons">
+          <button type="button" class="sticky-note-action-btn template-edit-btn" title="Edit">✎</button>
+          <button type="button" class="sticky-note-action-btn template-delete-btn" title="Delete">🗑</button>
+        </span>
+      </div>
+      <div class="sticky-note-heading">${escapeHtml(t.heading)}</div>
+      <pre class="sticky-note-text">${escapeHtml(t.text)}</pre>
+    </div>
+  `).join("");
+
+  grid.querySelectorAll(".template-activate-btn").forEach((btn) => {
+    btn.onclick = async () => {
+      const id = btn.closest(".sticky-note").dataset.id;
+      messageTemplates.forEach((t) => { t.active = t.id === id; });
+      await persistTemplates();
+      renderMessageTemplates();
+      showToast("Template activated", "success");
+    };
+  });
+  grid.querySelectorAll(".template-edit-btn").forEach((btn) => {
+    btn.onclick = () => openTemplateModal(btn.closest(".sticky-note").dataset.id);
+  });
+  grid.querySelectorAll(".template-delete-btn").forEach((btn) => {
+    btn.onclick = async () => {
+      const id = btn.closest(".sticky-note").dataset.id;
+      const t = messageTemplates.find((x) => x.id === id);
+      if (!confirm(`Delete template "${t?.heading || ""}"?`)) return;
+      const wasActive = t?.active;
+      messageTemplates = messageTemplates.filter((x) => x.id !== id);
+      if (wasActive && messageTemplates.length) messageTemplates[0].active = true;
+      await persistTemplates();
+      renderMessageTemplates();
+    };
+  });
+}
+
+function openTemplateModal(id) {
+  editingTemplateId = id || null;
+  const t = id ? messageTemplates.find((x) => x.id === id) : null;
+  document.getElementById("template-modal-title").textContent = t ? "Edit Template" : "Add Template";
+  document.getElementById("template-heading").value = t ? t.heading : "";
+  document.getElementById("template-text").value = t ? t.text : "";
+  document.getElementById("template-error").classList.add("hidden");
+  document.getElementById("template-modal").classList.add("active");
+}
+
+function wireTemplateModal() {
+  const modal = document.getElementById("template-modal");
+  const errorEl = document.getElementById("template-error");
+
+  document.getElementById("add-template-btn").onclick = () => openTemplateModal(null);
+  document.getElementById("template-cancel-btn").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  document.getElementById("template-save-btn").onclick = async () => {
+    const heading = document.getElementById("template-heading").value.trim();
+    const text = document.getElementById("template-text").value;
+    if (!heading || !text.trim()) {
+      errorEl.textContent = "Please enter both a heading and a message.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    if (editingTemplateId) {
+      const t = messageTemplates.find((x) => x.id === editingTemplateId);
+      if (t) { t.heading = heading; t.text = text; }
+    } else {
+      messageTemplates.push({ id: newTemplateId(), heading, text, active: messageTemplates.length === 0 });
+    }
+    await persistTemplates();
+    modal.classList.remove("active");
+    renderMessageTemplates();
+    showToast("Template saved", "success");
   };
 }
 
@@ -1984,6 +2117,8 @@ export async function initAnalytics() {
       ];
       downloadExcel(`nrg-analytics-${todayStamp()}.xlsx`, rows);
     });
+    initHorizontalScroll("analytics-assigned-table-wrap");
+    initHorizontalScroll("analytics-cultivation-table-wrap");
   }
   if (userSelect.value) run();
 }
@@ -2112,10 +2247,10 @@ function wireGeneralDataModal() {
   const zoomBox = document.getElementById("general-data-modal-box");
   const zoomLevel = document.getElementById("general-data-zoom-level");
   const applyGeneralDataZoom = () => {
-    // `zoom` (not transform: scale) re-lays out the whole modal box at the
-    // target size — text and borders stay crisp for screenshots instead of
-    // being rastered/blurred the way a CSS transform scale would be.
-    zoomBox.style.zoom = generalDataZoom + "%";
+    // `transform: scale` resizes the whole modal box (title, table, borders,
+    // padding) together, anchored to its top-center (see theme.css) — the
+    // modal backdrop scrolls if the scaled box grows taller than the screen.
+    zoomBox.style.transform = `scale(${generalDataZoom / 100})`;
     zoomLevel.textContent = generalDataZoom + "%";
   };
   document.getElementById("general-data-zoom-in").onclick = () => {
@@ -2347,20 +2482,20 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
 
   currentAnalyticsParams = { userName, isAll, fromTs, toTs, eventFilter, currentEventCode };
 
-  // total calls made in the selected range, broken down by outcome
-  let callsQuery = supabase.from("call_responses").select("remarks");
-  if (!isAll) callsQuery = callsQuery.eq("caller_name", userName);
-  if (fromTs) callsQuery = callsQuery.gte("ts", fromTs);
-  if (toTs) callsQuery = callsQuery.lte("ts", toTs);
-  if (eventFilter) callsQuery = callsQuery.eq("event_code", eventFilter);
-  const { data: callsInRange } = await callsQuery;
+  // total calls made in the selected range, broken down by outcome — counted
+  // server-side (call_outcome_counts RPC) instead of fetching every matching
+  // row's remarks, so this stays cheap as call_responses grows over time.
+  const { data: outcomeRow } = await supabase
+    .rpc("call_outcome_counts", {
+      p_caller_name: isAll ? null : userName,
+      p_event_code: eventFilter || null,
+      p_from_ts: fromTs,
+      p_to_ts: toTs,
+    })
+    .single();
   if (isStale()) return;
-  const outcomeCounts = { positive: 0, negative: 0, pending: 0 };
-  (callsInRange || []).forEach((r) => {
-    outcomeCounts[callOutcomeCategory(r.remarks)]++;
-  });
-  document.getElementById("analytics-total-calls").textContent = (callsInRange || []).length;
-  document.getElementById("analytics-positive-calls").textContent = outcomeCounts.positive;
+  document.getElementById("analytics-total-calls").textContent = outcomeRow?.total ?? 0;
+  document.getElementById("analytics-positive-calls").textContent = outcomeRow?.positive ?? 0;
 
   let liveAssignmentsQuery = supabase.from("assignments").select("event_code");
   if (!isAll) liveAssignmentsQuery = liveAssignmentsQuery.eq("user_name", userName);
@@ -2558,6 +2693,7 @@ export async function initReceptionAnalytics() {
       const table = document.getElementById("reception-analytics-attendance-body").closest("table");
       exportTableToExcel(table, `nrg-reception-analytics-${todayStamp()}.xlsx`);
     });
+    initHorizontalScroll("reception-analytics-attendance-table-wrap");
   }
   run();
 }
@@ -2588,20 +2724,19 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
   // calls made / positive responses — from the permanent call log, scoped to
   // the same date range + event as everything else on this tab (assignments
   // reflects only the live/current round, so it can't be date-bounded).
-  let callsQuery = supabase.from("call_responses").select("remarks");
-  if (fromTs) callsQuery = callsQuery.gte("ts", fromTs);
-  if (toTs) callsQuery = callsQuery.lte("ts", toTs);
-  if (eventCode) callsQuery = callsQuery.eq("event_code", eventCode);
-  const { data: callsInRange } = await callsQuery;
+  // Counted server-side (call_outcome_counts RPC) so this stays cheap as the
+  // log keeps growing, instead of fetching every matching row's remarks.
+  const { data: outcomeRow } = await supabase
+    .rpc("call_outcome_counts", {
+      p_caller_name: null,
+      p_event_code: eventCode || null,
+      p_from_ts: fromTs,
+      p_to_ts: toTs,
+    })
+    .single();
   if (isStale()) return;
-  let callsMade = 0;
-  let positive = 0;
-  (callsInRange || []).forEach((r) => {
-    callsMade++;
-    if (callOutcomeCategory(r.remarks) === "positive") positive++;
-  });
-  document.getElementById("reception-analytics-calls-made").textContent = callsMade;
-  document.getElementById("reception-analytics-positive").textContent = positive;
+  document.getElementById("reception-analytics-calls-made").textContent = outcomeRow?.total ?? 0;
+  document.getElementById("reception-analytics-positive").textContent = outcomeRow?.positive ?? 0;
 
   // attendance in the selected range
   let attendanceQuery = supabase.from("session_attendance").select("id,ts,name,mob_no,took_by,event_code").order("ts", { ascending: false });
@@ -2784,7 +2919,7 @@ let newContactsWired = false;
 // manually), Delete just dismisses the lead.
 async function renderCollectionSubmissions() {
   const tbody = document.getElementById("collection-submissions-admin-body");
-  tbody.innerHTML = `<tr><td colspan="13" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="20" class="loading-row">Loading…</td></tr>`;
 
   const [{ data, error }, { data: coordinators }] = await Promise.all([
     supabase.from("contact_collection").select("*").order("created_at", { ascending: false }),
@@ -2793,11 +2928,11 @@ async function renderCollectionSubmissions() {
   if (coordinators) newContactsCoordinators = coordinators;
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="13" class="loading-row">Could not load submissions.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="20" class="loading-row">Could not load submissions.</td></tr>`;
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="13" class="loading-row">No submissions yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="20" class="loading-row">No submissions yet.</td></tr>`;
     return;
   }
 
@@ -2807,24 +2942,31 @@ async function renderCollectionSubmissions() {
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name">${escapeHtml(r.name)}</td>
       <td data-label="Phone" class="phone-cell">${formatPhone(r.mob_no)}</td>
+      <td data-label="PG Name">${escapeHtml(r.staying || "—")}</td>
       <td data-label="Profession">${escapeHtml(r.ws || r.profession || "—")}</td>
       <td data-label="Gender">${escapeHtml(r.gender || "—")}</td>
-      <td data-label="Staying">${escapeHtml(r.staying || "—")}</td>
-      <td data-label="Comment">${escapeHtml(r.comment || "—")}</td>
-      <td data-label="Collected By">${escapeHtml(r.collected_by || "—")}</td>
-      <td data-label="Source">${escapeHtml(r.source || "Contact Collection")}</td>
+      <td data-label="Sessions">—</td>
+      <td data-label="Calls">—</td>
+      <td data-label="Admin Tag to Users">—</td>
+      <td data-label="Admin Tag">—</td>
       <td data-label="Core Cultivation">
         <select class="inline-edit collection-field" data-id="${r.id}" data-field="core_cultivation">
           <option value="">—</option>
           ${newContactsCoordinators.map((u) => `<option value="${escapeHtml(u.user_name)}" ${u.user_name === (r.core_cultivation || "") ? "selected" : ""}>${escapeHtml(u.user_name)}</option>`).join("")}
         </select>
       </td>
+      <td data-label="Calling Purpose">—</td>
       <td data-label="GFY/AOMC">
         <select class="inline-edit collection-field" data-id="${r.id}" data-field="gyc_status">
           ${GYC_STATUS_OPTIONS.map((t) => `<option value="${escapeHtml(t)}" ${t === (r.gyc_status || "") ? "selected" : ""}>${escapeHtml(t) || "—"}</option>`).join("")}
         </select>
       </td>
-      <td data-label="">
+      <td data-label="Comment">${escapeHtml(r.comment || "—")}</td>
+      <td data-label="Collected By">${escapeHtml(r.collected_by || "—")}</td>
+      <td data-label="Source">${escapeHtml(r.source || "Contact Collection")}</td>
+      <td data-label="User Reviews">—</td>
+      <td data-label="Admin Review">—</td>
+      <td data-label="" class="no-export">
         <button class="cell-chip collection-add-btn" data-id="${r.id}">+ Add</button>
         <button class="cell-chip danger collection-delete-btn" data-id="${r.id}">Delete</button>
       </td>
@@ -2908,6 +3050,8 @@ export async function initNewContacts() {
   const refreshBtn = document.getElementById("new-contacts-refresh-btn");
   const addAllBtn = document.getElementById("new-contacts-add-all-btn");
 
+  wireAddContactModal();
+
   if (!newContactsWired) {
     newContactsWired = true;
     refreshBtn.addEventListener("click", () => {
@@ -2927,7 +3071,7 @@ export async function initNewContacts() {
     });
 
     initColumnDragReorder("collection-submissions-admin-table");
-    initColumnDragReorder("new-contacts-table");
+    initHorizontalScroll("new-contacts-table-wrap");
   }
 
   // Independent of the Sheets bridge below — always load regardless of
@@ -2941,7 +3085,7 @@ export async function initNewContacts() {
   if (!sheetsWebhookUrl) {
     summaryEl.textContent = "Error: Apps Script Webhook URL is not configured in Settings.";
     document.getElementById("new-contacts-table-body").innerHTML =
-      `<tr><td colspan="7" class="loading-row">Please configure apps_script_webhook_url in DB settings first.</td></tr>`;
+      `<tr><td colspan="20" class="loading-row">Please configure apps_script_webhook_url in DB settings first.</td></tr>`;
     return;
   }
 
@@ -2950,10 +3094,10 @@ export async function initNewContacts() {
   // Load immediately
   await loadNewContacts();
 
-  // Poll every 3 seconds
+  // Poll every 10 seconds
   newContactsPollInterval = setInterval(() => {
     loadNewContacts();
-  }, 3000);
+  }, 10000);
 }
 
 export function stopNewContactsPolling() {
@@ -2971,7 +3115,7 @@ async function loadNewContacts(forceShowLoading = false) {
   const summaryEl = document.getElementById("new-contacts-summary");
 
   if (forceShowLoading || tbody.innerHTML.includes("Connecting")) {
-    tbody.innerHTML = `<tr><td colspan="15" class="loading-row">Loading new contacts from Sheets…</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="20" class="loading-row">Loading new contacts from Sheets…</td></tr>`;
   }
 
   isFetchingNewContacts = true;
@@ -3007,7 +3151,7 @@ function renderNewContactsTable() {
   const summaryEl = document.getElementById("new-contacts-summary");
 
   if (!newContactsCache.length) {
-    tbody.innerHTML = `<tr><td colspan="18" class="loading-row">No new contacts found in Google Sheets.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="20" class="loading-row">No new contacts found in Google Sheets.</td></tr>`;
     summaryEl.textContent = "Checked just now. All clear!";
     return;
   }
@@ -3021,7 +3165,7 @@ function renderNewContactsTable() {
     return `
       <tr data-index="${idx}">
         <td data-label="S.No">${idx + 1}</td>
-        <td data-label="Time Stamp">${c.time_stamp ? new Date(c.time_stamp).toLocaleString() : "—"}</td>
+        <td data-label="Time">${c.time_stamp ? new Date(c.time_stamp).toLocaleString() : "—"}</td>
         <td data-label="Name"><input class="inline-edit new-contact-inline-edit" data-field="name" data-index="${idx}" value="${escapeHtml(c.name)}" /></td>
         <td data-label="Phone"><input class="inline-edit new-contact-inline-edit" data-field="mob_no" data-index="${idx}" value="${c.mob_no}" /></td>
         <td data-label="PG Name"><input class="inline-edit new-contact-inline-edit" data-field="pg_name" data-index="${idx}" value="${escapeHtml(c.pg_name || "")}" /></td>
@@ -3064,9 +3208,12 @@ function renderNewContactsTable() {
             ${GYC_STATUS_OPTIONS.map((t) => `<option value="${escapeHtml(t)}" ${t === (c.gyc_status || "") ? "selected" : ""}>${escapeHtml(t) || "—"}</option>`).join("")}
           </select>
         </td>
+        <td data-label="Comment">—</td>
+        <td data-label="Collected By">—</td>
+        <td data-label="Source">Sheets Sync</td>
         <td data-label="User Reviews"><button class="cell-chip" disabled>—</button></td>
         <td data-label="Admin Review"><button class="cell-chip new-contact-review-btn" data-index="${idx}">${c.admin_remarks ? "✎ Edit" : "+ Add"}</button></td>
-        <td data-label="Actions" class="no-export">
+        <td data-label="" class="no-export">
           <div class="row-actions" style="display:flex;gap:6px;justify-content:flex-end;">
             <button class="btn btn-primary new-contact-add-btn" data-index="${idx}" style="padding:4px 10px;font-size:12px;">Add</button>
             <button class="btn btn-secondary new-contact-del-btn" data-index="${idx}" style="padding:4px 10px;font-size:12px;color:var(--danger);border-color:var(--danger);">Delete</button>
@@ -3076,7 +3223,7 @@ function renderNewContactsTable() {
     `;
   }).join("");
 
-  reapplyColumnOrder("new-contacts-table");
+  reapplyColumnOrder("collection-submissions-admin-table");
 
   tbody.querySelectorAll(".new-contact-ws-select").forEach((select) => {
     select.addEventListener("change", (e) => {

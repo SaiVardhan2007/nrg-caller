@@ -107,38 +107,65 @@
     <!-- ===== ADMIN: Users & Assignment ===== -->
     <section id="admin-users-section" class="page hidden">
       <div class="panel">
-        <div class="panel-row">
+        <div class="panel-row users-toolbar">
           <label class="field inline">
             <span>Current Event</span>
             <select id="event-select"></select>
           </label>
-          <button id="manage-events-btn" type="button" class="btn btn-secondary">✎ Edit Events</button>
-          <div class="field inline tag-check-group" id="tag-filter-group">
-            <span>Admin Tag Filter</span>
-            <label class="tag-check"><input type="checkbox" value="Don't Call" /> Don't Call</label>
-            <label class="tag-check"><input type="checkbox" value="Janata" /> Janata</label>
-            <label class="tag-check"><input type="checkbox" value="Call" /> Call</label>
-            <label class="tag-check"><input type="checkbox" value="Core" /> Core</label>
-            <label class="tag-check"><input type="checkbox" value="Assigned" /> Assigned</label>
+          <button id="manage-events-btn" type="button" class="btn btn-secondary toolbar-btn">✎ Edit Events</button>
+
+          <div class="filter-dropdown" id="tag-filter-dropdown">
+            <button type="button" class="filter-toggle-btn" id="tag-filter-toggle" aria-haspopup="true" aria-expanded="false">
+              <span class="filter-toggle-icon">🏷️</span>
+              <span>Admin Tag Filter</span>
+              <span class="filter-toggle-badge hidden" id="tag-filter-badge">0</span>
+              <span class="filter-toggle-caret">▾</span>
+            </button>
+            <div class="filter-dropdown-panel tag-check-group" id="tag-filter-group">
+              <label class="tag-check"><input type="checkbox" value="Don't Call" /> Don't Call</label>
+              <label class="tag-check"><input type="checkbox" value="Janata" /> Janata</label>
+              <label class="tag-check"><input type="checkbox" value="Call" /> Call</label>
+              <label class="tag-check"><input type="checkbox" value="Core" /> Core</label>
+              <label class="tag-check"><input type="checkbox" value="Assigned" /> Assigned</label>
+            </div>
           </div>
-          <div class="field inline tag-check-group" id="gfy-filter-group">
-            <span>GFY Filter</span>
-            <label class="tag-check"><input type="checkbox" id="gfy-filter-attended" checked /> GFY Attended</label>
-            <label class="tag-check"><input type="checkbox" id="gfy-filter-not-attended" checked /> GFY Not Attended</label>
+
+          <div class="filter-dropdown" id="gfy-filter-dropdown">
+            <button type="button" class="filter-toggle-btn" id="gfy-filter-toggle" aria-haspopup="true" aria-expanded="false">
+              <span class="filter-toggle-icon">🎯</span>
+              <span>GFY/AOMC</span>
+              <span class="filter-toggle-badge hidden" id="gfy-filter-badge">1</span>
+              <span class="filter-toggle-caret">▾</span>
+            </button>
+            <div class="filter-dropdown-panel tag-check-group" id="gfy-filter-group">
+              <label class="tag-check"><input type="checkbox" id="gfy-filter-attended" checked /> GFY Attended</label>
+              <label class="tag-check"><input type="checkbox" id="gfy-filter-not-attended" checked /> GFY Not Attended</label>
+            </div>
           </div>
-          <div class="field inline tag-check-group" id="timestamp-filter-group">
-            <label class="tag-check"><input type="checkbox" id="ts-filter-enabled" /> Time Stamp</label>
-            <label class="tag-check ts-range">From <input type="datetime-local" id="ts-filter-from" disabled /></label>
-            <label class="tag-check ts-range">To <input type="datetime-local" id="ts-filter-to" disabled /></label>
+
+          <div class="filter-dropdown" id="timestamp-filter-dropdown">
+            <button type="button" class="filter-toggle-btn" id="timestamp-filter-toggle" aria-haspopup="true" aria-expanded="false">
+              <span class="filter-toggle-icon">🕒</span>
+              <span>Time Stamp</span>
+              <span class="filter-toggle-badge hidden" id="ts-filter-badge">On</span>
+              <span class="filter-toggle-caret">▾</span>
+            </button>
+            <div class="filter-dropdown-panel tag-check-group" id="timestamp-filter-group">
+              <label class="tag-check"><input type="checkbox" id="ts-filter-enabled" /> Enable Time Filter</label>
+              <label class="tag-check ts-range">From <input type="datetime-local" id="ts-filter-from" disabled /></label>
+              <label class="tag-check ts-range">To <input type="datetime-local" id="ts-filter-to" disabled /></label>
+            </div>
           </div>
-          <button id="assign-btn" class="btn btn-primary">Assign Contacts</button>
-          <button id="rebalance-btn" class="btn btn-secondary">⚖ Rebalance Unfinished</button>
-          <button id="disassign-btn" class="btn btn-secondary" style="color:var(--danger); border-color:var(--danger);">✕ Disassign All</button>
+
+          <button id="assign-btn" class="btn btn-primary toolbar-btn">Assign Contacts</button>
+          <button id="rebalance-btn" class="btn btn-secondary toolbar-btn">⚖ Rebalance Unfinished</button>
+          <button id="disassign-btn" class="btn btn-secondary toolbar-btn" style="color:var(--danger); border-color:var(--danger);">✕ Disassign All</button>
+          <button id="users-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
         </div>
         <p id="assign-summary" class="muted-text"></p>
       </div>
 
-      <div class="table-wrap">
+      <div class="table-wrap" id="users-table-wrap">
         <table class="data-table" id="users-table">
           <thead>
             <tr>
@@ -147,7 +174,7 @@
               <th>Password</th>
               <th>Role</th>
               <th>Call Limit</th>
-              <th>Assigned Count</th>
+              <th>Count</th>
               <th>Completed Calls</th>
               <th>Completed %</th>
               <th>
@@ -163,9 +190,8 @@
         </table>
       </div>
 
-      <div class="panel-row">
+      <div class="panel-row hidden">
         <button id="add-user-btn" class="btn btn-secondary">+ Add User</button>
-        <button id="users-export-btn" class="btn btn-secondary">⬇ Export Excel</button>
         <button id="users-import-btn" class="btn btn-secondary">⬆ Import CSV</button>
         <input id="users-import-file" type="file" accept=".csv" class="hidden" />
       </div>
@@ -193,7 +219,6 @@
             <option value="calls_count-asc">Calls (Low-High)</option>
           </select>
         </label>
-        <button id="add-contact-btn" class="btn btn-secondary">+ Add Contact</button>
         <button id="contacts-select-mode-btn" class="btn btn-secondary" title="Pick contacts to assign">☑ Select</button>
         <button id="contacts-select-all-btn" class="btn btn-secondary hidden">Select All Shown</button>
         <button id="contacts-assign-btn" class="btn btn-primary hidden">Assign Selected (0)</button>
@@ -355,7 +380,7 @@
 
       <div class="panel">
         <h3 class="section-title">Currently Assigned Contacts</h3>
-        <div class="table-wrap">
+        <div class="table-wrap" id="analytics-assigned-table-wrap">
           <table class="data-table" id="analytics-assigned-table">
             <thead>
               <tr>
@@ -413,7 +438,7 @@
 
       <div class="panel">
         <h3 class="section-title">Core Cultivation Health</h3>
-        <div class="table-wrap">
+        <div class="table-wrap" id="analytics-cultivation-table-wrap">
           <table class="data-table" id="analytics-cultivation-table">
             <thead>
               <tr>
@@ -483,7 +508,7 @@
 
       <div class="panel">
         <h3 class="section-title">Attendance in Range</h3>
-        <div class="table-wrap">
+        <div class="table-wrap" id="reception-analytics-attendance-table-wrap">
           <table class="data-table" id="reception-analytics-attendance-table">
             <thead>
               <tr>
@@ -542,7 +567,7 @@
         </div>
       </div>
 
-      <div class="table-wrap">
+      <div class="table-wrap" id="one-to-one-table-wrap">
         <table class="data-table" id="one-to-one-table">
           <thead>
             <tr><th>S.No</th><th>Name</th><th>Phone</th><th>W/S</th><th>Help Asked by the Boy</th><th>Remarks by SNKD</th><th></th></tr>
@@ -584,7 +609,7 @@
       </div>
       <div class="panel">
         <h3 class="section-title">Your Submissions</h3>
-        <div class="table-wrap">
+        <div class="table-wrap" id="collection-submissions-table-wrap">
           <table class="data-table">
             <thead><tr><th>Time</th><th>Name</th><th>Phone</th><th>Profession</th><th>Gender</th><th>Staying</th><th>Comment</th></tr></thead>
             <tbody id="collection-submissions-body"><tr><td colspan="7" class="loading-row">Loading…</td></tr></tbody>
@@ -596,19 +621,24 @@
     <!-- ===== ADMIN: New Contacts ===== -->
     <section id="admin-new-contacts-section" class="page hidden">
       <div class="panel">
-        <div class="panel-row">
+        <div class="panel-title-row">
+          <h3 class="section-title" style="margin:0;">New Contacts (Awaiting Approval)</h3>
+          <button id="add-contact-btn" class="btn btn-secondary">+ Add Contact</button>
+        </div>
+        <p class="muted-text">Everything from Reception, Contact Collection, Master Contact's “+ Add Contact”, and the Google Sheets bulk sync waits here — Add promotes a row to Master Contact.</p>
+        <div class="panel-row" style="margin-top:10px;">
           <button id="new-contacts-refresh-btn" class="btn btn-secondary">↻ Refresh Sheets Data</button>
           <button id="new-contacts-add-all-btn" class="btn btn-primary">Add All to Master</button>
         </div>
         <p id="new-contacts-summary" class="muted-text">Connecting to Sheets…</p>
       </div>
 
-      <div class="table-wrap">
-        <table class="data-table" id="new-contacts-table">
+      <div class="table-wrap" id="new-contacts-table-wrap">
+        <table class="data-table" id="collection-submissions-admin-table">
           <thead>
             <tr>
               <th>S.No</th>
-              <th>Time Stamp</th>
+              <th>Time</th>
               <th>Name</th>
               <th>Phone</th>
               <th>PG Name</th>
@@ -621,42 +651,19 @@
               <th>Core Cultivation</th>
               <th>Calling Purpose</th>
               <th>GFY/AOMC</th>
-              <th>User Reviews</th>
-              <th>Admin Review</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="new-contacts-table-body">
-            <tr><td colspan="17" class="loading-row">Connecting to Sheets…</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="panel">
-        <h3 class="section-title">Pending New Contacts (Awaiting Approval)</h3>
-        <p class="muted-text">Everything added from Reception, Contact Collection and Master Contact's “+ Add Contact” waits here — Add promotes it to Master Contact.</p>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table" id="collection-submissions-admin-table">
-          <thead>
-            <tr>
-              <th>S.No</th>
-              <th>Time</th>
-              <th>Name</th>
-              <th>Phone</th>
-              <th>Profession</th>
-              <th>Gender</th>
-              <th>Staying</th>
               <th>Comment</th>
               <th>Collected By</th>
               <th>Source</th>
-              <th>Core Cultivation</th>
-              <th>GFY/AOMC</th>
+              <th>User Reviews</th>
+              <th>Admin Review</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="collection-submissions-admin-body">
-            <tr><td colspan="13" class="loading-row">Loading…</td></tr>
+            <tr><td colspan="20" class="loading-row">Loading…</td></tr>
+          </tbody>
+          <tbody id="new-contacts-table-body">
+            <tr><td colspan="20" class="loading-row">Connecting to Sheets…</td></tr>
           </tbody>
         </table>
       </div>
@@ -665,14 +672,12 @@
     <!-- ===== ADMIN: Message ===== -->
     <section id="admin-message-section" class="page hidden">
       <div class="panel">
-        <label class="field">
-          <span>Current Message (sent by all callers)</span>
-          <p class="field-hint">Every message starts with "Hare Krishna &lt;name&gt;" automatically — write only the body below (you can still use {name} again anywhere in it).</p>
-          <textarea id="message-text" rows="5" placeholder="Hope you're joining this thursday's session..."></textarea>
-        </label>
-
-        <button id="save-message-btn" class="btn btn-primary">Save Message</button>
-        <div id="message-error" class="field-error hidden"></div>
+        <div class="panel-title-row">
+          <span>Message Templates</span>
+          <button id="add-template-btn" class="btn btn-secondary btn-sm">+ Add Template</button>
+        </div>
+        <p class="field-hint">Every message starts with "Hare Krishna &lt;name&gt;" automatically — write only the body below (you can still use {name} again anywhere in it). Paste it exactly as formatted for WhatsApp — the note keeps its shape. Exactly one template is active at a time — that's the message sent by all callers.</p>
+        <div id="message-templates-grid" class="sticky-note-grid"></div>
       </div>
     </section>
 
@@ -848,7 +853,7 @@
         </div>
         <div class="panel">
           <h3 class="section-title">Your Past Questions</h3>
-          <div class="table-wrap">
+          <div class="table-wrap" id="one-to-one-user-questions-wrap">
             <table class="data-table">
               <thead><tr><th>Time</th><th>Question</th><th>Status</th><th>Response</th></tr></thead>
               <tbody id="one-to-one-user-questions-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
@@ -1166,6 +1171,19 @@
     <div class="modal-actions">
       <button id="delete-contact-cancel" class="btn btn-secondary">Cancel</button>
       <button id="delete-contact-confirm" class="btn btn-primary" style="background:var(--danger); box-shadow:none;">Permanently Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="template-modal" class="modal">
+  <div class="modal-box">
+    <h3 id="template-modal-title">Add Template</h3>
+    <label class="field"><span>Heading</span><input id="template-heading" type="text" placeholder="e.g. Sunday Reminder" /></label>
+    <label class="field"><span>Message</span><textarea id="template-text" rows="6" placeholder="Paste your formatted message…"></textarea></label>
+    <div id="template-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="template-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="template-save-btn" class="btn btn-primary">Save</button>
     </div>
   </div>
 </div>
