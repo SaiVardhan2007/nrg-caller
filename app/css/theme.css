@@ -1282,6 +1282,99 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 .btn.toolbar-btn.btn-danger:hover:not(:disabled) { box-shadow: 0 5px 16px rgba(220,38,38,0.4); filter: brightness(1.05); }
 
+/* Selects and date pickers in the sidebar carry the same colored-pill
+   language as the buttons around them — Current Event/Event read as buttons,
+   and From–To are merged into one pill instead of two plain white fields. */
+.users-toolbar .field.inline select {
+  background: var(--grad-tulsi);
+  color: #fff;
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 13.5px;
+  box-shadow: 0 3px 10px rgba(5,150,105,0.3);
+  transition: box-shadow 0.15s ease, transform 0.12s ease, filter 0.15s ease;
+}
+.users-toolbar .field.inline select:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(5,150,105,0.4); filter: brightness(1.05); }
+.users-toolbar .field.inline select:focus { box-shadow: 0 0 0 4px rgba(5,150,105,0.25); }
+
+.date-range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: var(--grad-tulsi);
+  border-radius: 999px;
+  padding: 6px 14px;
+  box-shadow: 0 3px 10px rgba(5,150,105,0.3);
+  transition: box-shadow 0.15s ease, transform 0.12s ease, filter 0.15s ease;
+}
+.date-range-inputs:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(5,150,105,0.4); filter: brightness(1.05); }
+.date-range-inputs input[type="date"] {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: #fff;
+  padding: 4px 2px;
+  font-weight: 700;
+  font-size: 12.5px;
+  box-shadow: none;
+}
+.date-range-inputs input[type="date"]:focus { outline: none; box-shadow: none; }
+.date-range-inputs input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+.date-range-sep { color: #fff; font-weight: 800; opacity: 0.85; }
+
+/* Master Contact's top row: the search bar used to be full-width (inheriting
+   the generic .search-input rule), which pushed Sort By, the action buttons
+   and the scroll arrows onto a second line. Give it a fixed lane instead so
+   everything shares one row, and color the buttons/sort-select to match the
+   rest of the app's colored-button treatment. */
+#admin-contacts-section > .panel-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+#admin-contacts-section > .panel-row #contacts-search {
+  width: 30%;
+  flex: 0 0 30%;
+  min-width: 200px;
+}
+#admin-contacts-section > .panel-row .btn.btn-secondary,
+#admin-contacts-section > .panel-row .hscroll-btn {
+  background: linear-gradient(135deg, var(--saffron-light), var(--saffron));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 3px 10px rgba(217,119,6,0.3);
+  white-space: nowrap;
+}
+#admin-contacts-section > .panel-row .btn.btn-secondary:hover:not(:disabled),
+#admin-contacts-section > .panel-row .hscroll-btn:hover:not(:disabled) {
+  box-shadow: 0 5px 16px rgba(217,119,6,0.4);
+  filter: brightness(1.05);
+}
+#admin-contacts-section > .panel-row #contacts-sort {
+  background: var(--grad-tulsi);
+  color: #fff;
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgba(5,150,105,0.3);
+}
+
+/* New Contacts: Add Contact / Refresh Sheets Data get the same colored
+   treatment as the rest of the app instead of plain white buttons. */
+#add-contact-btn,
+#new-contacts-refresh-btn {
+  background: linear-gradient(135deg, var(--saffron-light), var(--saffron));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 3px 10px rgba(217,119,6,0.3);
+}
+#add-contact-btn:hover:not(:disabled),
+#new-contacts-refresh-btn:hover:not(:disabled) {
+  box-shadow: 0 5px 16px rgba(217,119,6,0.4);
+  filter: brightness(1.05);
+}
+
 /* Dropdown panels open inline, in normal document flow, right under their
    toggle button — the sidebar grows taller to fit instead of a panel flying
    out over the table, so opening a filter never covers the data. */
@@ -1375,10 +1468,25 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #general-data-table th:nth-child(1),
 #general-data-table td:first-child {
   width: auto !important;
-  min-width: 40px !important;
+  min-width: 28px !important;
   max-width: none !important;
   white-space: nowrap;
   text-align: center;
+}
+#general-data-table th:last-child,
+#general-data-table td:last-child {
+  padding-left: 16px;
+  padding-right: 16px;
+  white-space: nowrap;
+}
+
+/* Calls Made / Positive (and other contact-info-modal tables) inherit the
+   generic 32px S.No cap tuned for Master Contact, which clips "S.No" here —
+   a few px is enough to fit it without padding the whole column out. */
+#contact-info-table th:nth-child(1),
+#contact-info-table td[data-label="S.No"] {
+  width: 38px !important;
+  max-width: 38px !important;
 }
 /* Zoom +/- scales the whole modal box (not just the text), growing/shrinking
    around its top-center so it stays anchored under the title row. The modal

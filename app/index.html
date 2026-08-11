@@ -362,14 +362,14 @@
               <span>User</span>
               <select id="analytics-user-select"></select>
             </label>
-            <label class="field inline">
-              <span>From</span>
-              <input id="analytics-from" type="date" />
-            </label>
-            <label class="field inline">
-              <span>To</span>
-              <input id="analytics-to" type="date" />
-            </label>
+            <div class="field inline">
+              <span>Date Range</span>
+              <div class="date-range-inputs">
+                <input id="analytics-from" type="date" />
+                <span class="date-range-sep">–</span>
+                <input id="analytics-to" type="date" />
+              </div>
+            </div>
             <label class="field inline">
               <span>Event</span>
               <select id="analytics-event-select"><option value="">All events</option></select>
@@ -494,14 +494,14 @@
       <div class="users-page-layout">
         <div class="panel users-sidebar">
           <div class="users-toolbar">
-            <label class="field inline">
-              <span>From</span>
-              <input id="reception-analytics-from" type="date" />
-            </label>
-            <label class="field inline">
-              <span>To</span>
-              <input id="reception-analytics-to" type="date" />
-            </label>
+            <div class="field inline">
+              <span>Date Range</span>
+              <div class="date-range-inputs">
+                <input id="reception-analytics-from" type="date" />
+                <span class="date-range-sep">–</span>
+                <input id="reception-analytics-to" type="date" />
+              </div>
+            </div>
             <label class="field inline">
               <span>Event</span>
               <select id="reception-analytics-event-select"></select>
@@ -637,12 +637,12 @@
     <!-- ===== ADMIN: New Contacts ===== -->
     <section id="admin-new-contacts-section" class="page hidden">
       <div class="panel">
-        <div class="panel-row" style="flex-wrap:nowrap; overflow-x:auto;">
+        <div class="panel-row" style="flex-wrap:nowrap; overflow-x:auto; align-items:center;">
           <h3 class="section-title" style="margin:0; white-space:nowrap;">New Contacts (Awaiting Approval)</h3>
           <button id="add-contact-btn" class="btn btn-secondary" style="white-space:nowrap;">+ Add Contact</button>
           <button id="new-contacts-refresh-btn" class="btn btn-secondary" style="white-space:nowrap;">↻ Refresh Sheets Data</button>
-          <button id="new-contacts-add-all-btn" class="btn btn-primary" style="white-space:nowrap;">Add All to Master</button>
           <p id="new-contacts-summary" class="muted-text" style="margin:0; white-space:nowrap;">Connecting to Sheets…</p>
+          <button id="new-contacts-add-all-btn" class="btn btn-primary" style="white-space:nowrap; margin-left:auto;">Add All to Master</button>
         </div>
       </div>
 
