@@ -201,7 +201,7 @@ export async function initUsers() {
   wireManageEventsModal();
   wireUsersImportExport();
   initColumnDragReorder("users-table");
-  initHorizontalScroll("users-table-wrap");
+  initHorizontalScroll("users-table-wrap", { leftBtnId: "users-scroll-left", rightBtnId: "users-scroll-right" });
 }
 
 async function refreshEventsEverywhere(selectedCode) {
@@ -370,9 +370,9 @@ async function renderUsersTable() {
       <td data-label="Call Limit">
         <input type="number" min="0" class="limit-input" value="${u.call_limit ?? ""}" placeholder="No limit" ${u.role !== "Coordinator" ? "disabled" : ""} />
       </td>
-      <td data-label="Assigned Count" class="assigned-count">${assigned}</td>
-      <td data-label="Completed Calls" class="assigned-count">${completed}</td>
-      <td data-label="Completed %" class="assigned-count">${pct}</td>
+      <td data-label="Count"><span class="count-badge">${assigned}</span></td>
+      <td data-label="Completed Calls"><span class="count-badge">${completed}</span></td>
+      <td data-label="Completed %"><span class="pct-badge">${pct}</span></td>
       <td data-label="Auto Assign">
         <input type="checkbox" class="auto-assign-input" ${u.auto_assign ? "checked" : ""} ${u.role !== "Coordinator" ? "disabled" : ""} />
       </td>
@@ -3152,7 +3152,7 @@ function renderNewContactsTable() {
 
   if (!newContactsCache.length) {
     tbody.innerHTML = `<tr><td colspan="20" class="loading-row">No new contacts found in Google Sheets.</td></tr>`;
-    summaryEl.textContent = "Checked just now. All clear!";
+    summaryEl.textContent = "";
     return;
   }
 

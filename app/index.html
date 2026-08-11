@@ -68,6 +68,10 @@
     <button class="admin-tab" data-target="admin-analytics-section">Analytics</button>
     <button class="admin-tab" data-target="admin-reception-analytics-section">Reception</button>
     <button class="admin-tab" data-target="admin-one-to-one-section">One to One</button>
+    <span class="admin-tabs-hscroll">
+      <button id="users-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+      <button id="users-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+    </span>
   </nav>
 
   <!-- ---- User dashboard ---- -->
@@ -106,96 +110,100 @@
 
     <!-- ===== ADMIN: Users & Assignment ===== -->
     <section id="admin-users-section" class="page hidden">
-      <div class="panel">
-        <div class="panel-row users-toolbar">
-          <label class="field inline">
-            <span>Current Event</span>
-            <select id="event-select"></select>
-          </label>
-          <button id="manage-events-btn" type="button" class="btn btn-secondary toolbar-btn">✎ Edit Events</button>
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <label class="field inline">
+              <span>Current Event</span>
+              <select id="event-select"></select>
+            </label>
+            <button id="manage-events-btn" type="button" class="btn btn-secondary toolbar-btn">✎ Edit Events</button>
 
-          <div class="filter-dropdown" id="tag-filter-dropdown">
-            <button type="button" class="filter-toggle-btn" id="tag-filter-toggle" aria-haspopup="true" aria-expanded="false">
-              <span class="filter-toggle-icon">🏷️</span>
-              <span>Admin Tag Filter</span>
-              <span class="filter-toggle-badge hidden" id="tag-filter-badge">0</span>
-              <span class="filter-toggle-caret">▾</span>
-            </button>
-            <div class="filter-dropdown-panel tag-check-group" id="tag-filter-group">
-              <label class="tag-check"><input type="checkbox" value="Don't Call" /> Don't Call</label>
-              <label class="tag-check"><input type="checkbox" value="Janata" /> Janata</label>
-              <label class="tag-check"><input type="checkbox" value="Call" /> Call</label>
-              <label class="tag-check"><input type="checkbox" value="Core" /> Core</label>
-              <label class="tag-check"><input type="checkbox" value="Assigned" /> Assigned</label>
+            <div class="filter-dropdown" id="tag-filter-dropdown">
+              <button type="button" class="filter-toggle-btn" id="tag-filter-toggle" aria-haspopup="true" aria-expanded="false">
+                <span class="filter-toggle-icon">🏷️</span>
+                <span>Admin Tag Filter</span>
+                <span class="filter-toggle-badge hidden" id="tag-filter-badge">0</span>
+                <span class="filter-toggle-caret">▾</span>
+              </button>
+              <div class="filter-dropdown-panel tag-check-group" id="tag-filter-group">
+                <label class="tag-check"><input type="checkbox" value="Don't Call" /> Don't Call</label>
+                <label class="tag-check"><input type="checkbox" value="Janata" /> Janata</label>
+                <label class="tag-check"><input type="checkbox" value="Call" /> Call</label>
+                <label class="tag-check"><input type="checkbox" value="Core" /> Core</label>
+                <label class="tag-check"><input type="checkbox" value="Assigned" /> Assigned</label>
+              </div>
             </div>
-          </div>
 
-          <div class="filter-dropdown" id="gfy-filter-dropdown">
-            <button type="button" class="filter-toggle-btn" id="gfy-filter-toggle" aria-haspopup="true" aria-expanded="false">
-              <span class="filter-toggle-icon">🎯</span>
-              <span>GFY/AOMC</span>
-              <span class="filter-toggle-badge hidden" id="gfy-filter-badge">1</span>
-              <span class="filter-toggle-caret">▾</span>
-            </button>
-            <div class="filter-dropdown-panel tag-check-group" id="gfy-filter-group">
-              <label class="tag-check"><input type="checkbox" id="gfy-filter-attended" checked /> GFY Attended</label>
-              <label class="tag-check"><input type="checkbox" id="gfy-filter-not-attended" checked /> GFY Not Attended</label>
+            <div class="filter-dropdown" id="gfy-filter-dropdown">
+              <button type="button" class="filter-toggle-btn" id="gfy-filter-toggle" aria-haspopup="true" aria-expanded="false">
+                <span class="filter-toggle-icon">🎯</span>
+                <span>GFY/AOMC</span>
+                <span class="filter-toggle-badge hidden" id="gfy-filter-badge">1</span>
+                <span class="filter-toggle-caret">▾</span>
+              </button>
+              <div class="filter-dropdown-panel tag-check-group" id="gfy-filter-group">
+                <label class="tag-check"><input type="checkbox" id="gfy-filter-attended" checked /> GFY Attended</label>
+                <label class="tag-check"><input type="checkbox" id="gfy-filter-not-attended" checked /> GFY Not Attended</label>
+              </div>
             </div>
-          </div>
 
-          <div class="filter-dropdown" id="timestamp-filter-dropdown">
-            <button type="button" class="filter-toggle-btn" id="timestamp-filter-toggle" aria-haspopup="true" aria-expanded="false">
-              <span class="filter-toggle-icon">🕒</span>
-              <span>Time Stamp</span>
-              <span class="filter-toggle-badge hidden" id="ts-filter-badge">On</span>
-              <span class="filter-toggle-caret">▾</span>
-            </button>
-            <div class="filter-dropdown-panel tag-check-group" id="timestamp-filter-group">
-              <label class="tag-check"><input type="checkbox" id="ts-filter-enabled" /> Enable Time Filter</label>
-              <label class="tag-check ts-range">From <input type="datetime-local" id="ts-filter-from" disabled /></label>
-              <label class="tag-check ts-range">To <input type="datetime-local" id="ts-filter-to" disabled /></label>
+            <div class="filter-dropdown" id="timestamp-filter-dropdown">
+              <button type="button" class="filter-toggle-btn" id="timestamp-filter-toggle" aria-haspopup="true" aria-expanded="false">
+                <span class="filter-toggle-icon">🕒</span>
+                <span>Time Stamp</span>
+                <span class="filter-toggle-badge hidden" id="ts-filter-badge">On</span>
+                <span class="filter-toggle-caret">▾</span>
+              </button>
+              <div class="filter-dropdown-panel tag-check-group" id="timestamp-filter-group">
+                <label class="tag-check"><input type="checkbox" id="ts-filter-enabled" /> Enable Time Filter</label>
+                <label class="tag-check ts-range">From <input type="datetime-local" id="ts-filter-from" disabled /></label>
+                <label class="tag-check ts-range">To <input type="datetime-local" id="ts-filter-to" disabled /></label>
+              </div>
             </div>
-          </div>
 
-          <button id="assign-btn" class="btn btn-primary toolbar-btn">Assign Contacts</button>
-          <button id="rebalance-btn" class="btn btn-secondary toolbar-btn">⚖ Rebalance Unfinished</button>
-          <button id="disassign-btn" class="btn btn-secondary toolbar-btn" style="color:var(--danger); border-color:var(--danger);">✕ Disassign All</button>
-          <button id="users-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
+            <button id="assign-btn" class="btn btn-primary toolbar-btn">Assign Contacts</button>
+            <button id="rebalance-btn" class="btn btn-secondary toolbar-btn">⚖ Rebalance Unfinished</button>
+            <button id="disassign-btn" class="btn btn-secondary toolbar-btn btn-danger">✕ Disassign All</button>
+            <button id="users-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
+          </div>
+          <p id="assign-summary" class="muted-text"></p>
         </div>
-        <p id="assign-summary" class="muted-text"></p>
-      </div>
 
-      <div class="table-wrap" id="users-table-wrap">
-        <table class="data-table" id="users-table">
-          <thead>
-            <tr>
-              <th>S.No</th>
-              <th>User ID</th>
-              <th>Password</th>
-              <th>Role</th>
-              <th>Call Limit</th>
-              <th>Count</th>
-              <th>Completed Calls</th>
-              <th>Completed %</th>
-              <th>
-                Auto Assign
-                <input type="checkbox" id="auto-assign-select-all" title="Enable/disable Auto Assign for all users" style="margin-left:6px; width:16px; height:16px; vertical-align:middle; cursor:pointer;" />
-              </th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="users-table-body">
-            <tr><td colspan="10" class="loading-row">Loading users…</td></tr>
-          </tbody>
-        </table>
-      </div>
+        <div class="users-content">
+          <div class="table-wrap" id="users-table-wrap">
+            <table class="data-table" id="users-table">
+              <thead>
+                <tr>
+                  <th>S.No</th>
+                  <th>User ID</th>
+                  <th>Password</th>
+                  <th>Role</th>
+                  <th>Call Limit</th>
+                  <th>Count</th>
+                  <th>Completed Calls</th>
+                  <th>Completed %</th>
+                  <th>
+                    Auto Assign
+                    <input type="checkbox" id="auto-assign-select-all" title="Enable/disable Auto Assign for all users" style="margin-left:6px; width:16px; height:16px; vertical-align:middle; cursor:pointer;" />
+                  </th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body">
+                <tr><td colspan="10" class="loading-row">Loading users…</td></tr>
+              </tbody>
+            </table>
+          </div>
 
-      <div class="panel-row hidden">
-        <button id="add-user-btn" class="btn btn-secondary">+ Add User</button>
-        <button id="users-import-btn" class="btn btn-secondary">⬆ Import CSV</button>
-        <input id="users-import-file" type="file" accept=".csv" class="hidden" />
+          <div class="panel-row hidden">
+            <button id="add-user-btn" class="btn btn-secondary">+ Add User</button>
+            <button id="users-import-btn" class="btn btn-secondary">⬆ Import CSV</button>
+            <input id="users-import-file" type="file" accept=".csv" class="hidden" />
+          </div>
+          <div id="users-import-summary" class="muted-text hidden"></div>
+        </div>
       </div>
-      <div id="users-import-summary" class="muted-text hidden"></div>
     </section>
 
     <!-- ===== ADMIN: Master Contact ===== -->
@@ -347,30 +355,32 @@
 
     <!-- ===== ADMIN: Analytics ===== -->
     <section id="admin-analytics-section" class="page hidden">
-      <div class="panel">
-        <div class="panel-row">
-          <label class="field inline">
-            <span>User</span>
-            <select id="analytics-user-select"></select>
-          </label>
-          <label class="field inline">
-            <span>From</span>
-            <input id="analytics-from" type="date" />
-          </label>
-          <label class="field inline">
-            <span>To</span>
-            <input id="analytics-to" type="date" />
-          </label>
-          <label class="field inline">
-            <span>Event</span>
-            <select id="analytics-event-select"><option value="">All events</option></select>
-          </label>
-          <button id="analytics-run-btn" class="btn btn-primary">View</button>
-          <button id="analytics-export-btn" class="btn btn-secondary">⬇ Export Excel</button>
-          <button id="general-data-btn" class="btn btn-secondary">📊 General Data</button>
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <label class="field inline">
+              <span>User</span>
+              <select id="analytics-user-select"></select>
+            </label>
+            <label class="field inline">
+              <span>From</span>
+              <input id="analytics-from" type="date" />
+            </label>
+            <label class="field inline">
+              <span>To</span>
+              <input id="analytics-to" type="date" />
+            </label>
+            <label class="field inline">
+              <span>Event</span>
+              <select id="analytics-event-select"><option value="">All events</option></select>
+            </label>
+            <button id="analytics-run-btn" class="btn btn-primary toolbar-btn">View</button>
+            <button id="analytics-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
+            <button id="general-data-btn" class="btn btn-secondary toolbar-btn">📊 General Data</button>
+          </div>
         </div>
-      </div>
 
+        <div class="users-content">
       <div class="stats-bar">
         <div id="card-assigned" class="stat stat-assigned cursor-pointer"><span id="analytics-total-assigned" class="stat-num">0</span><span class="stat-label">Total Assigned</span></div>
         <div id="card-calls-made" class="stat cursor-pointer"><span id="analytics-total-calls" class="stat-num">0</span><span class="stat-label">Calls Made</span></div>
@@ -475,29 +485,33 @@
           </table>
         </div>
       </div>
+        </div>
+      </div>
     </section>
 
     <!-- ===== ADMIN: Reception Analytics ===== -->
     <section id="admin-reception-analytics-section" class="page hidden">
-      <div class="panel">
-        <div class="panel-row">
-          <label class="field inline">
-            <span>From</span>
-            <input id="reception-analytics-from" type="date" />
-          </label>
-          <label class="field inline">
-            <span>To</span>
-            <input id="reception-analytics-to" type="date" />
-          </label>
-          <label class="field inline">
-            <span>Event</span>
-            <select id="reception-analytics-event-select"></select>
-          </label>
-          <button id="reception-analytics-run-btn" class="btn btn-primary">View</button>
-          <button id="reception-analytics-export-btn" class="btn btn-secondary">⬇ Export Excel</button>
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <label class="field inline">
+              <span>From</span>
+              <input id="reception-analytics-from" type="date" />
+            </label>
+            <label class="field inline">
+              <span>To</span>
+              <input id="reception-analytics-to" type="date" />
+            </label>
+            <label class="field inline">
+              <span>Event</span>
+              <select id="reception-analytics-event-select"></select>
+            </label>
+            <button id="reception-analytics-run-btn" class="btn btn-primary toolbar-btn">View</button>
+            <button id="reception-analytics-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
+          </div>
         </div>
-      </div>
 
+        <div class="users-content">
       <div class="stats-bar">
         <div class="stat"><span id="reception-analytics-overall-contacts" class="stat-num">0</span><span class="stat-label">Total Contacts (All Events)</span></div>
         <div class="stat"><span id="reception-analytics-total-contacts" class="stat-num">0</span><span id="reception-analytics-event-label" class="stat-label">All Events</span></div>
@@ -544,6 +558,8 @@
             </thead>
             <tbody id="reception-analytics-attendance-body"><tr><td colspan="10" class="loading-row">Pick a range above.</td></tr></tbody>
           </table>
+        </div>
+      </div>
         </div>
       </div>
     </section>
@@ -621,16 +637,13 @@
     <!-- ===== ADMIN: New Contacts ===== -->
     <section id="admin-new-contacts-section" class="page hidden">
       <div class="panel">
-        <div class="panel-title-row">
-          <h3 class="section-title" style="margin:0;">New Contacts (Awaiting Approval)</h3>
-          <button id="add-contact-btn" class="btn btn-secondary">+ Add Contact</button>
+        <div class="panel-row" style="flex-wrap:nowrap; overflow-x:auto;">
+          <h3 class="section-title" style="margin:0; white-space:nowrap;">New Contacts (Awaiting Approval)</h3>
+          <button id="add-contact-btn" class="btn btn-secondary" style="white-space:nowrap;">+ Add Contact</button>
+          <button id="new-contacts-refresh-btn" class="btn btn-secondary" style="white-space:nowrap;">↻ Refresh Sheets Data</button>
+          <button id="new-contacts-add-all-btn" class="btn btn-primary" style="white-space:nowrap;">Add All to Master</button>
+          <p id="new-contacts-summary" class="muted-text" style="margin:0; white-space:nowrap;">Connecting to Sheets…</p>
         </div>
-        <p class="muted-text">Everything from Reception, Contact Collection, Master Contact's “+ Add Contact”, and the Google Sheets bulk sync waits here — Add promotes a row to Master Contact.</p>
-        <div class="panel-row" style="margin-top:10px;">
-          <button id="new-contacts-refresh-btn" class="btn btn-secondary">↻ Refresh Sheets Data</button>
-          <button id="new-contacts-add-all-btn" class="btn btn-primary">Add All to Master</button>
-        </div>
-        <p id="new-contacts-summary" class="muted-text">Connecting to Sheets…</p>
       </div>
 
       <div class="table-wrap" id="new-contacts-table-wrap">

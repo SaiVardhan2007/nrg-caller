@@ -100,12 +100,23 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .field.checkbox span { margin: 0; }
 .tag-check-group { flex-wrap: wrap; row-gap: 6px; }
 .tag-check {
-  display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap;
-  background: #fff; border: 1.5px solid var(--sandstone); border-radius: 20px; padding: 6px 12px 6px 10px;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; white-space: nowrap;
+  background: rgba(5,150,105,0.08); border: 1.5px solid var(--tulsi); color: var(--tulsi-dark);
+  border-radius: 20px; padding: 6px 12px 6px 10px;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
-.tag-check:has(input:checked) { border-color: var(--tulsi); background: rgba(5,150,105,0.08); color: var(--tulsi-dark); }
+.tag-check:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(5,150,105,0.2); }
+.tag-check:active { transform: scale(0.96); }
+.tag-check:has(input:checked) {
+  border-color: var(--tulsi-dark); background: var(--grad-tulsi); color: #fff;
+  box-shadow: 0 3px 10px rgba(5,150,105,0.35); animation: tagPop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
 .tag-check input { width: auto; accent-color: var(--tulsi); }
+@keyframes tagPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
 .field-error { color: var(--danger); font-size: 13px; margin: -8px 0 14px; font-weight: 500; }
 .field-hint { color: var(--text-muted); font-size: 12.5px; margin: -2px 0 6px; }
 #caller-search { margin-bottom: 14px; }
@@ -187,6 +198,13 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 .admin-tab:hover { color: var(--tulsi-dark); }
 .admin-tab.active { color: var(--tulsi-dark); border-bottom-color: var(--tulsi); }
+
+/* Users & Assignment's column scroll buttons live in the tab row itself
+   (flush right, free space there already) instead of floating above the
+   table — that floating row used to push the table down out of line with
+   the sidebar card sitting beside it. Only relevant while that tab is open. */
+.admin-tabs-hscroll { display: none; gap: 4px; margin-left: auto; padding-left: 8px; align-self: center; }
+#admin-tabs:has(.admin-tab.active[data-target="admin-users-section"]) .admin-tabs-hscroll { display: inline-flex; }
 
 .main-content { padding: 16px; max-width: 900px; margin: 0 auto; }
 /* the admin table pages carry a lot more columns — give them more breathing room
@@ -374,6 +392,74 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .data-table input[type="number"], .data-table select { padding: 4px 6px; font-size: 12.5px; }
 .auto-assign-input { width: 22px; height: 22px; cursor: pointer; }
 .assigned-count { font-size: 18px; font-weight: 800; color: var(--tulsi-dark); }
+/* Users & Assignment's Count column: a round chip instead of bare digits, so
+   an assignment total reads as a badge at a glance. */
+#users-table td:has(.count-badge) { text-align: center; }
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border-radius: 50%;
+  background: var(--grad-tulsi);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(5,150,105,0.35);
+}
+/* The generic S.No/Time Stamp/Name/... nth-child width rules above were tuned
+   for Master Contact's column order and leak onto every other .data-table by
+   position — on Users & Assignment that squeezed "S.No" into Master Contact's
+   32px, cramming the header text. Widen just this table's first column. */
+#users-table th:nth-child(1) { width: 44px !important; max-width: 44px !important; }
+
+/* Call Limit is still an editable number field (unlike Count/Completed Calls),
+   so it becomes a pill rather than a literal circle — "No limit" needs the
+   extra width a circle can't give — but keeps the same rounded, tulsi look. */
+#users-table td[data-label="Call Limit"] { text-align: center; }
+#users-table .limit-input {
+  width: 84px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--tulsi);
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--tulsi-dark);
+  background: #fff;
+}
+#users-table .limit-input::placeholder { font-weight: 600; font-size: 10.5px; color: var(--text-muted); }
+#users-table .limit-input:disabled { border-color: var(--sandstone); color: var(--text-muted); background: var(--cream); }
+#users-table .limit-input:focus { outline: none; border-color: var(--tulsi-dark); box-shadow: 0 0 0 3px rgba(5,150,105,0.15); }
+
+/* Completed % as the same style of pill as Call Limit, so the whole row of
+   count-ish columns (Count, Completed Calls, Completed %) reads as one family. */
+#users-table td:has(.pct-badge) { text-align: center; }
+.pct-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--grad-tulsi);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(5,150,105,0.35);
+}
+
+/* Auto Assign is a single checkbox floating alone in a wide column — center it
+   both in the header (next to the "select all" box) and in every body cell. */
+#users-table th:has(#auto-assign-select-all),
+#users-table td[data-label="Auto Assign"] {
+  text-align: center;
+}
+
 .data-table th .th-label { margin-bottom: 4px; }
 .data-table th .th-filter {
   display: block;
@@ -1128,46 +1214,128 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 #timestamp-filter-group .ts-range input:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ============ USERS & ASSIGNMENT TOOLBAR ============
-   A row of pill-shaped action + filter buttons that all share one visual
+/* ============ USERS & ASSIGNMENT: STICKY SIDEBAR + INDEPENDENT SCROLL ============
+   Event/tag/GFY/time filters and the action buttons live in a left rail that
+   stays put while the roster on the right scrolls on its own — neither side
+   drags the other with it. Both columns share one viewport-relative height so
+   each gets its own scrollbar instead of growing the whole page. */
+.users-page-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.users-sidebar {
+  flex: 0 0 250px;
+  width: 250px;
+  position: sticky;
+  top: 76px; /* clears the sticky app-header (~64px) plus a little air */
+  max-height: calc(100vh - 92px);
+  overflow-y: auto;
+  margin-bottom: 0;
+}
+.users-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A row of pill-shaped action + filter buttons that all share one visual
    language — same height, radius and lift, whether it opens a dropdown
-   (Admin Tag/GFY/Time Stamp) or fires an action (Assign/Rebalance/Export). */
-.users-toolbar { gap: 10px; }
+   (Admin Tag/GFY/Time Stamp) or fires an action (Assign/Rebalance/Export).
+   Stacked vertically so the whole toolbar fits the sidebar rail. */
+.users-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.users-toolbar .field.inline { flex-direction: column; align-items: stretch; gap: 6px; }
+.users-toolbar .btn.toolbar-btn,
+.users-toolbar .filter-dropdown,
+.users-toolbar .filter-toggle-btn {
+  width: 100%;
+}
 .users-toolbar .btn.toolbar-btn {
   border-radius: 999px;
   padding: 10px 18px;
   font-size: 13.5px;
+  text-align: center;
 }
 .users-toolbar .btn.toolbar-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.users-toolbar .filter-toggle-btn { justify-content: space-between; }
+
+/* Every sidebar button carries color, not just Assign/View (btn-primary) — a
+   plain white btn-secondary reads as "disabled" next to the colored filter
+   toggles, so Edit Events/Rebalance/Export/etc. get their own amber gradient,
+   and the one destructive action (Disassign All) gets a red one. */
+.btn.toolbar-btn.btn-secondary {
+  background: linear-gradient(135deg, var(--saffron-light), var(--saffron));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 3px 10px rgba(217,119,6,0.3);
+}
+.btn.toolbar-btn.btn-secondary:hover:not(:disabled) { box-shadow: 0 5px 16px rgba(217,119,6,0.4); filter: brightness(1.05); }
+.btn.toolbar-btn.btn-danger {
+  background: linear-gradient(135deg, #f87171, var(--danger));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 3px 10px rgba(220,38,38,0.3);
+}
+.btn.toolbar-btn.btn-danger:hover:not(:disabled) { box-shadow: 0 5px 16px rgba(220,38,38,0.4); filter: brightness(1.05); }
+
+/* Dropdown panels open inline, in normal document flow, right under their
+   toggle button — the sidebar grows taller to fit instead of a panel flying
+   out over the table, so opening a filter never covers the data. */
+.users-sidebar .filter-dropdown-panel {
+  position: static;
+  width: 100%;
+  max-width: none;
+  margin-top: 6px;
+}
+@media (max-width: 900px) {
+  .users-page-layout { flex-direction: column; }
+  .users-sidebar {
+    position: static;
+    width: 100%;
+    max-height: none;
+    overflow-y: visible;
+  }
+  .users-toolbar { flex-direction: row; flex-wrap: wrap; }
+  .users-toolbar .field.inline,
+  .users-toolbar .btn.toolbar-btn,
+  .users-toolbar .filter-dropdown,
+  .users-toolbar .filter-toggle-btn {
+    width: auto;
+  }
+}
 
 .filter-dropdown { position: relative; }
 .filter-toggle-btn {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  background: var(--surface);
-  border: 1.5px solid var(--sandstone);
+  background: var(--grad-tulsi);
+  border: 1.5px solid transparent;
   border-radius: 999px;
   padding: 10px 16px;
   font-size: 13.5px;
   font-weight: 700;
   font-family: inherit;
-  color: var(--tulsi-dark);
+  color: #fff;
   cursor: pointer;
   white-space: nowrap;
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+  box-shadow: 0 3px 10px rgba(5,150,105,0.3);
+  transition: box-shadow 0.15s ease, transform 0.12s ease, filter 0.15s ease;
 }
-.filter-toggle-btn:hover { border-color: var(--tulsi); background: rgba(5,150,105,0.05); transform: translateY(-1px); }
+.filter-toggle-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(5,150,105,0.4); filter: brightness(1.05); }
 .filter-toggle-btn:active { transform: scale(0.97); }
 .filter-toggle-icon { font-size: 14px; line-height: 1; }
-.filter-toggle-caret { font-size: 10px; opacity: 0.55; transition: transform 0.18s ease; margin-left: 1px; }
-.filter-dropdown.open .filter-toggle-btn { border-color: var(--tulsi); background: rgba(5,150,105,0.08); box-shadow: 0 0 0 4px rgba(5,150,105,0.12); }
+.filter-toggle-caret { font-size: 10px; opacity: 0.8; transition: transform 0.18s ease; margin-left: 1px; }
+.filter-dropdown.open .filter-toggle-btn { box-shadow: 0 0 0 4px rgba(5,150,105,0.25), 0 3px 10px rgba(5,150,105,0.3); }
 .filter-dropdown.open .filter-toggle-caret { transform: rotate(180deg); }
 .filter-toggle-badge {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px;
-  background: var(--grad-tulsi); color: #fff; font-size: 11px; font-weight: 800;
+  background: #fff; color: var(--tulsi-dark); font-size: 11px; font-weight: 800;
 }
 
 .filter-dropdown-panel {
