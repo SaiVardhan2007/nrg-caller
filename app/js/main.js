@@ -41,6 +41,7 @@ const PAGE_TITLES = {
   "one-to-one-user-section": "One to One with Prabhu",
   "core-cultivation-section": "Core Cultivation",
   "contact-collection-section": "Contact Collection",
+  "book-stock-entry-section": "Book Distribution",
 };
 
 let currentUser = null;
@@ -63,10 +64,11 @@ function showScreen(id) {
   if (id === "one-to-one-user-section") OneToOne.initUserOneToOne(currentUser);
   if (id === "core-cultivation-section") CoreCultivation.init(currentUser);
   if (id === "contact-collection-section") Collection.init(currentUser);
-  if (id === "book-dashboard-section") BookDistribution.initDashboard();
+  if (id === "book-dashboard-section") BookDistribution.initDashboard(currentUser);
   if (id === "book-places-section") BookDistribution.initPlaces(currentUser);
   if (id === "book-inward-section") BookDistribution.initInwardTable(currentUser);
   if (id === "book-outward-section") BookDistribution.initOutwardTable();
+  if (id === "book-stock-entry-section") BookDistribution.initStockEntry(currentUser);
 
   if (id !== "admin-new-contacts-section") Admin.stopNewContactsPolling();
 }

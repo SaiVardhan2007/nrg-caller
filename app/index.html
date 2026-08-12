@@ -128,6 +128,11 @@
         <span class="card-label">Contact Collection</span>
         <span class="card-arrow">→</span>
       </button>
+      <button class="dashboard-card" data-target="book-stock-entry-section">
+        <span class="card-icon-badge badge-saffron"><span class="card-emoji">📚</span></span>
+        <span class="card-label">Book Distribution</span>
+        <span class="card-arrow">→</span>
+      </button>
     </div>
   </div>
 
@@ -624,7 +629,12 @@
     <section id="book-dashboard-section" class="page hidden">
       <h3 class="section-title">Book-wise Stock Summary</h3>
       <p class="field-hint">Click any Total Inward / Total Sold to see every entry. Click an Avg Price to see the different prices paid/charged and where.</p>
+      <div class="stats-bar">
+        <div id="bd-stat-profit-card" class="stat"><span id="bd-stat-total-profit" class="stat-num">₹0</span><span class="stat-label">Total Realized Profit</span></div>
+      </div>
       <div class="panel-row">
+        <button id="add-book-dashboard-btn" class="btn btn-primary btn-sm">+ Add Book</button>
+        <button id="add-book-bulk-btn" class="btn btn-secondary btn-sm">⬆ Bulk Add (Excel)</button>
         <input id="bd-search" type="search" placeholder="Search book name…" class="search-input" />
         <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
           <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
@@ -668,10 +678,11 @@
               <th draggable="true" data-label="Total Sold">Total Sold</th>
               <th draggable="true" data-label="Avg Selling Price">Avg Selling Price</th>
               <th draggable="true" data-label="Total Sales Value">Total Sales Value</th>
+              <th draggable="true" data-label="Profit">Profit</th>
             </tr>
           </thead>
           <tbody id="book-dashboard-body">
-            <tr><td colspan="9" class="loading-row">Loading…</td></tr>
+            <tr><td colspan="10" class="loading-row">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -681,7 +692,7 @@
     <section id="book-inward-section" class="page hidden">
       <div class="panel-row">
         <button id="add-book-inward-admin-btn" class="btn btn-primary btn-sm">+ Add Inward Stock</button>
-        <input id="bi-search" type="search" placeholder="Search name / purchased from / added by…" class="search-input" />
+        <input id="bi-search" type="search" placeholder="Search name / purchased from…" class="search-input" />
         <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
           <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
           <select id="bi-sort" class="inline-edit" style="width:180px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
@@ -729,13 +740,7 @@
                   <option value="">—</option>
                 </select>
               </th>
-              <th draggable="true" data-label="Added By">
-                <div class="th-label">Added By</div>
-                <select id="bi-filter-by" class="th-filter">
-                  <option value="__ALL__">All</option>
-                  <option value="">—</option>
-                </select>
-              </th>
+              <th data-label=""></th>
             </tr>
           </thead>
           <tbody id="book-inward-body">
@@ -803,10 +808,11 @@
                   <option value="">—</option>
                 </select>
               </th>
+              <th data-label=""></th>
             </tr>
           </thead>
           <tbody id="book-outward-body">
-            <tr><td colspan="7" class="loading-row">Loading…</td></tr>
+            <tr><td colspan="8" class="loading-row">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -867,6 +873,38 @@
     <!-- ===== BOOK DISTRIBUTION: Analytics ===== -->
     <section id="book-analytics-section" class="page hidden">
       <p class="muted-text">Coming soon.</p>
+    </section>
+
+    <!-- ===== USER: Book Distribution stock entry ===== -->
+    <section id="book-stock-entry-section" class="page hidden">
+      <div class="panel">
+        <div class="panel-title-row">
+          <span>Add Stock</span>
+        </div>
+        <div class="panel-row">
+          <button id="add-book-inward-btn" class="btn btn-primary">+ Add Inward Stock</button>
+          <!-- Outward stock entry for users is paused for now — inward stock ships first. -->
+          <button id="add-book-outward-btn" class="btn btn-primary hidden">+ Add Outward Stock</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h3 class="section-title">Your Inward Stock Entries</h3>
+        <div class="table-wrap" id="my-inward-table-wrap">
+          <table class="data-table" id="my-inward-table">
+            <thead><tr><th data-label="Time">Time</th><th data-label="Name">Name</th><th data-label="Language">Language</th><th data-label="Purchase Price">Purchase Price</th><th data-label="Quantity">Quantity</th><th data-label="Purchased From">Purchased From</th></tr></thead>
+            <tbody id="my-inward-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <h3 class="section-title">Your Outward Stock Entries</h3>
+        <div class="table-wrap" id="my-outward-table-wrap">
+          <table class="data-table" id="my-outward-table">
+            <thead><tr><th data-label="Time">Time</th><th data-label="Name">Name</th><th data-label="Language">Language</th><th data-label="Sold Price">Sold Price</th><th data-label="Quantity">Quantity</th><th data-label="Sold Area">Sold Area</th></tr></thead>
+            <tbody id="my-outward-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
     <!-- ===== USER: Contact Collection ===== -->
@@ -1335,16 +1373,11 @@
         <select id="bulk-delete-book-inward-scope">
           <option value="all">All Inward Stock Records</option>
           <option value="name">By Book Name</option>
-          <option value="added_by">By Added By</option>
         </select>
       </label>
       <label class="field bulk-delete-sub" data-scope="name">
         <span>Book Name</span>
         <select id="bulk-delete-book-inward-name"></select>
-      </label>
-      <label class="field bulk-delete-sub" data-scope="added_by">
-        <span>Added By</span>
-        <select id="bulk-delete-book-inward-added-by"></select>
       </label>
     </div>
 
@@ -1528,16 +1561,66 @@
 
 <div id="book-inward-modal" class="modal">
   <div class="modal-box">
-    <h3>Add Inward Stock</h3>
+    <h3 id="book-inward-modal-title">Add Inward Stock</h3>
     <label class="field"><span>Name</span><input id="book-inward-name" type="text" placeholder="Book title" /></label>
     <label class="field"><span>Language</span><input id="book-inward-language" type="text" /></label>
     <label class="field"><span>Purchase Price</span><input id="book-inward-price" type="number" min="0" step="0.01" /></label>
     <label class="field"><span>Quantity</span><input id="book-inward-quantity" type="number" min="0" step="1" /></label>
-    <label class="field"><span>Purchased From</span><input id="book-inward-from" type="text" /></label>
+    <label class="field"><span>Purchased From</span><input id="book-inward-from" type="text" list="book-purchased-from-list" /></label>
     <div id="book-inward-error" class="field-error hidden"></div>
     <div class="modal-actions">
       <button id="book-inward-cancel-btn" class="btn btn-secondary">Cancel</button>
       <button id="book-inward-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<datalist id="book-places-list"></datalist>
+
+<div id="book-bulk-import-modal" class="modal">
+  <div class="modal-box">
+    <h3>Bulk Add Books (Excel)</h3>
+    <p class="field-hint">Upload an .xlsx/.csv file with columns: Name (required), Language, Purchase Price, Quantity, Purchased From.</p>
+    <button id="book-bulk-import-template-btn" type="button" class="btn btn-secondary btn-sm">⬇ Download Template</button>
+    <label class="field"><span>File</span><input id="book-bulk-import-file" type="file" accept=".xlsx,.xls,.csv" /></label>
+    <div id="book-bulk-import-preview" class="field-hint"></div>
+    <div id="book-bulk-import-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="book-bulk-import-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="book-bulk-import-save-btn" class="btn btn-primary" disabled>Import</button>
+    </div>
+  </div>
+</div>
+
+<datalist id="book-purchased-from-list"></datalist>
+
+<div id="book-inward-user-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add Inward Stock</h3>
+    <p class="field-hint">Add one book, click "Add Book", then keep adding more — Purchased From stays filled in for you.</p>
+    <label class="field"><span>Name</span><input id="book-inward-user-name" type="text" placeholder="Book title" /></label>
+    <label class="field"><span>Language</span><input id="book-inward-user-language" type="text" /></label>
+    <label class="field"><span>Quantity</span><input id="book-inward-user-quantity" type="number" min="1" step="1" /></label>
+    <label class="field"><span>Purchased From</span><input id="book-inward-user-from" type="text" list="book-purchased-from-list" /></label>
+    <div id="book-inward-user-error" class="field-error hidden"></div>
+    <div id="book-inward-user-added-list" class="field-hint"></div>
+    <div class="modal-actions">
+      <button id="book-inward-user-cancel-btn" class="btn btn-secondary">Done</button>
+      <button id="book-inward-user-save-btn" class="btn btn-primary">+ Add Book</button>
+    </div>
+  </div>
+</div>
+
+<div id="book-outward-modal" class="modal">
+  <div class="modal-box modal-large">
+    <h3>Add Outward Stock</h3>
+    <label class="field"><span>Area</span><select id="book-outward-area-select"></select></label>
+    <div id="book-outward-rows" class="stock-rows"></div>
+    <button id="book-outward-add-row-btn" type="button" class="btn btn-secondary btn-sm">+ Add Another Book</button>
+    <div id="book-outward-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="book-outward-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="book-outward-save-btn" class="btn btn-primary">Save</button>
     </div>
   </div>
 </div>

@@ -3882,11 +3882,10 @@ async function populateBulkDeleteDropdowns() {
   `).join("") || `<p class="muted-text">No events found.</p>`;
 
   const [{ data: inwardRows }, { data: outwardRows }] = await Promise.all([
-    supabase.from("book_inward_stock").select("name,added_by"),
+    supabase.from("book_inward_stock").select("name"),
     supabase.from("book_outward_stock").select("name,sold_area,sold_by"),
   ]);
   document.getElementById("bulk-delete-book-inward-name").innerHTML = distinctSelectOptions(inwardRows, "name");
-  document.getElementById("bulk-delete-book-inward-added-by").innerHTML = distinctSelectOptions(inwardRows, "added_by");
   document.getElementById("bulk-delete-book-outward-name").innerHTML = distinctSelectOptions(outwardRows, "name");
   document.getElementById("bulk-delete-book-outward-area").innerHTML = distinctSelectOptions(outwardRows, "sold_area");
   document.getElementById("bulk-delete-book-outward-sold-by").innerHTML = distinctSelectOptions(outwardRows, "sold_by");
@@ -3992,11 +3991,6 @@ function getBulkDeleteConfig() {
       if (!val) return { error: "Please select a book name." };
       return { table: "book_inward_stock", apply: (q) => q.eq("name", val), label: `Inward Stock for "${val}"` };
     }
-    if (scope === "added_by") {
-      const val = document.getElementById("bulk-delete-book-inward-added-by").value;
-      if (!val) return { error: "Please select who added it." };
-      return { table: "book_inward_stock", apply: (q) => q.eq("added_by", val), label: `Inward Stock added by "${val}"` };
-    }
     return { table: "book_inward_stock", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL Inward Stock records" };
   }
 
@@ -4078,7 +4072,7 @@ function wireBulkDeleteModal() {
   [
     "bulk-delete-contacts-purpose", "bulk-delete-contacts-admin-tag", "bulk-delete-contacts-tag-to-users",
     "bulk-delete-attendance-event", "bulk-delete-calls-event", "bulk-delete-calls-caller", "bulk-delete-assignments-event",
-    "bulk-delete-book-inward-name", "bulk-delete-book-inward-added-by",
+    "bulk-delete-book-inward-name",
     "bulk-delete-book-outward-name", "bulk-delete-book-outward-area", "bulk-delete-book-outward-sold-by",
   ].forEach((id) => {
     document.getElementById(id).addEventListener("change", refreshBulkDeletePreview);

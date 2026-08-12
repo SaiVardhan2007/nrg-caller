@@ -384,11 +384,9 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   z-index: 10;
   background: var(--tulsi-dark); color: #fff; text-align: left;
   padding: 8px 10px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 700;
+  white-space: nowrap;
 }
-/* Users & Assignment headers stay on one line — the table is narrow enough
-   that wrapping just makes the header row taller for no benefit. */
-#users-table th { white-space: nowrap; }
-.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--sandstone); font-size: 13px; }
+.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--sandstone); font-size: 13px; white-space: nowrap; }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tbody tr { transition: background 0.12s ease; }
 .data-table tbody tr:hover { background: rgba(5,150,105,0.04); }
@@ -575,6 +573,79 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #contacts-table th[data-label="Calling Purpose"], #contacts-table td[data-label="Calling Purpose"] select { min-width: 100px !important; width: 100px !important; }
 #contacts-table th[data-label="GFY Status"], #contacts-table td[data-label="GFY Status"] select { min-width: 105px !important; width: 105px !important; }
 
+/* Book Distribution tables: also drag-reorderable, so widths are keyed by
+   data-label like Master Contact above. Layout stays the browser default
+   (auto, same as every other .data-table) so a column can still grow past
+   its specified width when nowrap content (a long "Purchased From"/
+   "Description" value, say) needs more room — fixed layout would instead
+   let that text visually bleed into the next column since it doesn't
+   reserve extra space for overflow. The table itself keeps the generic
+   .data-table width:100%, so it fills its container and stretches leftover
+   space across columns like Master Contact does, instead of shrinking to a
+   cramped block with empty space beside it. Every column still gets an
+   explicit width — including Name/Description, which would otherwise
+   silently inherit whatever generic .data-table th:nth-child(N) rule
+   (tuned for Master Contact's column order) happens to land on that
+   position, e.g. capping it at the 32px S.No width. th-filter selects/
+   number-inputs are already width:100% of their th, so narrowing a
+   column's width narrows its filter control with it — no separate rule
+   needed for those. */
+/* Note on the overrides below: the generic .data-table th:nth-child(N)
+   rules a few lines up (tuned for Master Contact's 13 columns) also leak
+   min-width, text-align, and padding onto whichever column happens to sit
+   at the same position in these tables — not just width/max-width. Where
+   that leak would otherwise win (a min-width bigger than our target width,
+   or an unwanted centered/cramped cell), the property is neutralized
+   explicitly below even though it looks redundant. */
+#book-dashboard-table th[data-label="Name"], #book-dashboard-table td[data-label="Name"] { width: 190px !important; max-width: 190px !important; text-align: left !important; }
+#book-dashboard-table th[data-label="Language"], #book-dashboard-table td[data-label="Language"] { width: 90px !important; max-width: 90px !important; }
+#book-dashboard-table th[data-label="Total Inward"], #book-dashboard-table td[data-label="Total Inward"] { width: 105px !important; max-width: 105px !important; text-align: center; }
+#book-dashboard-table th[data-label="Avg Purchase Price"], #book-dashboard-table td[data-label="Avg Purchase Price"] { width: 150px !important; max-width: 150px !important; text-align: center; }
+#book-dashboard-table th[data-label="Current Stock"], #book-dashboard-table td[data-label="Current Stock"] { width: 110px !important; max-width: 110px !important; text-align: center; }
+#book-dashboard-table th[data-label="Current Stock Value"], #book-dashboard-table td[data-label="Current Stock Value"] { width: 155px !important; max-width: 155px !important; text-align: center; padding: 8px 10px !important; }
+#book-dashboard-table th[data-label="Total Sold"], #book-dashboard-table td[data-label="Total Sold"] { width: 100px !important; max-width: 100px !important; text-align: center; padding: 8px 10px !important; }
+#book-dashboard-table th[data-label="Avg Selling Price"], #book-dashboard-table td[data-label="Avg Selling Price"] { width: 145px !important; max-width: 145px !important; text-align: center; }
+#book-dashboard-table th[data-label="Total Sales Value"], #book-dashboard-table td[data-label="Total Sales Value"] { width: 145px !important; max-width: 145px !important; text-align: center; }
+#book-dashboard-table th[data-label="Profit"], #book-dashboard-table td[data-label="Profit"] { width: 120px !important; max-width: 120px !important; text-align: center; }
+
+#book-inward-table th[data-label="Time"], #book-inward-table td[data-label="Time"] { width: 130px !important; max-width: 130px !important; line-height: 1.2; text-align: left !important; }
+#book-inward-table th[data-label="Name"], #book-inward-table td[data-label="Name"] { width: 150px !important; max-width: 150px !important; }
+#book-inward-table th[data-label="Language"], #book-inward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
+#book-inward-table th[data-label="Purchase Price"], #book-inward-table td[data-label="Purchase Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
+#book-inward-table th[data-label="Quantity"], #book-inward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
+#book-inward-table th[data-label="Purchased From"], #book-inward-table td[data-label="Purchased From"] { width: 130px !important; max-width: 130px !important; padding: 8px 10px !important; }
+#book-inward-table th[data-label=""], #book-inward-table td[data-label=""] { width: 80px !important; max-width: 80px !important; min-width: 80px !important; text-align: center; padding: 4px 2px !important; }
+
+#book-outward-table th[data-label="Time"], #book-outward-table td[data-label="Time"] { width: 130px !important; max-width: 130px !important; line-height: 1.2; text-align: left !important; }
+#book-outward-table th[data-label="Name"], #book-outward-table td[data-label="Name"] { width: 150px !important; max-width: 150px !important; }
+#book-outward-table th[data-label="Language"], #book-outward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
+#book-outward-table th[data-label="Sold Price"], #book-outward-table td[data-label="Sold Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
+#book-outward-table th[data-label="Quantity"], #book-outward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
+#book-outward-table th[data-label="Sold Area"], #book-outward-table td[data-label="Sold Area"] { width: 110px !important; max-width: 110px !important; padding: 8px 10px !important; }
+#book-outward-table th[data-label="Sold By"], #book-outward-table td[data-label="Sold By"] { width: 110px !important; max-width: 110px !important; padding: 8px 10px !important; }
+#book-outward-table th[data-label=""], #book-outward-table td[data-label=""] { width: 80px !important; max-width: 80px !important; min-width: 80px !important; text-align: center; padding: 4px 2px !important; }
+
+#book-places-table th[data-label="Name"], #book-places-table td[data-label="Name"] { width: 160px !important; max-width: 160px !important; text-align: left !important; }
+#book-places-table th[data-label="Description"], #book-places-table td[data-label="Description"] { width: 260px !important; max-width: 260px !important; }
+#book-places-table th[data-label="Map Link"], #book-places-table td[data-label="Map Link"] { width: 100px !important; max-width: 100px !important; text-align: center; }
+#book-places-table th[data-label=""], #book-places-table td[data-label=""] { width: 170px !important; max-width: 170px !important; min-width: 170px !important; }
+
+/* User-facing "Your Inward/Outward Stock Entries" tables — same column set
+   as the admin inward/outward tables above minus filters, so same widths. */
+#my-inward-table th[data-label="Time"], #my-inward-table td[data-label="Time"] { width: 130px !important; max-width: 130px !important; line-height: 1.2; text-align: left !important; }
+#my-inward-table th[data-label="Name"], #my-inward-table td[data-label="Name"] { width: 150px !important; max-width: 150px !important; }
+#my-inward-table th[data-label="Language"], #my-inward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
+#my-inward-table th[data-label="Purchase Price"], #my-inward-table td[data-label="Purchase Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
+#my-inward-table th[data-label="Quantity"], #my-inward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
+#my-inward-table th[data-label="Purchased From"], #my-inward-table td[data-label="Purchased From"] { width: 130px !important; max-width: 130px !important; padding: 8px 10px !important; }
+
+#my-outward-table th[data-label="Time"], #my-outward-table td[data-label="Time"] { width: 130px !important; max-width: 130px !important; line-height: 1.2; text-align: left !important; }
+#my-outward-table th[data-label="Name"], #my-outward-table td[data-label="Name"] { width: 150px !important; max-width: 150px !important; }
+#my-outward-table th[data-label="Language"], #my-outward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
+#my-outward-table th[data-label="Sold Price"], #my-outward-table td[data-label="Sold Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
+#my-outward-table th[data-label="Quantity"], #my-outward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
+#my-outward-table th[data-label="Sold Area"], #my-outward-table td[data-label="Sold Area"] { width: 110px !important; max-width: 110px !important; padding: 8px 10px !important; }
+
 /* Any table wired via initColumnDragReorder() gets these column-drag cues. */
 .data-table th.col-draggable { cursor: grab; user-select: none; }
 .data-table th.dragging-col { opacity: 0.4; }
@@ -742,6 +813,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   width: 95%;
 }
 
+.stock-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.stock-row { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
+.stock-row .field { margin-bottom: 0; flex: 1 1 100px; }
+.stock-row .field.stock-cell-title { flex: 2 1 160px; }
+.stock-row-remove { flex: 0 0 auto; padding: 12px 14px; }
+@media (max-width: 560px) {
+  .stock-row .field { flex: 1 1 45%; }
+  .stock-row .field.stock-cell-title { flex: 1 1 100%; }
+}
 .modal-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 #contact-info-search { margin: 12px 0; }
 .zoom-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
