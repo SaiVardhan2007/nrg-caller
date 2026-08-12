@@ -171,6 +171,43 @@ alter table contact_collection add column if not exists admin_tag_to_users text;
 alter table contact_collection add column if not exists core_cultivation   text;
 alter table contact_collection add column if not exists source          text;
 
+-- No sheet: Book Distribution > Distribution Places. Admin-managed list of
+-- places books get distributed at (a market, a college gate, a station…).
+create table if not exists book_places (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  description text,
+  map_link    text,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+-- No sheet: Book Distribution > Inward Stock. Users log books coming in.
+create table if not exists book_inward_stock (
+  id             uuid primary key default gen_random_uuid(),
+  name           text not null,
+  language       text,
+  purchase_price numeric,
+  quantity       integer,
+  purchased_from text,
+  added_by       text,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+-- No sheet: Book Distribution > Outward Stock. Users log books sold/given out.
+create table if not exists book_outward_stock (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  language    text,
+  sold_price  numeric,
+  quantity    integer,
+  sold_area   text,
+  sold_by     text,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
 -- ============ TRIGGERS ============
 
 -- keep updated_at fresh
@@ -183,6 +220,18 @@ create trigger trg_users_touch before update on users
 
 drop trigger if exists trg_contacts_touch on contacts;
 create trigger trg_contacts_touch before update on contacts
+  for each row execute function touch_updated_at();
+
+drop trigger if exists trg_book_places_touch on book_places;
+create trigger trg_book_places_touch before update on book_places
+  for each row execute function touch_updated_at();
+
+drop trigger if exists trg_book_inward_stock_touch on book_inward_stock;
+create trigger trg_book_inward_stock_touch before update on book_inward_stock
+  for each row execute function touch_updated_at();
+
+drop trigger if exists trg_book_outward_stock_touch on book_outward_stock;
+create trigger trg_book_outward_stock_touch before update on book_outward_stock
   for each row execute function touch_updated_at();
 
 -- attendance insert -> contacts.sessions_count + 1 (the "No of Sessions" column)
@@ -259,12 +308,16 @@ alter table events             enable row level security;
 alter table settings           enable row level security;
 alter table help_requests      enable row level security;
 alter table one_to_one_remarks enable row level security;
+alter table book_places        enable row level security;
+alter table book_inward_stock  enable row level security;
+alter table book_outward_stock enable row level security;
 
 do $$ declare t text;
 begin
   foreach t in array array['users','contacts','assignments','assignment_rounds','call_responses',
                            'session_attendance','contact_collection','events','settings',
-                           'help_requests','one_to_one_remarks'] loop
+                           'help_requests','one_to_one_remarks','book_places',
+                           'book_inward_stock','book_outward_stock'] loop
     execute format('drop policy if exists app_all on %I', t);
     execute format('create policy app_all on %I for all to anon, authenticated using (true) with check (true)', t);
   end loop;
@@ -313,3 +366,35 @@ insert into users (s_no, user_name, login_pw, role, auto_assign) values
   (14, 'Srinivas',    '9063384390', 'Coordinator', false),
   (15, 'Tej Vardhan', '9110737842', 'Coordinator', true)
 on conflict (user_name) do nothing;
+
+-- Book Distribution sample data — only seeds an empty table, so re-running
+-- this file is safe and won't duplicate rows once real data exists.
+do $$
+begin
+  if not exists (select 1 from book_places) then
+    insert into book_places (name, description, map_link) values
+      ('ISKCON Temple Main Gate',        'Sunday feast crowd, high footfall', null),
+      ('Ameerpet Metro Station',         'Evening commuter rush',             null),
+      ('Osmania University Campus',      'Student hostel area',               null),
+      ('Secunderabad Railway Station',   'Platform 1 entrance',               null),
+      ('Kukatpally Housing Board Colony','Residential door-to-door',          null);
+  end if;
+
+  if not exists (select 1 from book_inward_stock) then
+    insert into book_inward_stock (name, language, purchase_price, quantity, purchased_from, added_by) values
+      ('Bhagavad Gita As It Is',      'English', 120, 50, 'BBT Hyderabad', 'Abhinay'),
+      ('Bhagavad Gita As It Is',      'Telugu',  100, 30, 'BBT Hyderabad', 'Abhinay'),
+      ('Sri Isopanisad',              'English', 60,  40, 'BBT Hyderabad', 'Sai Vardhan'),
+      ('Krishna Book',                'Hindi',   150, 20, 'BBT Hyderabad', 'Abhinay'),
+      ('Science of Self Realization', 'English', 90,  25, 'BBT Hyderabad', 'Aryan');
+  end if;
+
+  if not exists (select 1 from book_outward_stock) then
+    insert into book_outward_stock (name, language, sold_price, quantity, sold_area, sold_by) values
+      ('Bhagavad Gita As It Is',      'English', 150, 10, 'Ameerpet Metro Station',          'Sai Vardhan'),
+      ('Bhagavad Gita As It Is',      'Telugu',  130, 5,  'Osmania University Campus',       'Aryan'),
+      ('Sri Isopanisad',              'English', 80,  8,  'Secunderabad Railway Station',    'Deepak'),
+      ('Krishna Book',                'Hindi',   180, 4,  'Kukatpally Housing Board Colony', 'Ashwith'),
+      ('Science of Self Realization', 'English', 110, 6,  'ISKCON Temple Main Gate',         'Snehith');
+  end if;
+end $$;

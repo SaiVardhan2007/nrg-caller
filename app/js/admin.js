@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect } from "./utils.js";
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
@@ -993,16 +993,6 @@ const NUMBER_FILTER_FIELDS = [
   ["contacts-filter-calls", "calls_count"],
 ];
 
-// rebuilds a header filter's option list from live data while keeping
-// whatever the admin currently has selected (falls back to "All" if that
-// value no longer exists, e.g. an event got deleted).
-function populateFilterSelect(select, values, blankLabel = "—") {
-  if (!select) return;
-  const current = select.value;
-  select.innerHTML = `<option value="__ALL__">All</option><option value="">${blankLabel}</option>` +
-    values.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
-  select.value = [...select.options].some((o) => o.value === current) ? current : "__ALL__";
-}
 
 async function renderContactsTable(searchTerm = "") {
   // Any change of search/sort/filter rebuilds the visible set, so a selection
@@ -3890,6 +3880,22 @@ async function populateBulkDeleteDropdowns() {
   document.getElementById("bulk-delete-events-checklist").innerHTML = eventsCache.map((e) => `
     <label class="tag-check"><input type="checkbox" class="bulk-delete-event-check" value="${e.code}" /> ${escapeHtml(e.name)} (${e.code})</label>
   `).join("") || `<p class="muted-text">No events found.</p>`;
+
+  const [{ data: inwardRows }, { data: outwardRows }] = await Promise.all([
+    supabase.from("book_inward_stock").select("name,added_by"),
+    supabase.from("book_outward_stock").select("name,sold_area,sold_by"),
+  ]);
+  document.getElementById("bulk-delete-book-inward-name").innerHTML = distinctSelectOptions(inwardRows, "name");
+  document.getElementById("bulk-delete-book-inward-added-by").innerHTML = distinctSelectOptions(inwardRows, "added_by");
+  document.getElementById("bulk-delete-book-outward-name").innerHTML = distinctSelectOptions(outwardRows, "name");
+  document.getElementById("bulk-delete-book-outward-area").innerHTML = distinctSelectOptions(outwardRows, "sold_area");
+  document.getElementById("bulk-delete-book-outward-sold-by").innerHTML = distinctSelectOptions(outwardRows, "sold_by");
+}
+
+// "— select —" + one option per distinct non-empty value of `field` across `rows`.
+function distinctSelectOptions(rows, field) {
+  const values = Array.from(new Set((rows || []).map((r) => r[field]).filter(Boolean))).sort();
+  return `<option value="">— select —</option>` + values.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
 }
 
 function showBulkDeleteFilter(type) {
@@ -3975,6 +3981,45 @@ function getBulkDeleteConfig() {
     return { table: "events", apply: (q) => q.in("code", codes), label: `Event(s): ${codes.join(", ")}` };
   }
 
+  if (type === "book_places") {
+    return { table: "book_places", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL Distribution Places" };
+  }
+
+  if (type === "book_inward") {
+    const scope = document.getElementById("bulk-delete-book-inward-scope").value;
+    if (scope === "name") {
+      const val = document.getElementById("bulk-delete-book-inward-name").value;
+      if (!val) return { error: "Please select a book name." };
+      return { table: "book_inward_stock", apply: (q) => q.eq("name", val), label: `Inward Stock for "${val}"` };
+    }
+    if (scope === "added_by") {
+      const val = document.getElementById("bulk-delete-book-inward-added-by").value;
+      if (!val) return { error: "Please select who added it." };
+      return { table: "book_inward_stock", apply: (q) => q.eq("added_by", val), label: `Inward Stock added by "${val}"` };
+    }
+    return { table: "book_inward_stock", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL Inward Stock records" };
+  }
+
+  if (type === "book_outward") {
+    const scope = document.getElementById("bulk-delete-book-outward-scope").value;
+    if (scope === "name") {
+      const val = document.getElementById("bulk-delete-book-outward-name").value;
+      if (!val) return { error: "Please select a book name." };
+      return { table: "book_outward_stock", apply: (q) => q.eq("name", val), label: `Outward Stock for "${val}"` };
+    }
+    if (scope === "area") {
+      const val = document.getElementById("bulk-delete-book-outward-area").value;
+      if (!val) return { error: "Please select a sold area." };
+      return { table: "book_outward_stock", apply: (q) => q.eq("sold_area", val), label: `Outward Stock sold at "${val}"` };
+    }
+    if (scope === "sold_by") {
+      const val = document.getElementById("bulk-delete-book-outward-sold-by").value;
+      if (!val) return { error: "Please select who sold it." };
+      return { table: "book_outward_stock", apply: (q) => q.eq("sold_by", val), label: `Outward Stock sold by "${val}"` };
+    }
+    return { table: "book_outward_stock", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL Outward Stock records" };
+  }
+
   return { error: "Unknown data type." };
 }
 
@@ -4019,6 +4064,8 @@ function wireBulkDeleteModal() {
     ["bulk-delete-attendance-scope", "bulk-delete-filter-session_attendance"],
     ["bulk-delete-calls-scope", "bulk-delete-filter-call_responses"],
     ["bulk-delete-assignments-scope", "bulk-delete-filter-assignments"],
+    ["bulk-delete-book-inward-scope", "bulk-delete-filter-book_inward"],
+    ["bulk-delete-book-outward-scope", "bulk-delete-filter-book_outward"],
   ].forEach(([scopeId, containerId]) => {
     const scopeSelect = document.getElementById(scopeId);
     const container = document.getElementById(containerId);
@@ -4031,6 +4078,8 @@ function wireBulkDeleteModal() {
   [
     "bulk-delete-contacts-purpose", "bulk-delete-contacts-admin-tag", "bulk-delete-contacts-tag-to-users",
     "bulk-delete-attendance-event", "bulk-delete-calls-event", "bulk-delete-calls-caller", "bulk-delete-assignments-event",
+    "bulk-delete-book-inward-name", "bulk-delete-book-inward-added-by",
+    "bulk-delete-book-outward-name", "bulk-delete-book-outward-area", "bulk-delete-book-outward-sold-by",
   ].forEach((id) => {
     document.getElementById(id).addEventListener("change", refreshBulkDeletePreview);
   });
@@ -4157,6 +4206,13 @@ async function executeBulkDelete(cfg) {
   if (cfg.table === "events") {
     await loadEvents();
     if (!document.getElementById("admin-users-section").classList.contains("hidden")) initUsers();
+  }
+  if (cfg.table === "book_places" || cfg.table === "book_inward_stock" || cfg.table === "book_outward_stock") {
+    const BookDistribution = await import("./bookDistribution.js");
+    if (cfg.table === "book_places" && !document.getElementById("book-places-section").classList.contains("hidden")) BookDistribution.initPlaces();
+    if (cfg.table === "book_inward_stock" && !document.getElementById("book-inward-section").classList.contains("hidden")) BookDistribution.initInwardTable(bulkDeleteUser);
+    if (cfg.table === "book_outward_stock" && !document.getElementById("book-outward-section").classList.contains("hidden")) BookDistribution.initOutwardTable();
+    if (!document.getElementById("book-dashboard-section").classList.contains("hidden")) BookDistribution.initDashboard();
   }
   return true;
 }

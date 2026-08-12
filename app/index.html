@@ -74,6 +74,31 @@
     </span>
   </nav>
 
+  <!-- ---- Book Distribution tabs ---- -->
+  <nav id="book-tabs" class="admin-tabs hidden">
+    <button class="admin-tab active" data-target="book-dashboard-section">Dashboard</button>
+    <button class="admin-tab" data-target="book-inward-section">Inward Stock</button>
+    <button class="admin-tab" data-target="book-outward-section">Outward Stock</button>
+    <button class="admin-tab" data-target="book-places-section">Distribution Places</button>
+    <button class="admin-tab" data-target="book-analytics-section">Analytics</button>
+  </nav>
+
+  <!-- ---- Admin module chooser ---- -->
+  <div id="admin-module-dashboard" class="dashboard hidden">
+    <div class="dashboard-cards">
+      <button class="dashboard-card" data-target="preaching">
+        <span class="card-icon-badge badge-tulsi"><span class="card-emoji">📖</span></span>
+        <span class="card-label">Preaching</span>
+        <span class="card-arrow">→</span>
+      </button>
+      <button class="dashboard-card" data-target="book-distribution">
+        <span class="card-icon-badge badge-saffron"><span class="card-emoji">📚</span></span>
+        <span class="card-label">Book Distribution</span>
+        <span class="card-arrow">→</span>
+      </button>
+    </div>
+  </div>
+
   <!-- ---- User dashboard ---- -->
   <div id="dashboard" class="dashboard hidden">
     <div class="dashboard-cards">
@@ -595,6 +620,255 @@
       </div>
     </section>
 
+    <!-- ===== BOOK DISTRIBUTION: Dashboard ===== -->
+    <section id="book-dashboard-section" class="page hidden">
+      <h3 class="section-title">Book-wise Stock Summary</h3>
+      <p class="field-hint">Click any Total Inward / Total Sold to see every entry. Click an Avg Price to see the different prices paid/charged and where.</p>
+      <div class="panel-row">
+        <input id="bd-search" type="search" placeholder="Search book name…" class="search-input" />
+        <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
+          <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
+          <select id="bd-sort" class="inline-edit" style="width:190px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
+            <option value="name-asc">Name (A-Z)</option>
+            <option value="name-desc">Name (Z-A)</option>
+            <option value="totalInwardQty-desc">Total Inward (High-Low)</option>
+            <option value="totalSoldQty-desc">Total Sold (High-Low)</option>
+            <option value="currentStock-asc">Current Stock (Low-High)</option>
+            <option value="currentStock-desc">Current Stock (High-Low)</option>
+            <option value="currentStockValue-desc">Current Stock Value (High-Low)</option>
+            <option value="totalSalesValue-desc">Total Sales Value (High-Low)</option>
+            <option value="profit-desc">Realized Profit (High-Low)</option>
+          </select>
+        </label>
+        <button id="bd-reset-columns-btn" class="btn btn-secondary" title="Restore the default column order">↺ Reset Columns</button>
+        <span class="hscroll-controls">
+          <button id="bd-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+          <button id="bd-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+        </span>
+      </div>
+      <div class="table-wrap" id="book-dashboard-table-wrap">
+        <table class="data-table" id="book-dashboard-table">
+          <thead>
+            <tr>
+              <th draggable="true" data-label="Name">Name</th>
+              <th draggable="true" data-label="Language">
+                <div class="th-label">Language</div>
+                <select id="bd-filter-language" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                </select>
+              </th>
+              <th draggable="true" data-label="Total Inward">Total Inward</th>
+              <th draggable="true" data-label="Avg Purchase Price">Avg Purchase Price</th>
+              <th draggable="true" data-label="Current Stock">
+                <div class="th-label">Current Stock</div>
+                <input type="number" id="bd-filter-current-stock" class="th-filter" placeholder="All" />
+              </th>
+              <th draggable="true" data-label="Current Stock Value">Current Stock Value</th>
+              <th draggable="true" data-label="Total Sold">Total Sold</th>
+              <th draggable="true" data-label="Avg Selling Price">Avg Selling Price</th>
+              <th draggable="true" data-label="Total Sales Value">Total Sales Value</th>
+            </tr>
+          </thead>
+          <tbody id="book-dashboard-body">
+            <tr><td colspan="9" class="loading-row">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== BOOK DISTRIBUTION: Inward Stock ===== -->
+    <section id="book-inward-section" class="page hidden">
+      <div class="panel-row">
+        <button id="add-book-inward-admin-btn" class="btn btn-primary btn-sm">+ Add Inward Stock</button>
+        <input id="bi-search" type="search" placeholder="Search name / purchased from / added by…" class="search-input" />
+        <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
+          <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
+          <select id="bi-sort" class="inline-edit" style="width:180px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
+            <option value="created_at-desc">Time (Newest)</option>
+            <option value="created_at-asc">Time (Oldest)</option>
+            <option value="name-asc">Name (A-Z)</option>
+            <option value="name-desc">Name (Z-A)</option>
+            <option value="purchase_price-desc">Purchase Price (High-Low)</option>
+            <option value="purchase_price-asc">Purchase Price (Low-High)</option>
+            <option value="quantity-desc">Quantity (High-Low)</option>
+            <option value="quantity-asc">Quantity (Low-High)</option>
+          </select>
+        </label>
+        <button id="bi-reset-columns-btn" class="btn btn-secondary" title="Restore the default column order">↺ Reset Columns</button>
+        <span class="hscroll-controls">
+          <button id="bi-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+          <button id="bi-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+        </span>
+      </div>
+      <div class="table-wrap" id="book-inward-table-wrap">
+        <table class="data-table" id="book-inward-table">
+          <thead>
+            <tr>
+              <th draggable="true" data-label="Time">Time</th>
+              <th draggable="true" data-label="Name">Name</th>
+              <th draggable="true" data-label="Language">
+                <div class="th-label">Language</div>
+                <select id="bi-filter-language" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                </select>
+              </th>
+              <th draggable="true" data-label="Purchase Price">
+                <div class="th-label">Purchase Price</div>
+                <input type="number" id="bi-filter-price" class="th-filter" placeholder="All" />
+              </th>
+              <th draggable="true" data-label="Quantity">
+                <div class="th-label">Quantity</div>
+                <input type="number" min="0" id="bi-filter-qty" class="th-filter" placeholder="All" />
+              </th>
+              <th draggable="true" data-label="Purchased From">
+                <div class="th-label">Purchased From</div>
+                <select id="bi-filter-from" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                </select>
+              </th>
+              <th draggable="true" data-label="Added By">
+                <div class="th-label">Added By</div>
+                <select id="bi-filter-by" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                </select>
+              </th>
+            </tr>
+          </thead>
+          <tbody id="book-inward-body">
+            <tr><td colspan="7" class="loading-row">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== BOOK DISTRIBUTION: Outward Stock ===== -->
+    <section id="book-outward-section" class="page hidden">
+      <div class="panel-row">
+        <input id="bo-search" type="search" placeholder="Search name / sold area / sold by…" class="search-input" />
+        <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
+          <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
+          <select id="bo-sort" class="inline-edit" style="width:180px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
+            <option value="created_at-desc">Time (Newest)</option>
+            <option value="created_at-asc">Time (Oldest)</option>
+            <option value="name-asc">Name (A-Z)</option>
+            <option value="name-desc">Name (Z-A)</option>
+            <option value="sold_price-desc">Sold Price (High-Low)</option>
+            <option value="sold_price-asc">Sold Price (Low-High)</option>
+            <option value="quantity-desc">Quantity (High-Low)</option>
+            <option value="quantity-asc">Quantity (Low-High)</option>
+          </select>
+        </label>
+        <button id="bo-reset-columns-btn" class="btn btn-secondary" title="Restore the default column order">↺ Reset Columns</button>
+        <span class="hscroll-controls">
+          <button id="bo-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+          <button id="bo-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+        </span>
+      </div>
+      <div class="table-wrap" id="book-outward-table-wrap">
+        <table class="data-table" id="book-outward-table">
+          <thead>
+            <tr>
+              <th draggable="true" data-label="Time">Time</th>
+              <th draggable="true" data-label="Name">Name</th>
+              <th draggable="true" data-label="Language">
+                <div class="th-label">Language</div>
+                <select id="bo-filter-language" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                </select>
+              </th>
+              <th draggable="true" data-label="Sold Price">
+                <div class="th-label">Sold Price</div>
+                <input type="number" id="bo-filter-price" class="th-filter" placeholder="All" />
+              </th>
+              <th draggable="true" data-label="Quantity">
+                <div class="th-label">Quantity</div>
+                <input type="number" min="0" id="bo-filter-qty" class="th-filter" placeholder="All" />
+              </th>
+              <th draggable="true" data-label="Sold Area">
+                <div class="th-label">Sold Area</div>
+                <select id="bo-filter-area" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                </select>
+              </th>
+              <th draggable="true" data-label="Sold By">
+                <div class="th-label">Sold By</div>
+                <select id="bo-filter-by" class="th-filter">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                </select>
+              </th>
+            </tr>
+          </thead>
+          <tbody id="book-outward-body">
+            <tr><td colspan="7" class="loading-row">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== BOOK DISTRIBUTION: Distribution Places ===== -->
+    <section id="book-places-section" class="page hidden">
+      <div class="panel">
+        <div class="panel-title-row">
+          <span>Distribution Places</span>
+          <button id="add-book-place-btn" class="btn btn-secondary btn-sm">+ Add Place</button>
+        </div>
+        <div class="panel-row">
+          <input id="bp-search" type="search" placeholder="Search name / description…" class="search-input" />
+          <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
+            <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
+            <select id="bp-sort" class="inline-edit" style="width:150px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+            </select>
+          </label>
+          <button id="bp-reset-columns-btn" class="btn btn-secondary" title="Restore the default column order">↺ Reset Columns</button>
+          <span class="hscroll-controls">
+            <button id="bp-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+            <button id="bp-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+          </span>
+        </div>
+        <div class="table-wrap" id="book-places-table-wrap">
+          <table class="data-table" id="book-places-table">
+            <thead>
+              <tr>
+                <th draggable="true" data-label="Name">Name</th>
+                <th draggable="true" data-label="Description">
+                  <div class="th-label">Description</div>
+                  <select id="bp-filter-description" class="th-filter">
+                    <option value="__ALL__">All</option>
+                    <option value="__BLANK__">Blank Only</option>
+                  </select>
+                </th>
+                <th draggable="true" data-label="Map Link">
+                  <div class="th-label">Map Link</div>
+                  <select id="bp-filter-map-link" class="th-filter">
+                    <option value="__ALL__">All</option>
+                    <option value="__BLANK__">Blank Only</option>
+                  </select>
+                </th>
+                <th data-label=""></th>
+              </tr>
+            </thead>
+            <tbody id="book-places-body">
+              <tr><td colspan="4" class="loading-row">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== BOOK DISTRIBUTION: Analytics ===== -->
+    <section id="book-analytics-section" class="page hidden">
+      <p class="muted-text">Coming soon.</p>
+    </section>
+
     <!-- ===== USER: Contact Collection ===== -->
     <section id="contact-collection-section" class="page hidden">
       <div class="panel">
@@ -959,6 +1233,9 @@
         <option value="assignments">Current Assignments</option>
         <option value="one_to_one">One to One (Questions / Remarks)</option>
         <option value="events">Events</option>
+        <option value="book_places">Book Distribution: Distribution Places</option>
+        <option value="book_inward">Book Distribution: Inward Stock</option>
+        <option value="book_outward">Book Distribution: Outward Stock</option>
       </select>
     </label>
 
@@ -1046,6 +1323,53 @@
     <div id="bulk-delete-filter-events" class="bulk-delete-filter hidden">
       <span style="display:block; font-size:13px; font-weight:700; color:var(--tulsi-dark); margin-bottom:6px;">Select Event(s) to Delete</span>
       <div id="bulk-delete-events-checklist" class="tag-check-group"></div>
+    </div>
+
+    <div id="bulk-delete-filter-book_places" class="bulk-delete-filter hidden">
+      <p class="muted-text">This will delete ALL Distribution Places.</p>
+    </div>
+
+    <div id="bulk-delete-filter-book_inward" class="bulk-delete-filter hidden">
+      <label class="field">
+        <span>Filter</span>
+        <select id="bulk-delete-book-inward-scope">
+          <option value="all">All Inward Stock Records</option>
+          <option value="name">By Book Name</option>
+          <option value="added_by">By Added By</option>
+        </select>
+      </label>
+      <label class="field bulk-delete-sub" data-scope="name">
+        <span>Book Name</span>
+        <select id="bulk-delete-book-inward-name"></select>
+      </label>
+      <label class="field bulk-delete-sub" data-scope="added_by">
+        <span>Added By</span>
+        <select id="bulk-delete-book-inward-added-by"></select>
+      </label>
+    </div>
+
+    <div id="bulk-delete-filter-book_outward" class="bulk-delete-filter hidden">
+      <label class="field">
+        <span>Filter</span>
+        <select id="bulk-delete-book-outward-scope">
+          <option value="all">All Outward Stock Records</option>
+          <option value="name">By Book Name</option>
+          <option value="area">By Sold Area</option>
+          <option value="sold_by">By Sold By</option>
+        </select>
+      </label>
+      <label class="field bulk-delete-sub" data-scope="name">
+        <span>Book Name</span>
+        <select id="bulk-delete-book-outward-name"></select>
+      </label>
+      <label class="field bulk-delete-sub" data-scope="area">
+        <span>Sold Area</span>
+        <select id="bulk-delete-book-outward-area"></select>
+      </label>
+      <label class="field bulk-delete-sub" data-scope="sold_by">
+        <span>Sold By</span>
+        <select id="bulk-delete-book-outward-sold-by"></select>
+      </label>
     </div>
 
     <div id="bulk-delete-preview" class="muted-text" style="margin:14px 0; font-weight:700;"></div>
@@ -1184,6 +1508,51 @@
     <div class="modal-actions">
       <button id="delete-contact-cancel" class="btn btn-secondary">Cancel</button>
       <button id="delete-contact-confirm" class="btn btn-primary" style="background:var(--danger); box-shadow:none;">Permanently Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="book-place-modal" class="modal">
+  <div class="modal-box">
+    <h3 id="book-place-modal-title">Add Place</h3>
+    <label class="field"><span>Name</span><input id="book-place-name" type="text" placeholder="e.g. Ameerpet Metro Station" /></label>
+    <label class="field"><span>Description</span><textarea id="book-place-description" rows="3" placeholder="Notes about this place…"></textarea></label>
+    <label class="field"><span>Google Map Link</span><input id="book-place-map-link" type="url" placeholder="https://maps.google.com/…" /></label>
+    <div id="book-place-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="book-place-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="book-place-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="book-inward-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add Inward Stock</h3>
+    <label class="field"><span>Name</span><input id="book-inward-name" type="text" placeholder="Book title" /></label>
+    <label class="field"><span>Language</span><input id="book-inward-language" type="text" /></label>
+    <label class="field"><span>Purchase Price</span><input id="book-inward-price" type="number" min="0" step="0.01" /></label>
+    <label class="field"><span>Quantity</span><input id="book-inward-quantity" type="number" min="0" step="1" /></label>
+    <label class="field"><span>Purchased From</span><input id="book-inward-from" type="text" /></label>
+    <div id="book-inward-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="book-inward-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="book-inward-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="book-dashboard-detail-modal" class="modal">
+  <div class="modal-box modal-large">
+    <h3 id="book-dashboard-detail-title">Details</h3>
+    <div class="table-wrap" style="max-height:380px;">
+      <table class="data-table" id="book-dashboard-detail-table">
+        <thead><tr></tr></thead>
+        <tbody id="book-dashboard-detail-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="book-dashboard-detail-close" class="btn btn-secondary">Close</button>
     </div>
   </div>
 </div>

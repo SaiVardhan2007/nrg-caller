@@ -236,6 +236,18 @@ export function escapeHtml(s) {
   }[c]));
 }
 
+// Rebuilds a header filter's option list from live data while keeping
+// whatever is currently selected (falls back to "All" if that value no
+// longer exists, e.g. the row that had it got deleted). Originally built for
+// Master Contact's per-column filters; generalized so any table can reuse it.
+export function populateFilterSelect(select, values, blankLabel = "—") {
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = `<option value="__ALL__">All</option><option value="">${blankLabel}</option>` +
+    values.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+  select.value = [...select.options].some((o) => o.value === current) ? current : "__ALL__";
+}
+
 /* ============ Excel import / export ============ */
 
 // `rows` is an array-of-arrays (first row = headers). Downloads a single-sheet .xlsx workbook.

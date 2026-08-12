@@ -41,7 +41,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.page:not(.hidden), #dashboard:not(.hidden) { animation: fadeUp 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+.page:not(.hidden), #dashboard:not(.hidden), #admin-module-dashboard:not(.hidden) { animation: fadeUp 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
 
 /* ============ LOGIN ============ */
 #login-view {
@@ -213,7 +213,12 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .main-content:has(> #admin-users-section:not(.hidden)),
 .main-content:has(> #admin-analytics-section:not(.hidden)),
 .main-content:has(> #admin-reception-analytics-section:not(.hidden)),
-.main-content:has(> #admin-new-contacts-section:not(.hidden)) {
+.main-content:has(> #admin-new-contacts-section:not(.hidden)),
+.main-content:has(> #book-dashboard-section:not(.hidden)),
+.main-content:has(> #book-inward-section:not(.hidden)),
+.main-content:has(> #book-outward-section:not(.hidden)),
+.main-content:has(> #book-places-section:not(.hidden)),
+.main-content:has(> #book-analytics-section:not(.hidden)) {
   max-width: 100%;
   margin: 0;
   padding: 12px 8px;
@@ -736,6 +741,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   max-width: 720px;
   width: 95%;
 }
+
 .modal-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 #contact-info-search { margin: 12px 0; }
 .zoom-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }

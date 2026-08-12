@@ -7,6 +7,7 @@ import * as Reception from "./reception.js";
 import * as OneToOne from "./oneToOne.js";
 import * as CoreCultivation from "./coreCultivation.js";
 import * as Collection from "./collection.js";
+import * as BookDistribution from "./bookDistribution.js";
 
 const loginView = document.getElementById("login-view");
 const appView = document.getElementById("app-view");
@@ -14,7 +15,9 @@ const loginForm = document.getElementById("login-form");
 const loginError = document.getElementById("login-error");
 const loginSubmit = document.getElementById("login-submit");
 const dashboard = document.getElementById("dashboard");
+const adminModuleDashboard = document.getElementById("admin-module-dashboard");
 const adminTabs = document.getElementById("admin-tabs");
+const bookTabs = document.getElementById("book-tabs");
 const backBtn = document.getElementById("back-btn");
 const headerTitle = document.getElementById("header-title");
 const userNameEl = document.getElementById("user-name");
@@ -28,6 +31,11 @@ const PAGE_TITLES = {
   "admin-analytics-section": "Analytics",
   "admin-reception-analytics-section": "Reception Analytics",
   "admin-one-to-one-section": "One to One",
+  "book-dashboard-section": "FNRG Srila Prabhupada Book Distribution",
+  "book-inward-section": "FNRG Srila Prabhupada Book Distribution",
+  "book-outward-section": "FNRG Srila Prabhupada Book Distribution",
+  "book-places-section": "FNRG Srila Prabhupada Book Distribution",
+  "book-analytics-section": "FNRG Srila Prabhupada Book Distribution",
   "caller-section": "My Calls",
   "reception-section": "Reception",
   "one-to-one-user-section": "One to One with Prabhu",
@@ -36,6 +44,7 @@ const PAGE_TITLES = {
 };
 
 let currentUser = null;
+let adminActionsWired = false;
 
 function showScreen(id) {
   document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
@@ -54,6 +63,10 @@ function showScreen(id) {
   if (id === "one-to-one-user-section") OneToOne.initUserOneToOne(currentUser);
   if (id === "core-cultivation-section") CoreCultivation.init(currentUser);
   if (id === "contact-collection-section") Collection.init(currentUser);
+  if (id === "book-dashboard-section") BookDistribution.initDashboard();
+  if (id === "book-places-section") BookDistribution.initPlaces(currentUser);
+  if (id === "book-inward-section") BookDistribution.initInwardTable(currentUser);
+  if (id === "book-outward-section") BookDistribution.initOutwardTable();
 
   if (id !== "admin-new-contacts-section") Admin.stopNewContactsPolling();
 }
@@ -72,8 +85,47 @@ function enterSection(id) {
   showScreen(id);
 }
 
+// download-all-db exports core contact/user data only, so it's hidden
+// whenever the Book Distribution module is open. bulk-delete now also covers
+// book data (see admin.js getBulkDeleteConfig), so it stays available there.
+function setAdminWideActionsVisible(visible) {
+  document.getElementById("download-all-db-btn").classList.toggle("hidden", !visible);
+  document.getElementById("bulk-delete-btn").classList.toggle("hidden", !visible);
+}
+
+function goAdminModules() {
+  adminTabs.classList.add("hidden");
+  bookTabs.classList.add("hidden");
+  document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
+  adminModuleDashboard.classList.remove("hidden");
+  backBtn.classList.add("hidden");
+  headerTitle.textContent = "FNRG Preaching";
+  setAdminWideActionsVisible(true);
+}
+
+function enterAdminModule(module) {
+  adminModuleDashboard.classList.add("hidden");
+  backBtn.classList.remove("hidden");
+  if (module === "book-distribution") {
+    adminTabs.classList.add("hidden");
+    bookTabs.classList.remove("hidden");
+    bookTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
+    bookTabs.querySelector(".admin-tab").classList.add("active");
+    document.getElementById("download-all-db-btn").classList.add("hidden");
+    document.getElementById("bulk-delete-btn").classList.remove("hidden");
+    showScreen("book-dashboard-section");
+  } else {
+    bookTabs.classList.add("hidden");
+    adminTabs.classList.remove("hidden");
+    adminTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
+    adminTabs.querySelector(".admin-tab").classList.add("active");
+    setAdminWideActionsVisible(true);
+    showScreen("admin-users-section");
+  }
+}
+
 function wireNav() {
-  document.querySelectorAll(".dashboard-card").forEach((card) => {
+  document.querySelectorAll("#dashboard .dashboard-card").forEach((card) => {
     card.addEventListener("click", () => {
       if (card.classList.contains("disabled")) return;
       card.classList.add("clicked");
@@ -86,14 +138,38 @@ function wireNav() {
     });
   });
 
+  adminModuleDashboard.querySelectorAll(".dashboard-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      card.classList.add("clicked");
+      adminModuleDashboard.classList.add("leaving");
+      setTimeout(() => {
+        card.classList.remove("clicked");
+        adminModuleDashboard.classList.remove("leaving");
+        enterAdminModule(card.dataset.target);
+      }, 240);
+    });
+  });
+
   backBtn.addEventListener("click", () => {
-    if (currentUser.role === "Admin" || currentUser.role === "Reception") return;
+    if (currentUser.role === "Admin") {
+      goAdminModules();
+      return;
+    }
+    if (currentUser.role === "Reception") return;
     goDashboard();
   });
 
   adminTabs.querySelectorAll(".admin-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       adminTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      showScreen(tab.dataset.target);
+    });
+  });
+
+  bookTabs.querySelectorAll(".admin-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      bookTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
       tab.classList.add("active");
       showScreen(tab.dataset.target);
     });
@@ -110,25 +186,28 @@ function renderForRole(user) {
   }
 
   if (user.role === "Admin") {
-    adminTabs.classList.remove("hidden");
+    adminTabs.classList.add("hidden");
+    bookTabs.classList.add("hidden");
     dashboard.classList.add("hidden");
     backBtn.classList.add("hidden");
-    // Show download-all-db button for admin
-    const dlBtn = document.getElementById("download-all-db-btn");
-    dlBtn.classList.remove("hidden");
-    dlBtn.addEventListener("click", () => Admin.downloadAllDbData(), { once: true });
-    // Show bulk-delete button for admin
-    const bulkDelBtn = document.getElementById("bulk-delete-btn");
-    bulkDelBtn.classList.remove("hidden");
-    bulkDelBtn.addEventListener("click", () => Admin.openBulkDeleteModal(currentUser), { once: true });
-    showScreen("admin-users-section");
+    // Show download-all-db and bulk-delete buttons for admin
+    document.getElementById("download-all-db-btn").classList.remove("hidden");
+    document.getElementById("bulk-delete-btn").classList.remove("hidden");
+    if (!adminActionsWired) {
+      adminActionsWired = true;
+      document.getElementById("download-all-db-btn").addEventListener("click", () => Admin.downloadAllDbData());
+      document.getElementById("bulk-delete-btn").addEventListener("click", () => Admin.openBulkDeleteModal(currentUser));
+    }
+    goAdminModules();
   } else if (user.role === "Reception") {
     adminTabs.classList.add("hidden");
+    bookTabs.classList.add("hidden");
     dashboard.classList.add("hidden");
     backBtn.classList.add("hidden");
     showScreen("reception-section");
   } else {
     adminTabs.classList.add("hidden");
+    bookTabs.classList.add("hidden");
     goDashboard();
   }
 }
