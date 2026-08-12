@@ -1232,10 +1232,44 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   max-height: calc(100vh - 92px);
   overflow-y: auto;
   margin-bottom: 0;
+  padding: 14px;
 }
 .users-content {
   flex: 1;
   min-width: 0;
+}
+
+/* Users & Assignment has just one table on the right, so let it stretch to
+   match the sidebar's height instead of stopping short at a fixed cap —
+   otherwise the column ends early, leaving blank space below the table
+   while the page still has to scroll to reach the bottom of the sidebar. */
+#admin-users-section .users-content {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 92px);
+}
+#admin-users-section #users-table-wrap {
+  flex: 1;
+  max-height: none;
+}
+
+/* Reception Analytics: same idea — the Attendance panel is the only content
+   below the stats cards, so let it stretch to the sidebar's height instead
+   of stopping short. */
+#admin-reception-analytics-section .users-content {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 92px);
+}
+#admin-reception-analytics-section .users-content > .panel:last-child {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+#admin-reception-analytics-section #reception-analytics-attendance-table-wrap {
+  flex: 1;
+  max-height: none;
 }
 
 /* A row of pill-shaped action + filter buttons that all share one visual
@@ -1246,9 +1280,10 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 10px;
+  gap: 6px;
 }
-.users-toolbar .field.inline { flex-direction: column; align-items: stretch; gap: 6px; }
+.users-toolbar .field.inline { flex-direction: column; align-items: stretch; gap: 3px; }
+.users-toolbar .field.inline span { margin-bottom: 0; font-size: 11px; }
 .users-toolbar .btn.toolbar-btn,
 .users-toolbar .filter-dropdown,
 .users-toolbar .filter-toggle-btn {
@@ -1256,12 +1291,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 .users-toolbar .btn.toolbar-btn {
   border-radius: 999px;
-  padding: 10px 18px;
-  font-size: 13.5px;
+  padding: 7px 14px;
+  font-size: 12.5px;
   text-align: center;
 }
 .users-toolbar .btn.toolbar-btn:hover:not(:disabled) { transform: translateY(-1px); }
 .users-toolbar .filter-toggle-btn { justify-content: space-between; }
+.users-sidebar .filter-toggle-btn { padding: 7px 12px; font-size: 12.5px; }
+.users-sidebar .filter-dropdown-panel { padding: 10px; }
+.users-sidebar .tag-check { padding: 4px 10px 4px 8px; font-size: 12px; }
 
 /* Every sidebar button carries color, not just Assign/View (btn-primary) — a
    plain white btn-secondary reads as "disabled" next to the colored filter
@@ -1290,8 +1328,9 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   color: #fff;
   border: 1.5px solid transparent;
   border-radius: 999px;
+  padding: 7px 12px;
   font-weight: 700;
-  font-size: 13.5px;
+  font-size: 12.5px;
   box-shadow: 0 3px 10px rgba(5,150,105,0.3);
   transition: box-shadow 0.15s ease, transform 0.12s ease, filter 0.15s ease;
 }
@@ -1305,7 +1344,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   width: 100%;
   background: var(--grad-tulsi);
   border-radius: 999px;
-  padding: 6px 14px;
+  padding: 5px 12px;
   box-shadow: 0 3px 10px rgba(5,150,105,0.3);
   transition: box-shadow 0.15s ease, transform 0.12s ease, filter 0.15s ease;
 }
@@ -1487,6 +1526,13 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #contact-info-table td[data-label="S.No"] {
   width: 38px !important;
   max-width: 38px !important;
+}
+/* Assigned/Pending/Calls/Positive popups now carry the same Admin Tag/
+   Sessions/Calls columns as the tables below them, so the modal needs more
+   room than the default modal-large width to avoid a cramped horizontal
+   scroll. */
+#contact-info-modal .modal-large {
+  max-width: 1040px;
 }
 /* Zoom +/- scales the whole modal box (not just the text), growing/shrinking
    around its top-center so it stays anchored under the title row. The modal

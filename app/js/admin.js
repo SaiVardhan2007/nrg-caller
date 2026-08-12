@@ -2300,6 +2300,30 @@ function wireGeneralDataModal() {
   };
 }
 
+// Shared row wiring for the contact-info-modal's Admin Tag/Sessions/Calls
+// columns (same controls as the assigned/cultivation/attendance tables).
+function wireContactInfoModalRowControls(tbody) {
+  tbody.querySelectorAll(".info-link").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      openContactInfoModal(e.target.dataset.kind, e.target.dataset.mob, e.target.dataset.name);
+    });
+  });
+  tbody.querySelectorAll(".contact-info-admin-tag").forEach((select) => {
+    select.addEventListener("change", async (e) => {
+      const mob = e.target.dataset.mob;
+      const name = e.target.dataset.name;
+      const value = e.target.value || null;
+      const { error } = await supabase.from("contacts").update({ admin_tag_to_users: value }).eq("mob_no", mob);
+      if (error) {
+        showToast("Update failed: " + error.message, "error");
+        return;
+      }
+      await syncCoordinatorUser({ name, mob_no: mob }, value);
+      showToast("Admin tag updated", "success");
+    });
+  });
+}
+
 async function openAnalyticsStatModal(statType) {
   if (!currentAnalyticsParams) return;
   const { userName, isAll, fromTs, toTs, eventFilter, currentEventCode } = currentAnalyticsParams;
@@ -2335,12 +2359,12 @@ async function openAnalyticsStatModal(statType) {
   if (statType === "assigned") {
     document.getElementById("contact-info-title").textContent = "Assigned Contacts Details";
     document.getElementById("contact-info-sub").textContent = isAll ? "All Users (Combined)" : userName;
-    thead.innerHTML = `<tr><th>S.No</th>${isAll ? "<th>Caller</th>" : ""}<th>Name</th><th>Phone</th><th>Campaign</th></tr>`;
+    thead.innerHTML = `<tr><th>S.No</th>${isAll ? "<th>Caller</th>" : ""}<th>Name</th><th>Phone</th><th>Campaign</th><th>Admin Tag to Users</th><th>Sessions</th><th>Calls</th></tr>`;
     initColumnDragReorder("contact-info-table", { storageKey: "nrg-col-order:contact-info-assigned", force: true });
 
     let query = supabase
       .from("assignments")
-      .select("user_name, event_code, contacts(name, mob_no)");
+      .select("user_name, event_code, contacts(name, mob_no, admin_tag_to_users, sessions_count, calls_count)");
     // Only filter by event if the user explicitly selected a specific event
     if (eventFilter) query = query.eq("event_code", eventFilter);
     else if (activeEvent) query = query.eq("event_code", activeEvent);
@@ -2349,11 +2373,11 @@ async function openAnalyticsStatModal(statType) {
 
     const { data, error } = await query;
     if (error) {
-      tbody.innerHTML = `<tr><td colspan="${isAll ? 5 : 4}" class="loading-row">Error loading assignments: ${error.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${isAll ? 8 : 7}" class="loading-row">Error loading assignments: ${error.message}</td></tr>`;
       return;
     }
     if (!data || !data.length) {
-      tbody.innerHTML = `<tr><td colspan="${isAll ? 5 : 4}" class="loading-row">No assigned contacts found.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${isAll ? 8 : 7}" class="loading-row">No assigned contacts found.</td></tr>`;
       return;
     }
 
@@ -2367,18 +2391,26 @@ async function openAnalyticsStatModal(statType) {
         <td data-label="Name">${escapeHtml(a.contacts?.name || "—")}</td>
         <td data-label="Phone" class="phone-clickable" title="Click to copy phone number">${formatPhone(a.contacts?.mob_no || "")}</td>
         <td data-label="Campaign">${escapeHtml(a.event_code)}</td>
+        <td data-label="Admin Tag to Users">
+          <select class="inline-edit contact-info-admin-tag" data-mob="${a.contacts?.mob_no || ""}" data-name="${escapeHtml(a.contacts?.name || "")}">
+            ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (a.contacts?.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+          </select>
+        </td>
+        <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${a.contacts?.mob_no || ""}" data-name="${escapeHtml(a.contacts?.name || "")}">${a.contacts?.sessions_count ?? 0}</button></td>
+        <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${a.contacts?.mob_no || ""}" data-name="${escapeHtml(a.contacts?.name || "")}">${a.contacts?.calls_count ?? 0}</button></td>
       </tr>
     `).join("");
     reapplyColumnOrder("contact-info-table");
+    wireContactInfoModalRowControls(tbody);
   } else if (statType === "pending") {
     document.getElementById("contact-info-title").textContent = "Pending Contacts Details";
     document.getElementById("contact-info-sub").textContent = isAll ? "All Users (Combined)" : userName;
-    thead.innerHTML = `<tr><th>S.No</th>${isAll ? "<th>Caller</th>" : ""}<th>Name</th><th>Phone</th><th>Campaign</th></tr>`;
+    thead.innerHTML = `<tr><th>S.No</th>${isAll ? "<th>Caller</th>" : ""}<th>Name</th><th>Phone</th><th>Campaign</th><th>Admin Tag to Users</th><th>Sessions</th><th>Calls</th></tr>`;
     initColumnDragReorder("contact-info-table", { storageKey: "nrg-col-order:contact-info-pending", force: true });
 
     let query = supabase
       .from("assignments")
-      .select("user_name, event_code, status, contacts(name, mob_no)")
+      .select("user_name, event_code, status, contacts(name, mob_no, admin_tag_to_users, sessions_count, calls_count)")
       .in("status", ["Not Done", "yet to call", ""]);
     if (eventFilter) query = query.eq("event_code", eventFilter);
     else if (activeEvent && !eventFilter) {
@@ -2393,11 +2425,11 @@ async function openAnalyticsStatModal(statType) {
 
     const { data, error } = await query;
     if (error) {
-      tbody.innerHTML = `<tr><td colspan="${isAll ? 5 : 4}" class="loading-row">Error loading pending assignments: ${error.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${isAll ? 8 : 7}" class="loading-row">Error loading pending assignments: ${error.message}</td></tr>`;
       return;
     }
     if (!data || !data.length) {
-      tbody.innerHTML = `<tr><td colspan="${isAll ? 5 : 4}" class="loading-row">No pending contacts found.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${isAll ? 8 : 7}" class="loading-row">No pending contacts found.</td></tr>`;
       return;
     }
 
@@ -2411,15 +2443,23 @@ async function openAnalyticsStatModal(statType) {
         <td data-label="Name">${escapeHtml(a.contacts?.name || "—")}</td>
         <td data-label="Phone" class="phone-clickable" title="Click to copy phone number">${formatPhone(a.contacts?.mob_no || "")}</td>
         <td data-label="Campaign">${escapeHtml(a.event_code)}</td>
+        <td data-label="Admin Tag to Users">
+          <select class="inline-edit contact-info-admin-tag" data-mob="${a.contacts?.mob_no || ""}" data-name="${escapeHtml(a.contacts?.name || "")}">
+            ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (a.contacts?.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+          </select>
+        </td>
+        <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${a.contacts?.mob_no || ""}" data-name="${escapeHtml(a.contacts?.name || "")}">${a.contacts?.sessions_count ?? 0}</button></td>
+        <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${a.contacts?.mob_no || ""}" data-name="${escapeHtml(a.contacts?.name || "")}">${a.contacts?.calls_count ?? 0}</button></td>
       </tr>
     `).join("");
     reapplyColumnOrder("contact-info-table");
+    wireContactInfoModalRowControls(tbody);
   } else {
     // call response stats (calls or positive)
     let title = statType === "positive" ? "Positive Responses" : "Calls Made";
     document.getElementById("contact-info-title").textContent = title;
     document.getElementById("contact-info-sub").textContent = isAll ? "All Users (Combined)" : userName;
-    thead.innerHTML = `<tr><th>S.No</th><th>Time</th>${isAll ? "<th>Caller</th>" : ""}<th>Name</th><th>Phone</th><th>Status</th></tr>`;
+    thead.innerHTML = `<tr><th>S.No</th><th>Time</th>${isAll ? "<th>Caller</th>" : ""}<th>Name</th><th>Phone</th><th>Status</th><th>Admin Tag to Users</th><th>Sessions</th><th>Calls</th></tr>`;
     initColumnDragReorder("contact-info-table", { storageKey: "nrg-col-order:contact-info-callstats", force: true });
 
     let query = supabase
@@ -2434,7 +2474,7 @@ async function openAnalyticsStatModal(statType) {
 
     const { data, error } = await query;
     if (error) {
-      tbody.innerHTML = `<tr><td colspan="${isAll ? 6 : 5}" class="loading-row">Error loading call responses.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${isAll ? 9 : 8}" class="loading-row">Error loading call responses.</td></tr>`;
       return;
     }
 
@@ -2444,14 +2484,25 @@ async function openAnalyticsStatModal(statType) {
     }
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="${isAll ? 6 : 5}" class="loading-row">No responses found.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${isAll ? 9 : 8}" class="loading-row">No responses found.</td></tr>`;
       return;
     }
 
     // group rows by caller so one person's calls sit together, not interleaved with others'
     filtered.sort((a, b) => a.caller_name.localeCompare(b.caller_name));
 
-    tbody.innerHTML = filtered.map((r, idx) => `
+    // call_responses has no FK to contacts, so fetch the Admin Tag/Sessions/
+    // Calls trio separately by mob_no (same pattern as the attendance table).
+    const mobNos = [...new Set(filtered.map((r) => r.mob_no))];
+    const contactsByMob = new Map();
+    if (mobNos.length) {
+      const { data: contacts } = await supabase.from("contacts").select("mob_no,admin_tag_to_users,sessions_count,calls_count").in("mob_no", mobNos);
+      (contacts || []).forEach((c) => contactsByMob.set(c.mob_no, c));
+    }
+
+    tbody.innerHTML = filtered.map((r, idx) => {
+      const c = contactsByMob.get(r.mob_no);
+      return `
       <tr>
         <td data-label="S.No">${idx + 1}</td>
         <td data-label="Time">${new Date(r.ts).toLocaleString()}</td>
@@ -2459,9 +2510,18 @@ async function openAnalyticsStatModal(statType) {
         <td data-label="Name">${escapeHtml(r.contact_name || "")}</td>
         <td data-label="Phone" class="phone-clickable" title="Click to copy phone number">${formatPhone(r.mob_no)}</td>
         <td data-label="Status">${escapeHtml(r.remarks)}${r.addl_remarks ? " — " + escapeHtml(r.addl_remarks) : ""}</td>
+        <td data-label="Admin Tag to Users">
+          <select class="inline-edit contact-info-admin-tag" data-mob="${r.mob_no}" data-name="${escapeHtml(r.contact_name || "")}">
+            ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (c?.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+          </select>
+        </td>
+        <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${r.mob_no}" data-name="${escapeHtml(r.contact_name || "")}">${c?.sessions_count ?? 0}</button></td>
+        <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${r.mob_no}" data-name="${escapeHtml(r.contact_name || "")}">${c?.calls_count ?? 0}</button></td>
       </tr>
-    `).join("");
+    `;
+    }).join("");
     reapplyColumnOrder("contact-info-table");
+    wireContactInfoModalRowControls(tbody);
   }
 }
 
