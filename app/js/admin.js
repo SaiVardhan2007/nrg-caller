@@ -2545,7 +2545,7 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   // total calls made in the selected range, broken down by outcome — counted
   // server-side (call_outcome_counts RPC) instead of fetching every matching
   // row's remarks, so this stays cheap as call_responses grows over time.
-  const { data: outcomeRow } = await supabase
+  const { data: outcomeRow, error: outcomeError } = await supabase
     .rpc("call_outcome_counts", {
       p_caller_name: isAll ? null : userName,
       p_event_code: eventFilter || null,
@@ -2554,8 +2554,25 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
     })
     .single();
   if (isStale()) return;
-  document.getElementById("analytics-total-calls").textContent = outcomeRow?.total ?? 0;
-  document.getElementById("analytics-positive-calls").textContent = outcomeRow?.positive ?? 0;
+
+  let totalCalls = outcomeRow?.total ?? 0;
+  let positiveCalls = outcomeRow?.positive ?? 0;
+  if (outcomeError) {
+    // The RPC (supabase/analytics-rpc.sql) hasn't been run against this
+    // Supabase project yet, so it 404s — fall back to counting client-side
+    // so the stat still works until that migration is deployed.
+    let fallbackQuery = supabase.from("call_responses").select("remarks");
+    if (!isAll) fallbackQuery = fallbackQuery.eq("caller_name", userName);
+    if (eventFilter) fallbackQuery = fallbackQuery.eq("event_code", eventFilter);
+    if (fromTs) fallbackQuery = fallbackQuery.gte("ts", fromTs);
+    if (toTs) fallbackQuery = fallbackQuery.lte("ts", toTs);
+    const { data: fallbackRows } = await fallbackQuery;
+    if (isStale()) return;
+    totalCalls = fallbackRows?.length ?? 0;
+    positiveCalls = (fallbackRows || []).filter((r) => callOutcomeCategory(r.remarks) === "positive").length;
+  }
+  document.getElementById("analytics-total-calls").textContent = totalCalls;
+  document.getElementById("analytics-positive-calls").textContent = positiveCalls;
 
   let liveAssignmentsQuery = supabase.from("assignments").select("event_code");
   if (!isAll) liveAssignmentsQuery = liveAssignmentsQuery.eq("user_name", userName);
@@ -2786,7 +2803,7 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
   // reflects only the live/current round, so it can't be date-bounded).
   // Counted server-side (call_outcome_counts RPC) so this stays cheap as the
   // log keeps growing, instead of fetching every matching row's remarks.
-  const { data: outcomeRow } = await supabase
+  const { data: outcomeRow, error: outcomeError } = await supabase
     .rpc("call_outcome_counts", {
       p_caller_name: null,
       p_event_code: eventCode || null,
@@ -2795,8 +2812,24 @@ async function runReceptionAnalytics(eventCode, fromDate, toDate) {
     })
     .single();
   if (isStale()) return;
-  document.getElementById("reception-analytics-calls-made").textContent = outcomeRow?.total ?? 0;
-  document.getElementById("reception-analytics-positive").textContent = outcomeRow?.positive ?? 0;
+
+  let totalCalls = outcomeRow?.total ?? 0;
+  let positiveCalls = outcomeRow?.positive ?? 0;
+  if (outcomeError) {
+    // The RPC (supabase/analytics-rpc.sql) hasn't been run against this
+    // Supabase project yet, so it 404s — fall back to counting client-side
+    // so the stat still works until that migration is deployed.
+    let fallbackQuery = supabase.from("call_responses").select("remarks");
+    if (eventCode) fallbackQuery = fallbackQuery.eq("event_code", eventCode);
+    if (fromTs) fallbackQuery = fallbackQuery.gte("ts", fromTs);
+    if (toTs) fallbackQuery = fallbackQuery.lte("ts", toTs);
+    const { data: fallbackRows } = await fallbackQuery;
+    if (isStale()) return;
+    totalCalls = fallbackRows?.length ?? 0;
+    positiveCalls = (fallbackRows || []).filter((r) => callOutcomeCategory(r.remarks) === "positive").length;
+  }
+  document.getElementById("reception-analytics-calls-made").textContent = totalCalls;
+  document.getElementById("reception-analytics-positive").textContent = positiveCalls;
 
   // attendance in the selected range
   let attendanceQuery = supabase.from("session_attendance").select("id,ts,name,mob_no,took_by,event_code").order("ts", { ascending: false });
