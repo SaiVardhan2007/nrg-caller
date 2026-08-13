@@ -768,7 +768,37 @@ function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
       const assignedCount = {};
       eligible.forEach((u) => { assignedCount[u.user_name] = 0; });
       inProgress.forEach((a) => { if (a.user_name in assignedCount) assignedCount[a.user_name]++; });
-      const { rows, unassignedCount } = distributePool(reshufflePool, eligible, assignedCount, eventCode);
+
+      const eligibleMap = {};
+      eligible.forEach((u) => { eligibleMap[u.user_name] = u; });
+
+      // Same split as Assign: cultivated contacts must stay with their
+      // cultivator, never get reshuffled into the general pool.
+      const generalPool = [];
+      const rows = [];
+      let unassignedCount = 0;
+      reshufflePool.forEach((c) => {
+        if (c.core_cultivation) {
+          if (c.core_cultivation in assignedCount) {
+            const cap = eligibleMap[c.core_cultivation].call_limit;
+            const currentLoad = assignedCount[c.core_cultivation];
+            if (currentLoad < (cap == null ? Infinity : cap)) {
+              rows.push({ contact_id: c.id, user_name: c.core_cultivation, event_code: c.calling_purpose || eventCode });
+              assignedCount[c.core_cultivation]++;
+            } else {
+              unassignedCount++;
+            }
+          } else {
+            unassignedCount++;
+          }
+        } else {
+          generalPool.push(c);
+        }
+      });
+      const { rows: generalRows, unassignedCount: generalUnassigned } = distributePool(generalPool, eligible, assignedCount, eventCode);
+      rows.push(...generalRows);
+      unassignedCount += generalUnassigned;
+
       if (rows.length) {
         const { error: insErr } = await supabase.from("assignments").insert(rows);
         if (insErr) throw insErr;
