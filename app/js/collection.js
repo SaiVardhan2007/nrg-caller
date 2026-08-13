@@ -72,7 +72,7 @@ export async function init(currentUser) {
 
 async function renderSubmissions(userName) {
   const tbody = document.getElementById("collection-submissions-body");
-  tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Loading…</td></tr>`;
 
   const { data } = await supabase
     .from("contact_collection")
@@ -81,8 +81,9 @@ async function renderSubmissions(userName) {
     .order("created_at", { ascending: false });
 
   tbody.innerHTML = (data && data.length)
-    ? data.map((r) => `
+    ? data.map((r, idx) => `
         <tr>
+          <td data-label="S.No">${idx + 1}</td>
           <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
           <td data-label="Name">${escapeHtml(r.name)}</td>
           <td data-label="Phone" class="phone-cell">${formatPhone(r.mob_no)}</td>
@@ -91,5 +92,5 @@ async function renderSubmissions(userName) {
           <td data-label="Staying">${escapeHtml(r.staying || "—")}</td>
           <td data-label="Comment">${escapeHtml(r.comment || "—")}</td>
         </tr>`).join("")
-    : `<tr><td colspan="7" class="loading-row">You haven't submitted any contacts yet.</td></tr>`;
+    : `<tr><td colspan="8" class="loading-row">You haven't submitted any contacts yet.</td></tr>`;
 }

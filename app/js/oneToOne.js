@@ -439,7 +439,7 @@ function wireOneToOneRequestForm() {
 
 async function renderUserQuestions() {
   const tbody = document.getElementById("one-to-one-user-questions-body");
-  tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
 
   // select("*") and a surfaced error, for the same reason as the admin modal:
   // naming a column the database doesn't have makes PostgREST reject the whole
@@ -451,19 +451,20 @@ async function renderUserQuestions() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Could not load your questions: ${escapeHtml(error.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Could not load your questions: ${escapeHtml(error.message)}</td></tr>`;
     return;
   }
 
   tbody.innerHTML = (data && data.length)
-    ? data.map((r) => `
+    ? data.map((r, idx) => `
         <tr>
+          <td data-label="S.No">${idx + 1}</td>
           <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
           <td data-label="Question">${escapeHtml(r.message)}</td>
           <td data-label="Status"><button class="cell-chip${r.resolved ? "" : " danger"} user-resolve-btn" data-id="${r.id}" data-resolved="${r.resolved}">${r.resolved ? "✓ Resolved" : "✕ Unresolved"}</button></td>
           <td data-label="Response">${r.response ? escapeHtml(r.response) : `<span class="muted-text">Awaiting response…</span>`}</td>
         </tr>`).join("")
-    : `<tr><td colspan="4" class="loading-row">You haven't asked anything yet.</td></tr>`;
+    : `<tr><td colspan="5" class="loading-row">You haven't asked anything yet.</td></tr>`;
 
   tbody.querySelectorAll(".user-resolve-btn").forEach((btn) => {
     btn.onclick = async () => {

@@ -490,12 +490,12 @@ async function openHistoryModal(mob, name, kind = "calls") {
   const tbody = document.getElementById("history-body");
 
   document.getElementById("history-contact-info").textContent = `Contact: ${name} (${formatPhone(mob)})`;
-  tbody.innerHTML = `<tr><td colspan="3" class="no-history">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="4" class="no-history">Loading…</td></tr>`;
   document.getElementById("history-modal").classList.add("active");
 
   if (kind === "sessions") {
     titleEl.textContent = "Session Attendance";
-    theadRow.innerHTML = "<th>Time</th><th>Marked By</th><th>Event</th>";
+    theadRow.innerHTML = "<th>S.No</th><th>Time</th><th>Marked By</th><th>Event</th>";
 
     const { data, error } = await supabase
       .from("session_attendance")
@@ -504,11 +504,12 @@ async function openHistoryModal(mob, name, kind = "calls") {
       .order("ts", { ascending: false });
 
     if (error || !data || !data.length) {
-      tbody.innerHTML = `<tr><td colspan="3" class="no-history">No sessions attended yet.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="no-history">No sessions attended yet.</td></tr>`;
       return;
     }
-    tbody.innerHTML = data.map((r) => `
+    tbody.innerHTML = data.map((r, idx) => `
       <tr>
+        <td>${idx + 1}</td>
         <td>${new Date(r.ts).toLocaleString()}</td>
         <td>${escapeHtml(r.took_by)}</td>
         <td>${escapeHtml(r.event_code || "—")}</td>
@@ -516,7 +517,7 @@ async function openHistoryModal(mob, name, kind = "calls") {
     `).join("");
   } else {
     titleEl.textContent = "Call History";
-    theadRow.innerHTML = "<th>Time</th><th>Status</th><th>Additional</th>";
+    theadRow.innerHTML = "<th>S.No</th><th>Time</th><th>Status</th><th>Additional</th>";
 
     const { data, error } = await supabase
       .from("call_responses")
@@ -525,11 +526,12 @@ async function openHistoryModal(mob, name, kind = "calls") {
       .order("ts", { ascending: false });
 
     if (error || !data || !data.length) {
-      tbody.innerHTML = `<tr><td colspan="3" class="no-history">No call history yet.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="no-history">No call history yet.</td></tr>`;
       return;
     }
-    tbody.innerHTML = data.map((r) => `
+    tbody.innerHTML = data.map((r, idx) => `
       <tr>
+        <td>${idx + 1}</td>
         <td>${new Date(r.ts).toLocaleString()}</td>
         <td>${escapeHtml(r.remarks)}</td>
         <td>${escapeHtml(r.addl_remarks || "")}</td>

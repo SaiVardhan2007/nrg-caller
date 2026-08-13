@@ -112,7 +112,7 @@ function sortRows(rows, sortVal, defaultVal) {
 }
 
 const PLACES_COLUMNS_KEY = "nrg-book-places-column-order";
-const DEFAULT_PLACES_COLUMNS = ["Name", "Description", "Map Link", ""];
+const DEFAULT_PLACES_COLUMNS = ["S.No", "Name", "Description", "Map Link", ""];
 const PLACES_BLANK_FILTERS = [["bp-filter-description", "description"], ["bp-filter-map-link", "map_link"]];
 let placesFiltersWired = false;
 
@@ -124,7 +124,7 @@ export async function initPlaces() {
 
 async function loadPlaces() {
   const tbody = document.getElementById("book-places-body");
-  tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
 
   const { data, error } = await supabase
     .from("book_places")
@@ -132,7 +132,7 @@ async function loadPlaces() {
     .order("name", { ascending: true });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Could not load places.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Could not load places.</td></tr>`;
     return;
   }
   placesCache = data || [];
@@ -142,12 +142,13 @@ async function loadPlaces() {
 function renderPlacesRows(rows, emptyMessage) {
   const tbody = document.getElementById("book-places-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="muted-text">${emptyMessage}</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = rows.map((p) => `
+  tbody.innerHTML = rows.map((p, idx) => `
     <tr data-id="${p.id}">
+      <td data-label="S.No">${idx + 1}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(p.name)}" /></td>
       <td data-label="Description"><input class="inline-edit" data-field="description" value="${escapeHtml(p.description || "")}" /></td>
       <td data-label="Map Link">
@@ -308,7 +309,7 @@ function wireInwardAdminModal(currentUser) {
 }
 
 const INWARD_COLUMNS_KEY = "nrg-book-inward-column-order";
-const DEFAULT_INWARD_COLUMNS = ["Time", "Name", "Language", "Purchase Price", "Quantity", "Purchased From", ""];
+const DEFAULT_INWARD_COLUMNS = ["S.No", "Time", "Name", "Language", "Purchase Price", "Quantity", "Purchased From", ""];
 const INWARD_SELECT_FILTERS = [["bi-filter-language", "language"], ["bi-filter-from", "purchased_from"]];
 const INWARD_NUMBER_FILTERS = [["bi-filter-price", "purchase_price"], ["bi-filter-qty", "quantity"]];
 let inwardCache = [];
@@ -318,11 +319,12 @@ let currentInwardUser = null;
 function renderInwardRows(rows, emptyMessage) {
   const tbody = document.getElementById("book-inward-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="muted-text">${emptyMessage}</td></tr>`;
     return;
   }
-  tbody.innerHTML = rows.map((r) => `
+  tbody.innerHTML = rows.map((r, idx) => `
     <tr data-id="${r.id}">
+      <td data-label="S.No">${idx + 1}</td>
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
       <td data-label="Language"><input class="inline-edit" data-field="language" value="${escapeHtml(r.language || "")}" /></td>
@@ -386,7 +388,7 @@ export async function initInwardTable(currentUser) {
   wireInwardAdminModal(currentUser);
   wireInwardFilters();
   const tbody = document.getElementById("book-inward-body");
-  tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Loading…</td></tr>`;
 
   const { data, error } = await supabase
     .from("book_inward_stock")
@@ -394,7 +396,7 @@ export async function initInwardTable(currentUser) {
     .order("created_at", { ascending: false });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Could not load inward stock.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Could not load inward stock.</td></tr>`;
     return;
   }
   inwardCache = data || [];
@@ -404,7 +406,7 @@ export async function initInwardTable(currentUser) {
 }
 
 const OUTWARD_COLUMNS_KEY = "nrg-book-outward-column-order";
-const DEFAULT_OUTWARD_COLUMNS = ["Time", "Name", "Language", "Sold Price", "Quantity", "Sold Area", "Sold By", ""];
+const DEFAULT_OUTWARD_COLUMNS = ["S.No", "Time", "Name", "Language", "Sold Price", "Quantity", "Sold Area", "Sold By", ""];
 const OUTWARD_SELECT_FILTERS = [["bo-filter-language", "language"], ["bo-filter-area", "sold_area"], ["bo-filter-by", "sold_by"]];
 const OUTWARD_NUMBER_FILTERS = [["bo-filter-price", "sold_price"], ["bo-filter-qty", "quantity"]];
 let outwardCache = [];
@@ -413,11 +415,12 @@ let outwardFiltersWired = false;
 function renderOutwardRows(rows, emptyMessage) {
   const tbody = document.getElementById("book-outward-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="muted-text">${emptyMessage}</td></tr>`;
     return;
   }
-  tbody.innerHTML = rows.map((r) => `
+  tbody.innerHTML = rows.map((r, idx) => `
     <tr data-id="${r.id}">
+      <td data-label="S.No">${idx + 1}</td>
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
       <td data-label="Language"><input class="inline-edit" data-field="language" value="${escapeHtml(r.language || "")}" /></td>
@@ -477,7 +480,7 @@ async function deleteOutwardRow(id) {
 export async function initOutwardTable() {
   wireOutwardFilters();
   const tbody = document.getElementById("book-outward-body");
-  tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Loading…</td></tr>`;
 
   const [{ data, error }, placeNames] = await Promise.all([
     supabase
@@ -488,7 +491,7 @@ export async function initOutwardTable() {
   ]);
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Could not load outward stock.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Could not load outward stock.</td></tr>`;
     return;
   }
   outwardCache = data || [];
@@ -508,11 +511,12 @@ async function renderMyInward(userName) {
     .order("created_at", { ascending: false });
 
   if (error || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">No records yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="muted-text">No records yet.</td></tr>`;
     return;
   }
-  tbody.innerHTML = data.map((r) => `
+  tbody.innerHTML = data.map((r, idx) => `
     <tr>
+      <td data-label="S.No">${idx + 1}</td>
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name">${escapeHtml(r.name)}</td>
       <td data-label="Language">${escapeHtml(r.language || "—")}</td>
@@ -532,11 +536,12 @@ async function renderMyOutward(userName) {
     .order("created_at", { ascending: false });
 
   if (error || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">No records yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="muted-text">No records yet.</td></tr>`;
     return;
   }
-  tbody.innerHTML = data.map((r) => `
+  tbody.innerHTML = data.map((r, idx) => `
     <tr>
+      <td data-label="S.No">${idx + 1}</td>
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name">${escapeHtml(r.name)}</td>
       <td data-label="Language">${escapeHtml(r.language || "—")}</td>
@@ -774,7 +779,7 @@ export async function initStockEntry(currentUser) {
 
 const DASHBOARD_COLUMNS_KEY = "nrg-book-dashboard-column-order";
 const DEFAULT_DASHBOARD_COLUMNS = [
-  "Name", "Language", "Total Inward", "Avg Purchase Price", "Current Stock",
+  "S.No", "Name", "Language", "Total Inward", "Avg Purchase Price", "Current Stock",
   "Current Stock Value", "Total Sold", "Avg Selling Price", "Total Sales Value", "Profit",
 ];
 const DASHBOARD_SELECT_FILTERS = [["bd-filter-language", "language"]];
@@ -923,7 +928,7 @@ function computeBookStats(book) {
 
 async function renderDashboard() {
   const tbody = document.getElementById("book-dashboard-body");
-  tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Loading…</td></tr>`;
 
   const [{ data: inward, error: inErr }, { data: outward, error: outErr }] = await Promise.all([
     supabase.from("book_inward_stock").select("name,language,purchase_price,quantity,purchased_from,created_at"),
@@ -931,7 +936,7 @@ async function renderDashboard() {
   ]);
 
   if (inErr || outErr) {
-    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Could not load dashboard data.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Could not load dashboard data.</td></tr>`;
     return;
   }
 
@@ -956,12 +961,13 @@ function renderDashboardRows(rows, emptyMessage) {
   const tbody = document.getElementById("book-dashboard-body");
   updateTotalProfitStat(rows);
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="muted-text">${emptyMessage}</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = rows.map((s) => `
+  tbody.innerHTML = rows.map((s, idx) => `
     <tr data-key="${escapeHtml(s.key)}">
+      <td data-label="S.No">${idx + 1}</td>
       <td data-label="Name"><strong>${escapeHtml(s.name)}</strong></td>
       <td data-label="Language">${escapeHtml(s.language || "—")}</td>
       <td data-label="Total Inward">${s.totalInwardQty ? `<button type="button" class="cell-chip bd-detail-btn" data-kind="inward">${s.totalInwardQty}</button>` : "0"}</td>
@@ -1028,51 +1034,55 @@ function openDashboardDetail(book, kind) {
 
   if (kind === "inward") {
     title.textContent = `Inward Stock Entries — ${label}`;
-    theadRow.innerHTML = "<th>Time</th><th>Purchase Price</th><th>Quantity</th><th>Purchased From</th>";
+    theadRow.innerHTML = "<th>S.No</th><th>Time</th><th>Purchase Price</th><th>Quantity</th><th>Purchased From</th>";
     const rows = [...book.inward].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    tbody.innerHTML = rows.length ? rows.map((r) => `
+    tbody.innerHTML = rows.length ? rows.map((r, idx) => `
       <tr>
+        <td>${idx + 1}</td>
         <td>${new Date(r.created_at).toLocaleString()}</td>
         <td>${r.purchase_price ?? "—"}</td>
         <td>${r.quantity ?? "—"}</td>
         <td>${escapeHtml(r.purchased_from || "—")}</td>
       </tr>
-    `).join("") : `<tr><td colspan="4" class="muted-text">No entries.</td></tr>`;
+    `).join("") : `<tr><td colspan="5" class="muted-text">No entries.</td></tr>`;
   } else if (kind === "purchase-prices") {
     title.textContent = `Purchase Prices — ${label}`;
-    theadRow.innerHTML = "<th>Price</th><th>Quantity Bought</th><th>Purchased From</th>";
+    theadRow.innerHTML = "<th>S.No</th><th>Price</th><th>Quantity Bought</th><th>Purchased From</th>";
     const rows = groupByPrice(book.inward, "purchase_price", "purchased_from");
-    tbody.innerHTML = rows.length ? rows.map((g) => `
+    tbody.innerHTML = rows.length ? rows.map((g, idx) => `
       <tr>
+        <td>${idx + 1}</td>
         <td>${fmtMoney(g.price)}</td>
         <td>${g.qty}</td>
         <td>${escapeHtml(Array.from(g.places).join(", ") || "—")}</td>
       </tr>
-    `).join("") : `<tr><td colspan="3" class="muted-text">No entries.</td></tr>`;
+    `).join("") : `<tr><td colspan="4" class="muted-text">No entries.</td></tr>`;
   } else if (kind === "outward") {
     title.textContent = `Outward Stock Entries — ${label}`;
-    theadRow.innerHTML = "<th>Time</th><th>Sold Price</th><th>Quantity</th><th>Sold Area</th><th>Sold By</th>";
+    theadRow.innerHTML = "<th>S.No</th><th>Time</th><th>Sold Price</th><th>Quantity</th><th>Sold Area</th><th>Sold By</th>";
     const rows = [...book.outward].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    tbody.innerHTML = rows.length ? rows.map((r) => `
+    tbody.innerHTML = rows.length ? rows.map((r, idx) => `
       <tr>
+        <td>${idx + 1}</td>
         <td>${new Date(r.created_at).toLocaleString()}</td>
         <td>${r.sold_price ?? "—"}</td>
         <td>${r.quantity ?? "—"}</td>
         <td>${escapeHtml(r.sold_area || "—")}</td>
         <td>${escapeHtml(r.sold_by || "—")}</td>
       </tr>
-    `).join("") : `<tr><td colspan="5" class="muted-text">No entries.</td></tr>`;
+    `).join("") : `<tr><td colspan="6" class="muted-text">No entries.</td></tr>`;
   } else if (kind === "selling-prices") {
     title.textContent = `Selling Prices — ${label}`;
-    theadRow.innerHTML = "<th>Price</th><th>Quantity Sold</th><th>Sold Area</th>";
+    theadRow.innerHTML = "<th>S.No</th><th>Price</th><th>Quantity Sold</th><th>Sold Area</th>";
     const rows = groupByPrice(book.outward, "sold_price", "sold_area");
-    tbody.innerHTML = rows.length ? rows.map((g) => `
+    tbody.innerHTML = rows.length ? rows.map((g, idx) => `
       <tr>
+        <td>${idx + 1}</td>
         <td>${fmtMoney(g.price)}</td>
         <td>${g.qty}</td>
         <td>${escapeHtml(Array.from(g.places).join(", ") || "—")}</td>
       </tr>
-    `).join("") : `<tr><td colspan="3" class="muted-text">No entries.</td></tr>`;
+    `).join("") : `<tr><td colspan="4" class="muted-text">No entries.</td></tr>`;
   }
 
   document.getElementById("book-dashboard-detail-modal").classList.add("active");

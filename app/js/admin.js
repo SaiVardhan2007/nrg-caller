@@ -213,7 +213,7 @@ async function refreshEventsEverywhere(selectedCode) {
 
 async function renderManageEventsList() {
   const tbody = document.getElementById("manage-events-body");
-  tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Loading events…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading events…</td></tr>`;
 
   const [, { data: contacts }] = await Promise.all([
     loadEvents(),
@@ -225,12 +225,13 @@ async function renderManageEventsList() {
   });
 
   if (!eventsCache.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="loading-row">No events yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">No events yet.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = eventsCache.map((e) => `
+  tbody.innerHTML = eventsCache.map((e, idx) => `
     <tr data-code="${e.code}">
+      <td data-label="S.No">${idx + 1}</td>
       <td data-label="Code"><strong>${escapeHtml(e.code)}</strong></td>
       <td data-label="Display Name"><input class="inline-edit event-name-input" value="${escapeHtml(e.name)}" /></td>
       <td data-label="Contacts">${counts[e.code] || 0}</td>
@@ -1384,7 +1385,7 @@ async function openContactsAssignModal() {
     `${selectedContactIds.size} contact(s) selected in Master Contact.`;
   document.getElementById("contacts-assign-replace").checked = true;
   document.getElementById("contacts-assign-users-all").checked = false;
-  body.innerHTML = `<tr><td colspan="4" class="loading-row">Loading coordinators…</td></tr>`;
+  body.innerHTML = `<tr><td colspan="5" class="loading-row">Loading coordinators…</td></tr>`;
   modal.classList.add("active");
 
   const [{ data: users }, { data: assigned }, currentEvent] = await Promise.all([
@@ -1402,14 +1403,15 @@ async function openContactsAssignModal() {
   (assigned || []).forEach((a) => { load[a.user_name] = (load[a.user_name] || 0) + 1; });
 
   body.innerHTML = (users || []).length
-    ? users.map((u) => `
+    ? users.map((u, idx) => `
         <tr data-id="${u.id}" data-user="${escapeHtml(u.user_name)}">
+          <td data-label="S.No">${idx + 1}</td>
           <td data-label=""><input type="checkbox" class="assign-user-check" ${u.auto_assign ? "checked" : ""} /></td>
           <td data-label="Coordinator">${escapeHtml(u.user_name)}</td>
           <td data-label="Current Load" class="assigned-count">${load[u.user_name] || 0}</td>
           <td data-label="Call Limit (blank = no limit)"><input type="number" min="0" class="assign-user-limit inline-edit" value="${u.call_limit ?? ""}" placeholder="No limit" /></td>
         </tr>`).join("")
-    : `<tr><td colspan="4" class="loading-row">No coordinators found.</td></tr>`;
+    : `<tr><td colspan="5" class="loading-row">No coordinators found.</td></tr>`;
 
   reapplyColumnOrder("contacts-assign-users-table");
 }
@@ -1553,39 +1555,41 @@ async function openContactInfoModal(kind, mob, name, isNewContact = false) {
   modal.classList.add("active");
 
   if (kind === "sessions") {
-    thead.innerHTML = `<tr><th>Time</th><th>Marked By</th><th>Event</th></tr>`;
+    thead.innerHTML = `<tr><th>S.No</th><th>Time</th><th>Marked By</th><th>Event</th></tr>`;
     initColumnDragReorder("contact-info-table", { storageKey: "nrg-col-order:contact-info-sessions", force: true });
     const { data } = await supabase.from("session_attendance").select("ts,took_by,event_code").eq("mob_no", mob).order("ts", { ascending: false });
     tbody.innerHTML = (data && data.length)
-      ? data.map((r) => `<tr><td data-label="Time">${new Date(r.ts).toLocaleString()}</td><td data-label="Marked By">${escapeHtml(r.took_by)}</td><td data-label="Event">${escapeHtml(r.event_code || "—")}</td></tr>`).join("")
-      : `<tr><td colspan="3" class="loading-row">No sessions attended yet.</td></tr>`;
+      ? data.map((r, idx) => `<tr><td data-label="S.No">${idx + 1}</td><td data-label="Time">${new Date(r.ts).toLocaleString()}</td><td data-label="Marked By">${escapeHtml(r.took_by)}</td><td data-label="Event">${escapeHtml(r.event_code || "—")}</td></tr>`).join("")
+      : `<tr><td colspan="4" class="loading-row">No sessions attended yet.</td></tr>`;
     reapplyColumnOrder("contact-info-table");
   } else if (kind === "calls") {
-    thead.innerHTML = `<tr><th>Time</th><th>Caller</th><th>Event</th><th>Status</th><th>Comment</th></tr>`;
+    thead.innerHTML = `<tr><th>S.No</th><th>Time</th><th>Caller</th><th>Event</th><th>Status</th><th>Comment</th></tr>`;
     initColumnDragReorder("contact-info-table", { storageKey: "nrg-col-order:contact-info-calls", force: true });
     const { data } = await supabase.from("call_responses").select("ts,caller_name,event_code,remarks,addl_remarks").eq("mob_no", mob).order("ts", { ascending: false });
     tbody.innerHTML = (data && data.length)
-      ? data.map((r) => `
+      ? data.map((r, idx) => `
           <tr>
+            <td data-label="S.No">${idx + 1}</td>
             <td data-label="Time">${new Date(r.ts).toLocaleString()}</td>
             <td data-label="Caller">${escapeHtml(r.caller_name)}</td>
             <td data-label="Event">${escapeHtml(r.event_code || "")}</td>
             <td data-label="Status">${escapeHtml(r.remarks)}</td>
             <td data-label="Comment">${escapeHtml(r.addl_remarks || "—")}</td>
           </tr>`).join("")
-      : `<tr><td colspan="5" class="loading-row">No calls made yet.</td></tr>`;
+      : `<tr><td colspan="6" class="loading-row">No calls made yet.</td></tr>`;
     reapplyColumnOrder("contact-info-table");
   } else if (kind === "reviews") {
-    thead.innerHTML = `<tr><th>Caller</th><th>What they said</th></tr>`;
+    thead.innerHTML = `<tr><th>S.No</th><th>Caller</th><th>What they said</th></tr>`;
     const { data } = await supabase.from("call_responses").select("ts,caller_name,remarks,addl_remarks").eq("mob_no", mob).order("ts", { ascending: false });
     const withNotes = (data || []).filter((r) => r.addl_remarks && r.addl_remarks.trim());
     tbody.innerHTML = withNotes.length
-      ? withNotes.map((r) => `
+      ? withNotes.map((r, idx) => `
           <tr>
+            <td data-label="S.No">${idx + 1}</td>
             <td data-label="Caller">${escapeHtml(r.caller_name)} <span class="muted-text">(${new Date(r.ts).toLocaleDateString()})</span></td>
             <td data-label="Said">${escapeHtml(r.addl_remarks)}</td>
           </tr>`).join("")
-      : `<tr><td colspan="2" class="loading-row">No reviews from users yet.</td></tr>`;
+      : `<tr><td colspan="3" class="loading-row">No reviews from users yet.</td></tr>`;
   } else if (kind === "details") {
     thead.innerHTML = `<tr><th>Field</th><th>Value</th></tr>`;
     if (isNewContact) {
@@ -3369,10 +3373,10 @@ function renderNewContactsTable() {
       const modal = document.getElementById("contact-info-modal");
       document.getElementById("contact-info-title").textContent = "Session Attendance (from Sheets)";
       document.getElementById("contact-info-sub").textContent = `${contact.name} · ${formatPhone(contact.mob_no)}`;
-      document.getElementById("contact-info-thead").innerHTML = `<tr><th>#</th><th>Session Date</th></tr>`;
+      document.getElementById("contact-info-thead").innerHTML = `<tr><th>S.No</th><th>Session Date</th></tr>`;
       const tbody2 = document.getElementById("contact-info-body");
       tbody2.innerHTML = sessions.length
-        ? sessions.map((d, i) => `<tr><td data-label="#">${i + 1}</td><td data-label="Session Date">${d}</td></tr>`).join("")
+        ? sessions.map((d, i) => `<tr><td data-label="S.No">${i + 1}</td><td data-label="Session Date">${d}</td></tr>`).join("")
         : `<tr><td colspan="2" class="loading-row">No sessions recorded.</td></tr>`;
       document.getElementById("contact-info-search").classList.add("hidden");
       const modalActions = modal.querySelector(".modal-actions");

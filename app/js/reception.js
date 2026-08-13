@@ -378,7 +378,7 @@ async function renderTodayList() {
   const tbody = document.getElementById("reception-attendance-body");
   const fullList = await loadTodayAttendance();
   if (!fullList.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="loading-row">No attendance marked today.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="loading-row">No attendance marked today.</td></tr>`;
     return;
   }
 
@@ -390,7 +390,7 @@ async function renderTodayList() {
   if (sessionsFilter !== "") list = list.filter((r) => (r.contact?.sessions_count ?? 0) === parseInt(sessionsFilter, 10));
   if (callsFilter !== "") list = list.filter((r) => (r.contact?.calls_count ?? 0) === parseInt(callsFilter, 10));
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="loading-row">No attendance rows match these filters.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="loading-row">No attendance rows match these filters.</td></tr>`;
     return;
   }
   // "Name"/"Phone" both group repeat markings for the same person (by mob_no,
@@ -418,8 +418,9 @@ async function renderTodayList() {
   } else {
     sorted = list;
   }
-  tbody.innerHTML = sorted.map((r) => `
+  tbody.innerHTML = sorted.map((r, idx) => `
     <tr>
+      <td data-label="S.No">${idx + 1}</td>
       <td data-label="Name">${escapeHtml(r.name || "")}</td>
       <td data-label="Phone" class="phone-cell">${formatPhone(r.mob_no)}</td>
       <td data-label="Time">${timeHM(r.ts)}</td>
