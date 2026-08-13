@@ -495,6 +495,14 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   max-width: 110px !important;
   line-height: 1.2;
 }
+/* The nowrap set on every .data-table td above makes a full timestamp string
+   wider than this column's 110px cap, so it visually spills into the Name
+   cell next to it — wrap it onto two lines instead, within its own box. */
+.data-table td[data-label="Time Stamp"] {
+  white-space: normal;
+  overflow: hidden;
+  word-break: break-word;
+}
 .data-table td[data-label="Name"], .data-table td[data-label="Name"] input, .data-table th:nth-child(3) {
   width: 140px !important;
   max-width: 140px !important;
