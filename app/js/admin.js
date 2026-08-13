@@ -2275,10 +2275,13 @@ function wireGeneralDataModal() {
       else if (category === "pending") s.pending++;
     });
 
-    const rows = Object.entries(stats).filter(([, s]) => s.assigned > 0).sort((a, b) => a[0].localeCompare(b[0]));
+    const pctOf = (s) => (s.assigned > 0 ? ((s.assigned - s.pending) / s.assigned) * 100 : -1);
+    const rows = Object.entries(stats)
+      .filter(([, s]) => s.assigned > 0)
+      .sort((a, b) => pctOf(b[1]) - pctOf(a[1]) || a[0].localeCompare(b[0]));
     tbody.innerHTML = rows.length
       ? rows.map(([name, s], idx) => {
-          const completedPct = s.assigned > 0 ? Math.round(((s.assigned - s.pending) / s.assigned) * 100) + "%" : "—";
+          const completedPct = s.assigned > 0 ? Math.round(pctOf(s)) + "%" : "—";
           return `
           <tr>
             <td data-label="S.No">${idx + 1}</td>
