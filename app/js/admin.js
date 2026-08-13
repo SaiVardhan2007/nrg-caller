@@ -2316,8 +2316,7 @@ function wireContactInfoModalRowControls(tbody) {
 
 async function openAnalyticsStatModal(statType) {
   if (!currentAnalyticsParams) return;
-  const { userName, isAll, fromTs, toTs, eventFilter, currentEventCode } = currentAnalyticsParams;
-  const activeEvent = eventFilter || currentEventCode;
+  const { userName, isAll, fromTs, toTs, eventFilter } = currentAnalyticsParams;
 
   const modal = document.getElementById("contact-info-modal");
   const thead = document.getElementById("contact-info-thead");
@@ -2355,9 +2354,9 @@ async function openAnalyticsStatModal(statType) {
     let query = supabase
       .from("assignments")
       .select("user_name, event_code, contacts(name, mob_no, admin_tag_to_users, sessions_count, calls_count)");
-    // Only filter by event if the user explicitly selected a specific event
+    // Only filter by event if the user explicitly selected a specific event —
+    // matches the Total Assigned tile, so "All events" shows every live row.
     if (eventFilter) query = query.eq("event_code", eventFilter);
-    else if (activeEvent) query = query.eq("event_code", activeEvent);
     if (!isAll) query = query.eq("user_name", userName);
     query = query.order("event_code");
 
@@ -2403,13 +2402,6 @@ async function openAnalyticsStatModal(statType) {
       .select("user_name, event_code, status, contacts(name, mob_no, admin_tag_to_users, sessions_count, calls_count)")
       .in("status", ["Not Done", "yet to call", ""]);
     if (eventFilter) query = query.eq("event_code", eventFilter);
-    else if (activeEvent && !eventFilter) {
-      // In case we want to show all events if eventFilter is empty
-      // query = query.eq("event_code", activeEvent);
-      // Wait, if eventFilter is empty, we do NOT filter by event_code to show all events
-    } else if (activeEvent) {
-      query = query.eq("event_code", activeEvent);
-    }
     if (!isAll) query = query.eq("user_name", userName);
     query = query.order("event_code");
 
@@ -2527,10 +2519,8 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
 
   const fromTs = fromDate ? new Date(fromDate + "T00:00:00").toISOString() : null;
   const toTs = toDate ? new Date(toDate + "T23:59:59").toISOString() : null;
-  const currentEventCode = await getSetting("current_event");
-  if (isStale()) return;
 
-  currentAnalyticsParams = { userName, isAll, fromTs, toTs, eventFilter, currentEventCode };
+  currentAnalyticsParams = { userName, isAll, fromTs, toTs, eventFilter };
 
   // total calls made in the selected range, broken down by outcome — counted
   // server-side (call_outcome_counts RPC) instead of fetching every matching
@@ -2588,9 +2578,11 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   document.getElementById("analytics-total-assigned").textContent = totalAssigned;
 
   // currently assigned contacts (always reflects the live/current round)
-  // If no current event is set, show all live assignments across every event
+  // Filter by the same criterion as the Total Assigned tile above (the Event
+  // dropdown), not the global current-event setting, so the drill-down count
+  // always matches the tile — e.g. "All events" must show every live row.
   let assignedQuery = supabase.from("assignments").select("user_name,status,event_code,contacts(name,mob_no,admin_tag_to_users,sessions_count,calls_count)");
-  if (currentEventCode) assignedQuery = assignedQuery.eq("event_code", currentEventCode);
+  if (eventFilter) assignedQuery = assignedQuery.eq("event_code", eventFilter);
   if (!isAll) assignedQuery = assignedQuery.eq("user_name", userName);
   const { data: assignedContacts } = await assignedQuery;
   if (isStale()) return;
