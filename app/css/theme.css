@@ -1430,6 +1430,11 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 .users-toolbar .field.inline select:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(5,150,105,0.4); filter: brightness(1.05); }
 .users-toolbar .field.inline select:focus { box-shadow: 0 0 0 4px rgba(5,150,105,0.25); }
+/* The select itself is white-on-green, but the native dropdown list opens
+   with a plain white background — without this, its options inherit the
+   white text color and are invisible except when the hover highlight adds
+   its own contrasting background. */
+.users-toolbar .field.inline select option { background: #fff; color: var(--text-main, #1f2937); }
 
 .date-range-inputs {
   display: flex;
