@@ -24,6 +24,22 @@
 
 * { box-sizing: border-box; }
 
+/* Several selects (event pickers, sort dropdowns, ws-select, etc.) style the
+   closed control with white text on a colored pill. That white color is
+   inherited by the native <option> popup too, and on Windows/dark-mode
+   browsers the popup's own background can also default to something the
+   author styles never touch — leaving text invisible until the row is
+   hovered. Force every option list app-wide to plain dark-on-light, and
+   pin color-scheme so the OS/browser can't swap in a dark UA background. */
+:root { color-scheme: light; }
+select, option {
+  color-scheme: light;
+}
+select option {
+  color: var(--text-main) !important;
+  background-color: #fff !important;
+}
+
 body {
   margin: 0;
   font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -1430,11 +1446,6 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 .users-toolbar .field.inline select:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(5,150,105,0.4); filter: brightness(1.05); }
 .users-toolbar .field.inline select:focus { box-shadow: 0 0 0 4px rgba(5,150,105,0.25); }
-/* The select itself is white-on-green, but the native dropdown list opens
-   with a plain white background — without this, its options inherit the
-   white text color and are invisible except when the hover highlight adds
-   its own contrasting background. */
-.users-toolbar .field.inline select option { background: #fff; color: var(--text-main, #1f2937); }
 
 .date-range-inputs {
   display: flex;
