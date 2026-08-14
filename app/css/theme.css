@@ -37,7 +37,7 @@ select, option {
 }
 select option {
   color: var(--text-main) !important;
-  background-color: #fff !important;
+  background-color: var(--cream) !important;
 }
 
 body {
