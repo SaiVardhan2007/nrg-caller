@@ -299,6 +299,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .btn-refresh { padding: 8px 14px; font-size: 13px; white-space: nowrap; }
 .btn-sm { padding: 7px 14px; font-size: 13px; }
 .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-weight: 800; color: var(--tulsi-dark); font-size: 15px; }
+.book-stock-add-row .btn { flex: 1 1 auto; }
 
 /* ============ MESSAGE TEMPLATES (sticky notes) ============ */
 .sticky-note-grid {
@@ -394,6 +395,36 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     min-width: 1400px;
   }
 }
+
+/* Book Distribution tables (and their per-page Analytics breakdowns) are
+   drag-reorderable like Master Contact, with every column given an explicit
+   width below — but unlike Master Contact, their column widths sum to less
+   than most containers. width:100% (inherited from .data-table above) forces
+   the table to fill the container regardless: browsers redistribute the
+   leftover space proportionally across columns even when every column has
+   an explicit width/max-width, because 'auto' table layout only guarantees
+   those as a floor, not a ceiling. That's what produced the huge blank gaps
+   between columns. Sizing these tables to their own content instead (only
+   falling back to their natural width, and to horizontal scroll on a
+   viewport narrower than that, via the min-width floor) avoids it. */
+#book-dashboard-table, #book-inward-table, #book-outward-table, #book-places-table,
+#ba-books-table, #ba-area-table, #ba-seller-table, #ba-language-table, #ba-source-table,
+#my-inward-table, #my-outward-table {
+  width: auto;
+}
+@media (min-width: 641px) {
+  #book-dashboard-table { min-width: 1600px; }
+  #book-inward-table { min-width: 1100px; }
+  #my-inward-table { min-width: 950px; }
+  #book-outward-table { min-width: 1300px; }
+  #my-outward-table { min-width: 1000px; }
+  #book-places-table { min-width: 750px; }
+  #ba-books-table { min-width: 680px; }
+  #ba-area-table { min-width: 680px; }
+  #ba-seller-table { min-width: 460px; }
+  #ba-language-table { min-width: 420px; }
+  #ba-source-table { min-width: 470px; }
+}
 .data-table th {
   position: sticky;
   top: 0;
@@ -402,10 +433,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   padding: 8px 10px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 700;
   white-space: nowrap;
 }
-.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--sandstone); font-size: 13px; white-space: nowrap; }
+/* white-space:nowrap alone lets long text overflow the cell's fixed/max
+   width invisibly — the sibling cell's opaque background paints over it, so
+   it just looks silently cut off with no "…" cue. Clip it visibly instead. */
+.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--sandstone); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tbody tr { transition: background 0.12s ease; }
 .data-table tbody tr:hover { background: rgba(5,150,105,0.04); }
+.data-table tbody tr.row-low-stock { background: rgba(220,38,38,0.12); }
+.data-table tbody tr.row-low-stock:hover { background: rgba(220,38,38,0.2); }
 .clickable-row { cursor: pointer; }
 .clickable-row:hover { background: rgba(5,150,105,0.1) !important; }
 .data-table input[type="number"], .data-table select { padding: 4px 6px; font-size: 12.5px; }
@@ -498,12 +534,20 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   width: 100%; min-width: 50px; padding: 5px 6px; font-size: 13px;
   border: 1.5px solid transparent; border-radius: 8px; background: transparent;
   color: var(--text-main); font-family: inherit; transition: border-color 0.15s ease, background 0.15s ease;
+  /* An <input>'s own text rendering clips silently with no "…" when its
+     value is wider than the box — the parent td's overflow/text-overflow
+     never applies to it, since the input paints its own text internally.
+     Editable table cells (Book Distribution's Name/Purchased From/etc.) are
+     inputs, not plain text, so they need this set directly to avoid names
+     looking cut off with no truncation cue. */
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 /* Compact Table Cells & Headers */
 .data-table td[data-label="S.No"], .data-table th:nth-child(1) {
-  width: 32px !important;
-  max-width: 32px !important;
+  width: 40px !important;
+  max-width: 40px !important;
+  padding: 8px 2px !important;
   text-align: center;
 }
 .data-table td[data-label="Time Stamp"], .data-table th:nth-child(2) {
@@ -582,7 +626,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 /* Master Contact columns are user-draggable, so their widths are keyed by
    data-label (which moves with the column) rather than nth-child position —
    these override the generic nth-child rules above via #id specificity. */
-#contacts-table th[data-label="S.No"], #contacts-table td[data-label="S.No"] { width: 32px !important; max-width: 32px !important; text-align: center; }
+#contacts-table th[data-label="S.No"], #contacts-table td[data-label="S.No"] { width: 40px !important; max-width: 40px !important; padding: 8px 2px !important; text-align: center; }
 #contacts-table th[data-label="Time Stamp"], #contacts-table td[data-label="Time Stamp"] { width: 110px !important; max-width: 110px !important; line-height: 1.2; }
 #contacts-table th[data-label="Name"], #contacts-table td[data-label="Name"], #contacts-table td[data-label="Name"] input { width: 140px !important; max-width: 140px !important; }
 #contacts-table th[data-label="Phone"], #contacts-table td[data-label="Phone"], #contacts-table td[data-label="Phone"] input { min-width: 105px !important; width: 105px !important; max-width: 105px !important; }
@@ -621,38 +665,105 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    that leak would otherwise win (a min-width bigger than our target width,
    or an unwanted centered/cramped cell), the property is neutralized
    explicitly below even though it looks redundant. */
-#book-dashboard-table th[data-label="Name"], #book-dashboard-table td[data-label="Name"] { width: 190px !important; max-width: 190px !important; text-align: left !important; }
+#book-dashboard-table th[data-label="Name"], #book-dashboard-table td[data-label="Name"] { width: 260px !important; max-width: none !important; min-width: 260px !important; text-align: left !important; }
+#book-dashboard-table th[data-label="Selling Price"], #book-dashboard-table td[data-label="Selling Price"] { width: 130px !important; max-width: 130px !important; text-align: center; }
 #book-dashboard-table th[data-label="Language"], #book-dashboard-table td[data-label="Language"] { width: 90px !important; max-width: 90px !important; }
 #book-dashboard-table th[data-label="Total Inward"], #book-dashboard-table td[data-label="Total Inward"] { width: 105px !important; max-width: 105px !important; text-align: center; }
 #book-dashboard-table th[data-label="Avg Purchase Price"], #book-dashboard-table td[data-label="Avg Purchase Price"] { width: 150px !important; max-width: 150px !important; text-align: center; }
 #book-dashboard-table th[data-label="Current Stock"], #book-dashboard-table td[data-label="Current Stock"] { width: 110px !important; max-width: 110px !important; text-align: center; }
+#book-dashboard-table th[data-label="Min Stock"], #book-dashboard-table td[data-label="Min Stock"] { width: 100px !important; max-width: 100px !important; text-align: center; }
 #book-dashboard-table th[data-label="Current Stock Value"], #book-dashboard-table td[data-label="Current Stock Value"] { width: 155px !important; max-width: 155px !important; text-align: center; padding: 8px 10px !important; }
 #book-dashboard-table th[data-label="Total Sold"], #book-dashboard-table td[data-label="Total Sold"] { width: 100px !important; max-width: 100px !important; text-align: center; padding: 8px 10px !important; }
 #book-dashboard-table th[data-label="Avg Selling Price"], #book-dashboard-table td[data-label="Avg Selling Price"] { width: 145px !important; max-width: 145px !important; text-align: center; }
 #book-dashboard-table th[data-label="Total Sales Value"], #book-dashboard-table td[data-label="Total Sales Value"] { width: 145px !important; max-width: 145px !important; text-align: center; }
 #book-dashboard-table th[data-label="Profit"], #book-dashboard-table td[data-label="Profit"] { width: 120px !important; max-width: 120px !important; text-align: center; }
 
-#book-inward-table th[data-label="Time"], #book-inward-table td[data-label="Time"] { width: 130px !important; max-width: 130px !important; line-height: 1.2; text-align: left !important; }
-#book-inward-table th[data-label="Name"], #book-inward-table td[data-label="Name"] { width: 150px !important; max-width: 150px !important; }
+/* Time holds a full locale timestamp (e.g. "8/12/2026, 7:11:15 PM") as plain
+   text — a fixed one-line width there just moves the truncation from
+   "column too narrow" to "column barely wide enough for today's locale".
+   Wrapping onto two lines (white-space: normal, same trick as Master
+   Contact's "Time Stamp" column above) instead of clipping with an ellipsis
+   keeps the full value visible regardless of exact string length.
+   Name/Purchased From/Sold Area/Sold By are <input class="inline-edit">
+   elements, not plain text — inputs render single-line internally and can't
+   wrap no matter what white-space/overflow is set on the td, so the only
+   real fix for those is making the column (and its 100%-width input) wide
+   enough for real data to fit without needing the ellipsis at all.
+   "Name" specifically also needs its own td[data-label="Name"] input rule
+   here: the generic Master Contact-tuned block above sets that exact
+   descendant selector (.data-table td[data-label="Name"] input) to a hard
+   140px !important, and a width on the outer td doesn't touch it — an
+   ID-scoped selector on the input itself is what's needed to outrank it. */
+#book-inward-table th[data-label="Time"], #book-inward-table td[data-label="Time"] { width: 145px !important; max-width: 145px !important; line-height: 1.3; text-align: left !important; white-space: normal !important; }
+#book-inward-table th[data-label="Name"], #book-inward-table td[data-label="Name"] { width: 230px !important; max-width: 230px !important; }
+#book-inward-table td[data-label="Name"] input { width: 100% !important; max-width: none !important; }
 #book-inward-table th[data-label="Language"], #book-inward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
 #book-inward-table th[data-label="Purchase Price"], #book-inward-table td[data-label="Purchase Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
 #book-inward-table th[data-label="Quantity"], #book-inward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
-#book-inward-table th[data-label="Purchased From"], #book-inward-table td[data-label="Purchased From"] { width: 130px !important; max-width: 130px !important; padding: 8px 10px !important; }
+#book-inward-table th[data-label="Purchased From"], #book-inward-table td[data-label="Purchased From"] { width: 190px !important; max-width: 190px !important; padding: 8px 10px !important; }
 #book-inward-table th[data-label=""], #book-inward-table td[data-label=""] { width: 80px !important; max-width: 80px !important; min-width: 80px !important; text-align: center; padding: 4px 2px !important; }
 
-#book-outward-table th[data-label="Time"], #book-outward-table td[data-label="Time"] { width: 130px !important; max-width: 130px !important; line-height: 1.2; text-align: left !important; }
-#book-outward-table th[data-label="Name"], #book-outward-table td[data-label="Name"] { width: 150px !important; max-width: 150px !important; }
+#book-outward-table th[data-label="Time"], #book-outward-table td[data-label="Time"] { width: 145px !important; max-width: 145px !important; line-height: 1.3; text-align: left !important; white-space: normal !important; }
+#book-outward-table th[data-label="Name"], #book-outward-table td[data-label="Name"] { width: 230px !important; max-width: 230px !important; }
+#book-outward-table td[data-label="Name"] input { width: 100% !important; max-width: none !important; }
 #book-outward-table th[data-label="Language"], #book-outward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
 #book-outward-table th[data-label="Sold Price"], #book-outward-table td[data-label="Sold Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
 #book-outward-table th[data-label="Quantity"], #book-outward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
-#book-outward-table th[data-label="Sold Area"], #book-outward-table td[data-label="Sold Area"] { width: 110px !important; max-width: 110px !important; padding: 8px 10px !important; }
-#book-outward-table th[data-label="Sold By"], #book-outward-table td[data-label="Sold By"] { width: 110px !important; max-width: 110px !important; padding: 8px 10px !important; }
+#book-outward-table th[data-label="Sold Area"], #book-outward-table td[data-label="Sold Area"] { width: 200px !important; max-width: 200px !important; padding: 8px 10px !important; }
+#book-outward-table th[data-label="Sold By"], #book-outward-table td[data-label="Sold By"] { width: 150px !important; max-width: 150px !important; padding: 8px 10px !important; }
 #book-outward-table th[data-label=""], #book-outward-table td[data-label=""] { width: 80px !important; max-width: 80px !important; min-width: 80px !important; text-align: center; padding: 4px 2px !important; }
+
+/* my-inward-table / my-outward-table (the Book Distribution seller's own
+   "Yesterday & Today" panels) share the same column labels but aren't
+   drag-reorderable, so they'd otherwise fall through to the generic
+   Master Contact-tuned .data-table nth-child rules above and get truncated
+   the same way the admin tables did. */
+#my-inward-table th[data-label="Time"], #my-inward-table td[data-label="Time"] { width: 145px !important; max-width: 145px !important; line-height: 1.3; text-align: left !important; white-space: normal !important; }
+#my-inward-table th[data-label="Name"], #my-inward-table td[data-label="Name"] { width: 220px !important; max-width: 220px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+#my-inward-table th[data-label="Language"], #my-inward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
+#my-inward-table th[data-label="Purchase Price"], #my-inward-table td[data-label="Purchase Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
+#my-inward-table th[data-label="Quantity"], #my-inward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
+#my-inward-table th[data-label="Purchased From"], #my-inward-table td[data-label="Purchased From"] { width: 180px !important; max-width: 180px !important; padding: 8px 10px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+
+#my-outward-table th[data-label="Time"], #my-outward-table td[data-label="Time"] { width: 145px !important; max-width: 145px !important; line-height: 1.3; text-align: left !important; white-space: normal !important; }
+#my-outward-table th[data-label="Name"], #my-outward-table td[data-label="Name"] { width: 220px !important; max-width: 220px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+#my-outward-table th[data-label="Language"], #my-outward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
+#my-outward-table th[data-label="Sold Price"], #my-outward-table td[data-label="Sold Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
+#my-outward-table th[data-label="Quantity"], #my-outward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
+#my-outward-table th[data-label="Sold Area"], #my-outward-table td[data-label="Sold Area"] { width: 180px !important; max-width: 180px !important; padding: 8px 10px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
 
 #book-places-table th[data-label="Name"], #book-places-table td[data-label="Name"] { width: 160px !important; max-width: 160px !important; text-align: left !important; }
 #book-places-table th[data-label="Description"], #book-places-table td[data-label="Description"] { width: 260px !important; max-width: 260px !important; }
 #book-places-table th[data-label="Map Link"], #book-places-table td[data-label="Map Link"] { width: 100px !important; max-width: 100px !important; text-align: center; }
 #book-places-table th[data-label=""], #book-places-table td[data-label=""] { width: 170px !important; max-width: 170px !important; min-width: 170px !important; }
+
+/* Book Analytics breakdown tables: same reasoning as Master Contact/Book
+   Distribution above — every column gets an explicit width so the generic
+   .data-table th:nth-child(N) rules (tuned for Master Contact's 13-column
+   layout) can't leak an unrelated width onto whichever column happens to
+   land at the same position. */
+#ba-books-table th[data-label="Name"], #ba-books-table td[data-label="Name"] { width: 160px !important; max-width: 160px !important; text-align: left !important; }
+#ba-books-table th[data-label="Language"], #ba-books-table td[data-label="Language"] { width: 90px !important; max-width: 90px !important; }
+#ba-books-table th[data-label="Qty Sold"], #ba-books-table td[data-label="Qty Sold"] { width: 100px !important; max-width: 100px !important; text-align: center; }
+#ba-books-table th[data-label="Sales Value"], #ba-books-table td[data-label="Sales Value"] { width: 130px !important; max-width: 130px !important; text-align: center; }
+#ba-books-table th[data-label="Avg Price"], #ba-books-table td[data-label="Avg Price"] { width: 120px !important; max-width: 120px !important; text-align: center; }
+
+#ba-area-table th[data-label="Area"], #ba-area-table td[data-label="Area"] { width: 160px !important; max-width: 160px !important; text-align: left !important; }
+#ba-area-table th[data-label="Qty Sold"], #ba-area-table td[data-label="Qty Sold"] { width: 100px !important; max-width: 100px !important; text-align: center; }
+#ba-area-table th[data-label="Sales Value"], #ba-area-table td[data-label="Sales Value"] { width: 130px !important; max-width: 130px !important; text-align: center; }
+#ba-area-table th[data-label="Books"], #ba-area-table td[data-label="Books"] { width: 220px !important; max-width: 220px !important; text-align: center; }
+
+#ba-seller-table th[data-label="Sold By"], #ba-seller-table td[data-label="Sold By"] { width: 160px !important; max-width: 160px !important; text-align: left !important; }
+#ba-seller-table th[data-label="Qty Sold"], #ba-seller-table td[data-label="Qty Sold"] { width: 100px !important; max-width: 100px !important; text-align: center; }
+#ba-seller-table th[data-label="Sales Value"], #ba-seller-table td[data-label="Sales Value"] { width: 130px !important; max-width: 130px !important; text-align: center; }
+
+#ba-language-table th[data-label="Language"], #ba-language-table td[data-label="Language"] { width: 120px !important; max-width: 120px !important; text-align: left !important; }
+#ba-language-table th[data-label="Inward Qty"], #ba-language-table td[data-label="Inward Qty"] { width: 110px !important; max-width: 110px !important; text-align: center; }
+#ba-language-table th[data-label="Sold Qty"], #ba-language-table td[data-label="Sold Qty"] { width: 110px !important; max-width: 110px !important; text-align: center; }
+
+#ba-source-table th[data-label="Purchased From"], #ba-source-table td[data-label="Purchased From"] { width: 160px !important; max-width: 160px !important; text-align: left !important; }
+#ba-source-table th[data-label="Qty Bought"], #ba-source-table td[data-label="Qty Bought"] { width: 110px !important; max-width: 110px !important; text-align: center; }
+#ba-source-table th[data-label="Purchase Value"], #ba-source-table td[data-label="Purchase Value"] { width: 130px !important; max-width: 130px !important; text-align: center; }
 
 /* User-facing "Your Inward/Outward Stock Entries" tables — same column set
    as the admin inward/outward tables above minus filters, so same widths. */
@@ -842,6 +953,27 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .stock-row .field { margin-bottom: 0; flex: 1 1 100px; }
 .stock-row .field.stock-cell-title { flex: 2 1 160px; }
 .stock-row-remove { flex: 0 0 auto; padding: 12px 14px; }
+.stock-row-standard-price { flex: 1 1 100%; margin: -4px 0 0; }
+
+/* ============ SEARCHABLE COMBO DROPDOWN ============
+   Replaces native <input list="..."> datalists, which render as a bulky
+   OS-styled popup on mobile Chrome — this is a lightweight custom list that
+   matches the rest of the app's look and lets typing filter the options. */
+.combo-dropdown {
+  display: none;
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--sandstone);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 120;
+}
+.combo-dropdown.open { display: block; }
+.combo-option { padding: 10px 14px; font-size: 14px; cursor: pointer; }
+.combo-option:hover, .combo-option.active { background: #f3f4f6; }
+.combo-empty { padding: 10px 14px; font-size: 13px; color: var(--text-muted); }
 @media (max-width: 560px) {
   .stock-row .field { flex: 1 1 45%; }
   .stock-row .field.stock-cell-title { flex: 1 1 100%; }
@@ -1066,6 +1198,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     box-sizing: border-box;
   }
   .panel-row { flex-direction: column; align-items: stretch; }
+  .panel-row.book-stock-add-row { flex-direction: row; align-items: stretch; }
 
   /* Stats grid wrap on mobile */
   .stats-bar {

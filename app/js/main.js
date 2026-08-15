@@ -68,6 +68,7 @@ function showScreen(id) {
   if (id === "book-places-section") BookDistribution.initPlaces(currentUser);
   if (id === "book-inward-section") BookDistribution.initInwardTable(currentUser);
   if (id === "book-outward-section") BookDistribution.initOutwardTable();
+  if (id === "book-analytics-section") BookDistribution.initAnalytics();
   if (id === "book-stock-entry-section") BookDistribution.initStockEntry(currentUser);
 
   if (id !== "admin-new-contacts-section") Admin.stopNewContactsPolling();

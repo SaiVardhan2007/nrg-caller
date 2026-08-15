@@ -627,256 +627,382 @@
 
     <!-- ===== BOOK DISTRIBUTION: Dashboard ===== -->
     <section id="book-dashboard-section" class="page hidden">
-      <h3 class="section-title">Book-wise Stock Summary</h3>
-      <p class="field-hint">Click any Total Inward / Total Sold to see every entry. Click an Avg Price to see the different prices paid/charged and where.</p>
-      <div class="stats-bar">
-        <div id="bd-stat-profit-card" class="stat"><span id="bd-stat-total-profit" class="stat-num">₹0</span><span class="stat-label">Total Realized Profit</span></div>
-      </div>
-      <div class="panel-row">
-        <button id="add-book-dashboard-btn" class="btn btn-primary btn-sm">+ Add Book</button>
-        <button id="add-book-bulk-btn" class="btn btn-secondary btn-sm">⬆ Bulk Add (Excel)</button>
-        <input id="bd-search" type="search" placeholder="Search book name…" class="search-input" />
-        <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
-          <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
-          <select id="bd-sort" class="inline-edit" style="width:190px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
-            <option value="name-asc">Name (A-Z)</option>
-            <option value="name-desc">Name (Z-A)</option>
-            <option value="totalInwardQty-desc">Total Inward (High-Low)</option>
-            <option value="totalSoldQty-desc">Total Sold (High-Low)</option>
-            <option value="currentStock-asc">Current Stock (Low-High)</option>
-            <option value="currentStock-desc">Current Stock (High-Low)</option>
-            <option value="currentStockValue-desc">Current Stock Value (High-Low)</option>
-            <option value="totalSalesValue-desc">Total Sales Value (High-Low)</option>
-            <option value="profit-desc">Realized Profit (High-Low)</option>
-          </select>
-        </label>
-        <button id="bd-reset-columns-btn" class="btn btn-secondary" title="Restore the default column order">↺ Reset Columns</button>
-        <span class="hscroll-controls">
-          <button id="bd-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
-          <button id="bd-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
-        </span>
-      </div>
-      <div class="table-wrap" id="book-dashboard-table-wrap">
-        <table class="data-table" id="book-dashboard-table">
-          <thead>
-            <tr>
-              <th draggable="true" data-label="S.No">S.No</th>
-              <th draggable="true" data-label="Name">Name</th>
-              <th draggable="true" data-label="Language">
-                <div class="th-label">Language</div>
-                <select id="bd-filter-language" class="th-filter">
-                  <option value="__ALL__">All</option>
-                  <option value="">—</option>
-                </select>
-              </th>
-              <th draggable="true" data-label="Total Inward">Total Inward</th>
-              <th draggable="true" data-label="Avg Purchase Price">Avg Purchase Price</th>
-              <th draggable="true" data-label="Current Stock">
-                <div class="th-label">Current Stock</div>
-                <input type="number" id="bd-filter-current-stock" class="th-filter" placeholder="All" />
-              </th>
-              <th draggable="true" data-label="Current Stock Value">Current Stock Value</th>
-              <th draggable="true" data-label="Total Sold">Total Sold</th>
-              <th draggable="true" data-label="Avg Selling Price">Avg Selling Price</th>
-              <th draggable="true" data-label="Total Sales Value">Total Sales Value</th>
-              <th draggable="true" data-label="Profit">Profit</th>
-            </tr>
-          </thead>
-          <tbody id="book-dashboard-body">
-            <tr><td colspan="11" class="loading-row">Loading…</td></tr>
-          </tbody>
-        </table>
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="bd-search" type="search" placeholder="Search book name…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="bd-sort" class="inline-edit">
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+                <option value="totalInwardQty-desc">Total Inward (High-Low)</option>
+                <option value="totalSoldQty-desc">Total Sold (High-Low)</option>
+                <option value="currentStock-asc">Current Stock (Low-High)</option>
+                <option value="currentStock-desc">Current Stock (High-Low)</option>
+                <option value="currentStockValue-desc">Current Stock Value (High-Low)</option>
+                <option value="totalSalesValue-desc">Total Sales Value (High-Low)</option>
+                <option value="profit-desc">Realized Profit (High-Low)</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Language</span>
+              <select id="bd-filter-language">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Current Stock</span>
+              <input type="number" id="bd-filter-current-stock" placeholder="All" />
+            </label>
+            <button id="add-book-dashboard-btn" class="btn btn-primary toolbar-btn">+ Add Book</button>
+            <button id="add-book-bulk-btn" class="btn btn-secondary toolbar-btn">⬆ Bulk Add (Excel)</button>
+            <button id="bd-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
+            <button id="bd-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
+            <span class="hscroll-controls">
+              <button id="bd-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+              <button id="bd-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+            </span>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="stats-bar">
+            <div id="bd-stat-profit-card" class="stat"><span id="bd-stat-total-profit" class="stat-num">₹0</span><span class="stat-label">Total Realized Profit</span></div>
+          </div>
+          <div class="table-wrap" id="book-dashboard-table-wrap">
+            <table class="data-table" id="book-dashboard-table">
+              <thead>
+                <tr>
+                  <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Name">Name</th>
+                  <th draggable="true" data-label="Selling Price">Selling Price</th>
+                  <th draggable="true" data-label="Language">Language</th>
+                  <th draggable="true" data-label="Total Inward">Total Inward</th>
+                  <th draggable="true" data-label="Avg Purchase Price">Avg Purchase Price</th>
+                  <th draggable="true" data-label="Current Stock">Current Stock</th>
+                  <th draggable="true" data-label="Min Stock">Min Stock</th>
+                  <th draggable="true" data-label="Current Stock Value">Current Stock Value</th>
+                  <th draggable="true" data-label="Total Sold">Total Sold</th>
+                  <th draggable="true" data-label="Avg Selling Price">Avg Selling Price</th>
+                  <th draggable="true" data-label="Total Sales Value">Total Sales Value</th>
+                  <th draggable="true" data-label="Profit">Profit</th>
+                </tr>
+              </thead>
+              <tbody id="book-dashboard-body">
+                <tr><td colspan="13" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </section>
 
     <!-- ===== BOOK DISTRIBUTION: Inward Stock ===== -->
     <section id="book-inward-section" class="page hidden">
-      <div class="panel-row">
-        <button id="add-book-inward-admin-btn" class="btn btn-primary btn-sm">+ Add Inward Stock</button>
-        <input id="bi-search" type="search" placeholder="Search name / purchased from…" class="search-input" />
-        <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
-          <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
-          <select id="bi-sort" class="inline-edit" style="width:180px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
-            <option value="created_at-desc">Time (Newest)</option>
-            <option value="created_at-asc">Time (Oldest)</option>
-            <option value="name-asc">Name (A-Z)</option>
-            <option value="name-desc">Name (Z-A)</option>
-            <option value="purchase_price-desc">Purchase Price (High-Low)</option>
-            <option value="purchase_price-asc">Purchase Price (Low-High)</option>
-            <option value="quantity-desc">Quantity (High-Low)</option>
-            <option value="quantity-asc">Quantity (Low-High)</option>
-          </select>
-        </label>
-        <button id="bi-reset-columns-btn" class="btn btn-secondary" title="Restore the default column order">↺ Reset Columns</button>
-        <span class="hscroll-controls">
-          <button id="bi-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
-          <button id="bi-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
-        </span>
-      </div>
-      <div class="table-wrap" id="book-inward-table-wrap">
-        <table class="data-table" id="book-inward-table">
-          <thead>
-            <tr>
-              <th draggable="true" data-label="S.No">S.No</th>
-              <th draggable="true" data-label="Time">Time</th>
-              <th draggable="true" data-label="Name">Name</th>
-              <th draggable="true" data-label="Language">
-                <div class="th-label">Language</div>
-                <select id="bi-filter-language" class="th-filter">
-                  <option value="__ALL__">All</option>
-                  <option value="">—</option>
-                </select>
-              </th>
-              <th draggable="true" data-label="Purchase Price">
-                <div class="th-label">Purchase Price</div>
-                <input type="number" id="bi-filter-price" class="th-filter" placeholder="All" />
-              </th>
-              <th draggable="true" data-label="Quantity">
-                <div class="th-label">Quantity</div>
-                <input type="number" min="0" id="bi-filter-qty" class="th-filter" placeholder="All" />
-              </th>
-              <th draggable="true" data-label="Purchased From">
-                <div class="th-label">Purchased From</div>
-                <select id="bi-filter-from" class="th-filter">
-                  <option value="__ALL__">All</option>
-                  <option value="">—</option>
-                </select>
-              </th>
-              <th data-label=""></th>
-            </tr>
-          </thead>
-          <tbody id="book-inward-body">
-            <tr><td colspan="8" class="loading-row">Loading…</td></tr>
-          </tbody>
-        </table>
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="bi-search" type="search" placeholder="Search name / purchased from…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="bi-sort" class="inline-edit">
+                <option value="created_at-desc">Time (Newest)</option>
+                <option value="created_at-asc">Time (Oldest)</option>
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+                <option value="purchase_price-desc">Purchase Price (High-Low)</option>
+                <option value="purchase_price-asc">Purchase Price (Low-High)</option>
+                <option value="quantity-desc">Quantity (High-Low)</option>
+                <option value="quantity-asc">Quantity (Low-High)</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Language</span>
+              <select id="bi-filter-language">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Purchase Price</span>
+              <input type="number" id="bi-filter-price" placeholder="All" />
+            </label>
+            <label class="field inline">
+              <span>Quantity</span>
+              <input type="number" min="0" id="bi-filter-qty" placeholder="All" />
+            </label>
+            <label class="field inline">
+              <span>Purchased From</span>
+              <select id="bi-filter-from">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <button id="add-book-inward-admin-btn" class="btn btn-primary toolbar-btn">+ Add Inward Stock</button>
+            <button id="bi-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
+            <span class="hscroll-controls">
+              <button id="bi-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+              <button id="bi-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+            </span>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="table-wrap" id="book-inward-table-wrap">
+            <table class="data-table" id="book-inward-table">
+              <thead>
+                <tr>
+                  <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Time">Time</th>
+                  <th draggable="true" data-label="Name">Name</th>
+                  <th draggable="true" data-label="Language">Language</th>
+                  <th draggable="true" data-label="Purchase Price">Purchase Price</th>
+                  <th draggable="true" data-label="Quantity">Quantity</th>
+                  <th draggable="true" data-label="Purchased From">Purchased From</th>
+                  <th data-label=""></th>
+                </tr>
+              </thead>
+              <tbody id="book-inward-body">
+                <tr><td colspan="8" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </section>
 
     <!-- ===== BOOK DISTRIBUTION: Outward Stock ===== -->
     <section id="book-outward-section" class="page hidden">
-      <div class="panel-row">
-        <input id="bo-search" type="search" placeholder="Search name / sold area / sold by…" class="search-input" />
-        <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
-          <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
-          <select id="bo-sort" class="inline-edit" style="width:180px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
-            <option value="created_at-desc">Time (Newest)</option>
-            <option value="created_at-asc">Time (Oldest)</option>
-            <option value="name-asc">Name (A-Z)</option>
-            <option value="name-desc">Name (Z-A)</option>
-            <option value="sold_price-desc">Sold Price (High-Low)</option>
-            <option value="sold_price-asc">Sold Price (Low-High)</option>
-            <option value="quantity-desc">Quantity (High-Low)</option>
-            <option value="quantity-asc">Quantity (Low-High)</option>
-          </select>
-        </label>
-        <button id="bo-reset-columns-btn" class="btn btn-secondary" title="Restore the default column order">↺ Reset Columns</button>
-        <span class="hscroll-controls">
-          <button id="bo-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
-          <button id="bo-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
-        </span>
-      </div>
-      <div class="table-wrap" id="book-outward-table-wrap">
-        <table class="data-table" id="book-outward-table">
-          <thead>
-            <tr>
-              <th draggable="true" data-label="S.No">S.No</th>
-              <th draggable="true" data-label="Time">Time</th>
-              <th draggable="true" data-label="Name">Name</th>
-              <th draggable="true" data-label="Language">
-                <div class="th-label">Language</div>
-                <select id="bo-filter-language" class="th-filter">
-                  <option value="__ALL__">All</option>
-                  <option value="">—</option>
-                </select>
-              </th>
-              <th draggable="true" data-label="Sold Price">
-                <div class="th-label">Sold Price</div>
-                <input type="number" id="bo-filter-price" class="th-filter" placeholder="All" />
-              </th>
-              <th draggable="true" data-label="Quantity">
-                <div class="th-label">Quantity</div>
-                <input type="number" min="0" id="bo-filter-qty" class="th-filter" placeholder="All" />
-              </th>
-              <th draggable="true" data-label="Sold Area">
-                <div class="th-label">Sold Area</div>
-                <select id="bo-filter-area" class="th-filter">
-                  <option value="__ALL__">All</option>
-                  <option value="">—</option>
-                </select>
-              </th>
-              <th draggable="true" data-label="Sold By">
-                <div class="th-label">Sold By</div>
-                <select id="bo-filter-by" class="th-filter">
-                  <option value="__ALL__">All</option>
-                  <option value="">—</option>
-                </select>
-              </th>
-              <th data-label=""></th>
-            </tr>
-          </thead>
-          <tbody id="book-outward-body">
-            <tr><td colspan="9" class="loading-row">Loading…</td></tr>
-          </tbody>
-        </table>
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="bo-search" type="search" placeholder="Search name / sold area / sold by…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="bo-sort" class="inline-edit">
+                <option value="created_at-desc">Time (Newest)</option>
+                <option value="created_at-asc">Time (Oldest)</option>
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+                <option value="sold_price-desc">Sold Price (High-Low)</option>
+                <option value="sold_price-asc">Sold Price (Low-High)</option>
+                <option value="quantity-desc">Quantity (High-Low)</option>
+                <option value="quantity-asc">Quantity (Low-High)</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Language</span>
+              <select id="bo-filter-language">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Sold Price</span>
+              <input type="number" id="bo-filter-price" placeholder="All" />
+            </label>
+            <label class="field inline">
+              <span>Quantity</span>
+              <input type="number" min="0" id="bo-filter-qty" placeholder="All" />
+            </label>
+            <label class="field inline">
+              <span>Sold Area</span>
+              <select id="bo-filter-area">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Sold By</span>
+              <select id="bo-filter-by">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <button id="bo-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
+            <span class="hscroll-controls">
+              <button id="bo-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+              <button id="bo-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+            </span>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="table-wrap" id="book-outward-table-wrap">
+            <table class="data-table" id="book-outward-table">
+              <thead>
+                <tr>
+                  <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Time">Time</th>
+                  <th draggable="true" data-label="Name">Name</th>
+                  <th draggable="true" data-label="Language">Language</th>
+                  <th draggable="true" data-label="Sold Price">Sold Price</th>
+                  <th draggable="true" data-label="Quantity">Quantity</th>
+                  <th draggable="true" data-label="Sold Area">Sold Area</th>
+                  <th draggable="true" data-label="Sold By">Sold By</th>
+                  <th data-label=""></th>
+                </tr>
+              </thead>
+              <tbody id="book-outward-body">
+                <tr><td colspan="9" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </section>
 
     <!-- ===== BOOK DISTRIBUTION: Distribution Places ===== -->
     <section id="book-places-section" class="page hidden">
-      <div class="panel">
-        <div class="panel-title-row">
-          <span>Distribution Places</span>
-          <button id="add-book-place-btn" class="btn btn-secondary btn-sm">+ Add Place</button>
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="bp-search" type="search" placeholder="Search name / description…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="bp-sort" class="inline-edit">
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Description</span>
+              <select id="bp-filter-description">
+                <option value="__ALL__">All</option>
+                <option value="__BLANK__">Blank Only</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Map Link</span>
+              <select id="bp-filter-map-link">
+                <option value="__ALL__">All</option>
+                <option value="__BLANK__">Blank Only</option>
+              </select>
+            </label>
+            <button id="add-book-place-btn" class="btn btn-primary toolbar-btn">+ Add Place</button>
+            <button id="bp-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
+            <span class="hscroll-controls">
+              <button id="bp-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+              <button id="bp-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+            </span>
+          </div>
         </div>
-        <div class="panel-row">
-          <input id="bp-search" type="search" placeholder="Search name / description…" class="search-input" />
-          <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
-            <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
-            <select id="bp-sort" class="inline-edit" style="width:150px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
-              <option value="name-asc">Name (A-Z)</option>
-              <option value="name-desc">Name (Z-A)</option>
-            </select>
-          </label>
-          <button id="bp-reset-columns-btn" class="btn btn-secondary" title="Restore the default column order">↺ Reset Columns</button>
-          <span class="hscroll-controls">
-            <button id="bp-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
-            <button id="bp-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
-          </span>
-        </div>
-        <div class="table-wrap" id="book-places-table-wrap">
-          <table class="data-table" id="book-places-table">
-            <thead>
-              <tr>
-                <th draggable="true" data-label="S.No">S.No</th>
-                <th draggable="true" data-label="Name">Name</th>
-                <th draggable="true" data-label="Description">
-                  <div class="th-label">Description</div>
-                  <select id="bp-filter-description" class="th-filter">
-                    <option value="__ALL__">All</option>
-                    <option value="__BLANK__">Blank Only</option>
-                  </select>
-                </th>
-                <th draggable="true" data-label="Map Link">
-                  <div class="th-label">Map Link</div>
-                  <select id="bp-filter-map-link" class="th-filter">
-                    <option value="__ALL__">All</option>
-                    <option value="__BLANK__">Blank Only</option>
-                  </select>
-                </th>
-                <th data-label=""></th>
-              </tr>
-            </thead>
-            <tbody id="book-places-body">
-              <tr><td colspan="5" class="loading-row">Loading…</td></tr>
-            </tbody>
-          </table>
+
+        <div class="users-content">
+          <div class="table-wrap" id="book-places-table-wrap">
+            <table class="data-table" id="book-places-table">
+              <thead>
+                <tr>
+                  <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Name">Name</th>
+                  <th draggable="true" data-label="Description">Description</th>
+                  <th draggable="true" data-label="Map Link">Map Link</th>
+                  <th data-label=""></th>
+                </tr>
+              </thead>
+              <tbody id="book-places-body">
+                <tr><td colspan="5" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>
 
     <!-- ===== BOOK DISTRIBUTION: Analytics ===== -->
     <section id="book-analytics-section" class="page hidden">
-      <p class="muted-text">Coming soon.</p>
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <div class="field inline">
+              <span>Date Range</span>
+              <div class="date-range-inputs">
+                <input id="ba-from" type="date" />
+                <span class="date-range-sep">–</span>
+                <input id="ba-to" type="date" />
+              </div>
+            </div>
+            <button id="ba-run-btn" class="btn btn-primary toolbar-btn">View</button>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="stats-bar">
+            <div class="stat"><span id="ba-stat-inward-qty" class="stat-num">0</span><span class="stat-label">Total Inward</span></div>
+            <div class="stat"><span id="ba-stat-sold-qty" class="stat-num">0</span><span class="stat-label">Total Sold</span></div>
+            <div class="stat"><span id="ba-stat-sales-value" class="stat-num">₹0</span><span class="stat-label">Sales Value</span></div>
+            <div class="stat"><span id="ba-stat-purchase-value" class="stat-num">₹0</span><span class="stat-label">Purchase Value</span></div>
+            <div id="ba-stat-profit-card" class="stat"><span id="ba-stat-profit" class="stat-num">₹0</span><span class="stat-label">Realized Profit</span></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title-row">
+              <span>Top Books (by Qty Sold)</span>
+              <button id="ba-export-books-btn" class="btn btn-secondary btn-sm">⬇ Export</button>
+            </div>
+            <div class="table-wrap" id="ba-books-table-wrap">
+              <table class="data-table" id="ba-books-table">
+                <thead><tr><th data-label="S.No">S.No</th><th data-label="Name">Name</th><th data-label="Language">Language</th><th data-label="Qty Sold">Qty Sold</th><th data-label="Sales Value">Sales Value</th><th data-label="Avg Price">Avg Price</th></tr></thead>
+                <tbody id="ba-books-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title-row">
+              <span>By Area</span>
+              <button id="ba-export-area-btn" class="btn btn-secondary btn-sm">⬇ Export</button>
+            </div>
+            <div class="table-wrap" id="ba-area-table-wrap">
+              <table class="data-table" id="ba-area-table">
+                <thead><tr><th data-label="S.No">S.No</th><th data-label="Area">Area</th><th data-label="Qty Sold">Qty Sold</th><th data-label="Sales Value">Sales Value</th><th data-label="Books">Books</th></tr></thead>
+                <tbody id="ba-area-body"><tr><td colspan="5" class="loading-row">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title-row">
+              <span>By Seller</span>
+              <button id="ba-export-seller-btn" class="btn btn-secondary btn-sm">⬇ Export</button>
+            </div>
+            <div class="table-wrap" id="ba-seller-table-wrap">
+              <table class="data-table" id="ba-seller-table">
+                <thead><tr><th data-label="S.No">S.No</th><th data-label="Sold By">Sold By</th><th data-label="Qty Sold">Qty Sold</th><th data-label="Sales Value">Sales Value</th></tr></thead>
+                <tbody id="ba-seller-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title-row">
+              <span>By Language</span>
+              <button id="ba-export-language-btn" class="btn btn-secondary btn-sm">⬇ Export</button>
+            </div>
+            <div class="table-wrap" id="ba-language-table-wrap">
+              <table class="data-table" id="ba-language-table">
+                <thead><tr><th data-label="S.No">S.No</th><th data-label="Language">Language</th><th data-label="Inward Qty">Inward Qty</th><th data-label="Sold Qty">Sold Qty</th></tr></thead>
+                <tbody id="ba-language-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title-row">
+              <span>By Purchased From</span>
+              <button id="ba-export-source-btn" class="btn btn-secondary btn-sm">⬇ Export</button>
+            </div>
+            <div class="table-wrap" id="ba-source-table-wrap">
+              <table class="data-table" id="ba-source-table">
+                <thead><tr><th data-label="S.No">S.No</th><th data-label="Purchased From">Purchased From</th><th data-label="Qty Bought">Qty Bought</th><th data-label="Purchase Value">Purchase Value</th></tr></thead>
+                <tbody id="ba-source-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ===== USER: Book Distribution stock entry ===== -->
@@ -885,14 +1011,13 @@
         <div class="panel-title-row">
           <span>Add Stock</span>
         </div>
-        <div class="panel-row">
-          <button id="add-book-inward-btn" class="btn btn-primary">+ Add Inward Stock</button>
-          <!-- Outward stock entry for users is paused for now — inward stock ships first. -->
-          <button id="add-book-outward-btn" class="btn btn-primary hidden">+ Add Outward Stock</button>
+        <div class="panel-row book-stock-add-row">
+          <button id="add-book-inward-btn" class="btn btn-primary btn-sm">+ Add Inward Stock</button>
+          <button id="add-book-outward-btn" class="btn btn-primary btn-sm">+ Add Outward Stock</button>
         </div>
       </div>
       <div class="panel">
-        <h3 class="section-title">Your Inward Stock Entries</h3>
+        <h3 class="section-title">Your Inward Stock Entries <span class="muted-text" style="font-weight:400;">(Yesterday &amp; Today)</span></h3>
         <div class="table-wrap" id="my-inward-table-wrap">
           <table class="data-table" id="my-inward-table">
             <thead><tr><th data-label="S.No">S.No</th><th data-label="Time">Time</th><th data-label="Name">Name</th><th data-label="Language">Language</th><th data-label="Purchase Price">Purchase Price</th><th data-label="Quantity">Quantity</th><th data-label="Purchased From">Purchased From</th></tr></thead>
@@ -901,12 +1026,22 @@
         </div>
       </div>
       <div class="panel">
-        <h3 class="section-title">Your Outward Stock Entries</h3>
+        <h3 class="section-title">Your Outward Stock Entries <span class="muted-text" style="font-weight:400;">(Yesterday &amp; Today)</span></h3>
         <div class="table-wrap" id="my-outward-table-wrap">
           <table class="data-table" id="my-outward-table">
             <thead><tr><th data-label="S.No">S.No</th><th data-label="Time">Time</th><th data-label="Name">Name</th><th data-label="Language">Language</th><th data-label="Sold Price">Sold Price</th><th data-label="Quantity">Quantity</th><th data-label="Sold Area">Sold Area</th></tr></thead>
             <tbody id="my-outward-body"><tr><td colspan="7" class="loading-row">Loading…</td></tr></tbody>
           </table>
+        </div>
+      </div>
+      <div class="panel">
+        <h3 class="section-title">My Distribution Score</h3>
+        <div class="panel-row">
+          <label class="field inline"><span>Date</span><input type="date" id="my-outward-score-date" /></label>
+        </div>
+        <div class="stats-bar">
+          <div class="stat"><span id="my-outward-score-qty" class="stat-num">0</span><span class="stat-label">Books Distributed</span></div>
+          <div class="stat"><span id="my-outward-score-value" class="stat-num">₹0</span><span class="stat-label">Sales Value</span></div>
         </div>
       </div>
     </section>
@@ -1620,7 +1755,7 @@
 <div id="book-outward-modal" class="modal">
   <div class="modal-box modal-large">
     <h3>Add Outward Stock</h3>
-    <label class="field"><span>Area</span><select id="book-outward-area-select"></select></label>
+    <label class="field"><span>Area</span><input type="text" id="book-outward-area-select" placeholder="Search or type an area…" autocomplete="off" /></label>
     <div id="book-outward-rows" class="stock-rows"></div>
     <button id="book-outward-add-row-btn" type="button" class="btn btn-secondary btn-sm">+ Add Another Book</button>
     <div id="book-outward-error" class="field-error hidden"></div>

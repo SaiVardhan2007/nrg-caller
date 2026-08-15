@@ -4187,9 +4187,20 @@ function wireBulkDeleteGuard() {
     btn.disabled = true;
     btn.textContent = "Verifying…";
 
-    const { data: userRow } = await supabase.from("users").select("login_pw").eq("id", bulkDeleteUser.id).maybeSingle();
+    // Looked up by user_name (like login), not the cached session id — an id
+    // saved in an old session before the users table was ever reseeded would
+    // find no row and always report "Incorrect password" for a genuinely
+    // correct one, so a stale id is called out separately from a real mismatch.
+    const { data: userRow } = await supabase.from("users").select("login_pw").ilike("user_name", bulkDeleteUser.user_name).maybeSingle();
 
-    if (!userRow || userRow.login_pw !== pw) {
+    if (!userRow) {
+      btn.disabled = false;
+      btn.textContent = "Permanently Delete";
+      errorEl.textContent = "Your session looks out of date — please log out and log back in, then try again.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    if (userRow.login_pw !== pw) {
       btn.disabled = false;
       btn.textContent = "Permanently Delete";
       errorEl.textContent = "Incorrect password.";

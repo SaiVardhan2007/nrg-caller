@@ -208,6 +208,21 @@ create table if not exists book_outward_stock (
   updated_at  timestamptz not null default now()
 );
 
+-- Book Distribution > Dashboard. Admin-set standard selling price per book
+-- (name+language pair) — separate from the actual sold_price on individual
+-- outward entries, which can vary by area/negotiation.
+create table if not exists book_standard_prices (
+  id                      uuid primary key default gen_random_uuid(),
+  book_key                text not null unique,
+  name                    text not null,
+  language                text,
+  standard_selling_price  numeric,
+  min_stock               integer,
+  created_at              timestamptz not null default now(),
+  updated_at              timestamptz not null default now()
+);
+alter table book_standard_prices add column if not exists min_stock integer;
+
 -- ============ TRIGGERS ============
 
 -- keep updated_at fresh
@@ -232,6 +247,10 @@ create trigger trg_book_inward_stock_touch before update on book_inward_stock
 
 drop trigger if exists trg_book_outward_stock_touch on book_outward_stock;
 create trigger trg_book_outward_stock_touch before update on book_outward_stock
+  for each row execute function touch_updated_at();
+
+drop trigger if exists trg_book_standard_prices_touch on book_standard_prices;
+create trigger trg_book_standard_prices_touch before update on book_standard_prices
   for each row execute function touch_updated_at();
 
 -- attendance insert -> contacts.sessions_count + 1 (the "No of Sessions" column)
@@ -308,16 +327,17 @@ alter table events             enable row level security;
 alter table settings           enable row level security;
 alter table help_requests      enable row level security;
 alter table one_to_one_remarks enable row level security;
-alter table book_places        enable row level security;
-alter table book_inward_stock  enable row level security;
-alter table book_outward_stock enable row level security;
+alter table book_places           enable row level security;
+alter table book_inward_stock     enable row level security;
+alter table book_outward_stock    enable row level security;
+alter table book_standard_prices  enable row level security;
 
 do $$ declare t text;
 begin
   foreach t in array array['users','contacts','assignments','assignment_rounds','call_responses',
                            'session_attendance','contact_collection','events','settings',
                            'help_requests','one_to_one_remarks','book_places',
-                           'book_inward_stock','book_outward_stock'] loop
+                           'book_inward_stock','book_outward_stock','book_standard_prices'] loop
     execute format('drop policy if exists app_all on %I', t);
     execute format('create policy app_all on %I for all to anon, authenticated using (true) with check (true)', t);
   end loop;
