@@ -324,14 +324,14 @@ function wireManageEventsModal() {
 
 async function renderUsersTable() {
   const tbody = document.getElementById("users-table-body");
-  tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Loading users…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Loading users…</td></tr>`;
 
   const { data: users, error } = await supabase
     .from("users")
-    .select("id,user_name,login_pw,role,call_limit,auto_assign")
+    .select("id,user_name,login_pw,role,call_limit,auto_assign,commander")
     .order("user_name");
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Could not load users.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Could not load users.</td></tr>`;
     return;
   }
   usersCache = users || [];
@@ -350,7 +350,7 @@ async function renderUsersTable() {
   });
 
   if (!usersCache.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">No users yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">No users yet.</td></tr>`;
     return;
   }
 
@@ -368,6 +368,9 @@ async function renderUsersTable() {
       <td data-label="User ID"><strong>${u.role === "Admin" ? "—" : escapeHtml(u.user_name || "")}</strong></td>
       <td data-label="Password">${u.role === "Admin" ? "—" : escapeHtml(u.login_pw || "")}</td>
       <td data-label="Role">${u.role}</td>
+      <td data-label="Commander">
+        <input type="checkbox" class="commander-input" ${u.commander ? "checked" : ""} />
+      </td>
       <td data-label="Call Limit">
         <input type="number" min="0" class="limit-input" value="${u.call_limit ?? ""}" placeholder="No limit" ${u.role !== "Coordinator" ? "disabled" : ""} />
       </td>
@@ -400,6 +403,14 @@ async function renderUsersTable() {
       const id = e.target.closest("tr").dataset.id;
       await supabase.from("users").update({ auto_assign: e.target.checked }).eq("id", id);
       showToast("Auto assign updated", "success");
+    });
+  });
+
+  tbody.querySelectorAll(".commander-input").forEach((input) => {
+    input.addEventListener("change", async (e) => {
+      const id = e.target.closest("tr").dataset.id;
+      await supabase.from("users").update({ commander: e.target.checked }).eq("id", id);
+      showToast("Commander updated", "success");
     });
   });
 
@@ -837,6 +848,7 @@ function wireAddUserModal() {
     document.getElementById("add-user-role").value = "Coordinator";
     document.getElementById("add-user-limit").value = "";
     document.getElementById("add-user-auto").checked = true;
+    document.getElementById("add-user-commander").checked = false;
     errorEl.classList.add("hidden");
     modal.classList.add("active");
   };
@@ -851,6 +863,7 @@ function wireAddUserModal() {
     const role = document.getElementById("add-user-role").value;
     const limitVal = document.getElementById("add-user-limit").value;
     const auto = document.getElementById("add-user-auto").checked;
+    const commander = document.getElementById("add-user-commander").checked;
 
     if (!name || !/^[0-9]{10}$/.test(phone)) {
       errorEl.textContent = "Please enter a valid Name and 10-digit Phone Number.";
@@ -863,6 +876,7 @@ function wireAddUserModal() {
       user_name: name, login_pw: phone, role,
       call_limit: limitVal === "" ? null : parseInt(limitVal, 10),
       auto_assign: auto,
+      commander,
     });
     saving = false;
     submitBtn.textContent = "Save";

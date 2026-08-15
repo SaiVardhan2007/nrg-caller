@@ -7,6 +7,7 @@ let stockWired = false;
 let dashboardWired = false;
 let bulkImportWired = false;
 let dashboardBooks = new Map();
+let latestTodayArea = null;
 
 function fmtMoney(n) {
   return "₹" + (Math.round((n || 0) * 100) / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 });
@@ -23,6 +24,16 @@ function bookKey(name, language) {
 
 function distinctValues(rows, field) {
   return Array.from(new Set(rows.map((r) => r[field]).filter(Boolean))).sort();
+}
+
+function groupBy(rows, field) {
+  const map = new Map();
+  rows.forEach((r) => {
+    const key = r[field] || "";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(r);
+  });
+  return map;
 }
 
 function matchesSearch(row, term, fields) {
@@ -406,7 +417,7 @@ export async function initInwardTable(currentUser) {
 }
 
 const OUTWARD_COLUMNS_KEY = "nrg-book-outward-column-order";
-const DEFAULT_OUTWARD_COLUMNS = ["S.No", "Time", "Name", "Language", "Sold Price", "Quantity", "Sold Area", "Sold By", ""];
+const DEFAULT_OUTWARD_COLUMNS = ["S.No", "Time", "Name", "Language", "Sold Price", "Quantity", "Sold Area", "Sold By", "Realised", ""];
 const OUTWARD_SELECT_FILTERS = [["bo-filter-language", "language"], ["bo-filter-area", "sold_area"], ["bo-filter-by", "sold_by"]];
 const OUTWARD_NUMBER_FILTERS = [["bo-filter-price", "sold_price"], ["bo-filter-qty", "quantity"]];
 let outwardCache = [];
@@ -415,7 +426,7 @@ let outwardFiltersWired = false;
 function renderOutwardRows(rows, emptyMessage) {
   const tbody = document.getElementById("book-outward-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="muted-text">${emptyMessage}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => `
@@ -428,6 +439,7 @@ function renderOutwardRows(rows, emptyMessage) {
       <td data-label="Quantity"><input class="inline-edit" type="number" min="0" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
       <td data-label="Sold Area"><input class="inline-edit" data-field="sold_area" list="book-places-list" value="${escapeHtml(r.sold_area || "")}" /></td>
       <td data-label="Sold By"><input class="inline-edit" data-field="sold_by" value="${escapeHtml(r.sold_by || "")}" /></td>
+      <td data-label="Realised"><input type="checkbox" class="realised-checkbox outward-realised-input" ${r.realised ? "checked" : ""} /></td>
       <td data-label="">
         <button type="button" class="cell-chip danger outward-delete-btn" title="Delete">🗑 Delete</button>
       </td>
@@ -436,8 +448,28 @@ function renderOutwardRows(rows, emptyMessage) {
   tbody.querySelectorAll(".outward-delete-btn").forEach((btn) => {
     btn.addEventListener("click", () => deleteOutwardRow(btn.closest("tr").dataset.id));
   });
+  tbody.querySelectorAll(".outward-realised-input").forEach((input) => {
+    input.addEventListener("change", (e) => toggleOutwardRealised(e.target, outwardCache));
+  });
   wireInlineEditCells(tbody, "book_outward_stock", outwardCache, { numberFields: ["sold_price", "quantity"], requiredFields: ["name"] }, renderDashboard);
   reapplyColumnOrder("book-outward-table");
+}
+
+// Shared by the admin Outward Stock table and the Commander page — both edit
+// the same realised flag on the same underlying rows, just against different
+// caches (the admin table sees its own page's worth, Commander sees everyone's).
+async function toggleOutwardRealised(checkboxEl, cache) {
+  const id = checkboxEl.closest("tr").dataset.id;
+  const record = cache.find((x) => x.id === id);
+  const checked = checkboxEl.checked;
+  const { error } = await supabase.from("book_outward_stock").update({ realised: checked }).eq("id", id);
+  if (error) {
+    showToast("Update failed: " + error.message, "error");
+    checkboxEl.checked = !checked;
+    return;
+  }
+  if (record) record.realised = checked;
+  showToast(checked ? "Marked as realised" : "Marked as not realised", "success");
 }
 
 function applyOutwardFilters() {
@@ -480,18 +512,19 @@ async function deleteOutwardRow(id) {
 export async function initOutwardTable() {
   wireOutwardFilters();
   const tbody = document.getElementById("book-outward-body");
-  tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Loading…</td></tr>`;
 
   const [{ data, error }, placeNames] = await Promise.all([
     supabase
       .from("book_outward_stock")
-      .select("id,name,language,sold_price,quantity,sold_area,sold_by,created_at")
+      .select("id,name,language,sold_price,quantity,sold_area,sold_by,created_at,realised")
       .order("created_at", { ascending: false }),
     fetchPlaceNames(),
   ]);
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Could not load outward stock.</td></tr>`;
+    console.error("book_outward_stock load failed:", error);
+    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Could not load outward stock: ${escapeHtml(error.message)}</td></tr>`;
     return;
   }
   outwardCache = data || [];
@@ -503,17 +536,21 @@ export async function initOutwardTable() {
 }
 
 // "Your ... Stock Entries" only needs to show what's still awaiting the
-// user's memory — yesterday + today — since they submit a fresh batch every
+// user's memory — the last 72 hours — since they submit a fresh batch every
 // few hours; older entries stay in the database but drop off this list.
-function startOfYesterdayISO() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-}
-
 function past72HoursISO() {
   return new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
+}
+
+function startOfLocalDay(d = new Date()) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+function endOfLocalDay(d = new Date()) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+}
+function toLocalDateInputValue(d = new Date()) {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 async function renderMyInward(userName) {
@@ -522,11 +559,11 @@ async function renderMyInward(userName) {
     .from("book_inward_stock")
     .select("name,language,purchase_price,quantity,purchased_from,created_at")
     .eq("added_by", userName)
-    .gte("created_at", startOfYesterdayISO())
+    .gte("created_at", past72HoursISO())
     .order("created_at", { ascending: false });
 
   if (error || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="muted-text">No records in the last 2 days.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="muted-text">No records in the last 72 hours.</td></tr>`;
     return;
   }
   tbody.innerHTML = data.map((r, idx) => `
@@ -546,13 +583,13 @@ async function renderMyOutward(userName) {
   const tbody = document.getElementById("my-outward-body");
   const { data, error } = await supabase
     .from("book_outward_stock")
-    .select("name,language,sold_price,quantity,sold_area,created_at")
+    .select("name,language,sold_price,quantity,sold_area,created_at,realised")
     .eq("sold_by", userName)
     .gte("created_at", past72HoursISO())
     .order("created_at", { ascending: false });
 
   if (error || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="muted-text">No records in the last 72 hours.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="muted-text">No records in the last 72 hours.</td></tr>`;
     return;
   }
   tbody.innerHTML = data.map((r, idx) => `
@@ -564,8 +601,30 @@ async function renderMyOutward(userName) {
       <td data-label="Sold Price">${r.sold_price ?? "—"}</td>
       <td data-label="Quantity">${r.quantity ?? "—"}</td>
       <td data-label="Sold Area">${escapeHtml(r.sold_area || "—")}</td>
+      <td data-label="Realised">${r.realised ? "✅ Realised" : "— Pending"}</td>
     </tr>
   `).join("");
+}
+
+async function renderLatestEntryLocation(userName) {
+  const indicator = document.getElementById("book-latest-location-indicator");
+  const { data, error } = await supabase
+    .from("book_outward_stock")
+    .select("sold_area,created_at")
+    .eq("sold_by", userName)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const row = !error && data && data[0];
+  const isToday = row && new Date(row.created_at) >= startOfLocalDay();
+  latestTodayArea = isToday ? row.sold_area : null;
+
+  if (isToday) {
+    indicator.textContent = `📍 Latest entry today: ${row.sold_area} (${new Date(row.created_at).toLocaleTimeString()})`;
+    indicator.classList.remove("hidden");
+  } else {
+    indicator.classList.add("hidden");
+  }
 }
 
 async function fetchBookCatalog() {
@@ -577,6 +636,23 @@ async function fetchBookCatalog() {
     if (!map.has(key)) map.set(key, { name: r.name, language: r.language });
   });
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function fetchCurrentStockByKey() {
+  const [{ data: inward }, { data: outward }] = await Promise.all([
+    supabase.from("book_inward_stock").select("name,language,quantity"),
+    supabase.from("book_outward_stock").select("name,language,quantity"),
+  ]);
+  const map = new Map();
+  (inward || []).forEach((r) => {
+    const key = bookKey(r.name, r.language);
+    map.set(key, (map.get(key) || 0) + (r.quantity || 0));
+  });
+  (outward || []).forEach((r) => {
+    const key = bookKey(r.name, r.language);
+    map.set(key, (map.get(key) || 0) - (r.quantity || 0));
+  });
+  return map;
 }
 
 async function fetchPlaceNames() {
@@ -617,8 +693,31 @@ function wireSearchableCombo(input, getOptions) {
   dropdown.className = "combo-dropdown";
   document.body.appendChild(dropdown);
 
+  // Double-tap-to-select-word is unreliable across mobile browsers once a
+  // long title overflows the input, so give a guaranteed, always-tappable
+  // way to clear the field instead of depending on that gesture. Wrapping
+  // just the input (not its label's <span>) keeps the button's absolute
+  // positioning aligned to the input's own box regardless of the caller's
+  // surrounding markup.
+  const wrapper = document.createElement("div");
+  wrapper.className = "combo-input-wrap";
+  input.parentElement.insertBefore(wrapper, input);
+  wrapper.appendChild(input);
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button";
+  clearBtn.className = "combo-clear-btn";
+  clearBtn.textContent = "✕";
+  clearBtn.setAttribute("aria-label", "Clear");
+  clearBtn.style.display = "none";
+  wrapper.appendChild(clearBtn);
+
   let currentOptions = [];
   let activeIndex = -1;
+  let suppressReopen = false;
+
+  function updateClearBtn() {
+    clearBtn.style.display = input.value ? "flex" : "none";
+  }
 
   function position() {
     const r = input.getBoundingClientRect();
@@ -632,16 +731,32 @@ function wireSearchableCombo(input, getOptions) {
     dropdown.querySelector(".combo-option.active")?.scrollIntoView({ block: "nearest" });
   }
 
+  // Matches "bg" against a title either as a plain substring (existing
+  // behavior) or against the initials of its words (so "bg" also surfaces
+  // "Bhagavad Gita ...") — punctuation is stripped before taking each word's
+  // first letter so "(Yatharupa" still contributes "y", not "(".
+  function matchesQuery(title, q) {
+    const lower = title.toLowerCase();
+    if (lower.includes(q)) return true;
+    const initials = title
+      .split(/\s+/)
+      .map((w) => w.replace(/[^a-zA-Z0-9]/g, "").charAt(0))
+      .join("")
+      .toLowerCase();
+    return initials.includes(q);
+  }
+
   function render(query) {
     const all = getOptions();
     const q = (query || "").trim().toLowerCase();
-    currentOptions = q ? all.filter((o) => o.toLowerCase().includes(q)) : all;
+    currentOptions = q ? all.filter((o) => matchesQuery(o, q)) : all;
     activeIndex = -1;
     dropdown.innerHTML = currentOptions.length
       ? currentOptions.slice(0, 100).map((o, i) => `<div class="combo-option" data-idx="${i}">${escapeHtml(o)}</div>`).join("")
       : `<div class="combo-empty">No matches</div>`;
     position();
     dropdown.classList.add("open");
+    updateClearBtn();
   }
 
   function close() { dropdown.classList.remove("open"); }
@@ -649,11 +764,18 @@ function wireSearchableCombo(input, getOptions) {
   function selectOption(value) {
     input.value = value;
     close();
+    updateClearBtn();
+    // The input listeners that consumers of this combo attach (e.g. to
+    // recompute stock/price hints) need this event, but our own onInput
+    // below must not react to it — otherwise it re-renders and reopens the
+    // dropdown right after the user just picked something.
+    suppressReopen = true;
     input.dispatchEvent(new Event("input", { bubbles: true }));
+    suppressReopen = false;
   }
 
   const onFocus = () => render(input.value);
-  const onInput = () => render(input.value);
+  const onInput = () => { if (!suppressReopen) render(input.value); };
   const onKeydown = (e) => {
     if (!dropdown.classList.contains("open")) return;
     if (e.key === "ArrowDown") { e.preventDefault(); activeIndex = Math.min(activeIndex + 1, currentOptions.length - 1); highlight(); }
@@ -668,22 +790,40 @@ function wireSearchableCombo(input, getOptions) {
     e.preventDefault();
     selectOption(currentOptions[Number(opt.dataset.idx)]);
   };
-  const onDocClick = (e) => { if (e.target !== input && !dropdown.contains(e.target)) close(); };
+  const onDocClick = (e) => { if (e.target !== input && e.target !== clearBtn && !dropdown.contains(e.target)) close(); };
   const onReposition = () => { if (dropdown.classList.contains("open")) position(); };
+  const onDblClick = () => input.select();
+  // mousedown (not click) so the input's blur/close-dropdown handlers don't
+  // fire first and hide the button before its click is processed.
+  const onClearMousedown = (e) => e.preventDefault();
+  const onClear = () => {
+    input.value = "";
+    updateClearBtn();
+    input.focus();
+    render("");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
 
   input.addEventListener("focus", onFocus);
   input.addEventListener("input", onInput);
   input.addEventListener("keydown", onKeydown);
+  input.addEventListener("dblclick", onDblClick);
   dropdown.addEventListener("mousedown", onDropdownMousedown);
+  clearBtn.addEventListener("mousedown", onClearMousedown);
+  clearBtn.addEventListener("click", onClear);
   document.addEventListener("click", onDocClick);
   document.addEventListener("scroll", onReposition, true);
   window.addEventListener("resize", onReposition);
 
+  updateClearBtn();
+
   return {
     destroy() {
       dropdown.remove();
+      clearBtn.remove();
       input.removeEventListener("focus", onFocus);
       input.removeEventListener("input", onInput);
+      input.removeEventListener("dblclick", onDblClick);
       input.removeEventListener("keydown", onKeydown);
       document.removeEventListener("click", onDocClick);
       document.removeEventListener("scroll", onReposition, true);
@@ -692,7 +832,7 @@ function wireSearchableCombo(input, getOptions) {
   };
 }
 
-function buildOutwardRow(catalog, removable, standardPriceByKey, onChange) {
+function buildOutwardRow(catalog, removable, standardPriceByKey, stockByKey, onChange) {
   const row = document.createElement("div");
   row.className = "stock-row";
   row.innerHTML = `
@@ -700,22 +840,29 @@ function buildOutwardRow(catalog, removable, standardPriceByKey, onChange) {
     <label class="field"><span>Price</span><input type="number" class="stock-row-price" min="0" step="0.01" /></label>
     <label class="field"><span>Qty</span><input type="number" class="stock-row-qty" min="1" step="1" /></label>
     ${removable ? `<button type="button" class="stock-row-remove cell-chip danger" title="Remove">✕</button>` : ""}
-    <div class="field-hint stock-row-standard-price"></div>
+    <div class="stock-row-reference-row">
+      <span class="stock-row-stock-hint"></span>
+      <span class="stock-row-price-hint"></span>
+    </div>
   `;
   const titleInput = row.querySelector(".stock-row-title");
   const priceInput = row.querySelector(".stock-row-price");
-  const hintEl = row.querySelector(".stock-row-standard-price");
+  const stockHintEl = row.querySelector(".stock-row-stock-hint");
+  const priceHintEl = row.querySelector(".stock-row-price-hint");
   const titleCombo = wireSearchableCombo(titleInput, () => catalog.map(bookLabel));
   row._destroyCombo = titleCombo.destroy;
 
   titleInput.addEventListener("input", () => {
     const matched = catalog.find((b) => bookLabel(b).toLowerCase() === titleInput.value.trim().toLowerCase());
     const standardPrice = matched ? standardPriceByKey.get(bookKey(matched.name, matched.language)) : null;
+    const currentStock = matched ? stockByKey.get(bookKey(matched.name, matched.language)) : null;
+
+    stockHintEl.textContent = matched ? `📦 In Stock: ${currentStock ?? 0}` : "";
     if (standardPrice != null) {
-      hintEl.textContent = `Selling Price: ${fmtMoney(standardPrice)}`;
+      priceHintEl.textContent = `💰 Selling Price: ${fmtMoney(standardPrice)}`;
       if (!priceInput.value) priceInput.value = standardPrice;
     } else {
-      hintEl.textContent = "";
+      priceHintEl.textContent = matched ? "💰 Selling Price: —" : "";
     }
     onChange();
   });
@@ -828,6 +975,7 @@ function wireOutwardModal(currentUser) {
   let catalog = [];
   let places = [];
   let standardPriceByKey = new Map();
+  let stockByKey = new Map();
   wireSearchableCombo(areaInput, () => places);
 
   const saveDraft = () => {
@@ -840,7 +988,7 @@ function wireOutwardModal(currentUser) {
   };
 
   const addRow = (removable, data) => {
-    const row = buildOutwardRow(catalog, removable, standardPriceByKey, saveDraft);
+    const row = buildOutwardRow(catalog, removable, standardPriceByKey, stockByKey, saveDraft);
     if (data) {
       row.querySelector(".stock-row-title").value = data.title || "";
       row.querySelector(".stock-row-price").value = data.price || "";
@@ -851,13 +999,15 @@ function wireOutwardModal(currentUser) {
   };
 
   document.getElementById("add-book-outward-btn").onclick = async () => {
-    const [bookCatalog, placeNames, { data: standardPrices }] = await Promise.all([
+    const [bookCatalog, placeNames, { data: standardPrices }, currentStock] = await Promise.all([
       fetchBookCatalog(), fetchPlaceNames(),
       supabase.from("book_standard_prices").select("book_key,standard_selling_price"),
+      fetchCurrentStockByKey(),
     ]);
     catalog = bookCatalog;
     places = placeNames;
     standardPriceByKey = new Map((standardPrices || []).map((r) => [r.book_key, r.standard_selling_price]));
+    stockByKey = currentStock;
 
     let draft = null;
     try { draft = JSON.parse(localStorage.getItem(draftKey) || "null"); } catch { draft = null; }
@@ -867,7 +1017,7 @@ function wireOutwardModal(currentUser) {
       areaInput.value = draft.area || "";
       draft.rows.forEach((data, idx) => addRow(idx > 0, data));
     } else {
-      areaInput.value = "";
+      areaInput.value = latestTodayArea || "";
       addRow(false);
     }
     errorEl.classList.add("hidden");
@@ -938,24 +1088,27 @@ function wireOutwardModal(currentUser) {
     modal.classList.remove("active");
     showToast("Outward stock added", "success");
     await renderMyOutward(currentUser.user_name);
+    await renderLatestEntryLocation(currentUser.user_name);
   };
 }
 
 async function renderMyOutwardScore(userName) {
-  const dateInput = document.getElementById("my-outward-score-date");
-  const date = dateInput.value;
+  const fromInput = document.getElementById("my-outward-score-date-from");
+  const toInput = document.getElementById("my-outward-score-date-to");
+  const from = fromInput.value;
+  const to = toInput.value;
   const qtyEl = document.getElementById("my-outward-score-qty");
   const valueEl = document.getElementById("my-outward-score-value");
-  if (!date) { qtyEl.textContent = "0"; valueEl.textContent = fmtMoney(0); return; }
+  if (!from || !to) { qtyEl.textContent = "0"; valueEl.textContent = fmtMoney(0); return; }
 
-  const dayStart = new Date(`${date}T00:00:00`);
-  const dayEnd = new Date(`${date}T23:59:59.999`);
+  const rangeStart = new Date(`${from}T00:00:00`);
+  const rangeEnd = new Date(`${to}T23:59:59.999`);
   const { data, error } = await supabase
     .from("book_outward_stock")
     .select("quantity,sold_price")
     .eq("sold_by", userName)
-    .gte("created_at", dayStart.toISOString())
-    .lte("created_at", dayEnd.toISOString());
+    .gte("created_at", rangeStart.toISOString())
+    .lte("created_at", rangeEnd.toISOString());
 
   if (error || !data) { qtyEl.textContent = "0"; valueEl.textContent = fmtMoney(0); return; }
   qtyEl.textContent = data.reduce((s, r) => s + (r.quantity || 0), 0);
@@ -967,20 +1120,131 @@ let outwardScoreWired = false;
 function wireMyOutwardScore(currentUser) {
   if (outwardScoreWired) return;
   outwardScoreWired = true;
-  const dateInput = document.getElementById("my-outward-score-date");
-  dateInput.value = new Date().toISOString().slice(0, 10);
-  dateInput.addEventListener("change", () => renderMyOutwardScore(currentUser.user_name));
+  const fromInput = document.getElementById("my-outward-score-date-from");
+  const toInput = document.getElementById("my-outward-score-date-to");
+  const today = new Date().toISOString().slice(0, 10);
+  fromInput.value = today;
+  toInput.value = today;
+  fromInput.addEventListener("change", () => renderMyOutwardScore(currentUser.user_name));
+  toInput.addEventListener("change", () => renderMyOutwardScore(currentUser.user_name));
 }
 
 export async function initStockEntry(currentUser) {
-  await Promise.all([renderMyInward(currentUser.user_name), renderMyOutward(currentUser.user_name)]);
+  // Add Inward Stock button + Your Inward Stock Entries panel are commented
+  // out in index.html — renderMyInward/wireInwardUserModal are unused for now.
+  await renderMyOutward(currentUser.user_name);
+  await renderLatestEntryLocation(currentUser.user_name);
   wireMyOutwardScore(currentUser);
   await renderMyOutwardScore(currentUser.user_name);
   if (stockWired) return;
   stockWired = true;
 
-  wireInwardUserModal(currentUser);
   wireOutwardModal(currentUser);
+}
+
+/* ======================= COMMANDER ======================= */
+// Read-only, all-users view of every outward stock entry, for users flagged
+// users.commander = true (see Users & Assignment) to review book/payment
+// realisation across the whole team. Everything but the Realised checkbox
+// is display-only here — editing an entry itself stays on the admin
+// Outward Stock page (BookDistribution.initOutwardTable).
+
+const COMMANDER_SELECT_FILTERS = [["cmd-filter-by", "sold_by"]];
+let commanderCache = [];
+let commanderFiltersWired = false;
+
+function matchesDateRange(row, fromVal, toVal) {
+  if (!fromVal && !toVal) return true;
+  const created = new Date(row.created_at);
+  if (fromVal && created < new Date(`${fromVal}T00:00:00`)) return false;
+  if (toVal && created > new Date(`${toVal}T23:59:59.999`)) return false;
+  return true;
+}
+
+function updateCommanderSummary(rows) {
+  const total = rows.length;
+  const unrealised = rows.filter((r) => !r.realised).length;
+  document.getElementById("cmd-summary").textContent = total
+    ? `${total} entr${total === 1 ? "y" : "ies"} shown, ${unrealised} not realised`
+    : "";
+}
+
+function renderCommanderRows(rows, emptyMessage) {
+  const tbody = document.getElementById("commander-body");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="9" class="muted-text">${emptyMessage}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r, idx) => `
+    <tr data-id="${r.id}">
+      <td data-label="S.No">${idx + 1}</td>
+      <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
+      <td data-label="Name">${escapeHtml(r.name)}</td>
+      <td data-label="Language">${escapeHtml(r.language || "—")}</td>
+      <td data-label="Sold Price">${r.sold_price ?? "—"}</td>
+      <td data-label="Quantity">${r.quantity ?? "—"}</td>
+      <td data-label="Sold Area">${escapeHtml(r.sold_area || "—")}</td>
+      <td data-label="Sold By">${escapeHtml(r.sold_by || "—")}</td>
+      <td data-label="Realised"><input type="checkbox" class="realised-checkbox commander-realised-input" ${r.realised ? "checked" : ""} /></td>
+    </tr>
+  `).join("");
+  tbody.querySelectorAll(".commander-realised-input").forEach((input) => {
+    input.addEventListener("change", async (e) => {
+      await toggleOutwardRealised(e.target, commanderCache);
+      if (document.getElementById("cmd-filter-unrealised").checked) applyCommanderFilters();
+      else updateCommanderSummary(commanderCache.filter((r) => matchesCommanderFilters(r)));
+    });
+  });
+}
+
+function matchesCommanderFilters(r) {
+  const search = document.getElementById("cmd-search")?.value.trim().toLowerCase() || "";
+  const from = document.getElementById("cmd-filter-from")?.value || "";
+  const to = document.getElementById("cmd-filter-to")?.value || "";
+  const unrealisedOnly = document.getElementById("cmd-filter-unrealised")?.checked;
+  return matchesSearch(r, search, ["name", "sold_area", "sold_by"]) &&
+    matchesSelectFilters(r, COMMANDER_SELECT_FILTERS) &&
+    matchesDateRange(r, from, to) &&
+    (!unrealisedOnly || !r.realised);
+}
+
+function applyCommanderFilters() {
+  let rows = commanderCache.filter(matchesCommanderFilters);
+  rows = sortRows(rows, document.getElementById("cmd-sort")?.value, "created_at-desc");
+  updateCommanderSummary(rows);
+  renderCommanderRows(rows, commanderCache.length ? "No records match your filters." : "No outward stock entries yet.");
+}
+
+function wireCommanderFilters() {
+  if (commanderFiltersWired) return;
+  commanderFiltersWired = true;
+  document.getElementById("cmd-search").addEventListener("input", debounce(applyCommanderFilters, 200));
+  document.getElementById("cmd-sort").addEventListener("change", applyCommanderFilters);
+  document.getElementById("cmd-filter-by").addEventListener("change", applyCommanderFilters);
+  document.getElementById("cmd-filter-from").addEventListener("change", applyCommanderFilters);
+  document.getElementById("cmd-filter-to").addEventListener("change", applyCommanderFilters);
+  document.getElementById("cmd-filter-unrealised").addEventListener("change", applyCommanderFilters);
+  initHorizontalScroll("commander-table-wrap", { leftBtnId: "cmd-scroll-left", rightBtnId: "cmd-scroll-right" });
+}
+
+export async function initCommander() {
+  wireCommanderFilters();
+  const tbody = document.getElementById("commander-body");
+  tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Loading…</td></tr>`;
+
+  const { data, error } = await supabase
+    .from("book_outward_stock")
+    .select("id,name,language,sold_price,quantity,sold_area,sold_by,created_at,realised")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Commander book_outward_stock load failed:", error);
+    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Could not load outward stock: ${escapeHtml(error.message)}</td></tr>`;
+    return;
+  }
+  commanderCache = data || [];
+  populateFilterSelect(document.getElementById("cmd-filter-by"), distinctValues(commanderCache, "sold_by"));
+  applyCommanderFilters();
 }
 
 /* ======================= DASHBOARD ======================= */
@@ -1446,6 +1710,29 @@ function wireDashboardDetailModal() {
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 }
 
+// Shares the Dashboard tab's drill-down modal (#book-dashboard-detail-modal)
+// instead of duplicating markup — both features write into the same DOM
+// nodes but are never open at the same time.
+function openSegmentDetail(rows) {
+  const title = document.getElementById("book-dashboard-detail-title");
+  const theadRow = document.querySelector("#book-dashboard-detail-table thead tr");
+  const tbody = document.getElementById("book-dashboard-detail-body");
+  title.textContent = "Segment Entries";
+  theadRow.innerHTML = "<th>S.No</th><th>Time</th><th>Name</th><th>Language</th><th>Sold Price</th><th>Quantity</th>";
+  const sorted = [...rows].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  tbody.innerHTML = sorted.map((r, idx) => `
+    <tr>
+      <td>${idx + 1}</td>
+      <td>${new Date(r.created_at).toLocaleString()}</td>
+      <td>${escapeHtml(r.name)}</td>
+      <td>${escapeHtml(r.language || "—")}</td>
+      <td>${r.sold_price ?? "—"}</td>
+      <td>${r.quantity ?? "—"}</td>
+    </tr>
+  `).join("");
+  document.getElementById("book-dashboard-detail-modal").classList.add("active");
+}
+
 /* ======================= ANALYTICS ======================= */
 
 function analyticsDateInput(d) {
@@ -1468,6 +1755,51 @@ function buildBookBuckets(inward, outward) {
   return Array.from(map.values());
 }
 
+// dayRows = one user's book_outward_stock rows, all within one local day.
+// Returns { segments, areaTotals }:
+//   segments   = timeline entries [{ area, startTime, endTime, rows }] for display
+//   areaTotals = Map(lowercased-area -> { area, qty, value, rows }) — the actual
+//                score per area for that day (revisits to the same area merge
+//                their score even if a different area was visited in between)
+function computeDaySegments(dayRows) {
+  if (!dayRows.length) return { segments: [], areaTotals: new Map() };
+
+  const sorted = [...dayRows].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const normArea = (r) => (r.sold_area || "").trim().toLowerCase();
+  const first = new Date(sorted[0].created_at);
+  const dayStart = startOfLocalDay(first);
+  const dayEnd = endOfLocalDay(first);
+
+  // Group consecutive rows sharing the same area (case-insensitive).
+  const groups = [];
+  for (const row of sorted) {
+    const last = groups[groups.length - 1];
+    if (last && normArea(row) === normArea(last.rows[0])) last.rows.push(row);
+    else groups.push({ area: row.sold_area || "—", rows: [row] });
+  }
+
+  const singleSegmentDay = groups.length === 1;
+  const segments = groups.map((g, i) => ({
+    area: g.area,
+    startTime: singleSegmentDay ? dayStart : new Date(g.rows[0].created_at),
+    endTime: singleSegmentDay ? dayEnd
+      : (i < groups.length - 1 ? new Date(groups[i + 1].rows[0].created_at) : dayEnd),
+    rows: g.rows,
+  }));
+
+  const areaTotals = new Map();
+  for (const row of sorted) {
+    const key = normArea(row);
+    if (!areaTotals.has(key)) areaTotals.set(key, { area: row.sold_area || "—", qty: 0, value: 0, rows: [] });
+    const t = areaTotals.get(key);
+    t.qty += row.quantity || 0;
+    t.value += (row.sold_price || 0) * (row.quantity || 0);
+    t.rows.push(row);
+  }
+
+  return { segments, areaTotals };
+}
+
 function renderAnalyticsStats(bookStats) {
   const totalInwardQty = bookStats.reduce((s, r) => s + r.totalInwardQty, 0);
   const totalSoldQty = bookStats.reduce((s, r) => s + r.totalSoldQty, 0);
@@ -1485,130 +1817,60 @@ function renderAnalyticsStats(bookStats) {
   card.classList.toggle("stat-positive", totalProfit >= 0);
 }
 
-function renderAnalyticsTopBooks(bookStats) {
-  const tbody = document.getElementById("ba-books-body");
-  const rows = bookStats.filter((s) => s.totalSoldQty > 0).sort((a, b) => b.totalSoldQty - a.totalSoldQty);
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">No sales in this range.</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = rows.map((s, idx) => `
-    <tr>
-      <td data-label="S.No">${idx + 1}</td>
-      <td data-label="Name">${escapeHtml(s.name)}</td>
-      <td data-label="Language">${escapeHtml(s.language || "—")}</td>
-      <td data-label="Qty Sold">${s.totalSoldQty}</td>
-      <td data-label="Sales Value">${fmtMoney(s.totalSalesValue)}</td>
-      <td data-label="Avg Price">${fmtMoney(s.avgSellingPrice)}</td>
-    </tr>
-  `).join("");
-}
+// Groups outward rows into per-user-per-day location segments — a revisit to
+// the same area merges its qty/value even if a different area was visited
+// in between (see computeDaySegments) — across the whole selected date range.
+let segmentRowsByKey = new Map();
 
-function renderAnalyticsByArea(outward) {
-  const groups = new Map();
+function renderAnalyticsSegments(outward, showUserCol) {
+  const tbody = document.getElementById("ba-segments-body");
+  document.getElementById("ba-seg-user-col-header").classList.toggle("hidden", !showUserCol);
+
+  segmentRowsByKey = new Map();
+  const displayRows = [];
+  const byDay = new Map();
   outward.forEach((r) => {
-    const area = r.sold_area || "—";
-    if (!groups.has(area)) groups.set(area, { area, qty: 0, value: 0, books: new Set() });
-    const g = groups.get(area);
-    g.qty += r.quantity || 0;
-    g.value += (r.sold_price || 0) * (r.quantity || 0);
-    g.books.add(bookKey(r.name, r.language));
+    const key = toLocalDateInputValue(new Date(r.created_at));
+    if (!byDay.has(key)) byDay.set(key, []);
+    byDay.get(key).push(r);
   });
-  const tbody = document.getElementById("ba-area-body");
-  const rows = Array.from(groups.values()).sort((a, b) => b.qty - a.qty);
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="muted-text">No sales in this range.</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = rows.map((g, idx) => `
-    <tr>
-      <td data-label="S.No">${idx + 1}</td>
-      <td data-label="Area">${escapeHtml(g.area)}</td>
-      <td data-label="Qty Sold">${g.qty}</td>
-      <td data-label="Sales Value">${fmtMoney(g.value)}</td>
-      <td data-label="Books">${g.books.size}</td>
-    </tr>
-  `).join("");
-}
 
-function renderAnalyticsBySeller(outward) {
-  const groups = new Map();
-  outward.forEach((r) => {
-    const seller = r.sold_by || "—";
-    if (!groups.has(seller)) groups.set(seller, { seller, qty: 0, value: 0 });
-    const g = groups.get(seller);
-    g.qty += r.quantity || 0;
-    g.value += (r.sold_price || 0) * (r.quantity || 0);
+  Array.from(byDay.keys()).sort().forEach((dayKey) => {
+    const byUser = groupBy(byDay.get(dayKey), "sold_by");
+    Array.from(byUser.keys()).sort().forEach((user) => {
+      const { segments, areaTotals } = computeDaySegments(byUser.get(user));
+      segments.forEach((seg, idx) => {
+        const key = `${dayKey}||${user}||${idx}`;
+        const totals = areaTotals.get(seg.area.trim().toLowerCase());
+        segmentRowsByKey.set(key, totals.rows);
+        displayRows.push({ key, dayKey, user, area: seg.area, startTime: seg.startTime, endTime: seg.endTime, qty: totals.qty, value: totals.value });
+      });
+    });
   });
-  const tbody = document.getElementById("ba-seller-body");
-  const rows = Array.from(groups.values()).sort((a, b) => b.qty - a.qty);
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="muted-text">No sales in this range.</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = rows.map((g, idx) => `
+
+  if (!displayRows.length) { tbody.innerHTML = `<tr><td colspan="8" class="muted-text">No sales in this range.</td></tr>`; return; }
+  tbody.innerHTML = displayRows.map((r, idx) => `
     <tr>
       <td data-label="S.No">${idx + 1}</td>
-      <td data-label="Sold By">${escapeHtml(g.seller)}</td>
-      <td data-label="Qty Sold">${g.qty}</td>
-      <td data-label="Sales Value">${fmtMoney(g.value)}</td>
+      <td data-label="User" class="ba-seg-user-cell ${showUserCol ? "" : "hidden"}">${escapeHtml(r.user)}</td>
+      <td data-label="Date">${r.dayKey}</td>
+      <td data-label="Area">${escapeHtml(r.area)}</td>
+      <td data-label="Start Time">${r.startTime.toLocaleTimeString()}</td>
+      <td data-label="End Time">${r.endTime.toLocaleTimeString()}</td>
+      <td data-label="Qty"><button type="button" class="cell-chip ba-segment-detail-btn" data-key="${escapeHtml(r.key)}">${r.qty}</button></td>
+      <td data-label="Value"><button type="button" class="cell-chip ba-segment-detail-btn" data-key="${escapeHtml(r.key)}">${fmtMoney(r.value)}</button></td>
     </tr>
   `).join("");
-}
-
-function renderAnalyticsByLanguage(inward, outward) {
-  const groups = new Map();
-  const ensure = (lang) => {
-    const key = lang || "—";
-    if (!groups.has(key)) groups.set(key, { language: key, inwardQty: 0, soldQty: 0 });
-    return groups.get(key);
-  };
-  inward.forEach((r) => { ensure(r.language).inwardQty += r.quantity || 0; });
-  outward.forEach((r) => { ensure(r.language).soldQty += r.quantity || 0; });
-  const tbody = document.getElementById("ba-language-body");
-  const rows = Array.from(groups.values()).sort((a, b) => b.soldQty - a.soldQty);
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="muted-text">No data in this range.</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = rows.map((g, idx) => `
-    <tr>
-      <td data-label="S.No">${idx + 1}</td>
-      <td data-label="Language">${escapeHtml(g.language)}</td>
-      <td data-label="Inward Qty">${g.inwardQty}</td>
-      <td data-label="Sold Qty">${g.soldQty}</td>
-    </tr>
-  `).join("");
-}
-
-function renderAnalyticsBySource(inward) {
-  const groups = new Map();
-  inward.forEach((r) => {
-    const source = r.purchased_from || "—";
-    if (!groups.has(source)) groups.set(source, { source, qty: 0, value: 0 });
-    const g = groups.get(source);
-    g.qty += r.quantity || 0;
-    g.value += (r.purchase_price || 0) * (r.quantity || 0);
+  tbody.querySelectorAll(".ba-segment-detail-btn").forEach((btn) => {
+    btn.addEventListener("click", () => openSegmentDetail(segmentRowsByKey.get(btn.dataset.key)));
   });
-  const tbody = document.getElementById("ba-source-body");
-  const rows = Array.from(groups.values()).sort((a, b) => b.qty - a.qty);
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="muted-text">No purchases in this range.</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = rows.map((g, idx) => `
-    <tr>
-      <td data-label="S.No">${idx + 1}</td>
-      <td data-label="Purchased From">${escapeHtml(g.source)}</td>
-      <td data-label="Qty Bought">${g.qty}</td>
-      <td data-label="Purchase Value">${fmtMoney(g.value)}</td>
-    </tr>
-  `).join("");
 }
 
 async function runAnalytics() {
   const from = document.getElementById("ba-from").value;
   const to = document.getElementById("ba-to").value;
+  const userSel = document.getElementById("ba-filter-user-select").value;
+  const placeSel = document.getElementById("ba-filter-place-select").value;
   const fromISO = from ? new Date(`${from}T00:00:00`).toISOString() : null;
   const toISO = to ? new Date(`${to}T23:59:59.999`).toISOString() : null;
 
@@ -1616,6 +1878,8 @@ async function runAnalytics() {
   let outwardQuery = supabase.from("book_outward_stock").select("name,language,sold_price,quantity,sold_area,sold_by,created_at");
   if (fromISO) { inwardQuery = inwardQuery.gte("created_at", fromISO); outwardQuery = outwardQuery.gte("created_at", fromISO); }
   if (toISO) { inwardQuery = inwardQuery.lte("created_at", toISO); outwardQuery = outwardQuery.lte("created_at", toISO); }
+  if (userSel && userSel !== "__ALL__") outwardQuery = outwardQuery.eq("sold_by", userSel);
+  if (placeSel && placeSel !== "__ALL__") outwardQuery = outwardQuery.eq("sold_area", placeSel);
 
   const [{ data: inward, error: inErr }, { data: outward, error: outErr }] = await Promise.all([inwardQuery, outwardQuery]);
   if (inErr || outErr) {
@@ -1625,16 +1889,12 @@ async function runAnalytics() {
 
   const bookStats = buildBookBuckets(inward || [], outward || []).map(computeBookStats);
   renderAnalyticsStats(bookStats);
-  renderAnalyticsTopBooks(bookStats);
-  renderAnalyticsByArea(outward || []);
-  renderAnalyticsBySeller(outward || []);
-  renderAnalyticsByLanguage(inward || [], outward || []);
-  renderAnalyticsBySource(inward || []);
+  renderAnalyticsSegments(outward || [], !userSel || userSel === "__ALL__");
 }
 
 let analyticsWired = false;
 
-function wireAnalyticsFilters() {
+async function wireAnalyticsFilters() {
   if (analyticsWired) return;
   analyticsWired = true;
 
@@ -1645,21 +1905,19 @@ function wireAnalyticsFilters() {
   fromInput.value = analyticsDateInput(d);
   toInput.value = analyticsDateInput(new Date());
 
+  const [{ data: users }, placeNames] = await Promise.all([
+    supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
+    fetchPlaceNames(),
+  ]);
+  const userNames = (users || []).map((u) => u.user_name);
+  populateFilterSelect(document.getElementById("ba-filter-user-select"), userNames);
+  populateFilterSelect(document.getElementById("ba-filter-place-select"), placeNames);
+
   document.getElementById("ba-run-btn").addEventListener("click", runAnalytics);
-  [
-    ["ba-export-books-btn", "ba-books-table", "Top_Books"],
-    ["ba-export-area-btn", "ba-area-table", "By_Area"],
-    ["ba-export-seller-btn", "ba-seller-table", "By_Seller"],
-    ["ba-export-language-btn", "ba-language-table", "By_Language"],
-    ["ba-export-source-btn", "ba-source-table", "By_Purchased_From"],
-  ].forEach(([btnId, tableId, label]) => {
-    document.getElementById(btnId).addEventListener("click", () => {
-      exportTableToExcel(document.getElementById(tableId), `Book_Analytics_${label}_${analyticsDateInput(new Date())}.xlsx`);
-    });
-  });
 }
 
 export async function initAnalytics() {
-  wireAnalyticsFilters();
+  wireDashboardDetailModal();
+  await wireAnalyticsFilters();
   await runAnalytics();
 }

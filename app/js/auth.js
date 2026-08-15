@@ -22,7 +22,7 @@ export function clearSession() {
 export async function login(userName, password) {
   const { data, error } = await supabase
     .from("users")
-    .select("id,user_name,login_pw,role,call_limit,auto_assign")
+    .select("id,user_name,login_pw,role,call_limit,auto_assign,commander")
     .ilike("user_name", userName.trim())
     .limit(1);
 
@@ -31,9 +31,26 @@ export async function login(userName, password) {
   if (!row) return { ok: false, message: "User not found." };
   if (row.login_pw !== password.trim()) return { ok: false, message: "Incorrect password." };
 
-  const user = { id: row.id, user_name: row.user_name, role: row.role, call_limit: row.call_limit, auto_assign: row.auto_assign, login_pw: row.login_pw };
+  const user = { id: row.id, user_name: row.user_name, role: row.role, call_limit: row.call_limit, auto_assign: row.auto_assign, commander: row.commander, login_pw: row.login_pw };
   setSession(user);
   return { ok: true, user };
+}
+
+// Cached sessions predate fields added later (e.g. commander) — refetch the
+// user's row on boot so a stale localStorage session self-heals instead of
+// requiring a manual logout/login.
+export async function refreshSession(existing) {
+  const { data, error } = await supabase
+    .from("users")
+    .select("id,user_name,role,call_limit,auto_assign,commander")
+    .eq("id", existing.id)
+    .limit(1);
+  const row = data && data[0];
+  if (error || !row) return existing;
+
+  const user = { ...existing, role: row.role, call_limit: row.call_limit, auto_assign: row.auto_assign, commander: row.commander };
+  setSession(user);
+  return user;
 }
 
 export function logout() {

@@ -13,12 +13,14 @@ create table if not exists users (
   role        text not null default 'Coordinator' check (role in ('Coordinator','Admin','Reception')),
   call_limit  int,                          -- null = no limit
   auto_assign boolean not null default true,
+  commander   boolean not null default false,
   assigned_count int not null default 0,    -- mirrors "No of Call Assigned by Automation" in Sheets
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
 
 alter table users add column if not exists assigned_count int not null default 0;
+alter table users add column if not exists commander boolean not null default false;
 
 -- Sheet: Master Contact
 create table if not exists contacts (
@@ -204,9 +206,19 @@ create table if not exists book_outward_stock (
   quantity    integer,
   sold_area   text,
   sold_by     text,
+  realised    boolean not null default false,  -- Commander marks true once payment/books are confirmed collected
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+alter table book_outward_stock add column if not exists realised boolean not null default false;
+
+-- Every Book Distribution "my stock", "score", "latest location" and
+-- Analytics query filters book_outward_stock by sold_by and/or a created_at
+-- range; there was no index at all on this table before.
+create index if not exists idx_book_outward_stock_sold_by_created_at
+  on book_outward_stock (sold_by, created_at);
+create index if not exists idx_book_outward_stock_created_at
+  on book_outward_stock (created_at);
 
 -- Book Distribution > Dashboard. Admin-set standard selling price per book
 -- (name+language pair) — separate from the actual sold_price on individual

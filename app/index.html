@@ -133,6 +133,11 @@
         <span class="card-label">Book Distribution</span>
         <span class="card-arrow">→</span>
       </button>
+      <button id="commander-dashboard-card" class="dashboard-card hidden" data-target="commander-section">
+        <span class="card-icon-badge badge-indigo"><span class="card-emoji">🎖️</span></span>
+        <span class="card-label">Commander</span>
+        <span class="card-arrow">→</span>
+      </button>
     </div>
   </div>
 
@@ -209,6 +214,7 @@
                   <th>User ID</th>
                   <th>Password</th>
                   <th>Role</th>
+                  <th>Commander</th>
                   <th>Call Limit</th>
                   <th>Count</th>
                   <th>Completed Calls</th>
@@ -221,7 +227,7 @@
                 </tr>
               </thead>
               <tbody id="users-table-body">
-                <tr><td colspan="10" class="loading-row">Loading users…</td></tr>
+                <tr><td colspan="11" class="loading-row">Loading users…</td></tr>
               </tbody>
             </table>
           </div>
@@ -842,11 +848,12 @@
                   <th draggable="true" data-label="Quantity">Quantity</th>
                   <th draggable="true" data-label="Sold Area">Sold Area</th>
                   <th draggable="true" data-label="Sold By">Sold By</th>
+                  <th draggable="true" data-label="Realised">Realised</th>
                   <th data-label=""></th>
                 </tr>
               </thead>
               <tbody id="book-outward-body">
-                <tr><td colspan="9" class="loading-row">Loading…</td></tr>
+                <tr><td colspan="10" class="loading-row">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -924,6 +931,8 @@
                 <input id="ba-to" type="date" />
               </div>
             </div>
+            <label class="field inline"><span>User</span><select id="ba-filter-user-select" class="inline-edit"></select></label>
+            <label class="field inline"><span>Place</span><select id="ba-filter-place-select" class="inline-edit"></select></label>
             <button id="ba-run-btn" class="btn btn-primary toolbar-btn">View</button>
           </div>
         </div>
@@ -938,66 +947,19 @@
           </div>
 
           <div class="panel">
-            <div class="panel-title-row">
-              <span>Top Books (by Qty Sold)</span>
-              <button id="ba-export-books-btn" class="btn btn-secondary btn-sm">⬇ Export</button>
-            </div>
-            <div class="table-wrap" id="ba-books-table-wrap">
-              <table class="data-table" id="ba-books-table">
-                <thead><tr><th data-label="S.No">S.No</th><th data-label="Name">Name</th><th data-label="Language">Language</th><th data-label="Qty Sold">Qty Sold</th><th data-label="Sales Value">Sales Value</th><th data-label="Avg Price">Avg Price</th></tr></thead>
-                <tbody id="ba-books-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-title-row">
-              <span>By Area</span>
-              <button id="ba-export-area-btn" class="btn btn-secondary btn-sm">⬇ Export</button>
-            </div>
-            <div class="table-wrap" id="ba-area-table-wrap">
-              <table class="data-table" id="ba-area-table">
-                <thead><tr><th data-label="S.No">S.No</th><th data-label="Area">Area</th><th data-label="Qty Sold">Qty Sold</th><th data-label="Sales Value">Sales Value</th><th data-label="Books">Books</th></tr></thead>
-                <tbody id="ba-area-body"><tr><td colspan="5" class="loading-row">Loading…</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-title-row">
-              <span>By Seller</span>
-              <button id="ba-export-seller-btn" class="btn btn-secondary btn-sm">⬇ Export</button>
-            </div>
-            <div class="table-wrap" id="ba-seller-table-wrap">
-              <table class="data-table" id="ba-seller-table">
-                <thead><tr><th data-label="S.No">S.No</th><th data-label="Sold By">Sold By</th><th data-label="Qty Sold">Qty Sold</th><th data-label="Sales Value">Sales Value</th></tr></thead>
-                <tbody id="ba-seller-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-title-row">
-              <span>By Language</span>
-              <button id="ba-export-language-btn" class="btn btn-secondary btn-sm">⬇ Export</button>
-            </div>
-            <div class="table-wrap" id="ba-language-table-wrap">
-              <table class="data-table" id="ba-language-table">
-                <thead><tr><th data-label="S.No">S.No</th><th data-label="Language">Language</th><th data-label="Inward Qty">Inward Qty</th><th data-label="Sold Qty">Sold Qty</th></tr></thead>
-                <tbody id="ba-language-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-title-row">
-              <span>By Purchased From</span>
-              <button id="ba-export-source-btn" class="btn btn-secondary btn-sm">⬇ Export</button>
-            </div>
-            <div class="table-wrap" id="ba-source-table-wrap">
-              <table class="data-table" id="ba-source-table">
-                <thead><tr><th data-label="S.No">S.No</th><th data-label="Purchased From">Purchased From</th><th data-label="Qty Bought">Qty Bought</th><th data-label="Purchase Value">Purchase Value</th></tr></thead>
-                <tbody id="ba-source-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
+            <div class="table-wrap" id="ba-segments-table-wrap">
+              <table class="data-table" id="ba-segments-table">
+                <thead><tr>
+                  <th data-label="S.No">S.No</th>
+                  <th data-label="User" id="ba-seg-user-col-header">User</th>
+                  <th data-label="Date">Date</th>
+                  <th data-label="Area">Area</th>
+                  <th data-label="Start Time">Start Time</th>
+                  <th data-label="End Time">End Time</th>
+                  <th data-label="Qty">Qty</th>
+                  <th data-label="Value">Value</th>
+                </tr></thead>
+                <tbody id="ba-segments-body"><tr><td colspan="8" class="loading-row">Loading…</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -1011,11 +973,13 @@
         <div class="panel-title-row">
           <span>Add Stock</span>
         </div>
+        <div id="book-latest-location-indicator" class="muted-text hidden" style="margin-bottom:8px;"></div>
         <div class="panel-row book-stock-add-row">
-          <button id="add-book-inward-btn" class="btn btn-primary btn-sm">+ Add Inward Stock</button>
+          <!-- <button id="add-book-inward-btn" class="btn btn-primary btn-sm">+ Add Inward Stock</button> -->
           <button id="add-book-outward-btn" class="btn btn-primary btn-sm">+ Add Outward Stock</button>
         </div>
       </div>
+      <!--
       <div class="panel">
         <h3 class="section-title">Your Inward Stock Entries <span class="muted-text" style="font-weight:400;">(Yesterday &amp; Today)</span></h3>
         <div class="table-wrap" id="my-inward-table-wrap">
@@ -1025,23 +989,89 @@
           </table>
         </div>
       </div>
+      -->
       <div class="panel">
-        <h3 class="section-title">Your Outward Stock Entries <span class="muted-text" style="font-weight:400;">(Yesterday &amp; Today)</span></h3>
+        <h3 class="section-title">Your Outward Stock Entries <span class="muted-text" style="font-weight:400;">(Last 72 Hours)</span></h3>
         <div class="table-wrap" id="my-outward-table-wrap">
           <table class="data-table" id="my-outward-table">
-            <thead><tr><th data-label="S.No">S.No</th><th data-label="Time">Time</th><th data-label="Name">Name</th><th data-label="Language">Language</th><th data-label="Sold Price">Sold Price</th><th data-label="Quantity">Quantity</th><th data-label="Sold Area">Sold Area</th></tr></thead>
-            <tbody id="my-outward-body"><tr><td colspan="7" class="loading-row">Loading…</td></tr></tbody>
+            <thead><tr><th data-label="S.No">S.No</th><th data-label="Time">Time</th><th data-label="Name">Name</th><th data-label="Language">Language</th><th data-label="Sold Price">Sold Price</th><th data-label="Quantity">Quantity</th><th data-label="Sold Area">Sold Area</th><th data-label="Realised">Realised</th></tr></thead>
+            <tbody id="my-outward-body"><tr><td colspan="8" class="loading-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
       <div class="panel">
         <h3 class="section-title">My Distribution Score</h3>
         <div class="panel-row">
-          <label class="field inline"><span>Date</span><input type="date" id="my-outward-score-date" /></label>
+          <label class="field inline"><span>From</span><input type="date" id="my-outward-score-date-from" /></label>
+          <label class="field inline"><span>To</span><input type="date" id="my-outward-score-date-to" /></label>
         </div>
         <div class="stats-bar">
           <div class="stat"><span id="my-outward-score-qty" class="stat-num">0</span><span class="stat-label">Books Distributed</span></div>
           <div class="stat"><span id="my-outward-score-value" class="stat-num">₹0</span><span class="stat-label">Sales Value</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== USER: Commander ===== -->
+    <section id="commander-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="cmd-search" type="search" placeholder="Search name / sold area / sold by…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="cmd-sort" class="inline-edit">
+                <option value="created_at-desc">Time (Newest)</option>
+                <option value="created_at-asc">Time (Oldest)</option>
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+              </select>
+            </label>
+            <div class="field inline">
+              <span>Date Range</span>
+              <div class="date-range-inputs">
+                <input type="date" id="cmd-filter-from" />
+                <span class="date-range-sep">–</span>
+                <input type="date" id="cmd-filter-to" />
+              </div>
+            </div>
+            <label class="field inline">
+              <span>Sold By</span>
+              <select id="cmd-filter-by">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <label class="field checkbox"><input type="checkbox" id="cmd-filter-unrealised" /><span>Not Realised Only</span></label>
+            <span class="hscroll-controls">
+              <button id="cmd-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+              <button id="cmd-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+            </span>
+          </div>
+          <p id="cmd-summary" class="muted-text"></p>
+        </div>
+
+        <div class="users-content">
+          <div class="table-wrap" id="commander-table-wrap">
+            <table class="data-table" id="commander-table">
+              <thead>
+                <tr>
+                  <th data-label="S.No">S.No</th>
+                  <th data-label="Time">Time</th>
+                  <th data-label="Name">Name</th>
+                  <th data-label="Language">Language</th>
+                  <th data-label="Sold Price">Sold Price</th>
+                  <th data-label="Quantity">Quantity</th>
+                  <th data-label="Sold Area">Sold Area</th>
+                  <th data-label="Sold By">Sold By</th>
+                  <th data-label="Realised">Realised</th>
+                </tr>
+              </thead>
+              <tbody id="commander-body">
+                <tr><td colspan="9" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>
@@ -1588,6 +1618,7 @@
     </label>
     <label class="field"><span>Call Limit (blank = no limit)</span><input id="add-user-limit" type="number" min="0" /></label>
     <label class="field checkbox"><input id="add-user-auto" type="checkbox" checked /><span>Auto Assign</span></label>
+    <label class="field checkbox"><input id="add-user-commander" type="checkbox" /><span>Commander</span></label>
     <div id="add-user-error" class="field-error hidden"></div>
     <div class="modal-actions">
       <button id="add-user-cancel" class="btn btn-secondary">Cancel</button>

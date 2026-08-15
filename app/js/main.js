@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { getSession, setSession, login, logout } from "./auth.js";
+import { getSession, setSession, login, logout, refreshSession } from "./auth.js";
 import { showToast } from "./utils.js";
 import * as Admin from "./admin.js";
 import * as Caller from "./caller.js";
@@ -42,6 +42,7 @@ const PAGE_TITLES = {
   "core-cultivation-section": "Core Cultivation",
   "contact-collection-section": "Contact Collection",
   "book-stock-entry-section": "Book Distribution",
+  "commander-section": "Commander",
 };
 
 let currentUser = null;
@@ -70,6 +71,7 @@ function showScreen(id) {
   if (id === "book-outward-section") BookDistribution.initOutwardTable();
   if (id === "book-analytics-section") BookDistribution.initAnalytics();
   if (id === "book-stock-entry-section") BookDistribution.initStockEntry(currentUser);
+  if (id === "commander-section") BookDistribution.initCommander();
 
   if (id !== "admin-new-contacts-section") Admin.stopNewContactsPolling();
 }
@@ -181,6 +183,7 @@ function wireNav() {
 
 function renderForRole(user) {
   userNameEl.textContent = user.user_name;
+  document.getElementById("commander-dashboard-card").classList.toggle("hidden", !user.commander);
   if (user.role !== "Coordinator") {
     roleBadgeEl.textContent = user.role;
     roleBadgeEl.classList.remove("hidden");
@@ -224,6 +227,9 @@ async function boot() {
     loginView.classList.add("hidden");
     appView.classList.remove("hidden");
     renderForRole(existing);
+
+    currentUser = await refreshSession(existing);
+    renderForRole(currentUser);
   }
 
   // Global click-to-copy handler for phone numbers

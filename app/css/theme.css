@@ -40,6 +40,16 @@ select option {
   background-color: var(--cream) !important;
 }
 
+/* Mobile browsers auto-boost font-size on narrow viewports for text blocks
+   they judge "hard to read" (e.g. a lone word in a table cell) — this is
+   what makes card-view values look huge/inconsistent on phones despite an
+   explicit font-size. Disable that inflation everywhere so declared sizes
+   render as-is. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -114,6 +124,11 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .field.inline span { margin-bottom: 0; white-space: nowrap; }
 .field.checkbox { display: flex; align-items: center; gap: 8px; }
 .field.checkbox span { margin: 0; }
+/* .field input's width:100% (above) stretches a checkbox's invisible
+   hit-area across the whole row too — the visual glyph stays small, but
+   the label text after it gets pushed way out past a big dead-click gap.
+   Checkboxes should just size to their own content everywhere. */
+.field.checkbox input[type="checkbox"] { width: auto; flex: none; }
 .tag-check-group { flex-wrap: wrap; row-gap: 6px; }
 .tag-check {
   display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; white-space: nowrap;
@@ -135,6 +150,11 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 .field-error { color: var(--danger); font-size: 13px; margin: -8px 0 14px; font-weight: 500; }
 .field-hint { color: var(--text-muted); font-size: 12.5px; margin: -2px 0 6px; }
+.stock-row-reference-row { display: flex; flex-wrap: wrap; gap: 8px 16px; width: 100%; margin: -2px 0 6px; }
+.stock-row-stock-hint, .stock-row-price-hint {
+  font-size: 14.5px; font-weight: 700; color: var(--tulsi-dark);
+}
+.stock-row-stock-hint:empty, .stock-row-price-hint:empty { display: none; }
 #caller-search { margin-bottom: 14px; }
 .field-warning { color: var(--warning); font-size: 13px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px; }
 
@@ -234,7 +254,8 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .main-content:has(> #book-inward-section:not(.hidden)),
 .main-content:has(> #book-outward-section:not(.hidden)),
 .main-content:has(> #book-places-section:not(.hidden)),
-.main-content:has(> #book-analytics-section:not(.hidden)) {
+.main-content:has(> #book-analytics-section:not(.hidden)),
+.main-content:has(> #commander-section:not(.hidden)) {
   max-width: 100%;
   margin: 0;
   padding: 12px 8px;
@@ -408,22 +429,19 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    falling back to their natural width, and to horizontal scroll on a
    viewport narrower than that, via the min-width floor) avoids it. */
 #book-dashboard-table, #book-inward-table, #book-outward-table, #book-places-table,
-#ba-books-table, #ba-area-table, #ba-seller-table, #ba-language-table, #ba-source-table,
-#my-inward-table, #my-outward-table {
+#ba-segments-table,
+#my-inward-table, #my-outward-table, #commander-table {
   width: auto;
 }
 @media (min-width: 641px) {
   #book-dashboard-table { min-width: 1600px; }
   #book-inward-table { min-width: 1100px; }
   #my-inward-table { min-width: 950px; }
-  #book-outward-table { min-width: 1300px; }
-  #my-outward-table { min-width: 1000px; }
+  #book-outward-table { min-width: 1400px; }
+  #my-outward-table { min-width: 1100px; }
+  #commander-table { min-width: 1300px; }
   #book-places-table { min-width: 750px; }
-  #ba-books-table { min-width: 680px; }
-  #ba-area-table { min-width: 680px; }
-  #ba-seller-table { min-width: 460px; }
-  #ba-language-table { min-width: 420px; }
-  #ba-source-table { min-width: 470px; }
+  #ba-segments-table { min-width: 780px; }
 }
 .data-table th {
   position: sticky;
@@ -446,6 +464,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .clickable-row:hover { background: rgba(5,150,105,0.1) !important; }
 .data-table input[type="number"], .data-table select { padding: 4px 6px; font-size: 12.5px; }
 .auto-assign-input { width: 22px; height: 22px; cursor: pointer; }
+.realised-checkbox { width: 20px; height: 20px; cursor: pointer; }
 .assigned-count { font-size: 18px; font-weight: 800; color: var(--tulsi-dark); }
 /* Users & Assignment's Count column: a round chip instead of bare digits, so
    an assignment total reads as a badge at a glance. */
@@ -666,6 +685,11 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    or an unwanted centered/cramped cell), the property is neutralized
    explicitly below even though it looks redundant. */
 #book-dashboard-table th[data-label="Name"], #book-dashboard-table td[data-label="Name"] { width: 260px !important; max-width: none !important; min-width: 260px !important; text-align: left !important; }
+/* Name here is an <input class="bd-name-edit"> — the generic Master
+   Contact-tuned .data-table td[data-label="Name"] input rule elsewhere in
+   this file hard-caps it at 140px regardless of the td's own width, so it
+   needs its own descendant override to actually use the 260px above. */
+#book-dashboard-table td[data-label="Name"] input { width: 100% !important; max-width: none !important; }
 #book-dashboard-table th[data-label="Selling Price"], #book-dashboard-table td[data-label="Selling Price"] { width: 130px !important; max-width: 130px !important; text-align: center; }
 #book-dashboard-table th[data-label="Language"], #book-dashboard-table td[data-label="Language"] { width: 90px !important; max-width: 90px !important; }
 #book-dashboard-table th[data-label="Total Inward"], #book-dashboard-table td[data-label="Total Inward"] { width: 105px !important; max-width: 105px !important; text-align: center; }
@@ -711,6 +735,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #book-outward-table th[data-label="Quantity"], #book-outward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
 #book-outward-table th[data-label="Sold Area"], #book-outward-table td[data-label="Sold Area"] { width: 200px !important; max-width: 200px !important; padding: 8px 10px !important; }
 #book-outward-table th[data-label="Sold By"], #book-outward-table td[data-label="Sold By"] { width: 150px !important; max-width: 150px !important; padding: 8px 10px !important; }
+#book-outward-table th[data-label="Realised"], #book-outward-table td[data-label="Realised"] { width: 90px !important; max-width: 90px !important; text-align: center; }
 #book-outward-table th[data-label=""], #book-outward-table td[data-label=""] { width: 80px !important; max-width: 80px !important; min-width: 80px !important; text-align: center; padding: 4px 2px !important; }
 
 /* my-inward-table / my-outward-table (the Book Distribution seller's own
@@ -731,39 +756,41 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #my-outward-table th[data-label="Sold Price"], #my-outward-table td[data-label="Sold Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
 #my-outward-table th[data-label="Quantity"], #my-outward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
 #my-outward-table th[data-label="Sold Area"], #my-outward-table td[data-label="Sold Area"] { width: 180px !important; max-width: 180px !important; padding: 8px 10px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+#my-outward-table th[data-label="Realised"], #my-outward-table td[data-label="Realised"] { width: 110px !important; max-width: 110px !important; text-align: center; }
+
+/* Commander page: same shape as book-outward-table plus the Realised
+   checkbox, but read-only besides that checkbox (no drag-reorder, no
+   .inline-edit inputs) — see BookDistribution.initCommander in
+   bookDistribution.js. Name/Sold Area/Sold By are plain <td> text here (not
+   inputs), so unlike the tables above they can just wrap instead of needing
+   a widened box to avoid the ellipsis. */
+#commander-table th[data-label="Time"], #commander-table td[data-label="Time"] { width: 145px !important; max-width: 145px !important; line-height: 1.3; text-align: left !important; white-space: normal !important; }
+#commander-table th[data-label="Name"], #commander-table td[data-label="Name"] { width: 230px !important; max-width: 230px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+#commander-table th[data-label="Language"], #commander-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
+#commander-table th[data-label="Sold Price"], #commander-table td[data-label="Sold Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
+#commander-table th[data-label="Quantity"], #commander-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
+#commander-table th[data-label="Sold Area"], #commander-table td[data-label="Sold Area"] { width: 200px !important; max-width: 200px !important; padding: 8px 10px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+#commander-table th[data-label="Sold By"], #commander-table td[data-label="Sold By"] { width: 150px !important; max-width: 150px !important; padding: 8px 10px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+#commander-table th[data-label="Realised"], #commander-table td[data-label="Realised"] { width: 90px !important; max-width: 90px !important; text-align: center; }
 
 #book-places-table th[data-label="Name"], #book-places-table td[data-label="Name"] { width: 160px !important; max-width: 160px !important; text-align: left !important; }
+#book-places-table td[data-label="Name"] input { width: 100% !important; max-width: none !important; }
 #book-places-table th[data-label="Description"], #book-places-table td[data-label="Description"] { width: 260px !important; max-width: 260px !important; }
 #book-places-table th[data-label="Map Link"], #book-places-table td[data-label="Map Link"] { width: 100px !important; max-width: 100px !important; text-align: center; }
 #book-places-table th[data-label=""], #book-places-table td[data-label=""] { width: 170px !important; max-width: 170px !important; min-width: 170px !important; }
 
-/* Book Analytics breakdown tables: same reasoning as Master Contact/Book
+/* Book Analytics segments table: same reasoning as Master Contact/Book
    Distribution above — every column gets an explicit width so the generic
    .data-table th:nth-child(N) rules (tuned for Master Contact's 13-column
    layout) can't leak an unrelated width onto whichever column happens to
    land at the same position. */
-#ba-books-table th[data-label="Name"], #ba-books-table td[data-label="Name"] { width: 160px !important; max-width: 160px !important; text-align: left !important; }
-#ba-books-table th[data-label="Language"], #ba-books-table td[data-label="Language"] { width: 90px !important; max-width: 90px !important; }
-#ba-books-table th[data-label="Qty Sold"], #ba-books-table td[data-label="Qty Sold"] { width: 100px !important; max-width: 100px !important; text-align: center; }
-#ba-books-table th[data-label="Sales Value"], #ba-books-table td[data-label="Sales Value"] { width: 130px !important; max-width: 130px !important; text-align: center; }
-#ba-books-table th[data-label="Avg Price"], #ba-books-table td[data-label="Avg Price"] { width: 120px !important; max-width: 120px !important; text-align: center; }
-
-#ba-area-table th[data-label="Area"], #ba-area-table td[data-label="Area"] { width: 160px !important; max-width: 160px !important; text-align: left !important; }
-#ba-area-table th[data-label="Qty Sold"], #ba-area-table td[data-label="Qty Sold"] { width: 100px !important; max-width: 100px !important; text-align: center; }
-#ba-area-table th[data-label="Sales Value"], #ba-area-table td[data-label="Sales Value"] { width: 130px !important; max-width: 130px !important; text-align: center; }
-#ba-area-table th[data-label="Books"], #ba-area-table td[data-label="Books"] { width: 220px !important; max-width: 220px !important; text-align: center; }
-
-#ba-seller-table th[data-label="Sold By"], #ba-seller-table td[data-label="Sold By"] { width: 160px !important; max-width: 160px !important; text-align: left !important; }
-#ba-seller-table th[data-label="Qty Sold"], #ba-seller-table td[data-label="Qty Sold"] { width: 100px !important; max-width: 100px !important; text-align: center; }
-#ba-seller-table th[data-label="Sales Value"], #ba-seller-table td[data-label="Sales Value"] { width: 130px !important; max-width: 130px !important; text-align: center; }
-
-#ba-language-table th[data-label="Language"], #ba-language-table td[data-label="Language"] { width: 120px !important; max-width: 120px !important; text-align: left !important; }
-#ba-language-table th[data-label="Inward Qty"], #ba-language-table td[data-label="Inward Qty"] { width: 110px !important; max-width: 110px !important; text-align: center; }
-#ba-language-table th[data-label="Sold Qty"], #ba-language-table td[data-label="Sold Qty"] { width: 110px !important; max-width: 110px !important; text-align: center; }
-
-#ba-source-table th[data-label="Purchased From"], #ba-source-table td[data-label="Purchased From"] { width: 160px !important; max-width: 160px !important; text-align: left !important; }
-#ba-source-table th[data-label="Qty Bought"], #ba-source-table td[data-label="Qty Bought"] { width: 110px !important; max-width: 110px !important; text-align: center; }
-#ba-source-table th[data-label="Purchase Value"], #ba-source-table td[data-label="Purchase Value"] { width: 130px !important; max-width: 130px !important; text-align: center; }
+#ba-segments-table th[data-label="User"], #ba-segments-table td[data-label="User"] { width: 140px !important; max-width: 140px !important; text-align: left !important; }
+#ba-segments-table th[data-label="Date"], #ba-segments-table td[data-label="Date"] { width: 110px !important; max-width: 110px !important; text-align: center; }
+#ba-segments-table th[data-label="Area"], #ba-segments-table td[data-label="Area"] { width: 160px !important; max-width: 160px !important; text-align: left !important; }
+#ba-segments-table th[data-label="Start Time"], #ba-segments-table td[data-label="Start Time"] { width: 110px !important; max-width: 110px !important; text-align: center; }
+#ba-segments-table th[data-label="End Time"], #ba-segments-table td[data-label="End Time"] { width: 110px !important; max-width: 110px !important; text-align: center; }
+#ba-segments-table th[data-label="Qty"], #ba-segments-table td[data-label="Qty"] { width: 90px !important; max-width: 90px !important; text-align: center; }
+#ba-segments-table th[data-label="Value"], #ba-segments-table td[data-label="Value"] { width: 110px !important; max-width: 110px !important; text-align: center; }
 
 /* User-facing "Your Inward/Outward Stock Entries" tables — same column set
    as the admin inward/outward tables above minus filters, so same widths. */
@@ -962,7 +989,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .stock-row .field { margin-bottom: 0; flex: 1 1 100px; }
 .stock-row .field.stock-cell-title { flex: 2 1 160px; }
 .stock-row-remove { flex: 0 0 auto; padding: 12px 14px; }
-.stock-row-standard-price { flex: 1 1 100%; margin: -4px 0 0; }
+.stock-row-reference-row { flex: 1 1 100%; margin: -4px 0 0; }
 
 /* ============ SEARCHABLE COMBO DROPDOWN ============
    Replaces native <input list="..."> datalists, which render as a bulky
@@ -983,6 +1010,17 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .combo-option { padding: 10px 14px; font-size: 14px; cursor: pointer; }
 .combo-option:hover, .combo-option.active { background: #f3f4f6; }
 .combo-empty { padding: 10px 14px; font-size: 13px; color: var(--text-muted); }
+.combo-input-wrap { position: relative; width: 100%; }
+.combo-input-wrap input { padding-right: 30px !important; }
+.combo-clear-btn {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 24px; height: 24px; padding: 0; border: none; border-radius: 50%;
+  background: rgba(0,0,0,0.08); color: var(--text-muted);
+  font-size: 13px; line-height: 1; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 2;
+}
+.combo-clear-btn:hover { background: rgba(0,0,0,0.16); }
+.combo-clear-btn:active { transform: translateY(-50%) scale(0.92); }
 @media (max-width: 560px) {
   .stock-row .field { flex: 1 1 45%; }
   .stock-row .field.stock-cell-title { flex: 1 1 100%; }
@@ -1077,6 +1115,8 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     padding: 6px 8px;
     border-bottom: none;
     box-sizing: border-box;
+    font-size: 13px;
+    line-height: 1.3;
     text-align: left;
   }
 
@@ -1690,6 +1730,25 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   .users-toolbar .filter-toggle-btn {
     width: auto;
   }
+}
+
+/* Commander's toolbar mixes a search box, a select, a merged date-range
+   pill, a lone checkbox and a pair of scroll buttons — not the uniform row
+   of same-height pill buttons the flex-wrap rule above was built for.
+   Wrapping that mix onto shared rows is what crammed a date input against
+   a select and squeezed the checkbox against the scroll buttons on phones.
+   Force one full-width field per row at every viewport instead — matching
+   plain .users-toolbar's own >900px default — and let only the scroll
+   buttons size to their own (small) content rather than stretching. */
+#commander-section .users-toolbar {
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+}
+#commander-section .users-toolbar > * {
+  width: 100% !important;
+}
+#commander-section .users-toolbar .hscroll-controls {
+  width: auto !important;
 }
 
 .filter-dropdown { position: relative; }
