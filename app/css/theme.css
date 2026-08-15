@@ -787,6 +787,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .data-table th.drag-over-col { box-shadow: inset 3px 0 0 var(--tulsi); }
 .inline-edit:hover { border-color: var(--sandstone); background: var(--surface); }
 .inline-edit:focus { outline: none; border-color: var(--tulsi); background: var(--surface); box-shadow: 0 0 0 3px rgba(5,150,105,0.12); }
+/* .inline-edit's border/background are transparent by default so plain text
+   values (Name, Language, ...) don't look boxed-in — but that leaves number
+   fields (Purchase/Sold/Selling Price, Quantity, Min Stock, Call Limit) with
+   no visible affordance that they're editable at all until the admin
+   happens to hover over the exact cell. Give number inputs the same
+   bordered/filled look as .btn-secondary so they read as a field to type
+   into at a glance, everywhere they appear. */
+.inline-edit[type="number"] { border-color: var(--sandstone); background: var(--surface); }
+.inline-edit[type="number"]:hover { border-color: var(--tulsi); }
 .loading-row { text-align: center; color: var(--text-muted); padding: 26px !important; font-size: 14px; animation: pulseFade 1.4s ease-in-out infinite; }
 @keyframes pulseFade { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 
