@@ -3066,30 +3066,51 @@ async function renderCollectionSubmissions() {
     <tr data-id="${r.id}">
       <td data-label="S.No">${i + 1}</td>
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
-      <td data-label="Name">${escapeHtml(r.name)}</td>
-      <td data-label="Phone" class="phone-cell">${formatPhone(r.mob_no)}</td>
-      <td data-label="PG Name">${escapeHtml(r.staying || "—")}</td>
-      <td data-label="Profession">${escapeHtml(r.ws || r.profession || "—")}</td>
-      <td data-label="Gender">${escapeHtml(r.gender || "—")}</td>
+      <td data-label="Name"><input class="inline-edit collection-field" data-id="${r.id}" data-field="name" value="${escapeHtml(r.name)}" /></td>
+      <td data-label="Phone" class="phone-cell"><input class="inline-edit collection-field" data-id="${r.id}" data-field="mob_no" value="${escapeHtml(r.mob_no)}" /></td>
+      <td data-label="PG Name"><input class="inline-edit collection-field" data-id="${r.id}" data-field="staying" value="${escapeHtml(r.staying || "")}" /></td>
+      <td data-label="Profession">
+        <select class="inline-edit collection-field" data-id="${r.id}" data-field="ws">
+          ${WS_ADMIN_OPTIONS.map((o) => `<option value="${o}" ${o === (r.ws || r.profession || "NA") ? "selected" : ""}>${o}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="Gender">
+        <select class="inline-edit collection-field" data-id="${r.id}" data-field="gender">
+          ${GENDER_ADMIN_OPTIONS.map((o) => `<option value="${o}" ${o === (r.gender || "") ? "selected" : ""}>${o || "—"}</option>`).join("")}
+        </select>
+      </td>
       <td data-label="Sessions">—</td>
       <td data-label="Calls">—</td>
-      <td data-label="Admin Tag to Users">—</td>
-      <td data-label="Admin Tag">—</td>
+      <td data-label="Admin Tag to Users">
+        <select class="inline-edit collection-field" data-id="${r.id}" data-field="admin_tag_to_users">
+          ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (r.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="Admin Tag">
+        <select class="inline-edit collection-field" data-id="${r.id}" data-field="admin_tag">
+          ${ADMIN_TAG_OPTIONS.map((t) => `<option value="${t}" ${t === (r.admin_tag || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+        </select>
+      </td>
       <td data-label="Core Cultivation">
         <select class="inline-edit collection-field" data-id="${r.id}" data-field="core_cultivation">
           <option value="">—</option>
           ${newContactsCoordinators.map((u) => `<option value="${escapeHtml(u.user_name)}" ${u.user_name === (r.core_cultivation || "") ? "selected" : ""}>${escapeHtml(u.user_name)}</option>`).join("")}
         </select>
       </td>
-      <td data-label="Calling Purpose">—</td>
+      <td data-label="Calling Purpose">
+        <select class="inline-edit collection-field" data-id="${r.id}" data-field="calling_purpose">
+          <option value="">— select —</option>
+          ${eventsCache.map((e) => `<option value="${e.code}" ${e.code === (r.calling_purpose || "") ? "selected" : ""}>${e.code}</option>`).join("")}
+        </select>
+      </td>
       <td data-label="GFY/AOMC">
         <select class="inline-edit collection-field" data-id="${r.id}" data-field="gyc_status">
           ${GYC_STATUS_OPTIONS.map((t) => `<option value="${escapeHtml(t)}" ${t === (r.gyc_status || "") ? "selected" : ""}>${escapeHtml(t) || "—"}</option>`).join("")}
         </select>
       </td>
-      <td data-label="Comment">${escapeHtml(r.comment || "—")}</td>
-      <td data-label="Collected By">${escapeHtml(r.collected_by || "—")}</td>
-      <td data-label="Source">${escapeHtml(r.source || "Contact Collection")}</td>
+      <td data-label="Comment"><input class="inline-edit collection-field" data-id="${r.id}" data-field="comment" value="${escapeHtml(r.comment || "")}" /></td>
+      <td data-label="Collected By"><input class="inline-edit collection-field" data-id="${r.id}" data-field="collected_by" value="${escapeHtml(r.collected_by || "")}" /></td>
+      <td data-label="Source"><input class="inline-edit collection-field" data-id="${r.id}" data-field="source" value="${escapeHtml(r.source || "Contact Collection")}" /></td>
       <td data-label="User Reviews">—</td>
       <td data-label="Admin Review">—</td>
       <td data-label="" class="no-export">
@@ -3104,19 +3125,25 @@ async function renderCollectionSubmissions() {
   // Filled in here rather than after promotion: the admin decides cultivation
   // and GFY/AOMC while reviewing, and "+ Add" then carries them into Master
   // Contact along with everything else the row already holds.
-  tbody.querySelectorAll(".collection-field").forEach((select) => {
-    select.addEventListener("change", async (e) => {
+  tbody.querySelectorAll(".collection-field").forEach((field) => {
+    field.addEventListener("change", async (e) => {
       const id = e.target.dataset.id;
-      const field = e.target.dataset.field;
-      const value = e.target.value || null;
+      const fieldName = e.target.dataset.field;
+      let value = e.target.value.trim ? e.target.value.trim() : e.target.value;
+      if (fieldName === "mob_no") value = normalizePhoneInput(value);
+      e.target.value = value;
+      value = value || null;
       const row = data.find((r) => r.id === id);
-      const { error: updErr } = await supabase.from("contact_collection").update({ [field]: value }).eq("id", id);
+      // "ws" and "profession" both hold the same NA/W/S domain depending on
+      // which flow created the row — keep them in sync on edit.
+      const patch = fieldName === "ws" ? { ws: value, profession: value } : { [fieldName]: value };
+      const { error: updErr } = await supabase.from("contact_collection").update(patch).eq("id", id);
       if (updErr) {
         showToast("Update failed: " + updErr.message, "error");
-        e.target.value = row?.[field] ?? "";
+        e.target.value = row?.[fieldName] ?? "";
         return;
       }
-      if (row) row[field] = value;
+      if (row) Object.assign(row, patch);
     });
   });
 
