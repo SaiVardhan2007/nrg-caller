@@ -589,19 +589,15 @@ async function renderMyOutward(userName) {
     .order("created_at", { ascending: false });
 
   if (error || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="muted-text">No records in the last 72 hours.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="muted-text">No records in the last 72 hours.</td></tr>`;
     return;
   }
   tbody.innerHTML = data.map((r, idx) => `
     <tr>
       <td data-label="S.No">${idx + 1}</td>
-      <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name">${escapeHtml(r.name)}</td>
-      <td data-label="Language">${escapeHtml(r.language || "—")}</td>
-      <td data-label="Sold Price">${r.sold_price ?? "—"}</td>
-      <td data-label="Quantity">${r.quantity ?? "—"}</td>
-      <td data-label="Sold Area">${escapeHtml(r.sold_area || "—")}</td>
-      <td data-label="Realised">${r.realised ? "✅ Realised" : "— Pending"}</td>
+      <td data-label="Count">${r.quantity ?? "—"}</td>
+      <td data-label="Price">${r.sold_price ?? "—"}</td>
     </tr>
   `).join("");
 }
@@ -971,6 +967,8 @@ function wireOutwardModal(currentUser) {
   const errorEl = document.getElementById("book-outward-error");
   const areaInput = document.getElementById("book-outward-area-select");
   const rowsContainer = document.getElementById("book-outward-rows");
+  const totalQtyEl = document.getElementById("book-outward-total-qty");
+  const totalCostEl = document.getElementById("book-outward-total-cost");
   const draftKey = outwardDraftKey(currentUser);
   let catalog = [];
   let places = [];
@@ -987,8 +985,23 @@ function wireOutwardModal(currentUser) {
     localStorage.setItem(draftKey, JSON.stringify({ area: areaInput.value, rows }));
   };
 
+  const updateTotals = () => {
+    let totalQty = 0;
+    let totalCost = 0;
+    rowsContainer.querySelectorAll(".stock-row").forEach((row) => {
+      const qty = Number(row.querySelector(".stock-row-qty").value) || 0;
+      const price = Number(row.querySelector(".stock-row-price").value) || 0;
+      totalQty += qty;
+      totalCost += qty * price;
+    });
+    totalQtyEl.textContent = totalQty;
+    totalCostEl.textContent = fmtMoney(totalCost);
+  };
+
+  const onRowChange = () => { saveDraft(); updateTotals(); };
+
   const addRow = (removable, data) => {
-    const row = buildOutwardRow(catalog, removable, standardPriceByKey, stockByKey, saveDraft);
+    const row = buildOutwardRow(catalog, removable, standardPriceByKey, stockByKey, onRowChange);
     if (data) {
       row.querySelector(".stock-row-title").value = data.title || "";
       row.querySelector(".stock-row-price").value = data.price || "";
@@ -996,6 +1009,7 @@ function wireOutwardModal(currentUser) {
       row.querySelector(".stock-row-title").dispatchEvent(new Event("input"));
     }
     rowsContainer.appendChild(row);
+    updateTotals();
   };
 
   document.getElementById("add-book-outward-btn").onclick = async () => {
@@ -1086,7 +1100,7 @@ function wireOutwardModal(currentUser) {
     }
     localStorage.removeItem(draftKey);
     modal.classList.remove("active");
-    showToast("Outward stock added", "success");
+    showToast("Sales added", "success");
     await renderMyOutward(currentUser.user_name);
     await renderLatestEntryLocation(currentUser.user_name);
   };
@@ -1225,6 +1239,16 @@ function wireCommanderFilters() {
   document.getElementById("cmd-filter-to").addEventListener("change", applyCommanderFilters);
   document.getElementById("cmd-filter-unrealised").addEventListener("change", applyCommanderFilters);
   initHorizontalScroll("commander-table-wrap", { leftBtnId: "cmd-scroll-left", rightBtnId: "cmd-scroll-right" });
+
+  // Mobile: tapping a row (not its Realised checkbox) expands it in place to
+  // reveal the rest of the entry's details. Delegated on the tbody so it
+  // keeps working across re-renders.
+  document.getElementById("commander-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("input, button, select, a")) return;
+    const row = e.target.closest("tr[data-id]");
+    if (row) row.classList.toggle("expanded");
+  });
 }
 
 export async function initCommander() {

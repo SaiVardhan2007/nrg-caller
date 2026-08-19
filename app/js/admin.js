@@ -2107,6 +2107,7 @@ export async function initAnalytics() {
   await loadEvents();
   wireContactInfoModal();
   wireAssignedContactsFilters();
+  wireFollowUpAssign();
   wireCultivationFilters();
   wireGeneralDataModal();
   const userSelect = document.getElementById("analytics-user-select");
@@ -2137,9 +2138,11 @@ export async function initAnalytics() {
     document.getElementById("card-pending").addEventListener("click", () => openAnalyticsStatModal("pending"));
     document.getElementById("analytics-export-btn").addEventListener("click", () => {
       const readTable = (tableEl) => {
-        const rows = [Array.from(tableEl.querySelectorAll("thead th")).map((th) => (th.querySelector(".th-label")?.textContent || th.textContent).trim())];
+        const headCells = Array.from(tableEl.querySelectorAll("thead th"));
+        const skip = headCells.map((th) => th.classList.contains("followup-select-col"));
+        const rows = [headCells.filter((_, i) => !skip[i]).map((th) => (th.querySelector(".th-label")?.textContent || th.textContent).trim())];
         tableEl.querySelectorAll("tbody tr").forEach((tr) => {
-          rows.push(Array.from(tr.children).map((td) => {
+          rows.push(Array.from(tr.children).filter((_, i) => !skip[i]).map((td) => {
             const field = td.querySelector("input, select");
             return field ? field.value : td.textContent.trim();
           }));
@@ -2184,6 +2187,9 @@ function formatOrdinalDate(ts) {
 
 let currentAnalyticsParams = null;
 let lastAssignedContacts = [];
+let lastFollowUpMap = new Map(); // `${contact_id}|${event_code}` -> user_name currently handling the follow-up
+const selectedFollowUpKeys = new Set(); // `${contact_id}|${event_code}` rows ticked for the next follow-up hand-off
+const FOLLOWUP_ELIGIBLE_STATUSES = ["need to call again", "available on weekend"];
 
 // re-applies the Caller/Status/Called? header filters over the already-fetched
 // assignment list — no re-query needed, this table's data is small and local.
@@ -2211,8 +2217,13 @@ function renderAssignedContactsTable() {
   if (callsFilter !== "") rows = rows.filter((a) => (a.contacts?.calls_count ?? 0) === parseInt(callsFilter, 10));
 
   assignedBody.innerHTML = rows.length
-    ? rows.map((a, idx) => `
+    ? rows.map((a, idx) => {
+        const key = `${a.contact_id}|${a.event_code}`;
+        const eligible = FOLLOWUP_ELIGIBLE_STATUSES.includes((a.status || "").toLowerCase());
+        const followUpUser = lastFollowUpMap.get(key);
+        return `
         <tr>
+          <td class="followup-select-col" data-label=""><input type="checkbox" class="followup-select" data-key="${key}" ${eligible ? "" : "disabled"} ${selectedFollowUpKeys.has(key) ? "checked" : ""} title="${eligible ? "Select for follow-up hand-off" : "Only Need to Call Again / Available on Weekend rows can be handed off"}" /></td>
           <td data-label="S.No">${idx + 1}</td>
           <td data-label="Caller">${escapeHtml(a.user_name)}</td>
           <td data-label="Name">${escapeHtml(a.contacts?.name || "—")}</td>
@@ -2226,14 +2237,24 @@ function renderAssignedContactsTable() {
           </td>
           <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${a.contacts?.mob_no || ""}" data-name="${escapeHtml(a.contacts?.name || "")}">${a.contacts?.sessions_count ?? 0}</button></td>
           <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${a.contacts?.mob_no || ""}" data-name="${escapeHtml(a.contacts?.name || "")}">${a.contacts?.calls_count ?? 0}</button></td>
-        </tr>`).join("")
-    : `<tr><td colspan="9" class="loading-row">No contacts currently assigned.</td></tr>`;
+          <td data-label="Follow-up">${followUpUser ? `↪ ${escapeHtml(followUpUser)}` : "—"}</td>
+        </tr>`;
+      }).join("")
+    : `<tr><td colspan="11" class="loading-row">No contacts currently assigned.</td></tr>`;
 
   reapplyColumnOrder("analytics-assigned-table");
 
   assignedBody.querySelectorAll(".info-link").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       openContactInfoModal(e.target.dataset.kind, e.target.dataset.mob, e.target.dataset.name);
+    });
+  });
+
+  assignedBody.querySelectorAll(".followup-select").forEach((cb) => {
+    cb.addEventListener("change", (e) => {
+      const key = e.target.dataset.key;
+      if (e.target.checked) selectedFollowUpKeys.add(key);
+      else selectedFollowUpKeys.delete(key);
     });
   });
 
@@ -2268,6 +2289,122 @@ function wireAssignedContactsFilters() {
     if (el) el.addEventListener("input", renderAssignedContactsTable);
   });
   initColumnDragReorder("analytics-assigned-table");
+}
+
+// Hands selected "Need to Call Again" / "Available on Weekend" rows off to a
+// different caller via follow_up_assignments — a table completely separate
+// from `assignments`, so Users & Assignment (counts, archiving) never sees
+// this and is never touched by it.
+let followUpAssignWired = false;
+function wireFollowUpAssign() {
+  if (followUpAssignWired) return;
+  followUpAssignWired = true;
+
+  document.getElementById("analytics-followup-assign-btn").addEventListener("click", openFollowUpAssignModal);
+
+  const modal = document.getElementById("followup-assign-modal");
+  document.getElementById("followup-assign-cancel").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+  document.getElementById("followup-assign-submit").onclick = runFollowUpAssign;
+  document.getElementById("followup-assign-users-all").addEventListener("change", (e) => {
+    document.querySelectorAll("#followup-assign-users-body .followup-assign-user-check").forEach((cb) => { cb.checked = e.target.checked; });
+  });
+
+  document.getElementById("analytics-followup-select-all").addEventListener("change", (e) => {
+    document.querySelectorAll("#analytics-assigned-body .followup-select:not(:disabled)").forEach((cb) => {
+      cb.checked = e.target.checked;
+      if (e.target.checked) selectedFollowUpKeys.add(cb.dataset.key);
+      else selectedFollowUpKeys.delete(cb.dataset.key);
+    });
+  });
+}
+
+async function openFollowUpAssignModal() {
+  if (!selectedFollowUpKeys.size) {
+    showToast("Tick at least one eligible row first (Need to Call Again / Available on Weekend).", "error");
+    return;
+  }
+  const modal = document.getElementById("followup-assign-modal");
+  const body = document.getElementById("followup-assign-users-body");
+  document.getElementById("followup-assign-error").classList.add("hidden");
+  document.getElementById("followup-assign-count").textContent = `${selectedFollowUpKeys.size} contact(s) selected.`;
+  document.getElementById("followup-assign-users-all").checked = false;
+  body.innerHTML = `<tr><td colspan="4" class="loading-row">Loading coordinators…</td></tr>`;
+  modal.classList.add("active");
+
+  const { data: coordinators } = await supabase.from("users").select("id,user_name").eq("role", "Coordinator").order("user_name");
+  const currentLoad = {};
+  lastFollowUpMap.forEach((userName) => { currentLoad[userName] = (currentLoad[userName] || 0) + 1; });
+
+  body.innerHTML = (coordinators || []).length
+    ? coordinators.map((u) => `
+        <tr data-user="${escapeHtml(u.user_name)}">
+          <td data-label=""><input type="checkbox" class="followup-assign-user-check" /></td>
+          <td data-label="Coordinator">${escapeHtml(u.user_name)}</td>
+          <td data-label="Current Follow-ups">${currentLoad[u.user_name] || 0}</td>
+          <td data-label="Call Limit (blank = no limit)"><input type="number" min="0" class="followup-assign-user-limit inline-edit" placeholder="No limit" /></td>
+        </tr>`).join("")
+    : `<tr><td colspan="4" class="loading-row">No coordinators found.</td></tr>`;
+}
+
+async function runFollowUpAssign() {
+  const errEl = document.getElementById("followup-assign-error");
+  errEl.classList.add("hidden");
+
+  const eligible = [];
+  document.querySelectorAll("#followup-assign-users-body tr[data-user]").forEach((row) => {
+    if (!row.querySelector(".followup-assign-user-check")?.checked) return;
+    const limitVal = row.querySelector(".followup-assign-user-limit").value.trim();
+    const parsed = parseInt(limitVal, 10);
+    eligible.push({ user_name: row.dataset.user, call_limit: limitVal === "" || Number.isNaN(parsed) ? null : parsed });
+  });
+  if (!eligible.length) {
+    errEl.textContent = "Select at least one coordinator to hand these off to.";
+    errEl.classList.remove("hidden");
+    return;
+  }
+  if (!selectedFollowUpKeys.size) {
+    errEl.textContent = "Select at least one contact first.";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  const submitBtn = document.getElementById("followup-assign-submit");
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Assigning…";
+  try {
+    const pool = [...selectedFollowUpKeys].map((key) => {
+      const [contact_id, event_code] = key.split("|");
+      return { id: contact_id, calling_purpose: event_code };
+    });
+    const assignedCount = {};
+    eligible.forEach((u) => { assignedCount[u.user_name] = 0; });
+    const { rows: distRows, unassignedCount } = distributePool(pool, eligible, assignedCount, "");
+
+    const rows = distRows.map((r) => {
+      const source = lastAssignedContacts.find((x) => x.contact_id === r.contact_id && x.event_code === r.event_code);
+      return { contact_id: r.contact_id, event_code: r.event_code, user_name: r.user_name, status: source?.status || "Need to Call Again", submitted_at: null };
+    });
+    const { error } = await supabase.from("follow_up_assignments").upsert(rows, { onConflict: "contact_id,event_code" });
+    if (error) throw error;
+
+    rows.forEach((r) => lastFollowUpMap.set(`${r.contact_id}|${r.event_code}`, r.user_name));
+    selectedFollowUpKeys.clear();
+    document.getElementById("followup-assign-modal").classList.remove("active");
+    renderAssignedContactsTable();
+    const byUser = {};
+    rows.forEach((r) => { byUser[r.user_name] = (byUser[r.user_name] || 0) + 1; });
+    const summary = Object.entries(byUser).map(([u, n]) => `${n} to ${u}`).join(", ");
+    showToast(unassignedCount
+      ? `Handed off: ${summary}. ${unassignedCount} contact(s) left unassigned (limits full).`
+      : `Handed off: ${summary}`, "success");
+  } catch (err) {
+    errEl.textContent = "Assign failed: " + err.message;
+    errEl.classList.remove("hidden");
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Assign";
+  }
 }
 
 // one-glance snapshot across every Coordinator's current live assignment load
@@ -2632,14 +2769,19 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
   // Filter by the same criterion as the Total Assigned tile above (the Event
   // dropdown), not the global current-event setting, so the drill-down count
   // always matches the tile — e.g. "All events" must show every live row.
-  let assignedQuery = supabase.from("assignments").select("user_name,status,event_code,contacts(name,mob_no,admin_tag_to_users,sessions_count,calls_count)");
+  let assignedQuery = supabase.from("assignments").select("user_name,status,event_code,contact_id,contacts(name,mob_no,admin_tag_to_users,sessions_count,calls_count)");
   if (eventFilter) assignedQuery = assignedQuery.eq("event_code", eventFilter);
   if (!isAll) assignedQuery = assignedQuery.eq("user_name", userName);
-  const { data: assignedContacts } = await assignedQuery;
+  const [{ data: assignedContacts }, { data: followUpRows }] = await Promise.all([
+    assignedQuery,
+    supabase.from("follow_up_assignments").select("contact_id,event_code,user_name"),
+  ]);
   if (isStale()) return;
   // group rows by caller so one person's contacts sit together, not interleaved with others'
   if (assignedContacts) assignedContacts.sort((a, b) => a.user_name.localeCompare(b.user_name));
   lastAssignedContacts = assignedContacts || [];
+  lastFollowUpMap = new Map((followUpRows || []).map((f) => [`${f.contact_id}|${f.event_code}`, f.user_name]));
+  selectedFollowUpKeys.clear();
   populateFilterSelect(
     document.getElementById("analytics-assigned-filter-caller"),
     [...new Set(lastAssignedContacts.map((a) => a.user_name))].filter(Boolean).sort()

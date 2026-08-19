@@ -78,6 +78,22 @@ create table if not exists assignment_rounds (
   round_ended_at  timestamptz not null default now()
 );
 
+-- No sheet: Follow Up Calls. A separate, lightweight hand-off layer — when a
+-- contact comes back "Need to Call Again" / "Available on Weekend", the admin
+-- can send it to a different caller from Analytics without touching the live
+-- `assignments` row (Users & Assignment stays completely unaffected).
+create table if not exists follow_up_assignments (
+  id           uuid primary key default gen_random_uuid(),
+  contact_id   uuid not null references contacts(id) on delete cascade,
+  event_code   text not null,
+  user_name    text not null,               -- who should make the follow-up call
+  status       text not null default 'Need to Call Again',
+  submitted_at timestamptz,
+  assigned_at  timestamptz not null default now(),
+  unique (contact_id, event_code)
+);
+alter table follow_up_assignments enable row level security;
+
 -- Sheet: Calling Responce (permanent log, one row per submit)
 create table if not exists call_responses (
   id           uuid primary key default gen_random_uuid(),
@@ -349,7 +365,8 @@ begin
   foreach t in array array['users','contacts','assignments','assignment_rounds','call_responses',
                            'session_attendance','contact_collection','events','settings',
                            'help_requests','one_to_one_remarks','book_places',
-                           'book_inward_stock','book_outward_stock','book_standard_prices'] loop
+                           'book_inward_stock','book_outward_stock','book_standard_prices',
+                           'follow_up_assignments'] loop
     execute format('drop policy if exists app_all on %I', t);
     execute format('create policy app_all on %I for all to anon, authenticated using (true) with check (true)', t);
   end loop;
@@ -361,6 +378,17 @@ do $$
 begin
   begin
     alter publication supabase_realtime add table assignments, contacts, settings, call_responses;
+  exception when duplicate_object then null;
+  end;
+end $$;
+
+-- Separate block: if the statement above ever hits duplicate_object on one of
+-- its tables, the whole statement no-ops, so a table added later in the same
+-- list would silently never get published. Keeping this on its own avoids that.
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table follow_up_assignments;
   exception when duplicate_object then null;
   end;
 end $$;

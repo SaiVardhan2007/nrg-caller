@@ -425,11 +425,15 @@
       </div>
 
       <div class="panel">
-        <h3 class="section-title">Currently Assigned Contacts</h3>
+        <div class="caller-title-row">
+          <h3 class="section-title">Currently Assigned Contacts</h3>
+          <button id="analytics-followup-assign-btn" class="btn btn-secondary toolbar-btn">↪ Assign for Follow-up</button>
+        </div>
         <div class="table-wrap" id="analytics-assigned-table-wrap">
           <table class="data-table" id="analytics-assigned-table">
             <thead>
               <tr>
+                <th class="followup-select-col"><input type="checkbox" id="analytics-followup-select-all" title="Select all eligible rows (Need to Call Again / Available on Weekend)" /></th>
                 <th>S.No</th>
                 <th>
                   <div class="th-label">Caller</div>
@@ -475,6 +479,7 @@
                   <div class="th-label">Calls</div>
                   <input type="number" min="0" id="analytics-assigned-filter-calls" class="th-filter" placeholder="All" />
                 </th>
+                <th>Follow-up</th>
               </tr>
             </thead>
             <tbody id="analytics-assigned-body"></tbody>
@@ -971,12 +976,12 @@
     <section id="book-stock-entry-section" class="page hidden">
       <div class="panel">
         <div class="panel-title-row">
-          <span>Add Stock</span>
+          <span>Sales Entry</span>
         </div>
         <div id="book-latest-location-indicator" class="muted-text hidden" style="margin-bottom:8px;"></div>
         <div class="panel-row book-stock-add-row">
           <!-- <button id="add-book-inward-btn" class="btn btn-primary btn-sm">+ Add Inward Stock</button> -->
-          <button id="add-book-outward-btn" class="btn btn-primary btn-sm">+ Add Outward Stock</button>
+          <button id="add-book-outward-btn" class="btn btn-primary btn-sm">+ Add Sales</button>
         </div>
       </div>
       <!--
@@ -991,15 +996,6 @@
       </div>
       -->
       <div class="panel">
-        <h3 class="section-title">Your Outward Stock Entries <span class="muted-text" style="font-weight:400;">(Last 72 Hours)</span></h3>
-        <div class="table-wrap" id="my-outward-table-wrap">
-          <table class="data-table" id="my-outward-table">
-            <thead><tr><th data-label="S.No">S.No</th><th data-label="Time">Time</th><th data-label="Name">Name</th><th data-label="Language">Language</th><th data-label="Sold Price">Sold Price</th><th data-label="Quantity">Quantity</th><th data-label="Sold Area">Sold Area</th><th data-label="Realised">Realised</th></tr></thead>
-            <tbody id="my-outward-body"><tr><td colspan="8" class="loading-row">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="panel">
         <h3 class="section-title">My Distribution Score</h3>
         <div class="panel-row">
           <label class="field inline"><span>From</span><input type="date" id="my-outward-score-date-from" /></label>
@@ -1008,6 +1004,15 @@
         <div class="stats-bar">
           <div class="stat"><span id="my-outward-score-qty" class="stat-num">0</span><span class="stat-label">Books Distributed</span></div>
           <div class="stat"><span id="my-outward-score-value" class="stat-num">₹0</span><span class="stat-label">Sales Value</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3 class="section-title">Your Outward Stock Entries <span class="muted-text" style="font-weight:400;">(Last 72 Hours)</span></h3>
+        <div class="table-wrap" id="my-outward-table-wrap">
+          <table class="data-table" id="my-outward-table">
+            <thead><tr><th data-label="S.No">S.No</th><th data-label="Name">Name</th><th data-label="Count">Count</th><th data-label="Price">Price</th></tr></thead>
+            <tbody id="my-outward-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -1192,6 +1197,15 @@
       <input id="caller-search" type="search" placeholder="Search name or phone…" class="search-input" />
       <div id="caller-cards" class="cards-list">
         <p class="loading-row">Loading your assigned contacts…</p>
+      </div>
+
+      <div id="caller-followup-section" class="caller-followup-section">
+        <div class="caller-title-row">
+          <div class="section-title">Follow Up Calls <span id="caller-followup-count" class="completion-badge">0</span></div>
+        </div>
+        <div id="caller-followup-cards" class="cards-list">
+          <p class="loading-row">No follow-up calls right now.</p>
+        </div>
       </div>
     </section>
 
@@ -1660,6 +1674,32 @@
   </div>
 </div>
 
+<div id="followup-assign-modal" class="modal">
+  <div class="modal-box modal-large">
+    <h3>Assign for Follow-up</h3>
+    <p id="followup-assign-count" class="muted-text"></p>
+    <div class="table-wrap">
+      <table class="data-table" id="followup-assign-users-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="followup-assign-users-all" title="Select all coordinators" /></th>
+            <th>Coordinator</th>
+            <th>Current Follow-ups</th>
+            <th>Call Limit (blank = no limit)</th>
+          </tr>
+        </thead>
+        <tbody id="followup-assign-users-body"></tbody>
+      </table>
+    </div>
+    <p class="muted-text">Contacts are split across the checked coordinators (limited ones fill first, then the rest split evenly). This only hands the selected contacts off for a follow-up call — it does not change anything in Users &amp; Assignment.</p>
+    <div id="followup-assign-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="followup-assign-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="followup-assign-submit" class="btn btn-primary">Assign</button>
+    </div>
+  </div>
+</div>
+
 <div id="add-contact-modal" class="modal">
   <div class="modal-box">
     <h3 id="add-contact-title">Add Contact</h3>
@@ -1785,7 +1825,13 @@
 
 <div id="book-outward-modal" class="modal">
   <div class="modal-box modal-large">
-    <h3>Add Outward Stock</h3>
+    <div class="modal-title-row">
+      <h3>Add Sales</h3>
+      <div class="stock-modal-summary">
+        <div class="stock-modal-summary-item"><span id="book-outward-total-qty" class="stock-modal-summary-num">0</span><span class="stock-modal-summary-label">Books</span></div>
+        <div class="stock-modal-summary-item"><span id="book-outward-total-cost" class="stock-modal-summary-num">₹0</span><span class="stock-modal-summary-label">Total Cost</span></div>
+      </div>
+    </div>
     <label class="field"><span>Area</span><input type="text" id="book-outward-area-select" placeholder="Search or type an area…" autocomplete="off" /></label>
     <div id="book-outward-rows" class="stock-rows"></div>
     <button id="book-outward-add-row-btn" type="button" class="btn btn-secondary btn-sm">+ Add Another Book</button>

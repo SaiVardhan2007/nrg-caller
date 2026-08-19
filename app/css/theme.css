@@ -721,6 +721,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #book-inward-table th[data-label="Time"], #book-inward-table td[data-label="Time"] { width: 145px !important; max-width: 145px !important; line-height: 1.3; text-align: left !important; white-space: normal !important; }
 #book-inward-table th[data-label="Name"], #book-inward-table td[data-label="Name"] { width: 230px !important; max-width: 230px !important; }
 #book-inward-table td[data-label="Name"] input { width: 100% !important; max-width: none !important; }
+
+/* Your Outward Stock Entries (user page): one book per row, S.No/Name/Count/Price
+   only — Count and Price are short numbers so they get just enough room to
+   never clip, Name gets the rest and wraps instead of ellipsis-truncating so
+   every letter stays visible. */
+#my-outward-table th[data-label="S.No"], #my-outward-table td[data-label="S.No"] { width: 36px !important; max-width: 36px !important; padding: 8px 4px !important; text-align: center; }
+#my-outward-table th[data-label="Name"], #my-outward-table td[data-label="Name"] { width: auto !important; max-width: none !important; white-space: normal !important; word-break: break-word; text-align: left !important; }
+#my-outward-table th[data-label="Count"], #my-outward-table td[data-label="Count"] { width: 56px !important; max-width: 56px !important; padding: 8px 6px !important; text-align: center; }
+#my-outward-table th[data-label="Price"], #my-outward-table td[data-label="Price"] { width: 90px !important; max-width: 90px !important; padding: 8px 8px !important; text-align: center; }
 #book-inward-table th[data-label="Language"], #book-inward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
 #book-inward-table th[data-label="Purchase Price"], #book-inward-table td[data-label="Purchase Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
 #book-inward-table th[data-label="Quantity"], #book-inward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
@@ -1026,6 +1035,16 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   .stock-row .field.stock-cell-title { flex: 1 1 100%; }
 }
 .modal-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.stock-modal-summary { display: flex; gap: 8px; flex-shrink: 0; }
+.stock-modal-summary-item {
+  text-align: center; background: var(--surface); border: 1px solid var(--sandstone); border-radius: var(--radius-sm);
+  padding: 4px 12px; min-width: 70px;
+}
+.stock-modal-summary-num { display: block; font-size: 16px; font-weight: 800; color: var(--tulsi-dark); letter-spacing: -0.02em; }
+.stock-modal-summary-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.03em; }
+@media (max-width: 560px) {
+  .modal-title-row { flex-wrap: wrap; }
+}
 #contact-info-search { margin: 12px 0; }
 .zoom-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .zoom-controls .btn { padding: 4px 12px; font-size: 15px; font-weight: 700; line-height: 1; }
@@ -1220,6 +1239,75 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   }
   #contacts-table tbody tr:hover, #collection-submissions-admin-table tbody tr:hover {
     background-color: #f3f4f6;
+  }
+
+  /* ============ YOUR OUTWARD STOCK ENTRIES (user page): single flat row ============
+     Only 4 columns exist here already (no hidden details to expand into), so
+     unlike the generic card conversion above, lay all 4 out on one line per
+     entry instead of stacking each field on its own line. */
+  #my-outward-table td[data-label="S.No"] { order: 1; width: 10% !important; font-weight: 700; }
+  #my-outward-table td[data-label="Name"] { order: 2; width: 46% !important; white-space: normal; }
+  #my-outward-table td[data-label="Count"] { order: 3; width: 18% !important; }
+  #my-outward-table td[data-label="Price"] { order: 4; width: 26% !important; }
+  #my-outward-table td[data-label]::before { display: none !important; }
+
+  /* ============ COMMANDER: single row, tap to expand ============
+     S.No, Name, Sold Price and Realised (the fields a commander scans/acts
+     on) always show as one flat row per entry. Tapping the row — not the
+     Realised checkbox — reveals the rest (Time, Language, Quantity, Sold
+     Area, Sold By) inline, without leaving the row or opening a modal. */
+  #commander-table tbody tr {
+    position: relative;
+    cursor: pointer;
+    padding-right: 26px;
+  }
+  #commander-table tbody tr::after {
+    content: "▾";
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tulsi-dark);
+    opacity: 0.55;
+    transition: transform 0.15s ease;
+  }
+  #commander-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #commander-table td[data-label="Time"],
+  #commander-table td[data-label="Language"],
+  #commander-table td[data-label="Quantity"],
+  #commander-table td[data-label="Sold Area"],
+  #commander-table td[data-label="Sold By"] {
+    display: none !important;
+  }
+  #commander-table tr.expanded td[data-label="Time"],
+  #commander-table tr.expanded td[data-label="Language"],
+  #commander-table tr.expanded td[data-label="Quantity"],
+  #commander-table tr.expanded td[data-label="Sold Area"],
+  #commander-table tr.expanded td[data-label="Sold By"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+
+  #commander-table td[data-label="S.No"] { order: 1; width: 10% !important; font-weight: 700; }
+  #commander-table td[data-label="Name"] { order: 2; width: 42% !important; white-space: normal; }
+  #commander-table td[data-label="Sold Price"] { order: 3; width: 23% !important; }
+  #commander-table td[data-label="Realised"] {
+    order: 4; width: 23% !important;
+    flex-direction: row !important; align-items: center !important; justify-content: flex-end !important;
+    gap: 6px;
+  }
+  #commander-table td[data-label="Time"] { order: 5; }
+  #commander-table td[data-label="Language"] { order: 6; }
+  #commander-table td[data-label="Quantity"] { order: 7; }
+  #commander-table td[data-label="Sold Area"] { order: 8; }
+  #commander-table td[data-label="Sold By"] { order: 9; }
+
+  #commander-table td[data-label="S.No"]::before,
+  #commander-table td[data-label="Name"]::before,
+  #commander-table td[data-label="Realised"]::before {
+    display: none !important;
   }
 
   /* Full width for long columns */
@@ -1496,6 +1584,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #contacts-assign-users-table input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--tulsi); }
 #contacts-assign-users-table .assign-user-limit { width: 120px; }
 #contacts-assign-summary:empty { display: none; }
+
+/* ============ MY CALLS: FOLLOW UP CALLS ============ */
+.caller-followup-section { margin-top: 24px; padding-top: 16px; border-top: 1px dashed var(--border-color, #ddd); }
+
+/* ============ ANALYTICS: ASSIGN FOR FOLLOW-UP ============ */
+#analytics-assigned-table .followup-select-col { text-align: center; width: 38px; padding-left: 8px; padding-right: 8px; }
+#analytics-assigned-table .followup-select-col input { width: 17px; height: 17px; cursor: pointer; accent-color: var(--tulsi); }
+#analytics-assigned-table .followup-select-col input:disabled { cursor: not-allowed; opacity: 0.35; }
+#analytics-assigned-table tbody tr:has(.followup-select:checked) { background: rgba(5, 150, 105, 0.08); }
 
 /* The assign window's From/To sit inside their pill and grey out until the
    Time Stamp box is ticked. */

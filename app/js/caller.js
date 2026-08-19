@@ -18,6 +18,10 @@ const PENDING = ["not done", "yet to call", ""];
 // "yet to call again" kept for older rows already saved under the previous label
 const NEGATIVE = ["out of station", "wrong number", "shifted to home town", "yet to call again", "need to call again", "available on weekend"];
 const WS_OPTIONS = ["NA", "W", "S"];
+// Contacts in this state show up in the "Follow Up Calls" section — either
+// because they're still the caller's own (never handed off), or because
+// they were explicitly handed to this caller via follow_up_assignments.
+const REMINDER_STATUSES = ["need to call again", "available on weekend"];
 // Sending the WhatsApp invite only gates Submit for the two statuses where the
 // contact actually intends to come — for "Wrong Number", "Out of Station" etc.
 // there is nothing worth sending, so a call alone is enough.
@@ -103,6 +107,27 @@ function wireRefreshButton() {
   });
 }
 
+// Postgrest has no default row order, so without an explicit sort the list
+// can land in a different spot on every reload (the bug: submitting a
+// contact sometimes moved it to the bottom, sometimes to the middle).
+// Not-yet-submitted contacts keep a stable position (by assignment time);
+// submitted ones always sort after them, oldest-submitted first — so
+// submitting a contact always sends it to the bottom, consistently.
+function sortBySubmission(list) {
+  list.sort((a, b) => {
+    if (!!a.submitted_at !== !!b.submitted_at) return a.submitted_at ? 1 : -1;
+    const aTime = a.submitted_at || a.assigned_at;
+    const bTime = b.submitted_at || b.assigned_at;
+    return new Date(aTime) - new Date(bTime);
+  });
+}
+
+function ensureCardState(item) {
+  if (!cardState.has(item.id)) {
+    cardState.set(item.id, { called: false, sent: false, submitted: !!item.submitted_at, lastStatus: item.status, review: "" });
+  }
+}
+
 async function loadAndRenderCards() {
   const { data: assignments, error } = await supabase
     .from("assignments")
@@ -114,43 +139,63 @@ async function loadAndRenderCards() {
     listEl.innerHTML = `<p class="loading-row">Could not load your contacts.</p>`;
     return;
   }
-  if (!assignments || !assignments.length) {
-    listEl.innerHTML = `<p class="loading-row">No contacts assigned to you yet.</p>`;
-    updateStatsBar([]);
-    return;
+
+  // Every contact handed off for a follow-up call (to anyone) leaves the
+  // original owner's view entirely — the live `assignments` row itself is
+  // left completely untouched, so Users & Assignment never sees this.
+  const { data: followUps, error: followUpError } = await supabase
+    .from("follow_up_assignments")
+    .select("id,status,submitted_at,assigned_at,event_code,contact_id,user_name,contacts(id,name,mob_no,ws,sessions_count,core_cultivation,gyc_status,company_name)");
+  if (followUpError) console.error("Could not load follow-up assignments:", followUpError.message);
+
+  const handedOffKeys = new Set((followUps || []).map((f) => `${f.contact_id}|${f.event_code}`));
+  const visibleAssignments = (assignments || []).filter((a) => !handedOffKeys.has(`${a.contact_id}|${a.event_code}`));
+  const myFollowUps = (followUps || []).filter((f) => f.user_name === currentUser.user_name);
+
+  visibleAssignments.forEach(ensureCardState);
+  myFollowUps.forEach(ensureCardState);
+  sortBySubmission(visibleAssignments);
+  sortBySubmission(myFollowUps);
+
+  // Default view: the caller's own contacts still sitting at "Need to Call
+  // Again" / "Available on Weekend", plus anything explicitly handed to them
+  // — the two groups can never overlap (a contact only joins the second
+  // group once it's excluded from the first), so the combined count is a
+  // plain sum, no de-duplication needed.
+  const ownReminders = visibleAssignments.filter((a) => REMINDER_STATUSES.includes((a.status || "").toLowerCase()));
+  const followUpSection = [
+    ...ownReminders.map((a) => ({ ...a, __source: "assignments" })),
+    ...myFollowUps.map((f) => ({ ...f, __source: "followup" })),
+  ];
+
+  const allMobNos = [...visibleAssignments, ...myFollowUps].map((x) => x.contacts.mob_no);
+  const weekCallCounts = {};
+  if (allMobNos.length) {
+    const { data: weekCalls } = await supabase
+      .from("call_responses")
+      .select("mob_no")
+      .in("mob_no", allMobNos)
+      .gte("ts", startOfLast4Weeks().toISOString());
+    (weekCalls || []).forEach((r) => { weekCallCounts[r.mob_no] = (weekCallCounts[r.mob_no] || 0) + 1; });
   }
 
-  assignments.forEach((a) => {
-    if (!cardState.has(a.id)) {
-      cardState.set(a.id, { called: false, sent: false, submitted: !!a.submitted_at, lastStatus: a.status, review: "" });
-    }
-  });
+  if (!visibleAssignments.length) {
+    listEl.innerHTML = `<p class="loading-row">No contacts assigned to you yet.</p>`;
+  } else {
+    listEl.innerHTML = visibleAssignments.map((a) => renderCard(a, weekCallCounts[a.contacts.mob_no] || 0)).join("");
+    wireCard(listEl, visibleAssignments);
+  }
+  updateStatsBar(visibleAssignments);
 
-  // Postgrest has no default row order, so without an explicit sort the list
-  // can land in a different spot on every reload (the bug: submitting a
-  // contact sometimes moved it to the bottom, sometimes to the middle).
-  // Not-yet-submitted contacts keep a stable position (by assignment time);
-  // submitted ones always sort after them, oldest-submitted first — so
-  // submitting a contact always sends it to the bottom, consistently.
-  assignments.sort((a, b) => {
-    if (!!a.submitted_at !== !!b.submitted_at) return a.submitted_at ? 1 : -1;
-    const aTime = a.submitted_at || a.assigned_at;
-    const bTime = b.submitted_at || b.assigned_at;
-    return new Date(aTime) - new Date(bTime);
-  });
+  const followUpListEl = document.getElementById("caller-followup-cards");
+  document.getElementById("caller-followup-count").textContent = followUpSection.length;
+  if (!followUpSection.length) {
+    followUpListEl.innerHTML = `<p class="loading-row">No follow-up calls right now.</p>`;
+  } else {
+    followUpListEl.innerHTML = followUpSection.map((item) => renderCard(item, weekCallCounts[item.contacts.mob_no] || 0)).join("");
+    wireCard(followUpListEl, followUpSection);
+  }
 
-  const mobNos = assignments.map((a) => a.contacts.mob_no);
-  const { data: weekCalls } = await supabase
-    .from("call_responses")
-    .select("mob_no")
-    .in("mob_no", mobNos)
-    .gte("ts", startOfLast4Weeks().toISOString());
-  const weekCallCounts = {};
-  (weekCalls || []).forEach((r) => { weekCallCounts[r.mob_no] = (weekCallCounts[r.mob_no] || 0) + 1; });
-
-  listEl.innerHTML = assignments.map((a) => renderCard(a, weekCallCounts[a.contacts.mob_no] || 0)).join("");
-  wireCard(assignments);
-  updateStatsBar(assignments);
   applySearchFilter();
 }
 
@@ -160,7 +205,7 @@ function renderCard(a, weekCallCount) {
   const submittedLabel = st.submitted && st.lastStatus === a.status;
   const category = statusCategory(a.status);
   return `
-    <div class="call-card" data-assignment-id="${a.id}" data-contact-id="${c.id}">
+    <div class="call-card" data-assignment-id="${a.id}" data-contact-id="${c.id}" data-source="${a.__source || "assignments"}">
       <div class="call-card-row1">
         <select class="ws-select" data-ws="${c.ws || "NA"}">
           ${WS_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
@@ -240,10 +285,11 @@ function refreshSubmitButton(card, assignmentId) {
   }
 }
 
-function wireCard(assignments) {
-  document.querySelectorAll(".call-card").forEach((card) => {
+function wireCard(container, assignments) {
+  container.querySelectorAll(".call-card").forEach((card) => {
     const assignmentId = card.dataset.assignmentId;
     const contactId = card.dataset.contactId;
+    const source = card.dataset.source || "assignments";
     const a = assignments.find((x) => x.id === assignmentId);
     const c = a.contacts;
 
@@ -298,7 +344,7 @@ function wireCard(assignments) {
     });
 
     card.querySelector(".row-submit-btn").addEventListener("click", () => {
-      submitCard(card, assignmentId, contactId, c, a.event_code);
+      submitCard(card, assignmentId, contactId, c, a.event_code, source);
     });
 
     card.querySelectorAll(".calls-link").forEach((btn) => {
@@ -315,7 +361,7 @@ function wireCard(assignments) {
   });
 }
 
-async function submitCard(card, assignmentId, contactId, contact, eventCode) {
+async function submitCard(card, assignmentId, contactId, contact, eventCode, source = "assignments") {
   const statusSelect = card.querySelector(".status-select");
   const submitBtn = card.querySelector(".row-submit-btn");
   const status = statusSelect.value;
@@ -325,7 +371,10 @@ async function submitCard(card, assignmentId, contactId, contact, eventCode) {
   submitBtn.textContent = "Saving…";
   card.classList.add("row-saving");
 
-  const { error: e1 } = await supabase.from("assignments")
+  // A follow-up card's outcome is recorded on its own follow_up_assignments
+  // row, never on `assignments` — Users & Assignment must never see this write.
+  const table = source === "followup" ? "follow_up_assignments" : "assignments";
+  const { error: e1 } = await supabase.from(table)
     .update({ status, submitted_at: new Date().toISOString() })
     .eq("id", assignmentId);
   const { error: e2 } = await supabase.from("call_responses").insert({
@@ -398,7 +447,8 @@ function updateStatsBar(assignments) {
 }
 
 function updateStatsBarFromDom() {
-  const cards = document.querySelectorAll(".call-card");
+  // Scoped to the main list only — Follow Up Calls must never affect this bar.
+  const cards = document.querySelectorAll("#caller-cards .call-card");
   let total = cards.length, positive = 0, pending = 0;
   cards.forEach((card) => {
     const s = card.querySelector(".status-select").value.toLowerCase();
@@ -555,6 +605,20 @@ function subscribeRealtime() {
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "assignments", filter: `user_name=eq.${currentUser.user_name}` },
+      () => {
+        if (document.getElementById("caller-section").classList.contains("hidden")) return;
+        loadAndRenderCards();
+      }
+    )
+    .subscribe();
+
+  // Unfiltered: a hand-off of one of *my* contacts to someone else is a row
+  // I don't own, but I still need to react to it (to hide that contact).
+  supabase
+    .channel("follow-up-assignments-live")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "follow_up_assignments" },
       () => {
         if (document.getElementById("caller-section").classList.contains("hidden")) return;
         loadAndRenderCards();
