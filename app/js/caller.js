@@ -18,10 +18,6 @@ const PENDING = ["not done", "yet to call", ""];
 // "yet to call again" kept for older rows already saved under the previous label
 const NEGATIVE = ["out of station", "wrong number", "shifted to home town", "yet to call again", "need to call again", "available on weekend"];
 const WS_OPTIONS = ["NA", "W", "S"];
-// Contacts in this state show up in the "Follow Up Calls" section — either
-// because they're still the caller's own (never handed off), or because
-// they were explicitly handed to this caller via follow_up_assignments.
-const REMINDER_STATUSES = ["need to call again", "available on weekend"];
 // Sending the WhatsApp invite only gates Submit for the two statuses where the
 // contact actually intends to come — for "Wrong Number", "Out of Station" etc.
 // there is nothing worth sending, so a call alone is enough.
@@ -157,16 +153,11 @@ async function loadAndRenderCards() {
   sortBySubmission(visibleAssignments);
   sortBySubmission(myFollowUps);
 
-  // Default view: the caller's own contacts still sitting at "Need to Call
-  // Again" / "Available on Weekend", plus anything explicitly handed to them
-  // — the two groups can never overlap (a contact only joins the second
-  // group once it's excluded from the first), so the combined count is a
-  // plain sum, no de-duplication needed.
-  const ownReminders = visibleAssignments.filter((a) => REMINDER_STATUSES.includes((a.status || "").toLowerCase()));
-  const followUpSection = [
-    ...ownReminders.map((a) => ({ ...a, __source: "assignments" })),
-    ...myFollowUps.map((f) => ({ ...f, __source: "followup" })),
-  ];
+  // Follow Up Calls only ever shows contacts an admin explicitly handed off
+  // via follow_up_assignments — a caller's own "Need to Call Again" /
+  // "Available on Weekend" contacts stay in the main list until an admin
+  // moves them.
+  const followUpSection = myFollowUps.map((f) => ({ ...f, __source: "followup" }));
 
   const allMobNos = [...visibleAssignments, ...myFollowUps].map((x) => x.contacts.mob_no);
   const weekCallCounts = {};
