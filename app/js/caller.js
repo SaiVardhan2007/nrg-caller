@@ -186,6 +186,8 @@ async function loadAndRenderCards() {
     wireCard(listEl, visibleAssignments);
   }
   updateStatsBar(visibleAssignments);
+  document.getElementById("caller-combined-total").textContent =
+    `${visibleAssignments.length} assigned + ${followUpSection.length} follow-up = ${visibleAssignments.length + followUpSection.length} total`;
 
   const followUpListEl = document.getElementById("caller-followup-cards");
   document.getElementById("caller-followup-count").textContent = followUpSection.length;

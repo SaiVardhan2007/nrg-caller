@@ -413,6 +413,7 @@
             <button id="analytics-run-btn" class="btn btn-primary toolbar-btn">View</button>
             <button id="analytics-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
             <button id="general-data-btn" class="btn btn-secondary toolbar-btn">📊 General Data</button>
+            <button id="followup-data-btn" class="btn btn-secondary toolbar-btn">📊 Follow-up Data</button>
           </div>
         </div>
 
@@ -479,7 +480,13 @@
                   <div class="th-label">Calls</div>
                   <input type="number" min="0" id="analytics-assigned-filter-calls" class="th-filter" placeholder="All" />
                 </th>
-                <th>Follow-up</th>
+                <th>
+                  <div class="th-label">Follow-up</div>
+                  <select id="analytics-assigned-filter-followup" class="th-filter">
+                    <option value="__ALL__">All</option>
+                    <option value="">—</option>
+                  </select>
+                </th>
               </tr>
             </thead>
             <tbody id="analytics-assigned-body"></tbody>
@@ -1187,6 +1194,7 @@
         <div class="stat stat-positive"><span id="stat-positive" class="stat-num">0</span><span class="stat-label">Positive</span></div>
         <div class="stat stat-pending"><span id="stat-pending" class="stat-num">0</span><span class="stat-label">Pending</span></div>
       </div>
+      <p id="caller-combined-total" class="muted-text combined-total-line"></p>
       <div class="caller-title-row">
         <div class="card-sub-row">
           <div id="caller-event-title" class="section-title"></div>
@@ -1975,6 +1983,29 @@
     </div>
     <div class="modal-actions">
       <button id="general-data-close" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="followup-data-modal" class="modal">
+  <div class="modal-box modal-large" id="followup-data-modal-box">
+    <div class="modal-title-row">
+      <h3>Follow-up Data — All Callers</h3>
+      <div class="zoom-controls">
+        <button id="followup-data-zoom-out" class="btn btn-secondary" type="button" title="Zoom out">−</button>
+        <span id="followup-data-zoom-level">100%</span>
+        <button id="followup-data-zoom-in" class="btn btn-secondary" type="button" title="Zoom in">+</button>
+      </div>
+    </div>
+    <p class="muted-text">Live snapshot of every caller currently holding a handed-off follow-up contact.</p>
+    <div id="followup-data-table-wrap" class="table-wrap">
+      <table class="data-table" id="followup-data-table">
+        <thead><tr><th>S.No</th><th>User</th><th>Assigned</th><th>Positive</th><th>Pending</th><th>Completed %</th></tr></thead>
+        <tbody id="followup-data-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="followup-data-close" class="btn btn-secondary">Close</button>
     </div>
   </div>
 </div>

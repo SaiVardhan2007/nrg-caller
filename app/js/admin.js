@@ -2110,6 +2110,7 @@ export async function initAnalytics() {
   wireFollowUpAssign();
   wireCultivationFilters();
   wireGeneralDataModal();
+  wireFollowUpDataModal();
   const userSelect = document.getElementById("analytics-user-select");
   const eventSelect = document.getElementById("analytics-event-select");
   const fromInput = document.getElementById("analytics-from");
@@ -2202,6 +2203,7 @@ function renderAssignedContactsTable() {
   const adminTagFilter = document.getElementById("analytics-assigned-filter-admin-tag")?.value ?? "__ALL__";
   const sessionsFilter = document.getElementById("analytics-assigned-filter-sessions")?.value ?? "";
   const callsFilter = document.getElementById("analytics-assigned-filter-calls")?.value ?? "";
+  const followupFilter = document.getElementById("analytics-assigned-filter-followup")?.value ?? "__ALL__";
 
   let rows = lastAssignedContacts;
   if (callerFilter !== "__ALL__") rows = rows.filter((a) => a.user_name === callerFilter);
@@ -2215,6 +2217,11 @@ function renderAssignedContactsTable() {
   if (adminTagFilter !== "__ALL__") rows = rows.filter((a) => (a.contacts?.admin_tag_to_users || "") === adminTagFilter);
   if (sessionsFilter !== "") rows = rows.filter((a) => (a.contacts?.sessions_count ?? 0) === parseInt(sessionsFilter, 10));
   if (callsFilter !== "") rows = rows.filter((a) => (a.contacts?.calls_count ?? 0) === parseInt(callsFilter, 10));
+  if (followupFilter !== "__ALL__") {
+    rows = followupFilter === ""
+      ? rows.filter((a) => !lastFollowUpMap.get(`${a.contact_id}|${a.event_code}`))
+      : rows.filter((a) => lastFollowUpMap.get(`${a.contact_id}|${a.event_code}`) === followupFilter);
+  }
 
   assignedBody.innerHTML = rows.length
     ? rows.map((a, idx) => {
@@ -2280,7 +2287,7 @@ let assignedContactsFiltersWired = false;
 function wireAssignedContactsFilters() {
   if (assignedContactsFiltersWired) return;
   assignedContactsFiltersWired = true;
-  ["analytics-assigned-filter-caller", "analytics-assigned-filter-status", "analytics-assigned-filter-called", "analytics-assigned-filter-admin-tag"].forEach((id) => {
+  ["analytics-assigned-filter-caller", "analytics-assigned-filter-status", "analytics-assigned-filter-called", "analytics-assigned-filter-admin-tag", "analytics-assigned-filter-followup"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.addEventListener("change", renderAssignedContactsTable);
   });
@@ -2475,6 +2482,74 @@ function wireGeneralDataModal() {
         }).join("")
       : `<tr><td colspan="6" class="loading-row">No contacts currently assigned to anyone.</td></tr>`;
     reapplyColumnOrder("general-data-table");
+  };
+}
+
+// same per-caller assigned/positive/pending/completed% snapshot as General
+// Data, but over follow_up_assignments instead of the live assignments table
+// — how each caller's handed-off follow-up load is actually going.
+let followUpDataModalWired = false;
+function wireFollowUpDataModal() {
+  if (followUpDataModalWired) return;
+  followUpDataModalWired = true;
+  const modal = document.getElementById("followup-data-modal");
+  document.getElementById("followup-data-close").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  let followUpDataZoom = 100;
+  const zoomBox = document.getElementById("followup-data-modal-box");
+  const zoomLevel = document.getElementById("followup-data-zoom-level");
+  const applyFollowUpDataZoom = () => {
+    zoomBox.style.transform = `scale(${followUpDataZoom / 100})`;
+    zoomLevel.textContent = followUpDataZoom + "%";
+  };
+  document.getElementById("followup-data-zoom-in").onclick = () => {
+    followUpDataZoom = Math.min(200, followUpDataZoom + 10);
+    applyFollowUpDataZoom();
+  };
+  document.getElementById("followup-data-zoom-out").onclick = () => {
+    followUpDataZoom = Math.max(40, followUpDataZoom - 10);
+    applyFollowUpDataZoom();
+  };
+
+  initColumnDragReorder("followup-data-table");
+
+  document.getElementById("followup-data-btn").onclick = async () => {
+    modal.classList.add("active");
+    const tbody = document.getElementById("followup-data-body");
+    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
+
+    const { data: followUps } = await supabase.from("follow_up_assignments").select("user_name,status");
+
+    const stats = {};
+    (followUps || []).forEach((f) => {
+      if (!stats[f.user_name]) stats[f.user_name] = { assigned: 0, positive: 0, pending: 0 };
+      const s = stats[f.user_name];
+      s.assigned++;
+      const category = callOutcomeCategory(f.status);
+      if (category === "positive") s.positive++;
+      else if (category === "pending") s.pending++;
+    });
+
+    const pctOf = (s) => (s.assigned > 0 ? ((s.assigned - s.pending) / s.assigned) * 100 : -1);
+    const rows = Object.entries(stats)
+      .filter(([, s]) => s.assigned > 0)
+      .sort((a, b) => pctOf(b[1]) - pctOf(a[1]) || a[0].localeCompare(b[0]));
+    tbody.innerHTML = rows.length
+      ? rows.map(([name, s], idx) => {
+          const completedPct = s.assigned > 0 ? Math.round(pctOf(s)) + "%" : "—";
+          return `
+          <tr>
+            <td data-label="S.No">${idx + 1}</td>
+            <td data-label="User">${escapeHtml(name)}</td>
+            <td data-label="Assigned">${s.assigned}</td>
+            <td data-label="Positive">${s.positive}</td>
+            <td data-label="Pending">${s.pending}</td>
+            <td data-label="Completed %">${completedPct}</td>
+          </tr>`;
+        }).join("")
+      : `<tr><td colspan="6" class="loading-row">No follow-up contacts currently handed off to anyone.</td></tr>`;
+    reapplyColumnOrder("followup-data-table");
   };
 }
 
@@ -2790,6 +2865,11 @@ async function runAnalytics(userName, fromDate, toDate, eventFilter) {
     document.getElementById("analytics-assigned-filter-status"),
     [...new Set(lastAssignedContacts.map((a) => a.status))].filter(Boolean).sort(),
     ""
+  );
+  populateFilterSelect(
+    document.getElementById("analytics-assigned-filter-followup"),
+    [...new Set(lastFollowUpMap.values())].filter(Boolean).sort(),
+    "Not handed off"
   );
   renderAssignedContactsTable();
 

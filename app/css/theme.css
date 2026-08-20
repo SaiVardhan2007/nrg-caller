@@ -219,11 +219,23 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .icon-btn:hover { background: rgba(255,255,255,0.26); }
 .icon-btn:active { transform: scale(0.92); }
 .header-titles { flex: 1; min-width: 0; }
-.header-title { font-weight: 800; font-size: 17px; letter-spacing: -0.01em; }
-.sync-status { font-size: 11px; opacity: 0.85; min-height: 14px; }
-.header-right { display: flex; align-items: center; gap: 8px; }
-.user-chip { font-size: 13px; font-weight: 700; background: rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 20px; }
-.role-badge { font-size: 11px; background: var(--saffron-light); color: #4a2c05; padding: 3px 9px; border-radius: 20px; font-weight: 800; }
+.header-title { font-weight: 800; font-size: 17px; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sync-status { font-size: 11px; opacity: 0.85; min-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.user-chip { font-size: 13px; font-weight: 700; background: rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 20px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.role-badge { font-size: 11px; background: var(--saffron-light); color: #4a2c05; padding: 3px 9px; border-radius: 20px; font-weight: 800; white-space: nowrap; }
+
+/* Admin role adds Download-All-DB and Bulk-Delete on top of the usual
+   Refresh/Logout, and the user's own name chip — five items that don't fit
+   a 375px-wide header alongside the title, which pushed the whole app into
+   a 25px sideways scroll. Shrink the icon buttons and let the row wrap
+   onto a second line as a fallback instead of ever overflowing. */
+@media (max-width: 480px) {
+  .app-header { flex-wrap: wrap; row-gap: 6px; padding: 10px 12px; }
+  .header-right { flex-wrap: wrap; justify-content: flex-end; gap: 6px; row-gap: 6px; }
+  .header-right .icon-btn { width: 32px; height: 32px; font-size: 14px; }
+  .user-chip { max-width: 76px; font-size: 12px; padding: 5px 10px; }
+}
 
 .admin-tabs { display: flex; gap: 4px; padding: 10px 16px 0; background: var(--cream); overflow-x: auto; }
 .admin-tab {
@@ -1365,6 +1377,17 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #core-cultivation-section .stat-num { font-size: 22px; }
   #caller-section .stat-label,
   #core-cultivation-section .stat-label { font-size: 10px; letter-spacing: 0; }
+
+  /* Follow Up Calls used to sit at the very bottom, past the whole main list
+     — easy to miss on a phone. Reflow it up to be the second section (right
+     after the stats bar), ahead of the main "Your Calls" list. */
+  #caller-section { display: flex; flex-direction: column; }
+  #caller-section .stats-bar { order: 1; }
+  #caller-combined-total { order: 2; }
+  #caller-followup-section { order: 3; margin-top: 12px; padding-top: 12px; }
+  #caller-section > .caller-title-row { order: 4; }
+  #caller-section > #caller-search { order: 5; }
+  #caller-section > #caller-cards { order: 6; }
 }
 
 /* Copy-to-clipboard phone cell highlights */
@@ -1587,6 +1610,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 
 /* ============ MY CALLS: FOLLOW UP CALLS ============ */
 .caller-followup-section { margin-top: 24px; padding-top: 16px; border-top: 1px dashed var(--border-color, #ddd); }
+.combined-total-line { text-align: center; font-size: 12px; margin: 6px 0 0; }
 
 /* ============ ANALYTICS: ASSIGN FOR FOLLOW-UP ============ */
 #analytics-assigned-table .followup-select-col { text-align: center; width: 38px; padding-left: 8px; padding-right: 8px; }
