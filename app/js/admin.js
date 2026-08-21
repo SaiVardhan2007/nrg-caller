@@ -3971,18 +3971,66 @@ function closeDuplicateModal() {
   document.getElementById("duplicate-modal").classList.remove("active");
 }
 
+// This table stacks two independent queues — Contact Collection submissions
+// (Supabase `contact_collection`, per-row "+Add" only) and the Sheets-synced
+// list (`newContactsCache`, the only thing this button used to touch). Pull
+// in both so "Add All" actually clears everything visible in the table.
+function normalizeCollectionRowForImport(r) {
+  return {
+    _source: "collection",
+    _id: r.id,
+    mob_no: r.mob_no,
+    name: r.name,
+    pg_name: r.staying || null,
+    company_name: r.company_name || null,
+    ws: r.ws || r.profession || "NA",
+    gender: r.gender || null,
+    admin_tag_to_users: r.admin_tag_to_users || null,
+    admin_tag: r.admin_tag || null,
+    core_cultivation: r.core_cultivation || null,
+    calling_purpose: r.calling_purpose || null,
+    gyc_status: r.gyc_status || null,
+    admin_remarks: r.comment || null,
+  };
+}
+
+async function removeResolvedSourceContact(item) {
+  if (item._source === "collection") {
+    await supabase.from("contact_collection").delete().eq("id", item._id);
+  } else {
+    await deleteContactsFromSheetsCall([item.mob_no]);
+  }
+}
+
 async function addAllNewContacts() {
   const addAllBtn = document.getElementById("new-contacts-add-all-btn");
-  if (!newContactsCache.length) {
-    showToast("No new contacts to add.", "warning");
-    return;
-  }
 
   addAllBtn.disabled = true;
   addAllBtn.textContent = "Processing…";
 
   try {
-    const mobNos = newContactsCache.map(c => c.mob_no);
+    const { data: collectionRows, error: collErr } = await supabase
+      .from("contact_collection")
+      .select("*");
+    if (collErr) throw collErr;
+
+    const normalizedSheet = newContactsCache.map((c) => ({ ...c, _source: "sheet" }));
+    // Same phone landed in both queues — keep the sheet copy (it carries
+    // session history) and drop the collection duplicate.
+    const seenMobs = new Set(normalizedSheet.map((c) => c.mob_no));
+    const candidates = [
+      ...normalizedSheet,
+      ...(collectionRows || [])
+        .map(normalizeCollectionRowForImport)
+        .filter((c) => !seenMobs.has(c.mob_no)),
+    ];
+
+    if (!candidates.length) {
+      showToast("No new contacts to add.", "warning");
+      return;
+    }
+
+    const mobNos = candidates.map(c => c.mob_no);
 
     const { data: existingList, error } = await supabase
       .from("contacts")
@@ -3999,7 +4047,7 @@ async function addAllNewContacts() {
     const toInsert = [];
     const duplicates = [];
 
-    newContactsCache.forEach(c => {
+    candidates.forEach(c => {
       if (existingMap.has(c.mob_no)) {
         duplicates.push({
           newContact: c,
@@ -4030,11 +4078,23 @@ async function addAllNewContacts() {
       const { error: insErr } = await supabase.from("contacts").insert(payload);
       if (insErr) throw insErr;
 
-      // Import session history for each contact being added
-      await Promise.all(toInsert.map(c => importSessionsForContact(c)));
+      const sheetInserts = toInsert.filter((c) => c._source === "sheet");
+      const collectionInserts = toInsert.filter((c) => c._source === "collection");
 
-      const toDeleteMobs = toInsert.map(c => c.mob_no);
-      await deleteContactsFromSheetsCall(toDeleteMobs);
+      // Import session history for each Sheets-sourced contact being added
+      await Promise.all(sheetInserts.map(c => importSessionsForContact(c)));
+      if (sheetInserts.length) {
+        await deleteContactsFromSheetsCall(sheetInserts.map(c => c.mob_no));
+      }
+      if (collectionInserts.length) {
+        await supabase.from("contact_collection").delete().in("id", collectionInserts.map(c => c._id));
+        await Promise.all(
+          collectionInserts
+            .filter((c) => c.admin_tag_to_users === "Coordinator")
+            .map((c) => syncCoordinatorUser({ name: c.name, mob_no: c.mob_no }, "Coordinator"))
+        );
+      }
+
       insertedCount = toInsert.length;
     }
 
@@ -4050,6 +4110,7 @@ async function addAllNewContacts() {
       runBulkDuplicateResolution();
     } else {
       showToast(`All ${insertedCount} contacts imported successfully! 🎉`, "success");
+      await renderCollectionSubmissions();
       await loadNewContacts(true);
     }
   } catch (err) {
@@ -4073,7 +4134,7 @@ function runBulkDuplicateResolution() {
   openDuplicateModal(dupItem.existingContact, dupItem.newContact, true, async (decision) => {
     try {
       if (decision === "keep_existing") {
-        await deleteContactsFromSheetsCall([dupItem.newContact.mob_no]);
+        await removeResolvedSourceContact(dupItem.newContact);
         currentDuplicateIndex++;
         runBulkDuplicateResolution();
       } else if (decision === "overwrite") {
@@ -4097,7 +4158,7 @@ function runBulkDuplicateResolution() {
 
         if (error) throw error;
 
-        await deleteContactsFromSheetsCall([dupItem.newContact.mob_no]);
+        await removeResolvedSourceContact(dupItem.newContact);
         currentDuplicateIndex++;
         runBulkDuplicateResolution();
       } else {
