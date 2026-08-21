@@ -4,3 +4,4 @@ node_modules/
 .claude/
 previous-app-js.md
 previous-google-apps-script-js.md
+.vercel

@@ -197,6 +197,26 @@
               </div>
             </div>
 
+            <div class="filter-dropdown" id="call-status-filter-dropdown">
+              <button type="button" class="filter-toggle-btn" id="call-status-filter-toggle" aria-haspopup="true" aria-expanded="false">
+                <span class="filter-toggle-icon">📞</span>
+                <span>Call Status</span>
+                <span class="filter-toggle-badge hidden" id="call-status-filter-badge">0</span>
+                <span class="filter-toggle-caret">▾</span>
+              </button>
+              <div class="filter-dropdown-panel tag-check-group" id="call-status-filter-group">
+                <label class="tag-check"><input type="checkbox" value="Not Done" /> Not Done</label>
+                <label class="tag-check"><input type="checkbox" value="Need to Call Again" /> Need to Call Again</label>
+                <label class="tag-check"><input type="checkbox" value="Available on Weekend" /> Available on Weekend</label>
+                <label class="tag-check"><input type="checkbox" value="Joining the session" /> Joining the session</label>
+                <label class="tag-check"><input type="checkbox" value="Next Week will join" /> Next Week will join</label>
+                <label class="tag-check"><input type="checkbox" value="Out of Station" /> Out of Station</label>
+                <label class="tag-check"><input type="checkbox" value="Wrong Number" /> Wrong Number</label>
+                <label class="tag-check"><input type="checkbox" value="Shifted to Home Town" /> Shifted to Home Town</label>
+                <label class="tag-check"><input type="checkbox" value="Others" /> Others</label>
+              </div>
+            </div>
+
             <button id="assign-btn" class="btn btn-primary toolbar-btn">Assign Contacts</button>
             <button id="rebalance-btn" class="btn btn-secondary toolbar-btn">⚖ Rebalance Unfinished</button>
             <button id="disassign-btn" class="btn btn-secondary toolbar-btn btn-danger">✕ Disassign All</button>

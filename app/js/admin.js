@@ -96,6 +96,14 @@ function updateTimestampFilterBadge(tsGroup) {
   badge.classList.toggle("hidden", !tsGroup.querySelector("#ts-filter-enabled").checked);
 }
 
+function updateCallStatusFilterBadge(callStatusGroup) {
+  const badge = document.getElementById("call-status-filter-badge");
+  if (!badge) return;
+  const count = getCheckedTags(callStatusGroup).length;
+  badge.textContent = String(count);
+  badge.classList.toggle("hidden", count === 0);
+}
+
 // Turns the three filter groups into click-to-open dropdown panels, closing
 // whichever else is open and dismissing on an outside click/Escape. Wired
 // with .onclick (not addEventListener) since initUsers() re-runs every time
@@ -104,6 +112,7 @@ const FILTER_DROPDOWN_IDS = [
   ["tag-filter-dropdown", "tag-filter-toggle"],
   ["gfy-filter-dropdown", "gfy-filter-toggle"],
   ["timestamp-filter-dropdown", "timestamp-filter-toggle"],
+  ["call-status-filter-dropdown", "call-status-filter-toggle"],
 ];
 let filterDropdownsWired = false;
 function wireFilterDropdowns() {
@@ -166,13 +175,15 @@ export async function initUsers() {
   const tagFilterGroup = document.getElementById("tag-filter-group");
   const gfyGroup = document.getElementById("gfy-filter-group");
   const tsGroup = document.getElementById("timestamp-filter-group");
+  const callStatusGroup = document.getElementById("call-status-filter-group");
 
   // these round-trips are all independent — run them together instead of
   // one after another, since that was adding ~2s to this page's load.
-  const [, tagFilterValue, gfyFilterValue] = await Promise.all([
+  const [, tagFilterValue, gfyFilterValue, callStatusFilterValue] = await Promise.all([
     loadEvents(),
     getSetting("tag_filter"),
     getSetting("gfy_filter"),
+    getSetting("call_status_filter"),
     renderUsersTable(),
   ]);
   // Always default to "All Events" here regardless of whichever single
@@ -186,12 +197,18 @@ export async function initUsers() {
   });
   gfyGroup.querySelector("#gfy-filter-attended").checked = gfyFilterValue !== "not_attended";
   gfyGroup.querySelector("#gfy-filter-not-attended").checked = gfyFilterValue !== "attended";
+  const savedCallStatuses = (callStatusFilterValue || "").split(",").map((t) => t.trim()).filter(Boolean);
+  callStatusGroup.querySelectorAll("input").forEach((cb) => {
+    cb.checked = savedCallStatuses.includes(cb.value);
+    cb.onchange = () => updateCallStatusFilterBadge(callStatusGroup);
+  });
   updateTagFilterBadge(tagFilterGroup);
   updateGfyFilterBadge(gfyGroup);
   updateTimestampFilterBadge(tsGroup);
+  updateCallStatusFilterBadge(callStatusGroup);
 
-  wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup);
-  wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup);
+  wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callStatusGroup);
+  wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callStatusGroup);
   wireGfyFilterGroup(gfyGroup);
   wireTimestampFilter(tsGroup);
   wireFilterDropdowns();
@@ -606,7 +623,7 @@ function wireAutoAssignSelectAll() {
   };
 }
 
-function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
+function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callStatusGroup) {
   const btn = document.getElementById("assign-btn");
   const summary = document.getElementById("assign-summary");
   btn.onclick = async () => {
@@ -627,6 +644,21 @@ function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
       const tagFilters = getCheckedTags(tagFilterGroup);
       const gfyFilter = getGfyFilter(gfyGroup);
       const timeRange = getTimeRange(tsGroup);
+      const statusFilters = getCheckedTags(callStatusGroup);
+
+      // Call Status reads each contact's *current* assignment row, which
+      // archiveAndClearAssignments() (next step) is about to wipe — capture
+      // it first. Like every other filter here, this only narrows which
+      // contacts get a NEW assignment; anyone outside the filter still gets
+      // wiped by the full reset below and stays unassigned until the next
+      // Assign click (same behavior as the Tag/GFY/Time filters already have).
+      let statusByContactId = new Map();
+      if (statusFilters.length) {
+        let statusQuery = supabase.from("assignments").select("contact_id,status");
+        if (eventCode !== "__ALL__") statusQuery = statusQuery.eq("event_code", eventCode);
+        const { data: statusRows } = await statusQuery;
+        statusByContactId = new Map((statusRows || []).map((a) => [a.contact_id, a.status || "Not Done"]));
+      }
 
       // 2. Archive and remove all existing assignments across all events first.
       // This ensures no user is assigned to more than one event simultaneously
@@ -639,11 +671,15 @@ function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
       if (eventCode !== "__ALL__") await setSetting("current_event", eventCode);
       await setSetting("tag_filter", tagFilters.join(", "));
       await setSetting("gfy_filter", gfyFilter);
+      await setSetting("call_status_filter", statusFilters.join(", "));
 
       // existingForEvent will now be empty since we cleared it above
       const alreadyAssignedIds = new Set();
 
-      const pool = (await fetchEventContactPool(eventCode, tagFilters, gfyFilter, timeRange)).filter((c) => !alreadyAssignedIds.has(c.id));
+      let pool = (await fetchEventContactPool(eventCode, tagFilters, gfyFilter, timeRange)).filter((c) => !alreadyAssignedIds.has(c.id));
+      if (statusFilters.length) {
+        pool = pool.filter((c) => statusFilters.includes(statusByContactId.get(c.id) || "Not Done"));
+      }
 
       // 3. Read the settings directly from the DOM to avoid race conditions with unsaved inputs
       const eligible = [];
@@ -718,6 +754,7 @@ function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
 
       summary.textContent = `Assigned ${rows.length} new contact(s) across ${eligible.length} caller(s).` +
         (timeRange ? ` Limited to contacts collected ${timeRange.label}.` : "") +
+        (statusFilters.length ? ` Limited to call status: ${statusFilters.join(", ")}.` : "") +
         (unassignedCount ? ` ${unassignedCount} left unassigned (no eligible user under their limit).` : "");
       showToast("Contacts assigned successfully! 🎉", "success");
       await renderUsersTable();
@@ -730,7 +767,7 @@ function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
   };
 }
 
-function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
+function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callStatusGroup) {
   const btn = document.getElementById("rebalance-btn");
   const summary = document.getElementById("assign-summary");
   btn.onclick = async () => {
@@ -741,6 +778,8 @@ function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
       const tagFilters = getCheckedTags(tagFilterGroup);
       const gfyFilter = getGfyFilter(gfyGroup);
       const timeRange = getTimeRange(tsGroup);
+      const statusFilters = getCheckedTags(callStatusGroup);
+      await setSetting("call_status_filter", statusFilters.join(", "));
 
       const eligiblePool = await fetchEventContactPool(eventCode, tagFilters, gfyFilter, timeRange);
 
@@ -749,12 +788,17 @@ function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
       const { data: existing, error: existingErr } = await existingQuery;
       if (existingErr) throw existingErr;
 
-      // touch contacts nobody has acted on yet, plus ones tagged "Need to Call
-      // Again" — everything else (a real outcome logged) stays exactly where it is.
-      const isRebalanceable = (a) => {
-        const status = a.status || "Not Done";
-        return status === "Not Done" || status === "Need to Call Again";
-      };
+      // Default sweep: contacts nobody has acted on yet, plus ones tagged
+      // "Need to Call Again" — everything else (a real outcome logged) stays
+      // exactly where it is. An explicit Call Status filter overrides that
+      // default so the admin can pull back e.g. only "Available on Weekend"
+      // contacts instead, and redistribute just those.
+      const isRebalanceable = statusFilters.length
+        ? (a) => statusFilters.includes(a.status || "Not Done")
+        : (a) => {
+            const status = a.status || "Not Done";
+            return status === "Not Done" || status === "Need to Call Again";
+          };
       const untouched = (existing || []).filter(isRebalanceable);
       const inProgress = (existing || []).filter((a) => !isRebalanceable(a));
 
@@ -817,8 +861,8 @@ function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup) {
 
       await mirrorAssignedCounts(usersCache);
 
-      summary.textContent = `Rebalanced ${rows.length} not-yet-called/need-to-call-again contact(s) across ${eligible.length} caller(s). ` +
-        `${inProgress.length} already in-progress/completed left untouched.` +
+      summary.textContent = `Rebalanced ${rows.length} ${statusFilters.length ? statusFilters.join("/") : "not-yet-called/need-to-call-again"} contact(s) across ${eligible.length} caller(s). ` +
+        `${inProgress.length} left untouched.` +
         (timeRange ? ` Limited to contacts collected ${timeRange.label}.` : "") +
         (unassignedCount ? ` ${unassignedCount} left unassigned (no eligible user under their limit).` : "");
       showToast("Rebalanced successfully! ⚖", "success");
