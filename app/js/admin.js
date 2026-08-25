@@ -1370,7 +1370,14 @@ async function renderContactsTable(searchTerm = "") {
   const [field, direction] = sortVal.split("-");
   const ascending = direction === "asc";
 
-  let query = supabase.from("contacts").select("*");
+  // Explicit column list instead of select("*") — this is the one query in the
+  // app that reloads the *entire* contacts table on every visit, so trimming
+  // unused columns (profession, one_to_one_status, updated_at) actually
+  // matters here. Every field below is read somewhere in this function or its
+  // row-render below; don't drop one without checking both.
+  let query = supabase.from("contacts").select(
+    "id,s_no,created_at,name,mob_no,pg_name,company_name,ws,gender,sessions_count,calls_count,admin_remarks,admin_tag_to_users,admin_tag,core_cultivation,calling_purpose,gyc_status"
+  );
   if (field === "s_no") {
     query = query.order("s_no", { ascending, nullsFirst: false });
   } else {
@@ -3682,7 +3689,9 @@ async function renderCollectionSubmissions() {
   tbody.innerHTML = `<tr><td colspan="20" class="loading-row">Loading…</td></tr>`;
 
   const [{ data, error }, { data: coordinators }] = await Promise.all([
-    supabase.from("contact_collection").select("*").order("created_at", { ascending: false }),
+    supabase.from("contact_collection")
+      .select("id,created_at,name,mob_no,staying,ws,profession,gender,admin_tag_to_users,admin_tag,core_cultivation,calling_purpose,gyc_status,comment,collected_by,source")
+      .order("created_at", { ascending: false }),
     supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
   ]);
   if (coordinators) newContactsCoordinators = coordinators;
@@ -3881,10 +3890,12 @@ export async function initNewContacts() {
   // Load immediately
   await loadNewContacts();
 
-  // Poll every 10 seconds
+  // Poll every 30 seconds — this is a live queue view, but the Sheets side
+  // isn't updating faster than that, so 10s was just extra round-trips for
+  // the same data (360/hr → 120/hr per open tab).
   newContactsPollInterval = setInterval(() => {
     loadNewContacts();
-  }, 10000);
+  }, 30000);
 }
 
 export function stopNewContactsPolling() {
@@ -3908,9 +3919,15 @@ async function loadNewContacts(forceShowLoading = false) {
   isFetchingNewContacts = true;
   try {
     const url = sheetsWebhookUrl + "?action=get_new_contacts";
-    const [response, { data: coordinators }] = await Promise.all([
+    // The coordinator dropdown list barely changes minute to minute, and
+    // it's already populated once by renderCollectionSubmissions() when this
+    // tab opened — only refetch it on an explicit manual refresh, not on
+    // every automatic 30s poll tick.
+    const [response, coordinatorsResult] = await Promise.all([
       fetch(url),
-      supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name")
+      forceShowLoading
+        ? supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name")
+        : Promise.resolve(null),
     ]);
 
     if (!response.ok) throw new Error("HTTP error " + response.status);
@@ -3922,7 +3939,7 @@ async function loadNewContacts(forceShowLoading = false) {
       throw new Error(result.error || "Unknown Apps Script error");
     }
 
-    newContactsCoordinators = coordinators || [];
+    if (coordinatorsResult) newContactsCoordinators = coordinatorsResult.data || [];
     newContactsCache = result.data || [];
     renderNewContactsTable();
   } catch (err) {
@@ -4597,6 +4614,15 @@ export function maybeRunWeeklyDbExport() {
   fetch(`${SUPABASE_URL}/functions/v1/weekly-db-export`, {
     headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, apikey: SUPABASE_ANON_KEY },
   }).catch((err) => console.warn("weekly-db-export ping failed:", err.message));
+}
+
+// Same fire-and-forget-ping pattern as maybeRunWeeklyDbExport above, for the
+// weekly-activity-report Edge Function — see supabase/activity-log.sql and
+// app/js/activityLog.js for what this is reviewing.
+export function maybeRunWeeklyActivityReport() {
+  fetch(`${SUPABASE_URL}/functions/v1/weekly-activity-report`, {
+    headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, apikey: SUPABASE_ANON_KEY },
+  }).catch((err) => console.warn("weekly-activity-report ping failed:", err.message));
 }
 
 export async function downloadAllDbData() {

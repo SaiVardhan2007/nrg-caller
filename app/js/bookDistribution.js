@@ -2656,7 +2656,7 @@ async function renderSavingsPanel() {
   // for user motivation only — admins still see the real expense-netted
   // profit everywhere else.
   const grossProfit = salesRevenue - bookCost;
-  const netProfit = grossProfit > 0 ? grossProfit * 0.7 : 0;
+  const netProfit = grossProfit > 0 ? Math.round(grossProfit * 0.7) : 0;
   const totalMyContribution = (contributionsData || []).reduce((sum, r) => sum + (r.amount || 0), 0);
 
   const netEl = document.getElementById("bs-total-net");
@@ -2824,9 +2824,123 @@ async function renderRealiseSection(userName) {
   });
 }
 
+/* ---- Tirtha Nidhi: admin view of every contribution submission ---- */
+let contributionsAdminCache = [];
+let contributionsAdminFiltersWired = false;
+const CONTRIBUTIONS_ADMIN_COLUMNS_KEY = "nrg-book-contributions-column-order";
+const DEFAULT_CONTRIBUTIONS_ADMIN_COLUMNS = ["S.No", "Date", "Amount", "Submitted By", "Paid To", "Realised", ""];
+const CONTRIBUTIONS_ADMIN_SELECT_FILTERS = [["bsc-filter-submitted-by", "submitted_by"], ["bsc-filter-paid-to", "paid_to"]];
+const CONTRIBUTIONS_ADMIN_NUMBER_FILTERS = [["bsc-filter-amount", "amount"]];
+
+function renderContributionsAdminRows(rows, emptyMessage) {
+  const tbody = document.getElementById("bsc-all-body");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="muted-text">${emptyMessage}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r, idx) => `
+    <tr data-id="${r.id}">
+      <td data-label="S.No">${idx + 1}</td>
+      <td data-label="Date">${escapeHtml(r.contribution_date || "")}</td>
+      <td data-label="Amount">${fmtMoney(r.amount)}</td>
+      <td data-label="Submitted By">${escapeHtml(r.submitted_by || "—")}</td>
+      <td data-label="Paid To">${escapeHtml(r.paid_to || "—")}</td>
+      <td data-label="Realised"><input type="checkbox" class="realised-checkbox bsc-admin-realised-input" ${r.realised ? "checked" : ""} /></td>
+      <td data-label="">
+        <button type="button" class="cell-chip danger bsc-admin-delete-btn" title="Delete">🗑 Delete</button>
+      </td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll(".bsc-admin-realised-input").forEach((input) => {
+    input.addEventListener("change", async (e) => {
+      const id = e.target.closest("tr").dataset.id;
+      const record = contributionsAdminCache.find((x) => x.id === id);
+      const checked = e.target.checked;
+      const { error } = await supabase.from("book_contributions").update({ realised: checked }).eq("id", id);
+      if (error) {
+        showToast("Update failed: " + error.message, "error");
+        e.target.checked = !checked;
+        return;
+      }
+      if (record) record.realised = checked;
+      showToast(checked ? "Marked as realised" : "Marked as not realised", "success");
+    });
+  });
+  tbody.querySelectorAll(".bsc-admin-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", () => deleteContribution(btn.closest("tr").dataset.id));
+  });
+  reapplyColumnOrder("bsc-all-table");
+}
+
+function applyContributionsAdminFilters() {
+  const search = document.getElementById("bsc-search")?.value.trim().toLowerCase() || "";
+  const realisedFilter = document.getElementById("bsc-filter-realised")?.value ?? "__ALL__";
+  let rows = contributionsAdminCache.filter((r) =>
+    matchesSearch(r, search, ["submitted_by", "paid_to"]) &&
+    matchesSelectFilters(r, CONTRIBUTIONS_ADMIN_SELECT_FILTERS) &&
+    matchesNumberFilters(r, CONTRIBUTIONS_ADMIN_NUMBER_FILTERS) &&
+    (realisedFilter === "__ALL__" || (realisedFilter === "yes" ? r.realised : !r.realised))
+  );
+  rows = sortRows(rows, document.getElementById("bsc-sort")?.value, "contribution_date-desc");
+  renderContributionsAdminRows(rows, contributionsAdminCache.length ? "No contributions match your filters." : "No contributions submitted yet.");
+}
+
+function wireContributionsAdminFilters() {
+  if (contributionsAdminFiltersWired) return;
+  contributionsAdminFiltersWired = true;
+  document.getElementById("bsc-search").addEventListener("input", debounce(applyContributionsAdminFilters, 200));
+  document.getElementById("bsc-sort").addEventListener("change", applyContributionsAdminFilters);
+  pairFilterControls("bsc-filter-submitted-by", "bsc-th-filter-submitted-by", applyContributionsAdminFilters);
+  pairFilterControls("bsc-filter-paid-to", "bsc-th-filter-paid-to", applyContributionsAdminFilters);
+  pairFilterControls("bsc-filter-realised", "bsc-th-filter-realised", applyContributionsAdminFilters);
+  pairFilterControls("bsc-filter-amount", "bsc-th-filter-amount", applyContributionsAdminFilters);
+  initColumnDragReorder("bsc-all-table", { storageKey: CONTRIBUTIONS_ADMIN_COLUMNS_KEY, columns: DEFAULT_CONTRIBUTIONS_ADMIN_COLUMNS, resetBtnId: "bsc-reset-columns-btn" });
+  initHorizontalScroll("bsc-all-table-wrap", { leftBtnId: "bsc-scroll-left", rightBtnId: "bsc-scroll-right" });
+}
+
+async function deleteContribution(id) {
+  const r = contributionsAdminCache.find((x) => x.id === id);
+  if (!confirm(`Delete this contribution of ${fmtMoney(r?.amount || 0)} from "${r?.submitted_by || ""}"?`)) return;
+  const { error } = await supabase.from("book_contributions").delete().eq("id", id);
+  if (error) {
+    showToast("Delete failed: " + error.message, "error");
+    return;
+  }
+  showToast("Contribution deleted", "success");
+  await initContributionsAdminTable();
+}
+
+async function initContributionsAdminTable() {
+  wireContributionsAdminFilters();
+  const tbody = document.getElementById("bsc-all-body");
+  tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Loading…</td></tr>`;
+
+  const [{ data, error }, userNames] = await Promise.all([
+    supabase.from("book_contributions").select("id, contribution_date, amount, submitted_by, paid_to, realised").order("contribution_date", { ascending: false }),
+    fetchAllUserNames(),
+  ]);
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Could not load contributions.</td></tr>`;
+    return;
+  }
+  contributionsAdminCache = data || [];
+  populatePairedSelect("bsc-filter-submitted-by", "bsc-th-filter-submitted-by", userNames);
+  populatePairedSelect("bsc-filter-paid-to", "bsc-th-filter-paid-to", userNames);
+  applyContributionsAdminFilters();
+}
+
 export async function initSavingsPanel(currentUser) {
   currentSavingsUser = currentUser;
   const isAdmin = currentUser?.role === "Admin";
+
+  // Nobody ever pays a contribution to Admin, so Admin's "Confirm Receipt"
+  // table would always be empty — swap it out for the wide, filterable
+  // view of every contribution anyone has submitted instead.
+  document.getElementById("bsc-admin-sidebar")?.classList.toggle("hidden", !isAdmin);
+  document.getElementById("bsc-all-table-panel")?.classList.toggle("hidden", !isAdmin);
+  document.getElementById("bs-realise-section")?.classList.toggle("hidden", isAdmin);
 
   const statsToolbar = document.getElementById("bs-stats-user-toolbar");
   statsToolbar?.classList.toggle("hidden", !isAdmin);
@@ -2842,11 +2956,17 @@ export async function initSavingsPanel(currentUser) {
   }
 
   wireDashboardDetailModal();
-  wireContributionModal(currentUser, renderSavingsPanel);
+  wireContributionModal(currentUser, async () => {
+    await renderSavingsPanel();
+    if (isAdmin) await initContributionsAdminTable();
+  });
   document.getElementById("bs-my-contribution-card").onclick = () => {
     const scopeSel = isAdmin ? (document.getElementById("bs-stats-user-select")?.value || "__ALL__") : currentUser.user_name;
     openMyContributionsPopup(scopeSel === "__ALL__" ? null : scopeSel, scopeSel === "__ALL__");
   };
 
-  await Promise.all([renderSavingsPanel(), renderRealiseSection(currentUser.user_name)]);
+  const tasks = [renderSavingsPanel()];
+  if (isAdmin) tasks.push(initContributionsAdminTable());
+  else tasks.push(renderRealiseSection(currentUser.user_name));
+  await Promise.all(tasks);
 }

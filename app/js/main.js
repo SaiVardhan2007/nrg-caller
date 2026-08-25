@@ -1,6 +1,7 @@
 import { supabase } from "./supabaseClient.js";
 import { getSession, setSession, login, logout, refreshSession } from "./auth.js";
 import { showToast } from "./utils.js";
+import { initActivityLog, logEvent } from "./activityLog.js";
 import * as Admin from "./admin.js";
 import * as Caller from "./caller.js";
 import * as Reception from "./reception.js";
@@ -101,10 +102,16 @@ function showScreen(id, { forceRefresh = false } = {}) {
   document.getElementById(id).classList.remove("hidden");
   headerTitle.textContent = PAGE_TITLES[id] || "FNRG Preaching";
 
-  if (!shouldSkipLoad(id, forceRefresh)) {
+  const skipLoad = shouldSkipLoad(id, forceRefresh);
+  // `loaded` distinguishes an actual backend fetch from a cache hit, so the
+  // weekly review can see both how often a screen is visited and how much
+  // the caching added in this session is actually cutting real loads.
+  logEvent("nav_section", { section: id, meta: { loaded: !skipLoad, forceRefresh } });
+
+  if (!skipLoad) {
     if (CACHEABLE_SECTIONS.has(id)) sectionLastLoaded.set(id, Date.now());
 
-    if (id === "caller-section") Caller.init(currentUser);
+    if (id === "caller-section") Caller.init(currentUser, { forceRefresh });
     if (id === "reception-section") Reception.init(currentUser);
     if (id === "admin-users-section") Admin.initUsers(currentUser);
     if (id === "admin-contacts-section") Admin.initContacts(currentUser);
@@ -114,7 +121,7 @@ function showScreen(id, { forceRefresh = false } = {}) {
     if (id === "admin-reception-analytics-section") Admin.initReceptionAnalytics();
     if (id === "admin-one-to-one-section") OneToOne.initAdminOneToOne(currentUser);
     if (id === "one-to-one-user-section") OneToOne.initUserOneToOne(currentUser);
-    if (id === "core-cultivation-section") CoreCultivation.init(currentUser);
+    if (id === "core-cultivation-section") CoreCultivation.init(currentUser, { forceRefresh });
     if (id === "contact-collection-section") Collection.init(currentUser);
     if (id === "book-dashboard-section") BookDistribution.initDashboard(currentUser);
     if (id === "book-places-section") BookDistribution.initPlaces(currentUser);
@@ -327,6 +334,7 @@ function renderForRole(user) {
       document.getElementById("download-all-db-btn").addEventListener("click", () => Admin.downloadAllDbData());
       document.getElementById("bulk-delete-btn").addEventListener("click", () => Admin.openBulkDeleteModal(currentUser));
       Admin.maybeRunWeeklyDbExport();
+      Admin.maybeRunWeeklyActivityReport();
     }
     goAdminModules();
   } else if (user.role === "Reception") {
@@ -354,9 +362,11 @@ async function boot() {
     currentUser = existing;
     loginView.classList.add("hidden");
     appView.classList.remove("hidden");
+    initActivityLog(currentUser);
     renderForRole(existing);
 
     currentUser = await refreshSession(existing);
+    initActivityLog(currentUser);
     renderForRole(currentUser);
   }
 
@@ -396,6 +406,7 @@ async function boot() {
     currentUser = res.user;
     loginView.classList.add("hidden");
     appView.classList.remove("hidden");
+    initActivityLog(currentUser);
     renderForRole(currentUser);
   });
 

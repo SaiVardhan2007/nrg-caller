@@ -279,8 +279,20 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .main-content:has(> #caller-section:not(.hidden)),
 .main-content:has(> #core-cultivation-section:not(.hidden)),
 .main-content:has(> #reception-section:not(.hidden)),
-.main-content:has(> #one-to-one-user-section:not(.hidden)),
-.main-content:has(> #book-savings-user-section:not(.hidden)) {
+.main-content:has(> #one-to-one-user-section:not(.hidden)) {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* Tirtha Nidhi shares one section between two very different layouts: a
+   narrow single-column form for a regular user/coordinator's own
+   contributions, and Admin's wide sidebar+table view of every submission
+   (like every other Book Distribution admin tab). Only give it the narrow
+   reading column while the admin sidebar is hidden — once it's showing, the
+   sidebar+table need full width like their siblings instead of being
+   squeezed into 900px and centered. */
+.main-content:has(> #book-savings-user-section:not(.hidden) #bsc-admin-sidebar.hidden) {
   max-width: 900px;
   margin: 0 auto;
   padding: 16px;
@@ -1384,6 +1396,20 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #my-outward-table td[data-label="Count"] { order: 3; width: 18% !important; }
   #my-outward-table td[data-label="Price"] { order: 4; width: 26% !important; }
   #my-outward-table td[data-label]::before { display: none !important; }
+
+  /* ============ CONTRIBUTIONS PAID TO YOU (Savings & Earnings): single flat row ============
+     Same reasoning as My Outward Stock above: only 5 columns, none hidden,
+     laid out on one line per entry instead of stacked label/value pairs. */
+  #bs-realise-table td[data-label="S.No"] { order: 1; width: 8% !important; font-weight: 700; }
+  #bs-realise-table td[data-label="Date"] { order: 2; width: 24% !important; }
+  #bs-realise-table td[data-label="Amount"] { order: 3; width: 20% !important; font-weight: 700; }
+  #bs-realise-table td[data-label="Paid By"] { order: 4; width: 26% !important; white-space: normal; }
+  #bs-realise-table td[data-label="Realised"] {
+    order: 5; width: 22% !important;
+    flex-direction: row !important; align-items: center !important; justify-content: flex-end !important;
+    gap: 6px;
+  }
+  #bs-realise-table td[data-label]::before { display: none !important; }
 
   /* ============ COMMANDER: single row, tap to expand ============
      S.No, Name, Sold Price and Realised (the fields a commander scans/acts

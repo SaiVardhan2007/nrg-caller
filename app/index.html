@@ -1602,6 +1602,52 @@
     <!-- ===== USER / ADMIN: Savings & Earnings ===== -->
     <section id="book-savings-user-section" class="page hidden">
       <div class="users-page-layout">
+        <div class="panel users-sidebar hidden" id="bsc-admin-sidebar">
+          <div class="users-toolbar">
+            <input id="bsc-search" type="search" placeholder="Search submitted by / paid to…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="bsc-sort" class="inline-edit">
+                <option value="contribution_date-desc">Date (Newest)</option>
+                <option value="contribution_date-asc">Date (Oldest)</option>
+                <option value="amount-desc">Amount (High-Low)</option>
+                <option value="amount-asc">Amount (Low-High)</option>
+                <option value="submitted_by-asc">Submitted By (A-Z)</option>
+                <option value="paid_to-asc">Paid To (A-Z)</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Amount</span>
+              <input type="number" id="bsc-filter-amount" placeholder="All" />
+            </label>
+            <label class="field inline">
+              <span>Submitted By</span>
+              <select id="bsc-filter-submitted-by">
+                <option value="__ALL__">All</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Paid To</span>
+              <select id="bsc-filter-paid-to">
+                <option value="__ALL__">All</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Realised</span>
+              <select id="bsc-filter-realised">
+                <option value="__ALL__">All</option>
+                <option value="no">Pending</option>
+                <option value="yes">Realised</option>
+              </select>
+            </label>
+            <button id="bsc-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
+            <span class="hscroll-controls">
+              <button id="bsc-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+              <button id="bsc-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+            </span>
+          </div>
+        </div>
+
         <div class="users-content">
           <div class="panel-row hidden" id="bs-stats-user-toolbar">
             <label class="field inline"><span>Show contribution for</span><select id="bs-stats-user-select" class="inline-edit"><option value="__ALL__">All Users (combined)</option></select></label>
@@ -1614,6 +1660,48 @@
 
           <div class="panel-row book-stock-add-row">
             <button id="add-book-contribution-btn" class="btn btn-primary btn-sm">+ Add Contribution</button>
+          </div>
+
+          <div class="hidden" id="bsc-all-table-panel">
+            <h3 class="section-title">All Contribution Submissions</h3>
+            <div class="table-wrap" id="bsc-all-table-wrap">
+              <table class="data-table" id="bsc-all-table">
+                <thead>
+                  <tr>
+                    <th draggable="true" data-label="S.No">S.No</th>
+                    <th draggable="true" data-label="Date">Date</th>
+                    <th draggable="true" data-label="Amount">
+                      <div class="th-label">Amount</div>
+                      <input type="number" id="bsc-th-filter-amount" class="th-filter" placeholder="All" />
+                    </th>
+                    <th draggable="true" data-label="Submitted By">
+                      <div class="th-label">Submitted By</div>
+                      <select id="bsc-th-filter-submitted-by" class="th-filter">
+                        <option value="__ALL__">All</option>
+                      </select>
+                    </th>
+                    <th draggable="true" data-label="Paid To">
+                      <div class="th-label">Paid To</div>
+                      <select id="bsc-th-filter-paid-to" class="th-filter">
+                        <option value="__ALL__">All</option>
+                      </select>
+                    </th>
+                    <th draggable="true" data-label="Realised">
+                      <div class="th-label">Realised</div>
+                      <select id="bsc-th-filter-realised" class="th-filter">
+                        <option value="__ALL__">All</option>
+                        <option value="no">Pending</option>
+                        <option value="yes">Realised</option>
+                      </select>
+                    </th>
+                    <th data-label=""></th>
+                  </tr>
+                </thead>
+                <tbody id="bsc-all-body">
+                  <tr><td colspan="7" class="loading-row">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div class="panel" id="bs-realise-section">

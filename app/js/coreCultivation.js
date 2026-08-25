@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit, cardNameDisplayHtml, statusSelectHtml, gycSelectHtml, orgFieldHtml, saveContactOrg, startOfLast4Weeks } from "./utils.js";
+import { logEvent } from "./activityLog.js";
 
 const STATUS_DEFAULT = ""; // an un-called contact has an empty status, shown as a blank option
 const STATUS_OPTIONS = [
@@ -36,6 +37,13 @@ const cardState = new Map(); // contact.id -> { called, sent, submitted, lastSta
 let messageText = "";
 let currentUser = null;
 
+// Same reasoning as caller.js's My Calls cache: this list barely changes
+// minute to minute (core_cultivation is an admin-set link), but was
+// reloading in full on every single visit. Short TTL, always bypassed by
+// this page's own refresh button and the header's global refresh button.
+let lastLoadedAt = 0;
+const CC_CACHE_TTL_MS = 45 * 1000;
+
 const SKELETON_CARD = `
   <div class="call-card skeleton-card">
     <div class="call-card-row1">
@@ -46,8 +54,15 @@ const SKELETON_CARD = `
   </div>
 `;
 
-export async function init(user) {
+export async function init(user, { forceRefresh = false } = {}) {
+  const sameUser = currentUser?.user_name === user.user_name;
   currentUser = user;
+  wireReviewModal();
+  wireHistoryModal();
+  wireRefreshButton();
+
+  if (!forceRefresh && sameUser && Date.now() - lastLoadedAt < CC_CACHE_TTL_MS) return;
+
   const listEl = document.getElementById("cc-cards");
   listEl.innerHTML = SKELETON_CARD.repeat(3);
 
@@ -56,9 +71,6 @@ export async function init(user) {
   messageText = msgRow?.value || "";
 
   await loadAndRenderCards();
-  wireReviewModal();
-  wireHistoryModal();
-  wireRefreshButton();
 }
 
 let refreshWired = false;
@@ -86,6 +98,8 @@ async function loadAndRenderCards() {
     .from("contacts")
     .select("id,name,mob_no,ws,sessions_count,calling_purpose,gyc_status,company_name")
     .eq("core_cultivation", currentUser.user_name);
+
+  lastLoadedAt = Date.now();
 
   const listEl = document.getElementById("cc-cards");
   if (error) {
@@ -315,6 +329,13 @@ async function submitCard(card, contactId, contact) {
   });
 
   card.classList.remove("row-saving");
+
+  logEvent("submit_call", {
+    section: "core-cultivation-section",
+    target: contactId,
+    meta: { ok: !error, mob_no: contact.mob_no, status },
+  });
+
   if (error) {
     card.classList.add("row-error");
     setTimeout(() => card.classList.remove("row-error"), 1600);

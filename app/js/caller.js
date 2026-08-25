@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient.js";
-import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit, cardNameDisplayHtml, normalizePhoneInput, statusSelectHtml, gycSelectHtml, orgFieldHtml, saveContactOrg, startOfLast4Weeks } from "./utils.js";
+import { formatPhone, telHref, waHref, sendWhatsAppMessage, showToast, escapeHtml, wireCardNameEdit, cardNameDisplayHtml, normalizePhoneInput, statusSelectHtml, gycSelectHtml, orgFieldHtml, saveContactOrg, startOfLast4Weeks, debounce } from "./utils.js";
+import { logEvent } from "./activityLog.js";
 
 const STATUS_DEFAULT = ""; // an un-called contact has an empty status, shown as a blank option
 const STATUS_OPTIONS = [
@@ -35,6 +36,23 @@ let eventNameByCode = {}; // assignments now span every event a caller was assig
 let messageText = "";
 let currentUser = null;
 
+// contact_id|event_code for every row in this caller's own (unfiltered by
+// handoff) `assignments` result — lets the realtime handler below decide
+// whether a follow_up_assignments change is relevant to this caller without
+// a network round-trip. Stays correct across a handoff-and-back cycle since
+// it's keyed off `assignments`, which a handoff never touches (see the
+// handedOffKeys comment in loadAndRenderCards).
+let myAssignmentKeys = new Set();
+
+// This screen is the single most-visited one in the app (every call a
+// coordinator makes routes back through it), so unlike the admin tabs it
+// used to reload on every single visit. Short TTL + a dirty flag that
+// realtime flips when something relevant changed while this tab was hidden —
+// so a cached visit is only ever shown when nothing has actually changed.
+let lastLoadedAt = 0;
+let sectionDirty = true;
+const CALLER_CACHE_TTL_MS = 45 * 1000;
+
 const SKELETON_CARD = `
   <div class="call-card skeleton-card">
     <div class="call-card-row1">
@@ -45,8 +63,24 @@ const SKELETON_CARD = `
   </div>
 `;
 
-export async function init(user) {
+export async function init(user, { forceRefresh = false } = {}) {
+  const sameUser = currentUser?.user_name === user.user_name;
   currentUser = user;
+
+  wireReviewModal();
+  wireHistoryModal();
+  wireRefreshButton();
+  wireFollowUpToggle();
+  wireSearch();
+  subscribeRealtime();
+
+  // Nothing relevant has changed since the last visit — the DOM from that
+  // visit is still sitting there (main.js only hides/shows sections, it never
+  // tears them down), so there's genuinely nothing to do. The page's own
+  // refresh button and the header's global refresh button both pass
+  // forceRefresh:true and always bypass this.
+  if (!forceRefresh && sameUser && !sectionDirty && Date.now() - lastLoadedAt < CALLER_CACHE_TTL_MS) return;
+
   const listEl = document.getElementById("caller-cards");
   listEl.innerHTML = SKELETON_CARD.repeat(3);
 
@@ -62,12 +96,6 @@ export async function init(user) {
   document.getElementById("dash-event-name").textContent = "All Events";
 
   await loadAndRenderCards();
-  wireReviewModal();
-  wireHistoryModal();
-  wireRefreshButton();
-  wireFollowUpToggle();
-  wireSearch();
-  subscribeRealtime();
 }
 
 // Follow Up Calls stays out of the way while there's still work in the main
@@ -155,6 +183,10 @@ async function loadAndRenderCards() {
     listEl.innerHTML = `<p class="loading-row">Could not load your contacts.</p>`;
     return;
   }
+
+  myAssignmentKeys = new Set((assignments || []).map((a) => `${a.contact_id}|${a.event_code}`));
+  lastLoadedAt = Date.now();
+  sectionDirty = false;
 
   // Every contact handed off for a follow-up call (to anyone) leaves the
   // original owner's view entirely — the live `assignments` row itself is
@@ -398,6 +430,16 @@ async function submitCard(card, assignmentId, contactId, contact, eventCode, sou
   });
 
   card.classList.remove("row-saving");
+
+  // The weekly reconcile job cross-checks these against call_responses to
+  // catch a submit that silently didn't stick — ok:false is the more
+  // important half, since that's the actual data-loss signal.
+  logEvent("submit_call", {
+    section: "caller-section",
+    target: assignmentId,
+    meta: { ok: !e1 && !e2, mob_no: contact.mob_no, status, table, source },
+  });
+
   if (e1 || e2) {
     card.classList.add("row-error");
     setTimeout(() => card.classList.remove("row-error"), 1600);
@@ -654,6 +696,22 @@ function wireHistoryModal() {
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 }
 
+// Coalesces a burst of individual row-change events (e.g. an admin bulk
+// reassignment touching dozens of rows in one go) into a single reload
+// instead of one per row.
+const scheduleReload = debounce(() => loadAndRenderCards(), 400);
+
+function onRelevantChange() {
+  if (document.getElementById("caller-section").classList.contains("hidden")) {
+    // Nothing on screen to update right now, and reloading into a hidden
+    // section would just be thrown away — instead flag the cache in init()
+    // above as stale so the *next* visit fetches for real regardless of TTL.
+    sectionDirty = true;
+    return;
+  }
+  scheduleReload();
+}
+
 let realtimeWired = false;
 function subscribeRealtime() {
   if (realtimeWired) return;
@@ -663,23 +721,28 @@ function subscribeRealtime() {
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "assignments", filter: `user_name=eq.${currentUser.user_name}` },
-      () => {
-        if (document.getElementById("caller-section").classList.contains("hidden")) return;
-        loadAndRenderCards();
-      }
+      onRelevantChange
     )
     .subscribe();
 
-  // Unfiltered: a hand-off of one of *my* contacts to someone else is a row
-  // I don't own, but I still need to react to it (to hide that contact).
+  // Unfiltered at the Postgres level (a hand-off of one of *my* contacts to
+  // someone else lands as a row I don't own, but I still need to react to it
+  // to hide that contact) — filtered here in JS instead against
+  // myAssignmentKeys, so a change between two *other* callers' follow-ups
+  // (the overwhelming majority of rows on this table) costs nothing and
+  // never touches every other caller's session the way an unfiltered
+  // requery-on-every-event handler used to.
   supabase
     .channel("follow-up-assignments-live")
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "follow_up_assignments" },
-      () => {
-        if (document.getElementById("caller-section").classList.contains("hidden")) return;
-        loadAndRenderCards();
+      (payload) => {
+        const rec = payload.new || payload.old;
+        if (!rec) return;
+        const relevant = rec.user_name === currentUser.user_name || myAssignmentKeys.has(`${rec.contact_id}|${rec.event_code}`);
+        if (!relevant) return;
+        onRelevantChange();
       }
     )
     .subscribe();
