@@ -9,6 +9,29 @@ let bulkImportWired = false;
 let dashboardBooks = new Map();
 let latestTodayArea = null;
 
+// The "Add Sales" modal's reference data (book catalog, places, standard
+// prices, current stock) needs 4 queries — 2 of them full-table scans over
+// book_inward_stock/book_outward_stock — so re-running them on every single
+// modal open was what made it feel slow to launch. Short TTL cache instead;
+// invalidated immediately after a save since stock just changed.
+let outwardModalDataCache = null;
+let outwardModalDataCacheAt = 0;
+const OUTWARD_MODAL_CACHE_TTL_MS = 60 * 1000;
+
+async function getOutwardModalData() {
+  if (outwardModalDataCache && Date.now() - outwardModalDataCacheAt < OUTWARD_MODAL_CACHE_TTL_MS) {
+    return outwardModalDataCache;
+  }
+  const [bookCatalog, placeNames, eventNames, { data: standardPrices }, currentStock] = await Promise.all([
+    fetchBookCatalog(), fetchPlaceNames(), fetchEventNames(),
+    supabase.from("book_standard_prices").select("book_key,standard_selling_price"),
+    fetchCurrentStockByKey(),
+  ]);
+  outwardModalDataCache = { bookCatalog, placeNames, eventNames, standardPrices: standardPrices || [], currentStock };
+  outwardModalDataCacheAt = Date.now();
+  return outwardModalDataCache;
+}
+
 function fmtMoney(n) {
   return "₹" + (Math.round((n || 0) * 100) / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
@@ -287,6 +310,151 @@ function wirePlaceModal() {
   };
 }
 
+/* ======================= BOOK EVENTS =======================
+   Mirrors Distribution Places exactly (own CRUD table: name/description/
+   map_link) — an Event tag any book entry (Outward/Sales, Book Requests,
+   Book Expenses) can carry alongside its Place. */
+
+let eventsCache = [];
+let eventModalWired = false;
+const EVENTS_COLUMNS_KEY = "nrg-book-events-column-order";
+const DEFAULT_EVENTS_COLUMNS = ["S.No", "Name", "Description", "Map Link", ""];
+const EVENTS_BLANK_FILTERS = [["bev-filter-description", "description"], ["bev-filter-map-link", "map_link"]];
+let eventsFiltersWired = false;
+
+export async function initBookEvents() {
+  wireEventModal();
+  wireEventsFilters();
+  await loadBookEvents();
+}
+
+async function loadBookEvents() {
+  const tbody = document.getElementById("book-events-body");
+  tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
+
+  const { data, error } = await supabase
+    .from("book_events")
+    .select("id,name,description,map_link")
+    .order("name", { ascending: true });
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Could not load events.</td></tr>`;
+    return;
+  }
+  eventsCache = data || [];
+  applyEventsFilters();
+}
+
+function renderEventsRows(rows, emptyMessage) {
+  const tbody = document.getElementById("book-events-body");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="muted-text">${emptyMessage}</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map((e, idx) => `
+    <tr data-id="${e.id}">
+      <td data-label="S.No">${idx + 1}</td>
+      <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(e.name)}" /></td>
+      <td data-label="Description"><input class="inline-edit" data-field="description" value="${escapeHtml(e.description || "")}" /></td>
+      <td data-label="Map Link">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input class="inline-edit" data-field="map_link" value="${escapeHtml(e.map_link || "")}" placeholder="https://" />
+          ${e.map_link ? `<a href="${escapeHtml(e.map_link)}" target="_blank" rel="noopener noreferrer" class="cell-chip" title="Open Map">📍</a>` : ""}
+        </div>
+      </td>
+      <td data-label="">
+        <button type="button" class="cell-chip danger event-delete-btn" title="Delete">🗑 Delete</button>
+      </td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll(".event-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", () => deleteBookEvent(btn.closest("tr").dataset.id));
+  });
+  wireInlineEditCells(tbody, "book_events", eventsCache, { requiredFields: ["name"] }, loadBookEvents);
+  reapplyColumnOrder("book-events-table");
+}
+
+function applyEventsFilters() {
+  const search = document.getElementById("bev-search")?.value.trim().toLowerCase() || "";
+  let rows = eventsCache.filter((e) =>
+    matchesSearch(e, search, ["name", "description"]) && matchesBlankOnlyFilters(e, EVENTS_BLANK_FILTERS)
+  );
+  rows = sortRows(rows, document.getElementById("bev-sort")?.value, "name-asc");
+  renderEventsRows(rows, eventsCache.length ? "No events match your filters." : "No events yet — add one to get started.");
+}
+
+function wireEventsFilters() {
+  if (eventsFiltersWired) return;
+  eventsFiltersWired = true;
+  document.getElementById("bev-search").addEventListener("input", debounce(applyEventsFilters, 200));
+  document.getElementById("bev-sort").addEventListener("change", applyEventsFilters);
+  pairFilterControls("bev-filter-description", "bev-th-filter-description", applyEventsFilters);
+  pairFilterControls("bev-filter-map-link", "bev-th-filter-map-link", applyEventsFilters);
+  initColumnDragReorder("book-events-table", { storageKey: EVENTS_COLUMNS_KEY, columns: DEFAULT_EVENTS_COLUMNS, resetBtnId: "bev-reset-columns-btn" });
+  initHorizontalScroll("book-events-table-wrap", { leftBtnId: "bev-scroll-left", rightBtnId: "bev-scroll-right" });
+}
+
+async function deleteBookEvent(id) {
+  const e = eventsCache.find((x) => x.id === id);
+  if (!confirm(`Delete event "${e?.name || ""}"?`)) return;
+  const { error } = await supabase.from("book_events").delete().eq("id", id);
+  if (error) {
+    showToast("Delete failed: " + error.message, "error");
+    return;
+  }
+  showToast("Event deleted", "success");
+  await loadBookEvents();
+}
+
+function openEventModal() {
+  document.getElementById("book-event-name").value = "";
+  document.getElementById("book-event-description").value = "";
+  document.getElementById("book-event-map-link").value = "";
+  document.getElementById("book-event-error").classList.add("hidden");
+  document.getElementById("book-event-modal").classList.add("active");
+}
+
+function wireEventModal() {
+  if (eventModalWired) return;
+  eventModalWired = true;
+  const modal = document.getElementById("book-event-modal");
+  const errorEl = document.getElementById("book-event-error");
+
+  document.getElementById("add-book-event-btn").onclick = () => openEventModal();
+  document.getElementById("book-event-cancel-btn").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  document.getElementById("book-event-save-btn").onclick = async () => {
+    const name = document.getElementById("book-event-name").value.trim();
+    const description = document.getElementById("book-event-description").value.trim();
+    const mapLink = document.getElementById("book-event-map-link").value.trim();
+
+    if (!name) {
+      errorEl.textContent = "Please enter a name for this event.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    if (mapLink && !/^https?:\/\//i.test(mapLink)) {
+      errorEl.textContent = "Map link must be a valid URL starting with http:// or https://";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+
+    const { error } = await supabase.from("book_events").insert({ name, description: description || null, map_link: mapLink || null });
+
+    if (error) {
+      errorEl.textContent = error.message;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    modal.classList.remove("active");
+    showToast("Event added", "success");
+    await loadBookEvents();
+  };
+}
+
 let inwardAdminWired = false;
 
 async function openInwardModal() {
@@ -444,8 +612,8 @@ export async function initInwardTable(currentUser) {
 }
 
 const OUTWARD_COLUMNS_KEY = "nrg-book-outward-column-order";
-const DEFAULT_OUTWARD_COLUMNS = ["S.No", "Time", "Name", "Language", "Sold Price", "Quantity", "Total", "Sold Area", "Sold By", "Realised", ""];
-const OUTWARD_SELECT_FILTERS = [["bo-filter-language", "language"], ["bo-filter-area", "sold_area"], ["bo-filter-by", "sold_by"]];
+const DEFAULT_OUTWARD_COLUMNS = ["S.No", "Time", "Name", "Language", "Sold Price", "Quantity", "Total", "Sold Area", "Event", "Sold By", "Realised", ""];
+const OUTWARD_SELECT_FILTERS = [["bo-filter-language", "language"], ["bo-filter-area", "sold_area"], ["bo-filter-event", "event"], ["bo-filter-by", "sold_by"]];
 const OUTWARD_NUMBER_FILTERS = [["bo-filter-price", "sold_price"], ["bo-filter-qty", "quantity"]];
 let outwardCache = [];
 let outwardFiltersWired = false;
@@ -453,7 +621,7 @@ let outwardFiltersWired = false;
 function renderOutwardRows(rows, emptyMessage) {
   const tbody = document.getElementById("book-outward-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="muted-text">${emptyMessage}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => `
@@ -466,6 +634,7 @@ function renderOutwardRows(rows, emptyMessage) {
       <td data-label="Quantity"><input class="inline-edit outward-qty-input" type="number" min="0" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
       <td data-label="Total" class="outward-total-cell">${fmtMoney((r.sold_price || 0) * (r.quantity || 0))}</td>
       <td data-label="Sold Area"><input class="inline-edit" data-field="sold_area" list="book-places-list" value="${escapeHtml(r.sold_area || "")}" /></td>
+      <td data-label="Event"><input class="inline-edit" data-field="event" list="book-events-list" value="${escapeHtml(r.event || "")}" /></td>
       <td data-label="Sold By"><input class="inline-edit" data-field="sold_by" value="${escapeHtml(r.sold_by || "")}" /></td>
       <td data-label="Realised"><input type="checkbox" class="realised-checkbox outward-realised-input" ${r.realised ? "checked" : ""} /></td>
       <td data-label="">
@@ -517,7 +686,7 @@ function applyOutwardFilters() {
   const search = document.getElementById("bo-search")?.value.trim().toLowerCase() || "";
   const realisedFilter = document.getElementById("bo-filter-realised")?.value ?? "__ALL__";
   let rows = outwardCache.filter((r) =>
-    matchesSearch(r, search, ["name", "sold_area", "sold_by"]) &&
+    matchesSearch(r, search, ["name", "sold_area", "event", "sold_by"]) &&
     matchesSelectFilters(r, OUTWARD_SELECT_FILTERS) &&
     matchesNumberFilters(r, OUTWARD_NUMBER_FILTERS) &&
     (realisedFilter === "__ALL__" || (realisedFilter === "yes" ? r.realised : !r.realised))
@@ -533,6 +702,7 @@ function wireOutwardFilters() {
   document.getElementById("bo-sort").addEventListener("change", applyOutwardFilters);
   pairFilterControls("bo-filter-language", "bo-th-filter-language", applyOutwardFilters);
   pairFilterControls("bo-filter-area", "bo-th-filter-area", applyOutwardFilters);
+  pairFilterControls("bo-filter-event", "bo-th-filter-event", applyOutwardFilters);
   pairFilterControls("bo-filter-by", "bo-th-filter-by", applyOutwardFilters);
   pairFilterControls("bo-filter-realised", "bo-th-filter-realised", applyOutwardFilters);
   pairFilterControls("bo-filter-price", "bo-th-filter-price", applyOutwardFilters);
@@ -557,25 +727,28 @@ async function deleteOutwardRow(id) {
 export async function initOutwardTable() {
   wireOutwardFilters();
   const tbody = document.getElementById("book-outward-body");
-  tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Loading…</td></tr>`;
 
-  const [{ data, error }, placeNames] = await Promise.all([
+  const [{ data, error }, placeNames, eventNames] = await Promise.all([
     supabase
       .from("book_outward_stock")
-      .select("id,name,language,sold_price,quantity,sold_area,sold_by,created_at,realised")
+      .select("id,name,language,sold_price,quantity,sold_area,event,sold_by,created_at,realised")
       .order("created_at", { ascending: false }),
     fetchPlaceNames(),
+    fetchEventNames(),
   ]);
 
   if (error) {
     console.error("book_outward_stock load failed:", error);
-    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Could not load outward stock: ${escapeHtml(error.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Could not load outward stock: ${escapeHtml(error.message)}</td></tr>`;
     return;
   }
   outwardCache = data || [];
   populateDatalist(document.getElementById("book-places-list"), placeNames);
+  populateDatalist(document.getElementById("book-events-list"), eventNames);
   populatePairedSelect("bo-filter-language", "bo-th-filter-language", distinctValues(outwardCache, "language"));
   populatePairedSelect("bo-filter-area", "bo-th-filter-area", distinctValues(outwardCache, "sold_area"));
+  populatePairedSelect("bo-filter-event", "bo-th-filter-event", distinctValues(outwardCache, "event"));
   populatePairedSelect("bo-filter-by", "bo-th-filter-by", distinctValues(outwardCache, "sold_by"));
   applyOutwardFilters();
 }
@@ -702,6 +875,12 @@ async function fetchPlaceNames() {
   const { data, error } = await supabase.from("book_places").select("name").order("name", { ascending: true });
   if (error || !data) return [];
   return data.map((p) => p.name);
+}
+
+async function fetchEventNames() {
+  const { data, error } = await supabase.from("book_events").select("name").order("name", { ascending: true });
+  if (error || !data) return [];
+  return data.map((e) => e.name);
 }
 
 // "Purchased From" has no dedicated table — like books, new values are simply
@@ -1022,15 +1201,18 @@ function wireOutwardModal(currentUser) {
   const modal = document.getElementById("book-outward-modal");
   const errorEl = document.getElementById("book-outward-error");
   const areaInput = document.getElementById("book-outward-area-select");
+  const eventInput = document.getElementById("book-outward-event-select");
   const rowsContainer = document.getElementById("book-outward-rows");
   const totalQtyEl = document.getElementById("book-outward-total-qty");
   const totalCostEl = document.getElementById("book-outward-total-cost");
   const draftKey = outwardDraftKey(currentUser);
   let catalog = [];
   let places = [];
+  let events = [];
   let standardPriceByKey = new Map();
   let stockByKey = new Map();
   wireSearchableCombo(areaInput, () => places);
+  wireSearchableCombo(eventInput, () => events);
 
   const saveDraft = () => {
     const rows = Array.from(rowsContainer.querySelectorAll(".stock-row")).map((row) => ({
@@ -1038,7 +1220,7 @@ function wireOutwardModal(currentUser) {
       price: row.querySelector(".stock-row-price").value,
       qty: row.querySelector(".stock-row-qty").value,
     }));
-    localStorage.setItem(draftKey, JSON.stringify({ area: areaInput.value, rows }));
+    localStorage.setItem(draftKey, JSON.stringify({ area: areaInput.value, event: eventInput.value, rows }));
   };
 
   const updateTotals = () => {
@@ -1069,14 +1251,14 @@ function wireOutwardModal(currentUser) {
   };
 
   document.getElementById("add-book-outward-btn").onclick = async () => {
-    const [bookCatalog, placeNames, { data: standardPrices }, currentStock] = await Promise.all([
-      fetchBookCatalog(), fetchPlaceNames(),
-      supabase.from("book_standard_prices").select("book_key,standard_selling_price"),
-      fetchCurrentStockByKey(),
-    ]);
+    outwardSaveInFlight = false;
+    saveBtn.disabled = false;
+    saveBtn.textContent = saveBtnLabel;
+    const { bookCatalog, placeNames, eventNames, standardPrices, currentStock } = await getOutwardModalData();
     catalog = bookCatalog;
     places = placeNames;
-    standardPriceByKey = new Map((standardPrices || []).map((r) => [r.book_key, r.standard_selling_price]));
+    events = eventNames;
+    standardPriceByKey = new Map(standardPrices.map((r) => [r.book_key, r.standard_selling_price]));
     stockByKey = currentStock;
 
     let draft = null;
@@ -1085,9 +1267,11 @@ function wireOutwardModal(currentUser) {
     rowsContainer.innerHTML = "";
     if (draft && draft.rows && draft.rows.length) {
       areaInput.value = draft.area || "";
+      eventInput.value = draft.event || "";
       draft.rows.forEach((data, idx) => addRow(idx > 0, data));
     } else {
       areaInput.value = latestTodayArea || "";
+      eventInput.value = "";
       addRow(false);
     }
     errorEl.classList.add("hidden");
@@ -1096,12 +1280,18 @@ function wireOutwardModal(currentUser) {
   document.getElementById("book-outward-cancel-btn").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
   areaInput.addEventListener("input", saveDraft);
+  eventInput.addEventListener("input", saveDraft);
 
   document.getElementById("book-outward-add-row-btn").onclick = () => {
     addRow(true);
   };
 
-  document.getElementById("book-outward-save-btn").onclick = async () => {
+  const saveBtn = document.getElementById("book-outward-save-btn");
+  const saveBtnLabel = saveBtn.textContent;
+  let outwardSaveInFlight = false;
+
+  saveBtn.onclick = async () => {
+    if (outwardSaveInFlight) return;
     const areaTyped = areaInput.value.trim();
     if (!areaTyped) {
       errorEl.textContent = "Please select an area.";
@@ -1113,6 +1303,17 @@ function wireOutwardModal(currentUser) {
       errorEl.textContent = "Please choose a valid area from the suggestions.";
       errorEl.classList.remove("hidden");
       return;
+    }
+
+    const eventTyped = eventInput.value.trim();
+    let event = null;
+    if (eventTyped) {
+      event = events.find((ev) => ev.toLowerCase() === eventTyped.toLowerCase());
+      if (!event) {
+        errorEl.textContent = "Please choose a valid event from the suggestions, or leave it blank.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
     }
 
     const payload = [];
@@ -1138,6 +1339,7 @@ function wireOutwardModal(currentUser) {
         sold_price: price === "" ? null : Number(price),
         quantity: Number(qty),
         sold_area: area,
+        event,
         sold_by: currentUser.user_name,
       });
     }
@@ -1148,15 +1350,32 @@ function wireOutwardModal(currentUser) {
       return;
     }
 
+    // Give instant feedback and lock the button the moment Save is clicked —
+    // the insert can take a few seconds on a slow connection, and without
+    // this a user tapping Save again (or twice quickly) submitted the same
+    // batch multiple times.
+    outwardSaveInFlight = true;
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Submitted…";
+
     const { error } = await supabase.from("book_outward_stock").insert(payload);
     if (error) {
+      outwardSaveInFlight = false;
+      saveBtn.disabled = false;
+      saveBtn.textContent = saveBtnLabel;
       errorEl.textContent = error.message;
       errorEl.classList.remove("hidden");
       return;
     }
+    outwardModalDataCache = null;
     localStorage.removeItem(draftKey);
     modal.classList.remove("active");
     showToast("Sales added", "success");
+    setTimeout(() => {
+      outwardSaveInFlight = false;
+      saveBtn.disabled = false;
+      saveBtn.textContent = saveBtnLabel;
+    }, 4000);
     await renderMyOutward(currentUser.user_name);
     await renderLatestEntryLocation(currentUser.user_name);
   };
@@ -1193,29 +1412,35 @@ function wireRequestModal(currentUser, onSaved) {
   const errorEl = document.getElementById("book-request-error");
   const nameInput = document.getElementById("book-request-name");
   const placeInput = document.getElementById("book-request-place");
+  const eventInput = document.getElementById("book-request-event");
   const qtyInput = document.getElementById("book-request-quantity");
   const prioritySelect = document.getElementById("book-request-priority");
   let nameCombo = null;
   let placeCombo = null;
+  let eventCombo = null;
 
   const close = () => {
     nameCombo?.destroy();
     placeCombo?.destroy();
+    eventCombo?.destroy();
     nameCombo = null;
     placeCombo = null;
+    eventCombo = null;
     modal.classList.remove("active");
   };
 
   const open = async () => {
     nameInput.value = "";
     placeInput.value = "";
+    eventInput.value = "";
     qtyInput.value = "";
     prioritySelect.value = "Can Wait";
     errorEl.classList.add("hidden");
 
-    const [bookNames, placeNames] = await Promise.all([fetchBookNames(), fetchPlaceNames()]);
+    const [bookNames, placeNames, eventNames] = await Promise.all([fetchBookNames(), fetchPlaceNames(), fetchEventNames()]);
     nameCombo = wireSearchableCombo(nameInput, () => bookNames);
     placeCombo = wireSearchableCombo(placeInput, () => placeNames);
+    eventCombo = wireSearchableCombo(eventInput, () => eventNames);
     modal.classList.add("active");
   };
 
@@ -1226,6 +1451,7 @@ function wireRequestModal(currentUser, onSaved) {
   document.getElementById("book-request-save-btn").onclick = async () => {
     const name = nameInput.value.trim();
     const place = placeInput.value.trim();
+    const event = eventInput.value.trim();
     const quantity = qtyInput.value;
     const priority = prioritySelect.value;
 
@@ -1244,6 +1470,7 @@ function wireRequestModal(currentUser, onSaved) {
       name,
       quantity: Number(quantity),
       place: place || null,
+      event: event || null,
       priority,
       requested_by: currentUser.user_name,
     });
@@ -1260,8 +1487,8 @@ function wireRequestModal(currentUser, onSaved) {
 }
 
 const REQUESTS_COLUMNS_KEY = "nrg-book-requests-column-order";
-const DEFAULT_REQUESTS_COLUMNS = ["S.No", "Time", "Name", "Quantity", "Place", "Priority", "Requested By", "Fulfilled", ""];
-const REQUESTS_SELECT_FILTERS = [["br-filter-priority", "priority"], ["br-filter-place", "place"], ["br-filter-by", "requested_by"]];
+const DEFAULT_REQUESTS_COLUMNS = ["S.No", "Time", "Name", "Quantity", "Place", "Event", "Priority", "Requested By", "Fulfilled", ""];
+const REQUESTS_SELECT_FILTERS = [["br-filter-priority", "priority"], ["br-filter-place", "place"], ["br-filter-event", "event"], ["br-filter-by", "requested_by"]];
 const REQUESTS_NUMBER_FILTERS = [["br-filter-qty", "quantity"]];
 let requestsCache = [];
 let requestsFiltersWired = false;
@@ -1269,7 +1496,7 @@ let requestsFiltersWired = false;
 function renderRequestsRows(rows, emptyMessage) {
   const tbody = document.getElementById("book-requests-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="muted-text">${emptyMessage}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => `
@@ -1279,6 +1506,7 @@ function renderRequestsRows(rows, emptyMessage) {
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
       <td data-label="Quantity"><input class="inline-edit" type="number" min="1" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
       <td data-label="Place"><input class="inline-edit" data-field="place" list="book-places-list" value="${escapeHtml(r.place || "")}" /></td>
+      <td data-label="Event"><input class="inline-edit" data-field="event" list="book-events-list" value="${escapeHtml(r.event || "")}" /></td>
       <td data-label="Priority">
         <select class="inline-edit" data-field="priority">
           ${["Immediately", "Important", "Can Wait"].map((p) => `<option value="${p}" ${r.priority === p ? "selected" : ""}>${p}</option>`).join("")}
@@ -1319,7 +1547,7 @@ function applyRequestsFilters() {
   const search = document.getElementById("br-search")?.value.trim().toLowerCase() || "";
   const fulfilledFilter = document.getElementById("br-filter-fulfilled")?.value ?? "__ALL__";
   let rows = requestsCache.filter((r) =>
-    matchesSearch(r, search, ["name", "place", "requested_by"]) &&
+    matchesSearch(r, search, ["name", "place", "event", "requested_by"]) &&
     matchesSelectFilters(r, REQUESTS_SELECT_FILTERS) &&
     matchesNumberFilters(r, REQUESTS_NUMBER_FILTERS) &&
     (fulfilledFilter === "__ALL__" || (fulfilledFilter === "yes" ? r.fulfilled : !r.fulfilled))
@@ -1335,6 +1563,7 @@ function wireRequestsFilters() {
   document.getElementById("br-sort").addEventListener("change", applyRequestsFilters);
   pairFilterControls("br-filter-priority", "br-th-filter-priority", applyRequestsFilters);
   pairFilterControls("br-filter-place", "br-th-filter-place", applyRequestsFilters);
+  pairFilterControls("br-filter-event", "br-th-filter-event", applyRequestsFilters);
   pairFilterControls("br-filter-by", "br-th-filter-by", applyRequestsFilters);
   pairFilterControls("br-filter-fulfilled", "br-th-filter-fulfilled", applyRequestsFilters);
   pairFilterControls("br-filter-qty", "br-th-filter-qty", applyRequestsFilters);
@@ -1358,20 +1587,21 @@ export async function initBookRequests(currentUser) {
   wireRequestsFilters();
   wireRequestModal(currentUser, () => initBookRequests(currentUser));
   const tbody = document.getElementById("book-requests-body");
-  tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Loading…</td></tr>`;
 
   const { data, error } = await supabase
     .from("book_requests")
-    .select("id,name,quantity,place,priority,requested_by,fulfilled,created_at")
+    .select("id,name,quantity,place,event,priority,requested_by,fulfilled,created_at")
     .order("created_at", { ascending: false });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Could not load book requests.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Could not load book requests.</td></tr>`;
     return;
   }
   requestsCache = (data || []).map((r) => ({ ...r, priorityRank: priorityRank(r.priority) }));
   populatePairedSelect("br-filter-priority", "br-th-filter-priority", distinctValues(requestsCache, "priority"));
   populatePairedSelect("br-filter-place", "br-th-filter-place", distinctValues(requestsCache, "place"));
+  populatePairedSelect("br-filter-event", "br-th-filter-event", distinctValues(requestsCache, "event"));
   populatePairedSelect("br-filter-by", "br-th-filter-by", distinctValues(requestsCache, "requested_by"));
   applyRequestsFilters();
 }
@@ -1380,12 +1610,12 @@ async function renderMyRequests(userName) {
   const tbody = document.getElementById("my-requests-body");
   const { data, error } = await supabase
     .from("book_requests")
-    .select("name,quantity,place,priority,fulfilled,created_at")
+    .select("name,quantity,place,event,priority,fulfilled,created_at")
     .eq("requested_by", userName)
     .order("created_at", { ascending: false });
 
   if (error || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">No requests yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="muted-text">No requests yet.</td></tr>`;
     return;
   }
   tbody.innerHTML = data.map((r, idx) => `
@@ -1394,6 +1624,7 @@ async function renderMyRequests(userName) {
       <td data-label="Name">${escapeHtml(r.name)}</td>
       <td data-label="Quantity">${r.quantity ?? "—"}</td>
       <td data-label="Place">${escapeHtml(r.place || "—")}</td>
+      <td data-label="Event">${escapeHtml(r.event || "—")}</td>
       <td data-label="Priority">${escapeHtml(r.priority)}</td>
       <td data-label="Status">${r.fulfilled ? "✅ Fulfilled" : "⏳ Pending"}</td>
     </tr>
@@ -1462,7 +1693,7 @@ export async function initStockEntry(currentUser) {
 // is display-only here — editing an entry itself stays on the admin
 // Outward Stock page (BookDistribution.initOutwardTable).
 
-const COMMANDER_SELECT_FILTERS = [["cmd-filter-by", "sold_by"], ["cmd-filter-language", "language"], ["cmd-filter-area", "sold_area"]];
+const COMMANDER_SELECT_FILTERS = [["cmd-filter-by", "sold_by"], ["cmd-filter-language", "language"], ["cmd-filter-area", "sold_area"], ["cmd-filter-event", "event"]];
 const COMMANDER_NUMBER_FILTERS = [["cmd-filter-price", "sold_price"], ["cmd-filter-qty", "quantity"]];
 let commanderCache = [];
 let commanderFiltersWired = false;
@@ -1490,7 +1721,7 @@ function updateCommanderSummary(rows) {
 function renderCommanderRows(rows, emptyMessage) {
   const tbody = document.getElementById("commander-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="muted-text">${emptyMessage}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => `
@@ -1503,6 +1734,7 @@ function renderCommanderRows(rows, emptyMessage) {
       <td data-label="Quantity">${r.quantity ?? "—"}</td>
       <td data-label="Total">${fmtMoney((r.sold_price || 0) * (r.quantity || 0))}</td>
       <td data-label="Sold Area">${escapeHtml(r.sold_area || "—")}</td>
+      <td data-label="Event">${escapeHtml(r.event || "—")}</td>
       <td data-label="Sold By">${escapeHtml(r.sold_by || "—")}</td>
       <td data-label="Realised"><input type="checkbox" class="realised-checkbox commander-realised-input" ${r.realised ? "checked" : ""} /></td>
     </tr>
@@ -1521,7 +1753,7 @@ function matchesCommanderFilters(r) {
   const from = document.getElementById("cmd-filter-from")?.value || "";
   const to = document.getElementById("cmd-filter-to")?.value || "";
   const unrealisedOnly = document.getElementById("cmd-filter-unrealised")?.checked;
-  return matchesSearch(r, search, ["name", "sold_area", "sold_by"]) &&
+  return matchesSearch(r, search, ["name", "sold_area", "event", "sold_by"]) &&
     matchesSelectFilters(r, COMMANDER_SELECT_FILTERS) &&
     matchesNumberFilters(r, COMMANDER_NUMBER_FILTERS) &&
     matchesDateRange(r, from, to) &&
@@ -1543,6 +1775,7 @@ function wireCommanderFilters() {
   pairFilterControls("cmd-filter-by", "cmd-th-filter-by", applyCommanderFilters);
   pairFilterControls("cmd-filter-language", "cmd-th-filter-language", applyCommanderFilters);
   pairFilterControls("cmd-filter-area", "cmd-th-filter-area", applyCommanderFilters);
+  pairFilterControls("cmd-filter-event", "cmd-th-filter-event", applyCommanderFilters);
   pairFilterControls("cmd-filter-price", "cmd-th-filter-price", applyCommanderFilters);
   pairFilterControls("cmd-filter-qty", "cmd-th-filter-qty", applyCommanderFilters);
   document.getElementById("cmd-filter-from").addEventListener("change", applyCommanderFilters);
@@ -1564,22 +1797,23 @@ function wireCommanderFilters() {
 export async function initCommander() {
   wireCommanderFilters();
   const tbody = document.getElementById("commander-body");
-  tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Loading…</td></tr>`;
 
   const { data, error } = await supabase
     .from("book_outward_stock")
-    .select("id,name,language,sold_price,quantity,sold_area,sold_by,created_at,realised")
+    .select("id,name,language,sold_price,quantity,sold_area,event,sold_by,created_at,realised")
     .order("created_at", { ascending: false });
 
   if (error) {
     console.error("Commander book_outward_stock load failed:", error);
-    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Could not load outward stock: ${escapeHtml(error.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Could not load outward stock: ${escapeHtml(error.message)}</td></tr>`;
     return;
   }
   commanderCache = data || [];
   populatePairedSelect("cmd-filter-by", "cmd-th-filter-by", distinctValues(commanderCache, "sold_by"));
   populatePairedSelect("cmd-filter-language", "cmd-th-filter-language", distinctValues(commanderCache, "language"));
   populatePairedSelect("cmd-filter-area", "cmd-th-filter-area", distinctValues(commanderCache, "sold_area"));
+  populatePairedSelect("cmd-filter-event", "cmd-th-filter-event", distinctValues(commanderCache, "event"));
   applyCommanderFilters();
 }
 
@@ -2159,18 +2393,16 @@ function computeDaySegments(dayRows) {
   return { segments, areaTotals };
 }
 
-function renderAnalyticsStats(bookStats, totalExpenses) {
-  const totalInwardQty = bookStats.reduce((s, r) => s + r.totalInwardQty, 0);
+function renderAnalyticsStats(bookStats, totalExpenses, stockStats) {
   const totalSoldQty = bookStats.reduce((s, r) => s + r.totalSoldQty, 0);
   const totalSalesValue = bookStats.reduce((s, r) => s + r.totalSalesValue, 0);
-  const totalPurchaseValue = bookStats.reduce((s, r) => s + r.totalPurchaseValue, 0);
   const totalProfit = bookStats.reduce((s, r) => s + r.profit, 0);
   const netProfit = totalProfit - totalExpenses;
 
-  document.getElementById("ba-stat-inward-qty").textContent = totalInwardQty;
+  document.getElementById("ba-stat-inward-qty").textContent = stockStats.totalStockQty;
   document.getElementById("ba-stat-sold-qty").textContent = totalSoldQty;
   document.getElementById("ba-stat-sales-value").textContent = fmtMoney(totalSalesValue);
-  document.getElementById("ba-stat-purchase-value").textContent = fmtMoney(totalPurchaseValue);
+  document.getElementById("ba-stat-purchase-value").textContent = fmtMoney(stockStats.totalStockValue);
   document.getElementById("ba-stat-profit").textContent = fmtMoney(totalProfit);
   const card = document.getElementById("ba-stat-profit-card");
   card.classList.toggle("stat-negative", totalProfit < 0);
@@ -2231,17 +2463,39 @@ function renderAnalyticsSegments(outward, showUserCol) {
   });
 }
 
+// Current Stock / Stock Value are a live snapshot, not a per-period total —
+// unlike Sold/Sales Value/Profit below they ignore the date range (and the
+// user/place filters, since stock isn't tied to who or where it was sold)
+// so they always reflect what's actually left, same as the Dashboard's
+// per-book "Current Stock" column. A book filter still narrows them, since
+// picking one title should show that title's own stock.
+async function fetchStockStats(bookSel) {
+  let inwardQuery = supabase.from("book_inward_stock").select("name,language,purchase_price,quantity");
+  let outwardQuery = supabase.from("book_outward_stock").select("name,language,quantity");
+  if (bookSel && bookSel !== "__ALL__") {
+    inwardQuery = inwardQuery.eq("name", bookSel);
+    outwardQuery = outwardQuery.eq("name", bookSel);
+  }
+  const [{ data: inward }, { data: outward }] = await Promise.all([inwardQuery, outwardQuery]);
+  const bookStats = buildBookBuckets(inward || [], outward || []).map(computeBookStats);
+  return {
+    totalStockQty: bookStats.reduce((s, r) => s + Math.max(0, r.currentStock), 0),
+    totalStockValue: bookStats.reduce((s, r) => s + Math.max(0, r.currentStockValue), 0),
+  };
+}
+
 async function runAnalytics() {
   const from = document.getElementById("ba-from").value;
   const to = document.getElementById("ba-to").value;
   const userSel = document.getElementById("ba-filter-user-select").value;
   const placeSel = document.getElementById("ba-filter-place-select").value;
+  const eventSel = document.getElementById("ba-filter-event-select").value;
   const bookSel = document.getElementById("ba-filter-book-select").value;
   const fromISO = from ? new Date(`${from}T00:00:00`).toISOString() : null;
   const toISO = to ? new Date(`${to}T23:59:59.999`).toISOString() : null;
 
   let inwardQuery = supabase.from("book_inward_stock").select("name,language,purchase_price,quantity,purchased_from,created_at");
-  let outwardQuery = supabase.from("book_outward_stock").select("name,language,sold_price,quantity,sold_area,sold_by,created_at");
+  let outwardQuery = supabase.from("book_outward_stock").select("name,language,sold_price,quantity,sold_area,event,sold_by,created_at");
   let expensesQuery = supabase.from("book_expenses").select("cost,expense_date,to_users");
   if (fromISO) { inwardQuery = inwardQuery.gte("created_at", fromISO); outwardQuery = outwardQuery.gte("created_at", fromISO); }
   if (toISO) { inwardQuery = inwardQuery.lte("created_at", toISO); outwardQuery = outwardQuery.lte("created_at", toISO); }
@@ -2249,9 +2503,12 @@ async function runAnalytics() {
   if (to) expensesQuery = expensesQuery.lte("expense_date", to);
   if (userSel && userSel !== "__ALL__") outwardQuery = outwardQuery.eq("sold_by", userSel);
   if (placeSel && placeSel !== "__ALL__") outwardQuery = outwardQuery.eq("sold_area", placeSel);
+  if (eventSel && eventSel !== "__ALL__") outwardQuery = outwardQuery.eq("event", eventSel);
   if (bookSel && bookSel !== "__ALL__") { inwardQuery = inwardQuery.eq("name", bookSel); outwardQuery = outwardQuery.eq("name", bookSel); }
 
-  const [{ data: inward, error: inErr }, { data: outward, error: outErr }, { data: expenses, error: expErr }] = await Promise.all([inwardQuery, outwardQuery, expensesQuery]);
+  const [{ data: inward, error: inErr }, { data: outward, error: outErr }, { data: expenses, error: expErr }, stockStats] = await Promise.all([
+    inwardQuery, outwardQuery, expensesQuery, fetchStockStats(bookSel),
+  ]);
   if (inErr || outErr || expErr) {
     showToast("Could not load analytics data.", "error");
     return;
@@ -2268,7 +2525,7 @@ async function runAnalytics() {
     return s + (r.cost || 0) / (toUsers.length || 1);
   }, 0);
   const bookStats = buildBookBuckets(inward || [], outward || []).map(computeBookStats);
-  renderAnalyticsStats(bookStats, totalExpenses);
+  renderAnalyticsStats(bookStats, totalExpenses, stockStats);
   renderAnalyticsSegments(outward || [], !userSel || userSel === "__ALL__");
 }
 
@@ -2285,14 +2542,16 @@ async function wireAnalyticsFilters() {
   fromInput.value = analyticsDateInput(d);
   toInput.value = analyticsDateInput(new Date());
 
-  const [{ data: users }, placeNames, bookNames] = await Promise.all([
+  const [{ data: users }, placeNames, eventNames, bookNames] = await Promise.all([
     supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
     fetchPlaceNames(),
+    fetchEventNames(),
     fetchBookNames(),
   ]);
   const userNames = (users || []).map((u) => u.user_name);
   populateFilterSelect(document.getElementById("ba-filter-user-select"), userNames);
   populateFilterSelect(document.getElementById("ba-filter-place-select"), placeNames);
+  populateFilterSelect(document.getElementById("ba-filter-event-select"), eventNames);
   populateFilterSelect(document.getElementById("ba-filter-book-select"), bookNames);
 
   document.getElementById("ba-run-btn").addEventListener("click", runAnalytics);
@@ -2323,8 +2582,8 @@ export async function initAnalytics() {
    field is inline-edit, same as the rest of Book Distribution's tables. */
 
 const EXPENSES_COLUMNS_KEY = "nrg-book-expenses-column-order";
-const DEFAULT_EXPENSES_COLUMNS = ["S.No", "Date", "Name", "Cost", "Place", "To", "Result / Profit", ""];
-const EXPENSES_SELECT_FILTERS = [["be-filter-place", "place"]];
+const DEFAULT_EXPENSES_COLUMNS = ["S.No", "Date", "Name", "Cost", "Place", "Event", "To", "Result / Profit", ""];
+const EXPENSES_SELECT_FILTERS = [["be-filter-place", "place"], ["be-filter-event", "event"]];
 const EXPENSES_NUMBER_FILTERS = [["be-filter-cost", "cost"], ["be-filter-result-profit", "result_profit"]];
 let expensesCache = [];
 let expensesFiltersWired = false;
@@ -2357,7 +2616,7 @@ function matchesToFilter(row, selectId) {
 function renderExpensesRows(rows, emptyMessage) {
   const tbody = document.getElementById("book-expenses-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="muted-text">${emptyMessage}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => `
@@ -2367,6 +2626,7 @@ function renderExpensesRows(rows, emptyMessage) {
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
       <td data-label="Cost"><input class="inline-edit" type="number" min="0" step="0.01" data-field="cost" value="${r.cost ?? ""}" /></td>
       <td data-label="Place"><input class="inline-edit" data-field="place" list="book-places-list" value="${escapeHtml(r.place || "")}" /></td>
+      <td data-label="Event"><input class="inline-edit" data-field="event" list="book-events-list" value="${escapeHtml(r.event || "")}" /></td>
       <td data-label="To">
         <button type="button" class="cell-chip expense-edit-to-btn" title="${escapeHtml((r.to_users || []).join(", ")) || "Edit recipients"}">${(r.to_users || []).length ? escapeHtml(r.to_users.join(", ")) : "— Select —"}</button>
       </td>
@@ -2390,7 +2650,7 @@ function renderExpensesRows(rows, emptyMessage) {
 function applyExpensesFilters() {
   const search = document.getElementById("be-search")?.value.trim().toLowerCase() || "";
   let rows = expensesCache.filter((r) =>
-    matchesSearch(r, search, ["name", "place"]) &&
+    matchesSearch(r, search, ["name", "place", "event"]) &&
     matchesSelectFilters(r, EXPENSES_SELECT_FILTERS) &&
     matchesNumberFilters(r, EXPENSES_NUMBER_FILTERS) &&
     matchesToFilter(r, "be-filter-to")
@@ -2405,6 +2665,7 @@ function wireExpensesFilters() {
   document.getElementById("be-search").addEventListener("input", debounce(applyExpensesFilters, 200));
   document.getElementById("be-sort").addEventListener("change", applyExpensesFilters);
   pairFilterControls("be-filter-place", "be-th-filter-place", applyExpensesFilters);
+  pairFilterControls("be-filter-event", "be-th-filter-event", applyExpensesFilters);
   pairFilterControls("be-filter-to", "be-th-filter-to", applyExpensesFilters);
   pairFilterControls("be-filter-cost", "be-th-filter-cost", applyExpensesFilters);
   pairFilterControls("be-filter-result-profit", "be-th-filter-result-profit", applyExpensesFilters);
@@ -2429,13 +2690,20 @@ async function openExpenseModal() {
   document.getElementById("book-expense-name").value = "";
   document.getElementById("book-expense-cost").value = "";
 
-  const placeNames = await fetchPlaceNames();
+  const [placeNames, eventNames] = await Promise.all([fetchPlaceNames(), fetchEventNames()]);
   const placesFromCache = distinctValues(expensesCache, "place");
   const allPlaces = Array.from(new Set([...placeNames, ...placesFromCache])).filter(Boolean).sort((a, b) => a.localeCompare(b));
   const placeSelect = document.getElementById("book-expense-place");
   placeSelect.innerHTML = `<option value="">— Select Place —</option>` +
     allPlaces.map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
   placeSelect.value = "";
+
+  const eventsFromCache = distinctValues(expensesCache, "event");
+  const allEvents = Array.from(new Set([...eventNames, ...eventsFromCache])).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const eventSelect = document.getElementById("book-expense-event");
+  eventSelect.innerHTML = `<option value="">— Select Event —</option>` +
+    allEvents.map((e) => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join("");
+  eventSelect.value = "";
 
   document.getElementById("book-expense-result").value = "";
   document.getElementById("book-expense-error").classList.add("hidden");
@@ -2458,6 +2726,7 @@ function wireExpenseModal(currentUser) {
     const name = document.getElementById("book-expense-name").value.trim();
     const cost = document.getElementById("book-expense-cost").value;
     const place = document.getElementById("book-expense-place").value.trim();
+    const event = document.getElementById("book-expense-event").value.trim();
     const result = document.getElementById("book-expense-result").value;
     const toUsers = readCheckedValues(document.getElementById("book-expense-to-group"));
 
@@ -2477,6 +2746,7 @@ function wireExpenseModal(currentUser) {
       name,
       cost: cost === "" ? null : Number(cost),
       place: place || null,
+      event: event || null,
       to_users: toUsers.length ? toUsers : null,
       result_profit: result === "" ? null : Number(result),
       added_by: currentUser?.user_name || null,
@@ -2530,19 +2800,20 @@ function wireExpenseToModal() {
 
 async function loadExpenses() {
   const tbody = document.getElementById("book-expenses-body");
-  tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Loading…</td></tr>`;
 
   const { data, error } = await supabase
     .from("book_expenses")
-    .select("id,expense_date,name,cost,place,to_users,result_profit")
+    .select("id,expense_date,name,cost,place,event,to_users,result_profit")
     .order("expense_date", { ascending: false });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Could not load expenses.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Could not load expenses.</td></tr>`;
     return;
   }
   expensesCache = data || [];
   populatePairedSelect("be-filter-place", "be-th-filter-place", distinctValues(expensesCache, "place"));
+  populatePairedSelect("be-filter-event", "be-th-filter-event", distinctValues(expensesCache, "event"));
   const userNames = await fetchAllUserNames();
   ["be-filter-to", "be-th-filter-to"].forEach((id) => {
     const toSelect = document.getElementById(id);

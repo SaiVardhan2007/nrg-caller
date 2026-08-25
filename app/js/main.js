@@ -40,6 +40,7 @@ const PAGE_TITLES = {
   "book-inward-section": "FNRG Srila Prabhupada Book Distribution",
   "book-outward-section": "FNRG Srila Prabhupada Book Distribution",
   "book-places-section": "FNRG Srila Prabhupada Book Distribution",
+  "book-events-section": "FNRG Srila Prabhupada Book Distribution",
   "book-requests-section": "FNRG Srila Prabhupada Book Distribution",
   "book-analytics-section": "FNRG Srila Prabhupada Book Distribution",
   "book-expenses-section": "FNRG Srila Prabhupada Book Distribution",
@@ -85,6 +86,7 @@ const CACHEABLE_SECTIONS = new Set([
   "book-inward-section",
   "book-outward-section",
   "book-places-section",
+  "book-events-section",
   "book-requests-section",
   "book-analytics-section",
   "book-expenses-section",
@@ -125,6 +127,7 @@ function showScreen(id, { forceRefresh = false } = {}) {
     if (id === "contact-collection-section") Collection.init(currentUser);
     if (id === "book-dashboard-section") BookDistribution.initDashboard(currentUser);
     if (id === "book-places-section") BookDistribution.initPlaces(currentUser);
+    if (id === "book-events-section") BookDistribution.initBookEvents(currentUser);
     if (id === "book-requests-section") BookDistribution.initBookRequests(currentUser);
     if (id === "book-inward-section") BookDistribution.initInwardTable(currentUser);
     if (id === "book-outward-section") BookDistribution.initOutwardTable();

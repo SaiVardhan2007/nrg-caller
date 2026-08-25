@@ -4581,6 +4581,7 @@ const DB_TABLES_FALLBACK = [
   "one_to_one_remarks",
   "contact_collection",
   "book_places",
+  "book_events",
   "book_inward_stock",
   "book_outward_stock",
   "book_standard_prices",
@@ -4724,11 +4725,12 @@ async function populateBulkDeleteDropdowns() {
 
   const [{ data: inwardRows }, { data: outwardRows }] = await Promise.all([
     supabase.from("book_inward_stock").select("name"),
-    supabase.from("book_outward_stock").select("name,sold_area,sold_by"),
+    supabase.from("book_outward_stock").select("name,sold_area,event,sold_by"),
   ]);
   document.getElementById("bulk-delete-book-inward-name").innerHTML = distinctSelectOptions(inwardRows, "name");
   document.getElementById("bulk-delete-book-outward-name").innerHTML = distinctSelectOptions(outwardRows, "name");
   document.getElementById("bulk-delete-book-outward-area").innerHTML = distinctSelectOptions(outwardRows, "sold_area");
+  document.getElementById("bulk-delete-book-outward-event").innerHTML = distinctSelectOptions(outwardRows, "event");
   document.getElementById("bulk-delete-book-outward-sold-by").innerHTML = distinctSelectOptions(outwardRows, "sold_by");
 }
 
@@ -4825,6 +4827,10 @@ function getBulkDeleteConfig() {
     return { table: "book_places", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL Distribution Places" };
   }
 
+  if (type === "book_events") {
+    return { table: "book_events", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL Events" };
+  }
+
   if (type === "book_inward") {
     const scope = document.getElementById("bulk-delete-book-inward-scope").value;
     if (scope === "name") {
@@ -4846,6 +4852,11 @@ function getBulkDeleteConfig() {
       const val = document.getElementById("bulk-delete-book-outward-area").value;
       if (!val) return { error: "Please select a sold area." };
       return { table: "book_outward_stock", apply: (q) => q.eq("sold_area", val), label: `Outward Stock sold at "${val}"` };
+    }
+    if (scope === "event") {
+      const val = document.getElementById("bulk-delete-book-outward-event").value;
+      if (!val) return { error: "Please select an event." };
+      return { table: "book_outward_stock", apply: (q) => q.eq("event", val), label: `Outward Stock for event "${val}"` };
     }
     if (scope === "sold_by") {
       const val = document.getElementById("bulk-delete-book-outward-sold-by").value;
@@ -4918,7 +4929,7 @@ function wireBulkDeleteModal() {
     "bulk-delete-contacts-purpose", "bulk-delete-contacts-admin-tag", "bulk-delete-contacts-tag-to-users",
     "bulk-delete-attendance-event", "bulk-delete-calls-event", "bulk-delete-calls-caller", "bulk-delete-assignments-event",
     "bulk-delete-book-inward-name",
-    "bulk-delete-book-outward-name", "bulk-delete-book-outward-area", "bulk-delete-book-outward-sold-by",
+    "bulk-delete-book-outward-name", "bulk-delete-book-outward-area", "bulk-delete-book-outward-event", "bulk-delete-book-outward-sold-by",
   ].forEach((id) => {
     document.getElementById(id).addEventListener("change", refreshBulkDeletePreview);
   });
@@ -5057,9 +5068,10 @@ async function executeBulkDelete(cfg) {
     await loadEvents();
     if (!document.getElementById("admin-users-section").classList.contains("hidden")) initUsers();
   }
-  if (cfg.table === "book_places" || cfg.table === "book_inward_stock" || cfg.table === "book_outward_stock") {
+  if (cfg.table === "book_places" || cfg.table === "book_events" || cfg.table === "book_inward_stock" || cfg.table === "book_outward_stock") {
     const BookDistribution = await import("./bookDistribution.js");
     if (cfg.table === "book_places" && !document.getElementById("book-places-section").classList.contains("hidden")) BookDistribution.initPlaces();
+    if (cfg.table === "book_events" && !document.getElementById("book-events-section").classList.contains("hidden")) BookDistribution.initBookEvents();
     if (cfg.table === "book_inward_stock" && !document.getElementById("book-inward-section").classList.contains("hidden")) BookDistribution.initInwardTable(bulkDeleteUser);
     if (cfg.table === "book_outward_stock" && !document.getElementById("book-outward-section").classList.contains("hidden")) BookDistribution.initOutwardTable();
     if (!document.getElementById("book-dashboard-section").classList.contains("hidden")) BookDistribution.initDashboard();
