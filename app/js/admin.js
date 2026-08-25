@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect } from "./utils.js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
+import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, daysAgo, CORE_CULTIVATION_STALE_DAYS } from "./utils.js";
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
@@ -43,8 +44,10 @@ async function setSetting(key, value) {
 
 /* ======================= USERS & ASSIGNMENT ======================= */
 
+// Scoped to checkboxes that carry a tag value — excludes plain toggle
+// checkboxes (e.g. "enable time range") that share a group with tag checks.
 function getCheckedTags(tagFilterGroup) {
-  return Array.from(tagFilterGroup.querySelectorAll("input:checked")).map((cb) => cb.value);
+  return Array.from(tagFilterGroup.querySelectorAll('input[type="checkbox"][value]:checked')).map((cb) => cb.value);
 }
 
 // "" (both/neither checked) = no GFY filter, "attended" = only gyc_status ===
@@ -100,11 +103,251 @@ function updateCallStatusFilterBadge(callStatusGroup) {
   const badge = document.getElementById("call-status-filter-badge");
   if (!badge) return;
   const count = getCheckedTags(callStatusGroup).length;
-  badge.textContent = String(count);
-  badge.classList.toggle("hidden", count === 0);
+  const timeOn = callStatusGroup.querySelector("#call-status-ts-enabled")?.checked;
+  badge.textContent = count ? String(count) : "•";
+  badge.classList.toggle("hidden", count === 0 && !timeOn);
 }
 
-// Turns the three filter groups into click-to-open dropdown panels, closing
+// Returns null for "no filter", else ISO bounds for submitted_at/ts.
+function getCallTimeRange(callStatusGroup) {
+  const enabled = callStatusGroup.querySelector("#call-status-ts-enabled");
+  if (!enabled || !enabled.checked) return null;
+  const from = callStatusGroup.querySelector("#call-status-ts-from").value;
+  const to = callStatusGroup.querySelector("#call-status-ts-to").value;
+  if (!from && !to) return null;
+  return {
+    from: from ? new Date(from).toISOString() : null,
+    to: to ? new Date(to).toISOString() : null,
+    label: `${from ? new Date(from).toLocaleString() : "any time"} → ${to ? new Date(to).toLocaleString() : "now"}`,
+  };
+}
+
+function wireCallTimeFilter(callStatusGroup) {
+  const enabled = callStatusGroup.querySelector("#call-status-ts-enabled");
+  const from = callStatusGroup.querySelector("#call-status-ts-from");
+  const to = callStatusGroup.querySelector("#call-status-ts-to");
+  if (!enabled) return;
+  const update = () => {
+    updateCallStatusFilterBadge(callStatusGroup);
+    updateLiveFilterSummary();
+  };
+  enabled.addEventListener("change", () => {
+    from.disabled = to.disabled = !enabled.checked;
+    if (enabled.checked) from.focus();
+    update();
+  });
+  if (from) {
+    from.addEventListener("input", update);
+    from.addEventListener("change", update);
+  }
+  if (to) {
+    to.addEventListener("input", update);
+    to.addEventListener("change", update);
+  }
+}
+
+// Returns attendance filter object or null if inactive.
+function getAttendanceFilter(attendanceGroup) {
+  if (!attendanceGroup) return null;
+  const attended = attendanceGroup.querySelector("#attendance-filter-attended")?.checked;
+  const notAttended = attendanceGroup.querySelector("#attendance-filter-not-attended")?.checked;
+  const rangeEnabled = attendanceGroup.querySelector("#attendance-ts-enabled")?.checked;
+  let range = null;
+  if (rangeEnabled) {
+    const from = attendanceGroup.querySelector("#attendance-ts-from")?.value;
+    const to = attendanceGroup.querySelector("#attendance-ts-to")?.value;
+    if (from || to) {
+      range = {
+        from: from ? new Date(from).toISOString() : null,
+        to: to ? new Date(to).toISOString() : null,
+        label: `${from ? new Date(from).toLocaleString() : "any time"} → ${to ? new Date(to).toLocaleString() : "now"}`,
+      };
+    }
+  }
+  const mode = attended && !notAttended ? "attended" : notAttended && !attended ? "not_attended" : "all";
+  if (mode === "all" && !range) return null;
+  return { mode, range };
+}
+
+function wireAttendanceFilterGroup(attendanceGroup) {
+  const attendedCb = attendanceGroup.querySelector("#attendance-filter-attended");
+  const notAttendedCb = attendanceGroup.querySelector("#attendance-filter-not-attended");
+  const update = () => {
+    updateAttendanceFilterBadge(attendanceGroup);
+    updateLiveFilterSummary();
+  };
+  [attendedCb, notAttendedCb].forEach((cb) => {
+    if (!cb) return;
+    cb.addEventListener("change", () => {
+      if (!attendedCb.checked && !notAttendedCb.checked) {
+        cb.checked = true;
+        showToast("At least one Attendance filter must stay enabled.", "error");
+      }
+      update();
+    });
+  });
+  const rangeEnabled = attendanceGroup.querySelector("#attendance-ts-enabled");
+  const from = attendanceGroup.querySelector("#attendance-ts-from");
+  const to = attendanceGroup.querySelector("#attendance-ts-to");
+  if (rangeEnabled) {
+    rangeEnabled.addEventListener("change", () => {
+      if (from && to) from.disabled = to.disabled = !rangeEnabled.checked;
+      if (rangeEnabled.checked && from) from.focus();
+      update();
+    });
+  }
+  if (from) {
+    from.addEventListener("input", update);
+    from.addEventListener("change", update);
+  }
+  if (to) {
+    to.addEventListener("input", update);
+    to.addEventListener("change", update);
+  }
+}
+
+function updateAttendanceFilterBadge(attendanceGroup) {
+  const badge = document.getElementById("attendance-filter-badge");
+  if (!badge) return;
+  const filter = getAttendanceFilter(attendanceGroup);
+  if (!filter) {
+    badge.classList.add("hidden");
+  } else {
+    badge.classList.remove("hidden");
+    if (filter.mode === "attended") badge.textContent = "Attended";
+    else if (filter.mode === "not_attended") badge.textContent = "Not Attended";
+    else if (filter.range) badge.textContent = "Range";
+    else badge.textContent = "On";
+  }
+}
+
+// True when `ts` falls inside `range` ({from, to}, either end optional).
+function withinRange(ts, range) {
+  if (!range) return true;
+  if (!ts) return false;
+  const t = new Date(ts).getTime();
+  if (range.from && t < new Date(range.from).getTime()) return false;
+  if (range.to && t > new Date(range.to).getTime()) return false;
+  return true;
+}
+
+// Narrows a contact pool down to who did/didn't attend a session matching criteria.
+async function applyAttendanceFilter(pool, eventCode, attendanceFilter) {
+  if (!attendanceFilter || !pool.length) return pool;
+  let query = supabase.from("session_attendance").select("mob_no,ts");
+  if (eventCode !== "__ALL__") query = query.eq("event_code", eventCode);
+  if (attendanceFilter.range) {
+    if (attendanceFilter.range.from) query = query.gte("ts", attendanceFilter.range.from);
+    if (attendanceFilter.range.to) query = query.lte("ts", attendanceFilter.range.to);
+  }
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const attendedMobNos = new Set((data || []).map((r) => normalizePhoneInput(r.mob_no)).filter(Boolean));
+  const mode = attendanceFilter.mode;
+  if (mode === "attended" || (mode === "all" && attendanceFilter.range)) {
+    return pool.filter((c) => attendedMobNos.has(normalizePhoneInput(c.mob_no)));
+  } else if (mode === "not_attended") {
+    return pool.filter((c) => !attendedMobNos.has(normalizePhoneInput(c.mob_no)));
+  }
+  return pool;
+}
+
+// Fetches latest call responses and active assignment statuses for contacts in an event.
+async function fetchCallStatusMap(eventCode) {
+  let crQuery = supabase.from("call_responses").select("mob_no,remarks,ts").order("ts", { ascending: true });
+  if (eventCode !== "__ALL__") crQuery = crQuery.eq("event_code", eventCode);
+  const { data: crData } = await crQuery;
+
+  const mapByMob = new Map();
+  (crData || []).forEach((r) => {
+    if (r.mob_no) {
+      mapByMob.set(normalizePhoneInput(r.mob_no), {
+        status: r.remarks || "Not Done",
+        submitted_at: r.ts,
+      });
+    }
+  });
+
+  let asQuery = supabase.from("assignments").select("contact_id,status,submitted_at");
+  if (eventCode !== "__ALL__") asQuery = asQuery.eq("event_code", eventCode);
+  const { data: asData } = await asQuery;
+
+  const mapByContactId = new Map();
+  (asData || []).forEach((a) => {
+    if (a.status) {
+      mapByContactId.set(a.contact_id, {
+        status: a.status || "Not Done",
+        submitted_at: a.submitted_at,
+      });
+    }
+  });
+
+  return { mapByMob, mapByContactId };
+}
+
+function getContactCallInfo(c, statusMaps) {
+  if (statusMaps && statusMaps.mapByContactId.has(c.id)) {
+    return statusMaps.mapByContactId.get(c.id);
+  }
+  const normMob = normalizePhoneInput(c.mob_no);
+  if (statusMaps && statusMaps.mapByMob && statusMaps.mapByMob.has(normMob)) {
+    return statusMaps.mapByMob.get(normMob);
+  }
+  return { status: "Not Done", submitted_at: null };
+}
+
+let filterSummaryTimeout = null;
+// Bumped on every call so a slow, superseded request can tell it's stale and
+// drop its result instead of overwriting the screen with an outdated count
+// (two toggles in quick succession used to race, and whichever network
+// response landed last won — even if it was answering the older question).
+let filterSummaryGeneration = 0;
+export async function updateLiveFilterSummary() {
+  if (filterSummaryTimeout) clearTimeout(filterSummaryTimeout);
+  const myGeneration = ++filterSummaryGeneration;
+  const summaryEl = document.getElementById("assign-summary");
+  if (summaryEl) summaryEl.textContent = "🎯 Calculating matching pool…";
+  filterSummaryTimeout = setTimeout(async () => {
+    const eventSelect = document.getElementById("event-select");
+    const tagFilterGroup = document.getElementById("tag-filter-group");
+    const gfyGroup = document.getElementById("gfy-filter-group");
+    const tsGroup = document.getElementById("timestamp-filter-group");
+    const callStatusGroup = document.getElementById("call-status-filter-group");
+    const attendanceGroup = document.getElementById("attendance-filter-group");
+    if (!summaryEl || !eventSelect) return;
+
+    try {
+      const eventCode = eventSelect.value;
+      const tagFilters = getCheckedTags(tagFilterGroup);
+      const gfyFilter = getGfyFilter(gfyGroup);
+      const timeRange = getTimeRange(tsGroup);
+      const statusFilters = getCheckedTags(callStatusGroup);
+      const callTimeRange = getCallTimeRange(callStatusGroup);
+      const attendanceFilter = getAttendanceFilter(attendanceGroup);
+
+      let pool = await fetchEventContactPool(eventCode, tagFilters, gfyFilter, timeRange);
+      if (statusFilters.length || callTimeRange) {
+        const statusMaps = await fetchCallStatusMap(eventCode);
+        pool = pool.filter((c) => {
+          const info = getContactCallInfo(c, statusMaps);
+          if (statusFilters.length && !statusFilters.includes(info.status)) return false;
+          if (callTimeRange && !withinRange(info.submitted_at, callTimeRange)) return false;
+          return true;
+        });
+      }
+      pool = await applyAttendanceFilter(pool, eventCode, attendanceFilter);
+      if (myGeneration !== filterSummaryGeneration) return;
+      summaryEl.textContent = `🎯 Matching Pool: ${pool.length} contact(s) ready to be assigned/rebalanced.`;
+    } catch (err) {
+      if (myGeneration !== filterSummaryGeneration) return;
+      console.warn("Could not calculate live filter summary:", err);
+    }
+  }, 250);
+}
+
+
+// Turns the filter groups into click-to-open dropdown panels, closing
 // whichever else is open and dismissing on an outside click/Escape. Wired
 // with .onclick (not addEventListener) since initUsers() re-runs every time
 // this tab is opened, and re-assignment is idempotent.
@@ -113,6 +356,7 @@ const FILTER_DROPDOWN_IDS = [
   ["gfy-filter-dropdown", "gfy-filter-toggle"],
   ["timestamp-filter-dropdown", "timestamp-filter-toggle"],
   ["call-status-filter-dropdown", "call-status-filter-toggle"],
+  ["attendance-filter-dropdown", "attendance-filter-toggle"],
 ];
 let filterDropdownsWired = false;
 function wireFilterDropdowns() {
@@ -176,6 +420,7 @@ export async function initUsers() {
   const gfyGroup = document.getElementById("gfy-filter-group");
   const tsGroup = document.getElementById("timestamp-filter-group");
   const callStatusGroup = document.getElementById("call-status-filter-group");
+  const attendanceGroup = document.getElementById("attendance-filter-group");
 
   // these round-trips are all independent — run them together instead of
   // one after another, since that was adding ~2s to this page's load.
@@ -190,27 +435,38 @@ export async function initUsers() {
   // event is set as current elsewhere (Reception/Analytics/etc.) — this tab
   // is for assigning across everything unless the admin narrows it down.
   fillEventSelect(eventSelect, "__ALL__", true);
+  if (eventSelect) eventSelect.addEventListener("change", updateLiveFilterSummary);
   const savedTags = (tagFilterValue || "").split(",").map((t) => t.trim()).filter(Boolean);
   tagFilterGroup.querySelectorAll("input").forEach((cb) => {
     cb.checked = savedTags.includes(cb.value);
-    cb.onchange = () => updateTagFilterBadge(tagFilterGroup);
+    cb.onchange = () => {
+      updateTagFilterBadge(tagFilterGroup);
+      updateLiveFilterSummary();
+    };
   });
   gfyGroup.querySelector("#gfy-filter-attended").checked = gfyFilterValue !== "not_attended";
   gfyGroup.querySelector("#gfy-filter-not-attended").checked = gfyFilterValue !== "attended";
   const savedCallStatuses = (callStatusFilterValue || "").split(",").map((t) => t.trim()).filter(Boolean);
-  callStatusGroup.querySelectorAll("input").forEach((cb) => {
+  callStatusGroup.querySelectorAll('input[type="checkbox"][value]').forEach((cb) => {
     cb.checked = savedCallStatuses.includes(cb.value);
-    cb.onchange = () => updateCallStatusFilterBadge(callStatusGroup);
+    cb.onchange = () => {
+      updateCallStatusFilterBadge(callStatusGroup);
+      updateLiveFilterSummary();
+    };
   });
   updateTagFilterBadge(tagFilterGroup);
   updateGfyFilterBadge(gfyGroup);
   updateTimestampFilterBadge(tsGroup);
   updateCallStatusFilterBadge(callStatusGroup);
+  updateAttendanceFilterBadge(attendanceGroup);
+  updateLiveFilterSummary();
 
-  wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callStatusGroup);
-  wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callStatusGroup);
+  wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callStatusGroup, attendanceGroup);
+  wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callStatusGroup, attendanceGroup);
   wireGfyFilterGroup(gfyGroup);
   wireTimestampFilter(tsGroup);
+  wireCallTimeFilter(callStatusGroup);
+  wireAttendanceFilterGroup(attendanceGroup);
   wireFilterDropdowns();
   wireDisassignButton();
   wireAutoAssignSelectAll();
@@ -495,7 +751,7 @@ async function fetchEventContactPool(eventCode, tagFilters, gfyFilter = "", time
   const allEvents = eventCode === "__ALL__";
   let query = supabase
     .from("contacts")
-    .select("id,core_cultivation,admin_tag_to_users,calling_purpose,gyc_status");
+    .select("id,mob_no,core_cultivation,admin_tag_to_users,calling_purpose,gyc_status");
   query = allEvents ? query.not("calling_purpose", "is", null) : query.eq("calling_purpose", eventCode);
   if (tagFilters.length) {
     // When specific tags are selected, only include contacts with those tags
@@ -623,7 +879,7 @@ function wireAutoAssignSelectAll() {
   };
 }
 
-function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callStatusGroup) {
+function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callStatusGroup, attendanceGroup) {
   const btn = document.getElementById("assign-btn");
   const summary = document.getElementById("assign-summary");
   btn.onclick = async () => {
@@ -645,19 +901,28 @@ function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callSt
       const gfyFilter = getGfyFilter(gfyGroup);
       const timeRange = getTimeRange(tsGroup);
       const statusFilters = getCheckedTags(callStatusGroup);
+      const callTimeRange = getCallTimeRange(callStatusGroup);
+      const attendanceFilter = getAttendanceFilter(attendanceGroup);
 
-      // Call Status reads each contact's *current* assignment row, which
-      // archiveAndClearAssignments() (next step) is about to wipe — capture
-      // it first. Like every other filter here, this only narrows which
-      // contacts get a NEW assignment; anyone outside the filter still gets
-      // wiped by the full reset below and stays unassigned until the next
-      // Assign click (same behavior as the Tag/GFY/Time filters already have).
-      let statusByContactId = new Map();
-      if (statusFilters.length) {
-        let statusQuery = supabase.from("assignments").select("contact_id,status");
-        if (eventCode !== "__ALL__") statusQuery = statusQuery.eq("event_code", eventCode);
-        const { data: statusRows } = await statusQuery;
-        statusByContactId = new Map((statusRows || []).map((a) => [a.contact_id, a.status || "Not Done"]));
+      let pool = await fetchEventContactPool(eventCode, tagFilters, gfyFilter, timeRange);
+      if (statusFilters.length || callTimeRange) {
+        const statusMaps = await fetchCallStatusMap(eventCode);
+        pool = pool.filter((c) => {
+          const info = getContactCallInfo(c, statusMaps);
+          if (statusFilters.length && !statusFilters.includes(info.status)) return false;
+          if (callTimeRange && !withinRange(info.submitted_at, callTimeRange)) return false;
+          return true;
+        });
+      }
+      pool = await applyAttendanceFilter(pool, eventCode, attendanceFilter);
+
+      // Nothing matches these filters — bail out before wiping anyone's
+      // current list. Assigning used to archive+clear unconditionally and
+      // only discover an empty pool afterward, leaving every coordinator
+      // with an empty list for no reason.
+      if (!pool.length) {
+        showToast("No contacts match these filters — nothing was changed.", "error");
+        return;
       }
 
       // 2. Archive and remove all existing assignments across all events first.
@@ -672,14 +937,6 @@ function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callSt
       await setSetting("tag_filter", tagFilters.join(", "));
       await setSetting("gfy_filter", gfyFilter);
       await setSetting("call_status_filter", statusFilters.join(", "));
-
-      // existingForEvent will now be empty since we cleared it above
-      const alreadyAssignedIds = new Set();
-
-      let pool = (await fetchEventContactPool(eventCode, tagFilters, gfyFilter, timeRange)).filter((c) => !alreadyAssignedIds.has(c.id));
-      if (statusFilters.length) {
-        pool = pool.filter((c) => statusFilters.includes(statusByContactId.get(c.id) || "Not Done"));
-      }
 
       // 3. Read the settings directly from the DOM to avoid race conditions with unsaved inputs
       const eligible = [];
@@ -755,6 +1012,8 @@ function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callSt
       summary.textContent = `Assigned ${rows.length} new contact(s) across ${eligible.length} caller(s).` +
         (timeRange ? ` Limited to contacts collected ${timeRange.label}.` : "") +
         (statusFilters.length ? ` Limited to call status: ${statusFilters.join(", ")}.` : "") +
+        (callTimeRange ? ` Limited to contacts called ${callTimeRange.label}.` : "") +
+        (attendanceFilter ? ` Limited to contacts who ${attendanceFilter.mode === "attended" ? "attended" : "did not attend"}${attendanceFilter.range ? ` ${attendanceFilter.range.label}` : ""}.` : "") +
         (unassignedCount ? ` ${unassignedCount} left unassigned (no eligible user under their limit).` : "");
       showToast("Contacts assigned successfully! 🎉", "success");
       await renderUsersTable();
@@ -767,7 +1026,7 @@ function wireAssignButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callSt
   };
 }
 
-function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callStatusGroup) {
+function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, callStatusGroup, attendanceGroup) {
   const btn = document.getElementById("rebalance-btn");
   const summary = document.getElementById("assign-summary");
   btn.onclick = async () => {
@@ -779,11 +1038,23 @@ function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, cal
       const gfyFilter = getGfyFilter(gfyGroup);
       const timeRange = getTimeRange(tsGroup);
       const statusFilters = getCheckedTags(callStatusGroup);
+      const callTimeRange = getCallTimeRange(callStatusGroup);
+      const attendanceFilter = getAttendanceFilter(attendanceGroup);
       await setSetting("call_status_filter", statusFilters.join(", "));
 
-      const eligiblePool = await fetchEventContactPool(eventCode, tagFilters, gfyFilter, timeRange);
+      let eligiblePool = await fetchEventContactPool(eventCode, tagFilters, gfyFilter, timeRange);
+      if (statusFilters.length || callTimeRange) {
+        const statusMaps = await fetchCallStatusMap(eventCode);
+        eligiblePool = eligiblePool.filter((c) => {
+          const info = getContactCallInfo(c, statusMaps);
+          if (statusFilters.length && !statusFilters.includes(info.status)) return false;
+          if (callTimeRange && !withinRange(info.submitted_at, callTimeRange)) return false;
+          return true;
+        });
+      }
+      eligiblePool = await applyAttendanceFilter(eligiblePool, eventCode, attendanceFilter);
 
-      let existingQuery = supabase.from("assignments").select("id,contact_id,user_name,status");
+      let existingQuery = supabase.from("assignments").select("id,contact_id,user_name,status,submitted_at");
       if (eventCode !== "__ALL__") existingQuery = existingQuery.eq("event_code", eventCode);
       const { data: existing, error: existingErr } = await existingQuery;
       if (existingErr) throw existingErr;
@@ -792,13 +1063,15 @@ function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, cal
       // "Need to Call Again" — everything else (a real outcome logged) stays
       // exactly where it is. An explicit Call Status filter overrides that
       // default so the admin can pull back e.g. only "Available on Weekend"
-      // contacts instead, and redistribute just those.
-      const isRebalanceable = statusFilters.length
-        ? (a) => statusFilters.includes(a.status || "Not Done")
-        : (a) => {
-            const status = a.status || "Not Done";
-            return status === "Not Done" || status === "Need to Call Again";
-          };
+      // contacts instead, and redistribute just those. An explicit call time
+      // range narrows either case down to only that submitted_at window.
+      const isRebalanceable = (a) => {
+        const statusOk = statusFilters.length
+          ? statusFilters.includes(a.status || "Not Done")
+          : (a.status || "Not Done") === "Not Done" || (a.status || "Not Done") === "Need to Call Again";
+        if (!statusOk) return false;
+        return withinRange(a.submitted_at, callTimeRange);
+      };
       const untouched = (existing || []).filter(isRebalanceable);
       const inProgress = (existing || []).filter((a) => !isRebalanceable(a));
 
@@ -864,6 +1137,8 @@ function wireRebalanceButton(eventSelect, tagFilterGroup, gfyGroup, tsGroup, cal
       summary.textContent = `Rebalanced ${rows.length} ${statusFilters.length ? statusFilters.join("/") : "not-yet-called/need-to-call-again"} contact(s) across ${eligible.length} caller(s). ` +
         `${inProgress.length} left untouched.` +
         (timeRange ? ` Limited to contacts collected ${timeRange.label}.` : "") +
+        (callTimeRange ? ` Limited to contacts called ${callTimeRange.label}.` : "") +
+        (attendanceFilter ? ` Limited to contacts who ${attendanceFilter.mode === "attended" ? "attended" : "did not attend"}${attendanceFilter.range ? ` ${attendanceFilter.range.label}` : ""}.` : "") +
         (unassignedCount ? ` ${unassignedCount} left unassigned (no eligible user under their limit).` : "");
       showToast("Rebalanced successfully! ⚖", "success");
       await renderUsersTable();
@@ -2155,6 +2430,7 @@ export async function initAnalytics() {
   wireCultivationFilters();
   wireGeneralDataModal();
   wireFollowUpDataModal();
+  wireCcGeneralDataModal();
   const userSelect = document.getElementById("analytics-user-select");
   const eventSelect = document.getElementById("analytics-event-select");
   const fromInput = document.getElementById("analytics-from");
@@ -2432,10 +2708,11 @@ async function runFollowUpAssign() {
     eligible.forEach((u) => { assignedCount[u.user_name] = 0; });
     const { rows: distRows, unassignedCount } = distributePool(pool, eligible, assignedCount, "");
 
-    const rows = distRows.map((r) => {
-      const source = lastAssignedContacts.find((x) => x.contact_id === r.contact_id && x.event_code === r.event_code);
-      return { contact_id: r.contact_id, event_code: r.event_code, user_name: r.user_name, status: source?.status || "Need to Call Again", submitted_at: null };
-    });
+    // Status starts blank on hand-off — carrying over the prior "Need to Call
+    // Again" made the new follow-up look pre-answered (dropdown pre-filled,
+    // and analytics counted it as already resolved/completed) even though
+    // the new caller hadn't called yet.
+    const rows = distRows.map((r) => ({ contact_id: r.contact_id, event_code: r.event_code, user_name: r.user_name, status: "", submitted_at: null }));
     const { error } = await supabase.from("follow_up_assignments").upsert(rows, { onConflict: "contact_id,event_code" });
     if (error) throw error;
 
@@ -2594,6 +2871,92 @@ function wireFollowUpDataModal() {
         }).join("")
       : `<tr><td colspan="6" class="loading-row">No follow-up contacts currently handed off to anyone.</td></tr>`;
     reapplyColumnOrder("followup-data-table");
+  };
+}
+
+// Per-cultivator rollup: of everyone assigned to them for core cultivation,
+// how many got at least 2 calls (from that same cultivator) in the last 10
+// days. Unlike General/Follow-up Data, "completed" here is a call-frequency
+// threshold, not a status outcome — a cultivated contact needs sustained
+// attention, not just one call ever.
+const CC_GENERAL_DATA_MIN_CALLS = 2;
+
+let ccGeneralDataModalWired = false;
+function wireCcGeneralDataModal() {
+  if (ccGeneralDataModalWired) return;
+  ccGeneralDataModalWired = true;
+  const modal = document.getElementById("cc-general-data-modal");
+  document.getElementById("cc-general-data-close").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  let ccGeneralDataZoom = 100;
+  const zoomBox = document.getElementById("cc-general-data-modal-box");
+  const zoomLevel = document.getElementById("cc-general-data-zoom-level");
+  const applyCcGeneralDataZoom = () => {
+    zoomBox.style.transform = `scale(${ccGeneralDataZoom / 100})`;
+    zoomLevel.textContent = ccGeneralDataZoom + "%";
+  };
+  document.getElementById("cc-general-data-zoom-in").onclick = () => {
+    ccGeneralDataZoom = Math.min(200, ccGeneralDataZoom + 10);
+    applyCcGeneralDataZoom();
+  };
+  document.getElementById("cc-general-data-zoom-out").onclick = () => {
+    ccGeneralDataZoom = Math.max(40, ccGeneralDataZoom - 10);
+    applyCcGeneralDataZoom();
+  };
+
+  initColumnDragReorder("cc-general-data-table");
+
+  document.getElementById("cc-general-data-btn").onclick = async () => {
+    modal.classList.add("active");
+    const tbody = document.getElementById("cc-general-data-body");
+    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
+
+    const { data: cultivated } = await supabase.from("contacts").select("mob_no,core_cultivation").not("core_cultivation", "is", null);
+    if (!cultivated || !cultivated.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="loading-row">No contacts under core cultivation.</td></tr>`;
+      return;
+    }
+
+    const mobNos = [...new Set(cultivated.map((c) => c.mob_no))];
+    const { data: calls } = await supabase
+      .from("call_responses").select("mob_no,caller_name")
+      .in("mob_no", mobNos).gte("ts", daysAgo(CORE_CULTIVATION_STALE_DAYS).toISOString());
+
+    // tally recent calls per (contact, caller) pair — a call only counts
+    // toward a contact's threshold if it was made by their own cultivator
+    const recentCallCount = {};
+    (calls || []).forEach((r) => {
+      const key = r.mob_no + "|" + r.caller_name;
+      recentCallCount[key] = (recentCallCount[key] || 0) + 1;
+    });
+
+    const stats = {};
+    cultivated.forEach((c) => {
+      if (!stats[c.core_cultivation]) stats[c.core_cultivation] = { total: 0, completed: 0 };
+      const s = stats[c.core_cultivation];
+      s.total++;
+      const key = c.mob_no + "|" + c.core_cultivation;
+      if ((recentCallCount[key] || 0) >= CC_GENERAL_DATA_MIN_CALLS) s.completed++;
+    });
+
+    const rows = Object.entries(stats).sort((a, b) => a[0].localeCompare(b[0]));
+    tbody.innerHTML = rows.length
+      ? rows.map(([name, s], idx) => {
+          const pending = s.total - s.completed;
+          const pct = s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0;
+          return `
+          <tr>
+            <td data-label="S.No">${idx + 1}</td>
+            <td data-label="Cultivator">${escapeHtml(name)}</td>
+            <td data-label="Total">${s.total}</td>
+            <td data-label="Completed">${s.completed}</td>
+            <td data-label="Pending">${pending}</td>
+            <td data-label="Completed %">${pct}%</td>
+          </tr>`;
+        }).join("")
+      : `<tr><td colspan="6" class="loading-row">No contacts under core cultivation.</td></tr>`;
+    reapplyColumnOrder("cc-general-data-table");
   };
 }
 
@@ -2984,8 +3347,12 @@ function renderCultivationTable() {
     return;
   }
 
-  cultivationBody.innerHTML = rows.map((c, idx) => `
-      <tr>
+  cultivationBody.innerHTML = rows.map((c, idx) => {
+    // Cold contact: this cultivator hasn't logged a call to them within the
+    // stale window, so flag the whole row for admin attention.
+    const isStale = !c.lastCalledTs || new Date(c.lastCalledTs) < daysAgo(CORE_CULTIVATION_STALE_DAYS);
+    return `
+      <tr class="${isStale ? "row-cc-stale" : ""}">
         <td data-label="S.No">${idx + 1}</td>
         <td data-label="Cultivator">${escapeHtml(c.cultivator)}</td>
         <td data-label="Name">${escapeHtml(c.name)}</td>
@@ -2999,7 +3366,8 @@ function renderCultivationTable() {
         </td>
         <td data-label="Sessions"><button class="cell-chip info-link" data-kind="sessions" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.sessions_count ?? 0}</button></td>
         <td data-label="Calls"><button class="cell-chip info-link" data-kind="calls" data-mob="${c.mob_no}" data-name="${escapeHtml(c.name)}">${c.calls_count ?? 0}</button></td>
-      </tr>`).join("");
+      </tr>`;
+  }).join("");
 
   reapplyColumnOrder("analytics-cultivation-table");
 
@@ -4179,32 +4547,82 @@ function runBulkDuplicateResolution() {
 
 /* ======================= FULL DB DOWNLOAD (ZIP of CSVs) ======================= */
 
+// Fallback only — used if the list_app_tables() RPC (see schema.sql) isn't
+// deployed yet on this Supabase project. Keep in sync with schema.sql when
+// adding a table so exports stay complete even before the RPC is run.
+const DB_TABLES_FALLBACK = [
+  "users",
+  "contacts",
+  "assignments",
+  "assignment_rounds",
+  "follow_up_assignments",
+  "call_responses",
+  "session_attendance",
+  "events",
+  "settings",
+  "help_requests",
+  "one_to_one_remarks",
+  "contact_collection",
+  "book_places",
+  "book_inward_stock",
+  "book_outward_stock",
+  "book_standard_prices",
+  "book_requests",
+  "book_expenses",
+  "fnrg_sadhana",
+];
+
+// Supabase caps a single select() response (1000 rows by default), so a
+// large table would otherwise export truncated. Page through with .range()
+// until a page comes back short.
+async function fetchAllRows(table) {
+  const pageSize = 1000;
+  let from = 0;
+  const rows = [];
+  while (true) {
+    const { data, error } = await supabase.from(table).select("*").range(from, from + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return rows;
+}
+
+// Fire-and-forget ping to the weekly-db-export Edge Function, called once
+// per admin page load. The function itself decides whether 7 days have
+// actually passed since the last run (via the `settings` table) — this is
+// just "did an admin open the app today", not a real cron.
+export function maybeRunWeeklyDbExport() {
+  fetch(`${SUPABASE_URL}/functions/v1/weekly-db-export`, {
+    headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, apikey: SUPABASE_ANON_KEY },
+  }).catch((err) => console.warn("weekly-db-export ping failed:", err.message));
+}
+
 export async function downloadAllDbData() {
   const btn = document.getElementById("download-all-db-btn");
   btn.disabled = true;
   btn.textContent = "…";
   showToast("Preparing full database export…", "info");
 
-  const DB_TABLES = [
-    "users",
-    "contacts",
-    "assignments",
-    "assignment_rounds",
-    "call_responses",
-    "session_attendance",
-    "events",
-    "settings",
-  ];
+  // list_app_tables() (schema.sql) reads information_schema live, so any
+  // table added later shows up here automatically with no code change.
+  let DB_TABLES = DB_TABLES_FALLBACK;
+  const { data: liveTables, error: liveTablesError } = await supabase.rpc("list_app_tables");
+  if (!liveTablesError && Array.isArray(liveTables) && liveTables.length) {
+    DB_TABLES = liveTables;
+  } else {
+    console.warn("list_app_tables() unavailable, using fallback table list:", liveTablesError?.message);
+  }
 
   try {
     const allData = {};
     for (const table of DB_TABLES) {
-      const { data, error } = await supabase.from(table).select("*");
-      if (error) {
+      try {
+        allData[table] = await fetchAllRows(table);
+      } catch (error) {
         console.warn(`Could not fetch ${table}:`, error.message);
         allData[table] = [];
-      } else {
-        allData[table] = data || [];
       }
     }
 
@@ -4411,6 +4829,10 @@ function getBulkDeleteConfig() {
     return { table: "book_outward_stock", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL Outward Stock records" };
   }
 
+  if (type === "fnrg_sadhana") {
+    return { table: "fnrg_sadhana", apply: (q) => q.neq("id", BULK_DELETE_ALL_UUID), label: "ALL FNRG Sadhana records" };
+  }
+
   return { error: "Unknown data type." };
 }
 
@@ -4615,6 +5037,10 @@ async function executeBulkDelete(cfg) {
     if (cfg.table === "book_inward_stock" && !document.getElementById("book-inward-section").classList.contains("hidden")) BookDistribution.initInwardTable(bulkDeleteUser);
     if (cfg.table === "book_outward_stock" && !document.getElementById("book-outward-section").classList.contains("hidden")) BookDistribution.initOutwardTable();
     if (!document.getElementById("book-dashboard-section").classList.contains("hidden")) BookDistribution.initDashboard();
+  }
+  if (cfg.table === "fnrg_sadhana" && !document.getElementById("admin-sadhana-section").classList.contains("hidden")) {
+    const Sadhana = await import("./sadhana.js");
+    Sadhana.initSadhana(bulkDeleteUser);
   }
   return true;
 }

@@ -18,7 +18,7 @@
 <!-- ============ LOGIN ============ -->
 <div id="login-view" class="screen">
   <div class="login-card">
-    <div class="login-logo"><img src="icons/icon-192.png" alt="FNRG Preaching" style="width:72px;height:72px;border-radius:16px;" /></div>
+    <div class="login-logo"><img src="icons/icon-192.png" alt="FNRG Preaching" class="login-logo-img" /></div>
     <h1 class="login-title">FNRG Preaching</h1>
     <p class="login-sub">Sign in to continue</p>
     <form id="login-form" autocomplete="off">
@@ -80,7 +80,17 @@
     <button class="admin-tab" data-target="book-inward-section">Inward Stock</button>
     <button class="admin-tab" data-target="book-outward-section">Outward Stock</button>
     <button class="admin-tab" data-target="book-places-section">Distribution Places</button>
+    <button class="admin-tab" data-target="book-requests-section">Book Requests</button>
+    <button class="admin-tab" data-target="book-savings-user-section">Tīrtha Nidhi</button>
     <button class="admin-tab" data-target="book-analytics-section">Analytics</button>
+    <button class="admin-tab" data-target="book-expenses-section">Expenses</button>
+  </nav>
+
+  <!-- ---- FNRG Sadhana tabs ---- -->
+  <nav id="sadhana-tabs" class="admin-tabs hidden">
+    <button class="admin-tab active" data-target="admin-sadhana-section">FNRG Sadhana</button>
+    <button class="admin-tab" data-target="sadhana-users-section">Users</button>
+    <button class="admin-tab" data-target="sadhana-analytics-section">Analytics</button>
   </nav>
 
   <!-- ---- Admin module chooser ---- -->
@@ -96,11 +106,42 @@
         <span class="card-label">Book Distribution</span>
         <span class="card-arrow">→</span>
       </button>
+      <button class="dashboard-card" data-target="sadhana">
+        <span class="card-icon-badge badge-tulsi"><span class="card-emoji">🙏</span></span>
+        <span class="card-label">FNRG Sadhana</span>
+        <span class="card-arrow">→</span>
+      </button>
     </div>
   </div>
 
-  <!-- ---- User dashboard ---- -->
-  <div id="dashboard" class="dashboard hidden">
+  <!-- ---- Home dashboard (regular users) ---- -->
+  <div id="home-dashboard" class="dashboard hidden">
+    <div class="dashboard-cards">
+      <button class="dashboard-card" data-target="preaching">
+        <span class="card-icon-badge badge-tulsi"><span class="card-emoji">📖</span></span>
+        <span class="card-label">Preaching</span>
+        <span class="card-arrow">→</span>
+      </button>
+      <button class="dashboard-card" data-target="book-distribution">
+        <span class="card-icon-badge badge-saffron"><span class="card-emoji">📚</span></span>
+        <span class="card-label">Book Distribution</span>
+        <span class="card-arrow">→</span>
+      </button>
+      <button class="dashboard-card" data-target="contact-collection">
+        <span class="card-icon-badge badge-saffron"><span class="card-emoji">📇</span></span>
+        <span class="card-label">Contact Collection</span>
+        <span class="card-arrow">→</span>
+      </button>
+      <button class="dashboard-card" data-target="fnrg-sadhana">
+        <span class="card-icon-badge badge-tulsi"><span class="card-emoji">🙏</span></span>
+        <span class="card-label">FNRG Sadhana</span>
+        <span class="card-arrow">→</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ---- Preaching dashboard ---- -->
+  <div id="preaching-dashboard" class="dashboard hidden">
     <div class="dashboard-cards">
       <button class="dashboard-card" data-target="caller-section">
         <span class="card-icon-badge badge-tulsi"><span class="card-emoji">📞</span></span>
@@ -123,16 +164,29 @@
         <span class="card-label">Core Cultivation</span>
         <span class="card-arrow">→</span>
       </button>
-      <button class="dashboard-card" data-target="contact-collection-section">
-        <span class="card-icon-badge badge-saffron"><span class="card-emoji">📇</span></span>
-        <span class="card-label">Contact Collection</span>
-        <span class="card-arrow">→</span>
-      </button>
+    </div>
+  </div>
+
+  <!-- ---- Book Distribution dashboard (regular users) ---- -->
+  <div id="book-distribution-user-dashboard" class="dashboard hidden">
+    <div class="dashboard-cards">
       <button class="dashboard-card" data-target="book-stock-entry-section">
         <span class="card-icon-badge badge-saffron"><span class="card-emoji">📚</span></span>
         <span class="card-label">Book Distribution</span>
         <span class="card-arrow">→</span>
       </button>
+      <button class="dashboard-card" data-target="book-requests-user-section">
+        <span class="card-icon-badge badge-indigo"><span class="card-emoji">🙋</span></span>
+        <span class="card-label">Book Requests</span>
+        <span class="card-arrow">→</span>
+      </button>
+      <!--
+      <button class="dashboard-card" data-target="book-savings-user-section">
+        <span class="card-icon-badge badge-saffron"><span class="card-emoji">💰</span></span>
+        <span class="card-label">Tīrtha Nidhi</span>
+        <span class="card-arrow">→</span>
+      </button>
+      -->
       <button id="commander-dashboard-card" class="dashboard-card hidden" data-target="commander-section">
         <span class="card-icon-badge badge-indigo"><span class="card-emoji">🎖️</span></span>
         <span class="card-label">Commander</span>
@@ -214,6 +268,27 @@
                 <label class="tag-check"><input type="checkbox" value="Wrong Number" /> Wrong Number</label>
                 <label class="tag-check"><input type="checkbox" value="Shifted to Home Town" /> Shifted to Home Town</label>
                 <label class="tag-check"><input type="checkbox" value="Others" /> Others</label>
+                <hr class="tag-check-divider" />
+                <label class="tag-check"><input type="checkbox" id="call-status-ts-enabled" /> Call Time</label>
+                <label class="tag-check ts-range">From <input type="datetime-local" id="call-status-ts-from" disabled /></label>
+                <label class="tag-check ts-range">To <input type="datetime-local" id="call-status-ts-to" disabled /></label>
+              </div>
+            </div>
+
+            <div class="filter-dropdown" id="attendance-filter-dropdown">
+              <button type="button" class="filter-toggle-btn" id="attendance-filter-toggle" aria-haspopup="true" aria-expanded="false">
+                <span class="filter-toggle-icon">🙏</span>
+                <span>Attendance</span>
+                <span class="filter-toggle-badge hidden" id="attendance-filter-badge">1</span>
+                <span class="filter-toggle-caret">▾</span>
+              </button>
+              <div class="filter-dropdown-panel tag-check-group" id="attendance-filter-group">
+                <label class="tag-check"><input type="checkbox" id="attendance-filter-attended" checked /> Attended</label>
+                <label class="tag-check"><input type="checkbox" id="attendance-filter-not-attended" checked /> Not Attended</label>
+                <hr class="tag-check-divider" />
+                <label class="tag-check"><input type="checkbox" id="attendance-ts-enabled" /> Time Range</label>
+                <label class="tag-check ts-range">From <input type="datetime-local" id="attendance-ts-from" disabled /></label>
+                <label class="tag-check ts-range">To <input type="datetime-local" id="attendance-ts-to" disabled /></label>
               </div>
             </div>
 
@@ -241,7 +316,7 @@
                   <th>Completed %</th>
                   <th>
                     Auto Assign
-                    <input type="checkbox" id="auto-assign-select-all" title="Enable/disable Auto Assign for all users" style="margin-left:6px; width:16px; height:16px; vertical-align:middle; cursor:pointer;" />
+                    <input type="checkbox" id="auto-assign-select-all" title="Enable/disable Auto Assign for all users" class="auto-assign-select-all-check" />
                   </th>
                   <th></th>
                 </tr>
@@ -266,9 +341,9 @@
     <section id="admin-contacts-section" class="page hidden">
       <div class="panel-row">
         <input id="contacts-search" type="search" placeholder="Search name or phone…" class="search-input" />
-        <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
-          <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
-          <select id="contacts-sort" class="inline-edit" style="width:160px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
+        <label class="field inline select-inline">
+          <span>Sort By</span>
+          <select id="contacts-sort" class="inline-edit">
             <option value="s_no-asc">S.No (Asc)</option>
             <option value="s_no-desc">S.No (Desc)</option>
             <option value="created_at-desc">Time Stamp (Newest)</option>
@@ -515,7 +590,10 @@
       </div>
 
       <div class="panel">
-        <h3 class="section-title">Core Cultivation Health</h3>
+        <div class="caller-title-row">
+          <h3 class="section-title">Core Cultivation Health</h3>
+          <button id="cc-general-data-btn" class="btn btn-secondary toolbar-btn">📊 General Data</button>
+        </div>
         <div class="table-wrap" id="analytics-cultivation-table-wrap">
           <table class="data-table" id="analytics-cultivation-table">
             <thead>
@@ -641,7 +719,7 @@
         <div id="one-to-one-search-result" class="reception-result hidden">
           <div id="one-to-one-search-name" class="reception-name"></div>
           <div id="one-to-one-search-phone" class="reception-phone"></div>
-          <div class="modal-actions" style="justify-content:flex-start;">
+          <div class="modal-actions justify-start">
             <button id="one-to-one-search-add" class="btn btn-primary">Add</button>
             <button id="one-to-one-search-cancel" class="btn btn-secondary">Cancel</button>
           </div>
@@ -691,8 +769,16 @@
               </select>
             </label>
             <label class="field inline">
+              <span>Selling Price</span>
+              <input type="number" id="bd-filter-selling-price" placeholder="All" />
+            </label>
+            <label class="field inline">
               <span>Current Stock</span>
               <input type="number" id="bd-filter-current-stock" placeholder="All" />
+            </label>
+            <label class="field inline">
+              <span>Min Stock</span>
+              <input type="number" min="0" id="bd-filter-min-stock" placeholder="All" />
             </label>
             <button id="add-book-dashboard-btn" class="btn btn-primary toolbar-btn">+ Add Book</button>
             <button id="add-book-bulk-btn" class="btn btn-secondary toolbar-btn">⬆ Bulk Add (Excel)</button>
@@ -707,7 +793,7 @@
 
         <div class="users-content">
           <div class="stats-bar">
-            <div id="bd-stat-profit-card" class="stat"><span id="bd-stat-total-profit" class="stat-num">₹0</span><span class="stat-label">Total Realized Profit</span></div>
+            <div id="bd-stat-profit-card" class="stat"><span id="bd-stat-total-profit" class="stat-num">₹0</span><span class="stat-label">Total Net Profit</span></div>
           </div>
           <div class="table-wrap" id="book-dashboard-table-wrap">
             <table class="data-table" id="book-dashboard-table">
@@ -715,12 +801,27 @@
                 <tr>
                   <th draggable="true" data-label="S.No">S.No</th>
                   <th draggable="true" data-label="Name">Name</th>
-                  <th draggable="true" data-label="Selling Price">Selling Price</th>
-                  <th draggable="true" data-label="Language">Language</th>
+                  <th draggable="true" data-label="Selling Price">
+                    <div class="th-label">Selling Price</div>
+                    <input type="number" id="bd-th-filter-selling-price" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Language">
+                    <div class="th-label">Language</div>
+                    <select id="bd-th-filter-language" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
                   <th draggable="true" data-label="Total Inward">Total Inward</th>
                   <th draggable="true" data-label="Avg Purchase Price">Avg Purchase Price</th>
-                  <th draggable="true" data-label="Current Stock">Current Stock</th>
-                  <th draggable="true" data-label="Min Stock">Min Stock</th>
+                  <th draggable="true" data-label="Current Stock">
+                    <div class="th-label">Current Stock</div>
+                    <input type="number" id="bd-th-filter-current-stock" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Min Stock">
+                    <div class="th-label">Min Stock</div>
+                    <input type="number" min="0" id="bd-th-filter-min-stock" class="th-filter" placeholder="All" />
+                  </th>
                   <th draggable="true" data-label="Current Stock Value">Current Stock Value</th>
                   <th draggable="true" data-label="Total Sold">Total Sold</th>
                   <th draggable="true" data-label="Avg Selling Price">Avg Selling Price</th>
@@ -795,10 +896,28 @@
                   <th draggable="true" data-label="S.No">S.No</th>
                   <th draggable="true" data-label="Time">Time</th>
                   <th draggable="true" data-label="Name">Name</th>
-                  <th draggable="true" data-label="Language">Language</th>
-                  <th draggable="true" data-label="Purchase Price">Purchase Price</th>
-                  <th draggable="true" data-label="Quantity">Quantity</th>
-                  <th draggable="true" data-label="Purchased From">Purchased From</th>
+                  <th draggable="true" data-label="Language">
+                    <div class="th-label">Language</div>
+                    <select id="bi-th-filter-language" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="Purchase Price">
+                    <div class="th-label">Purchase Price</div>
+                    <input type="number" id="bi-th-filter-price" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Quantity">
+                    <div class="th-label">Quantity</div>
+                    <input type="number" min="0" id="bi-th-filter-qty" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Purchased From">
+                    <div class="th-label">Purchased From</div>
+                    <select id="bi-th-filter-from" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
                   <th data-label=""></th>
                 </tr>
               </thead>
@@ -859,6 +978,14 @@
                 <option value="">—</option>
               </select>
             </label>
+            <label class="field inline">
+              <span>Realised</span>
+              <select id="bo-filter-realised">
+                <option value="__ALL__">All</option>
+                <option value="no">Pending</option>
+                <option value="yes">Realised</option>
+              </select>
+            </label>
             <button id="bo-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
             <span class="hscroll-controls">
               <button id="bo-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
@@ -875,17 +1002,49 @@
                   <th draggable="true" data-label="S.No">S.No</th>
                   <th draggable="true" data-label="Time">Time</th>
                   <th draggable="true" data-label="Name">Name</th>
-                  <th draggable="true" data-label="Language">Language</th>
-                  <th draggable="true" data-label="Sold Price">Sold Price</th>
-                  <th draggable="true" data-label="Quantity">Quantity</th>
-                  <th draggable="true" data-label="Sold Area">Sold Area</th>
-                  <th draggable="true" data-label="Sold By">Sold By</th>
-                  <th draggable="true" data-label="Realised">Realised</th>
+                  <th draggable="true" data-label="Language">
+                    <div class="th-label">Language</div>
+                    <select id="bo-th-filter-language" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="Sold Price">
+                    <div class="th-label">Sold Price</div>
+                    <input type="number" id="bo-th-filter-price" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Quantity">
+                    <div class="th-label">Quantity</div>
+                    <input type="number" min="0" id="bo-th-filter-qty" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Total">Total</th>
+                  <th draggable="true" data-label="Sold Area">
+                    <div class="th-label">Sold Area</div>
+                    <select id="bo-th-filter-area" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="Sold By">
+                    <div class="th-label">Sold By</div>
+                    <select id="bo-th-filter-by" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="Realised">
+                    <div class="th-label">Realised</div>
+                    <select id="bo-th-filter-realised" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="no">Pending</option>
+                      <option value="yes">Realised</option>
+                    </select>
+                  </th>
                   <th data-label=""></th>
                 </tr>
               </thead>
               <tbody id="book-outward-body">
-                <tr><td colspan="10" class="loading-row">Loading…</td></tr>
+                <tr><td colspan="11" class="loading-row">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -936,13 +1095,136 @@
                 <tr>
                   <th draggable="true" data-label="S.No">S.No</th>
                   <th draggable="true" data-label="Name">Name</th>
-                  <th draggable="true" data-label="Description">Description</th>
-                  <th draggable="true" data-label="Map Link">Map Link</th>
+                  <th draggable="true" data-label="Description">
+                    <div class="th-label">Description</div>
+                    <select id="bp-th-filter-description" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="__BLANK__">Blank Only</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="Map Link">
+                    <div class="th-label">Map Link</div>
+                    <select id="bp-th-filter-map-link" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="__BLANK__">Blank Only</option>
+                    </select>
+                  </th>
                   <th data-label=""></th>
                 </tr>
               </thead>
               <tbody id="book-places-body">
                 <tr><td colspan="5" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== BOOK DISTRIBUTION: Book Requests ===== -->
+    <section id="book-requests-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="br-search" type="search" placeholder="Search name / place / requested by…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="br-sort" class="inline-edit">
+                <option value="created_at-desc">Time (Newest)</option>
+                <option value="created_at-asc">Time (Oldest)</option>
+                <option value="priorityRank-asc">Priority (Most Urgent First)</option>
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Quantity</span>
+              <input type="number" min="0" id="br-filter-qty" placeholder="All" />
+            </label>
+            <label class="field inline">
+              <span>Priority</span>
+              <select id="br-filter-priority">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Place</span>
+              <select id="br-filter-place">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Requested By</span>
+              <select id="br-filter-by">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Status</span>
+              <select id="br-filter-fulfilled">
+                <option value="__ALL__">All</option>
+                <option value="no">Pending</option>
+                <option value="yes">Fulfilled</option>
+              </select>
+            </label>
+            <button id="add-book-request-admin-btn" class="btn btn-primary toolbar-btn open-book-request-btn">+ Add Request</button>
+            <button id="br-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
+            <span class="hscroll-controls">
+              <button id="br-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+              <button id="br-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+            </span>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="table-wrap" id="book-requests-table-wrap">
+            <table class="data-table" id="book-requests-table">
+              <thead>
+                <tr>
+                  <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Time">Time</th>
+                  <th draggable="true" data-label="Name">Name</th>
+                  <th draggable="true" data-label="Quantity">
+                    <div class="th-label">Quantity</div>
+                    <input type="number" min="0" id="br-th-filter-qty" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Place">
+                    <div class="th-label">Place</div>
+                    <select id="br-th-filter-place" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="Priority">
+                    <div class="th-label">Priority</div>
+                    <select id="br-th-filter-priority" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="Requested By">
+                    <div class="th-label">Requested By</div>
+                    <select id="br-th-filter-by" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="Fulfilled">
+                    <div class="th-label">Fulfilled</div>
+                    <select id="br-th-filter-fulfilled" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="no">Pending</option>
+                      <option value="yes">Fulfilled</option>
+                    </select>
+                  </th>
+                  <th data-label=""></th>
+                </tr>
+              </thead>
+              <tbody id="book-requests-body">
+                <tr><td colspan="9" class="loading-row">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -965,6 +1247,7 @@
             </div>
             <label class="field inline"><span>User</span><select id="ba-filter-user-select" class="inline-edit"></select></label>
             <label class="field inline"><span>Place</span><select id="ba-filter-place-select" class="inline-edit"></select></label>
+            <label class="field inline"><span>Book</span><select id="ba-filter-book-select" class="inline-edit"></select></label>
             <button id="ba-run-btn" class="btn btn-primary toolbar-btn">View</button>
           </div>
         </div>
@@ -972,10 +1255,11 @@
         <div class="users-content">
           <div class="stats-bar">
             <div class="stat"><span id="ba-stat-inward-qty" class="stat-num">0</span><span class="stat-label">Total Inward</span></div>
+            <div class="stat"><span id="ba-stat-purchase-value" class="stat-num">₹0</span><span class="stat-label">Purchase Value</span></div>
             <div class="stat"><span id="ba-stat-sold-qty" class="stat-num">0</span><span class="stat-label">Total Sold</span></div>
             <div class="stat"><span id="ba-stat-sales-value" class="stat-num">₹0</span><span class="stat-label">Sales Value</span></div>
-            <div class="stat"><span id="ba-stat-purchase-value" class="stat-num">₹0</span><span class="stat-label">Purchase Value</span></div>
             <div id="ba-stat-profit-card" class="stat"><span id="ba-stat-profit" class="stat-num">₹0</span><span class="stat-label">Realized Profit</span></div>
+            <div id="ba-stat-net-profit-card" class="stat"><span id="ba-stat-net-profit" class="stat-num">₹0</span><span class="stat-label">Net Profit</span></div>
           </div>
 
           <div class="panel">
@@ -999,13 +1283,268 @@
       </div>
     </section>
 
+    <!-- ===== BOOK DISTRIBUTION: Expenses ===== -->
+    <section id="book-expenses-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="be-search" type="search" placeholder="Search name / place…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="be-sort" class="inline-edit">
+                <option value="expense_date-desc">Date (Newest)</option>
+                <option value="expense_date-asc">Date (Oldest)</option>
+                <option value="cost-desc">Cost (High-Low)</option>
+                <option value="cost-asc">Cost (Low-High)</option>
+                <option value="result_profit-desc">Result (High-Low)</option>
+                <option value="result_profit-asc">Result (Low-High)</option>
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Cost</span>
+              <input type="number" id="be-filter-cost" placeholder="All" />
+            </label>
+            <label class="field inline">
+              <span>Place</span>
+              <select id="be-filter-place">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>To</span>
+              <select id="be-filter-to">
+                <option value="__ALL__">All</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Result / Profit</span>
+              <input type="number" id="be-filter-result-profit" placeholder="All" />
+            </label>
+            <button id="add-book-expense-btn" class="btn btn-primary toolbar-btn">+ Add Expense</button>
+            <button id="be-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
+            <span class="hscroll-controls">
+              <button id="be-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+              <button id="be-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+            </span>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="stats-bar">
+            <div class="stat"><span id="be-stat-gross-amount" class="stat-num">₹0</span><span class="stat-label">Gross Amount</span></div>
+            <div class="stat"><span id="be-stat-gross-profit" class="stat-num">₹0</span><span class="stat-label">Gross Profit</span></div>
+            <div class="stat stat-pending"><span id="be-stat-expenses" class="stat-num">₹0</span><span class="stat-label">Expenses</span></div>
+            <div id="be-stat-net-profit-card" class="stat"><span id="be-stat-net-profit" class="stat-num">₹0</span><span class="stat-label">Net Profit</span></div>
+          </div>
+
+          <div class="table-wrap" id="book-expenses-table-wrap">
+            <table class="data-table" id="book-expenses-table">
+              <thead>
+                <tr>
+                  <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Date">Date</th>
+                  <th draggable="true" data-label="Name">Name</th>
+                  <th draggable="true" data-label="Cost">
+                    <div class="th-label">Cost</div>
+                    <input type="number" id="be-th-filter-cost" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Place">
+                    <div class="th-label">Place</div>
+                    <select id="be-th-filter-place" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="To">
+                    <div class="th-label">To</div>
+                    <select id="be-th-filter-to" class="th-filter">
+                      <option value="__ALL__">All</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="Result / Profit">
+                    <div class="th-label">Result / Profit</div>
+                    <input type="number" id="be-th-filter-result-profit" class="th-filter" placeholder="All" />
+                  </th>
+                  <th data-label=""></th>
+                </tr>
+              </thead>
+              <tbody id="book-expenses-body">
+                <tr><td colspan="8" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FNRG SADHANA ===== -->
+    <section id="admin-sadhana-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="sadhana-search" type="search" placeholder="Search name…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="sadhana-sort" class="inline-edit">
+                <option value="sadhana_date-desc">Date (Newest)</option>
+                <option value="sadhana_date-asc">Date (Oldest)</option>
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+              </select>
+            </label>
+            <button id="add-sadhana-btn" class="btn btn-primary toolbar-btn">+ Add Sadhana</button>
+            <button id="add-sadhana-bulk-btn" class="btn btn-secondary toolbar-btn">⬆ Bulk Import</button>
+            <button id="sadhana-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
+            <span class="hscroll-controls">
+              <button id="sadhana-scroll-left" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns left">◀</button>
+              <button id="sadhana-scroll-right" type="button" class="btn btn-secondary hscroll-btn" title="Scroll columns right">▶</button>
+            </span>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="table-wrap" id="sadhana-table-wrap">
+            <table class="data-table" id="sadhana-table">
+              <thead>
+                <tr>
+                  <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Name">Name</th>
+                  <th draggable="true" data-label="Date">Date</th>
+                  <th draggable="true" data-label="Rounds">Rounds</th>
+                  <th draggable="true" data-label="Book Reading">Book Reading</th>
+                  <th draggable="true" data-label="Screen Time">Screen Time</th>
+                  <th draggable="true" data-label="Detox Time">Detox Time</th>
+                  <th draggable="true" data-label="Service">Service</th>
+                  <th draggable="true" data-label="Swadhyaya">Swadhyaya</th>
+                  <th data-label=""></th>
+                </tr>
+              </thead>
+              <tbody id="sadhana-body">
+                <tr><td colspan="10" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FNRG SADHANA: Users (track roster) ===== -->
+    <section id="sadhana-users-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="sadhana-users-search" type="search" placeholder="Search name…" class="search-input" />
+          </div>
+          <p id="sadhana-users-summary" class="muted-text"></p>
+        </div>
+
+        <div class="users-content">
+          <div class="table-wrap" id="sadhana-users-table-wrap">
+            <table class="data-table" id="sadhana-users-table">
+              <thead>
+                <tr>
+                  <th data-label="S.No">S.No</th>
+                  <th data-label="Name">Name</th>
+                  <th data-label="Role">Role</th>
+                  <th data-label="Track">Track</th>
+                </tr>
+              </thead>
+              <tbody id="sadhana-users-body">
+                <tr><td colspan="4" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FNRG SADHANA: Analytics ===== -->
+    <section id="sadhana-analytics-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <div class="field inline">
+              <span>Date Range</span>
+              <div class="date-range-inputs">
+                <input id="sa-from" type="date" />
+                <span class="date-range-sep">–</span>
+                <input id="sa-to" type="date" />
+              </div>
+            </div>
+            <label class="field inline"><span>Name</span><select id="sa-filter-name-select" class="inline-edit"></select></label>
+            <label class="field inline">
+              <span>Min Entries</span>
+              <input type="number" min="0" id="sa-filter-min-entries" placeholder="All" />
+            </label>
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="sa-sort" class="inline-edit">
+                <option value="rounds_total-desc">Total Rounds (High-Low)</option>
+                <option value="rounds_total-asc">Total Rounds (Low-High)</option>
+                <option value="rounds_avg-desc">Avg Rounds (High-Low)</option>
+                <option value="rounds_avg-asc">Avg Rounds (Low-High)</option>
+                <option value="entries-desc">Entries (High-Low)</option>
+                <option value="entries-asc">Entries (Low-High)</option>
+                <option value="consistency-desc">Consistency (High-Low)</option>
+                <option value="consistency-asc">Consistency (Low-High)</option>
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+              </select>
+            </label>
+            <button id="sa-run-btn" class="btn btn-primary toolbar-btn">View</button>
+            <button id="sa-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="stats-bar">
+            <div class="stat"><span id="sa-stat-entries" class="stat-num">0</span><span class="stat-label">Total Entries</span></div>
+            <div class="stat"><span id="sa-stat-participants" class="stat-num">0</span><span class="stat-label">Participants</span></div>
+            <div class="stat"><span id="sa-stat-rounds-total" class="stat-num">0</span><span class="stat-label">Total Rounds</span></div>
+            <div class="stat"><span id="sa-stat-rounds-avg" class="stat-num">0</span><span class="stat-label">Avg Rounds / Entry</span></div>
+            <div class="stat"><span id="sa-stat-book-avg" class="stat-num">0</span><span class="stat-label">Avg Book Reading (min)</span></div>
+            <div class="stat"><span id="sa-stat-detox-avg" class="stat-num">0</span><span class="stat-label">Avg Detox Time (min)</span></div>
+          </div>
+
+          <div class="panel">
+            <div class="caller-title-row">
+              <h3 class="section-title">Participant Leaderboard</h3>
+            </div>
+            <div class="table-wrap" id="sa-leaderboard-table-wrap">
+              <table class="data-table" id="sa-leaderboard-table">
+                <thead>
+                  <tr>
+                    <th data-label="S.No">S.No</th>
+                    <th data-label="Name">Name</th>
+                    <th data-label="Entries">Entries</th>
+                    <th data-label="Consistency">Consistency</th>
+                    <th data-label="Total Rounds">Total Rounds</th>
+                    <th data-label="Avg Rounds">Avg Rounds</th>
+                    <th data-label="Avg Book Reading">Avg Book Reading</th>
+                    <th data-label="Avg Screen Time">Avg Screen Time</th>
+                    <th data-label="Avg Detox Time">Avg Detox Time</th>
+                    <th data-label="Last Entry">Last Entry</th>
+                    <th class="no-export" data-label=""></th>
+                  </tr>
+                </thead>
+                <tbody id="sa-leaderboard-body"><tr><td colspan="11" class="loading-row">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== USER: Book Distribution stock entry ===== -->
     <section id="book-stock-entry-section" class="page hidden">
       <div class="panel">
         <div class="panel-title-row">
           <span>Sales Entry</span>
         </div>
-        <div id="book-latest-location-indicator" class="muted-text hidden" style="margin-bottom:8px;"></div>
+        <div id="book-latest-location-indicator" class="muted-text hidden"></div>
         <div class="panel-row book-stock-add-row">
           <!-- <button id="add-book-inward-btn" class="btn btn-primary btn-sm">+ Add Inward Stock</button> -->
           <button id="add-book-outward-btn" class="btn btn-primary btn-sm">+ Add Sales</button>
@@ -1013,7 +1552,7 @@
       </div>
       <!--
       <div class="panel">
-        <h3 class="section-title">Your Inward Stock Entries <span class="muted-text" style="font-weight:400;">(Yesterday &amp; Today)</span></h3>
+        <h3 class="section-title">Your Inward Stock Entries <span class="muted-text fw-normal">(Yesterday &amp; Today)</span></h3>
         <div class="table-wrap" id="my-inward-table-wrap">
           <table class="data-table" id="my-inward-table">
             <thead><tr><th data-label="S.No">S.No</th><th data-label="Time">Time</th><th data-label="Name">Name</th><th data-label="Language">Language</th><th data-label="Purchase Price">Purchase Price</th><th data-label="Quantity">Quantity</th><th data-label="Purchased From">Purchased From</th></tr></thead>
@@ -1034,12 +1573,70 @@
         </div>
       </div>
       <div class="panel">
-        <h3 class="section-title">Your Outward Stock Entries <span class="muted-text" style="font-weight:400;">(Last 72 Hours)</span></h3>
+        <h3 class="section-title">Your Outward Stock Entries <span class="muted-text fw-normal">(Last 72 Hours)</span></h3>
         <div class="table-wrap" id="my-outward-table-wrap">
           <table class="data-table" id="my-outward-table">
-            <thead><tr><th data-label="S.No">S.No</th><th data-label="Name">Name</th><th data-label="Count">Count</th><th data-label="Price">Price</th></tr></thead>
-            <tbody id="my-outward-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
+            <thead><tr><th data-label="S.No">S.No</th><th data-label="Name">Name</th><th data-label="Count">Count</th><th data-label="Price">Price</th><th data-label="Total">Total</th><th data-label="Realised">Realised</th></tr></thead>
+            <tbody id="my-outward-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== USER: Book Requests ===== -->
+    <section id="book-requests-user-section" class="page hidden">
+      <div class="panel">
+        <div class="panel-title-row">
+          <span>Book Requests</span>
+        </div>
+        <div class="panel-row book-stock-add-row">
+          <button id="add-book-request-btn" class="btn btn-primary btn-sm open-book-request-btn">+ Request a Book</button>
+        </div>
+        <div class="table-wrap" id="my-requests-table-wrap">
+          <table class="data-table" id="my-requests-table">
+            <thead><tr><th data-label="S.No">S.No</th><th data-label="Name">Name</th><th data-label="Quantity">Quantity</th><th data-label="Place">Place</th><th data-label="Priority">Priority</th><th data-label="Status">Status</th></tr></thead>
+            <tbody id="my-requests-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== USER / ADMIN: Savings & Earnings ===== -->
+    <section id="book-savings-user-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="users-content">
+          <div class="panel-row hidden" id="bs-stats-user-toolbar">
+            <label class="field inline"><span>Show contribution for</span><select id="bs-stats-user-select" class="inline-edit"><option value="__ALL__">All Users (combined)</option></select></label>
+          </div>
+          <div class="stats-bar">
+            <div class="stat stat-total"><span id="bs-total-grand" class="stat-num">₹0</span><span class="stat-label">Total</span></div>
+            <div id="bs-my-contribution-card" class="stat stat-positive cursor-pointer" title="Tap to view all your submissions"><span id="bs-total-mycontribution" class="stat-num">₹0</span><span class="stat-label">My Contribution</span></div>
+            <div class="stat stat-assigned"><span id="bs-total-net" class="stat-num">₹0</span><span class="stat-label">Srila Prabhupada's Contribution</span></div>
+          </div>
+
+          <div class="panel-row book-stock-add-row">
+            <button id="add-book-contribution-btn" class="btn btn-primary btn-sm">+ Add Contribution</button>
+          </div>
+
+          <div class="panel" id="bs-realise-section">
+            <div class="panel-title-row"><span>Contributions Paid To You — Confirm Receipt</span></div>
+            <div class="table-wrap" id="bs-realise-table-wrap">
+              <table class="data-table" id="bs-realise-table">
+                <thead>
+                  <tr>
+                    <th data-label="S.No">S.No</th>
+                    <th data-label="Date">Date</th>
+                    <th data-label="Amount">Amount</th>
+                    <th data-label="Paid By">Paid By</th>
+                    <th data-label="Realised">Realised</th>
+                  </tr>
+                </thead>
+                <tbody id="bs-realise-body">
+                  <tr><td colspan="5" class="loading-row">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -1068,6 +1665,28 @@
               </div>
             </div>
             <label class="field inline">
+              <span>Language</span>
+              <select id="cmd-filter-language">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Sold Price</span>
+              <input type="number" id="cmd-filter-price" placeholder="All" />
+            </label>
+            <label class="field inline">
+              <span>Quantity</span>
+              <input type="number" min="0" id="cmd-filter-qty" placeholder="All" />
+            </label>
+            <label class="field inline">
+              <span>Sold Area</span>
+              <select id="cmd-filter-area">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <label class="field inline">
               <span>Sold By</span>
               <select id="cmd-filter-by">
                 <option value="__ALL__">All</option>
@@ -1081,6 +1700,7 @@
             </span>
           </div>
           <p id="cmd-summary" class="muted-text"></p>
+          <p id="cmd-total-unrealised" class="cmd-total-unrealised"></p>
         </div>
 
         <div class="users-content">
@@ -1091,16 +1711,41 @@
                   <th data-label="S.No">S.No</th>
                   <th data-label="Time">Time</th>
                   <th data-label="Name">Name</th>
-                  <th data-label="Language">Language</th>
-                  <th data-label="Sold Price">Sold Price</th>
-                  <th data-label="Quantity">Quantity</th>
-                  <th data-label="Sold Area">Sold Area</th>
-                  <th data-label="Sold By">Sold By</th>
+                  <th data-label="Language">
+                    <div class="th-label">Language</div>
+                    <select id="cmd-th-filter-language" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th data-label="Sold Price">
+                    <div class="th-label">Sold Price</div>
+                    <input type="number" id="cmd-th-filter-price" class="th-filter" placeholder="All" />
+                  </th>
+                  <th data-label="Quantity">
+                    <div class="th-label">Quantity</div>
+                    <input type="number" min="0" id="cmd-th-filter-qty" class="th-filter" placeholder="All" />
+                  </th>
+                  <th data-label="Total">Total</th>
+                  <th data-label="Sold Area">
+                    <div class="th-label">Sold Area</div>
+                    <select id="cmd-th-filter-area" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th data-label="Sold By">
+                    <div class="th-label">Sold By</div>
+                    <select id="cmd-th-filter-by" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
                   <th data-label="Realised">Realised</th>
                 </tr>
               </thead>
               <tbody id="commander-body">
-                <tr><td colspan="9" class="loading-row">Loading…</td></tr>
+                <tr><td colspan="10" class="loading-row">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -1147,15 +1792,73 @@
       </div>
     </section>
 
+    <!-- ===== USER: FNRG Sadhana ===== -->
+    <section id="fnrg-sadhana-user-section" class="page hidden">
+      <nav id="fnrg-sadhana-user-tabs" class="admin-tabs fsu-tabs">
+        <button class="admin-tab active" data-target="fsu-enter-panel">Enter Sadhana</button>
+        <button class="admin-tab" data-target="fsu-analytics-panel">Analytics</button>
+      </nav>
+
+      <div id="fsu-enter-panel" class="fsu-panel">
+        <div class="panel sadhana-roster-panel">
+          <div class="panel-title-row">
+            <span>Enter Sadhana</span>
+          </div>
+          <div class="panel-row">
+            <label class="field inline"><span>Date</span><input id="fsu-date" type="date" /></label>
+            <input id="fsu-search" type="search" placeholder="Search name…" class="search-input" />
+            <button id="fsu-refresh-btn" class="btn btn-secondary toolbar-btn">↻ Refresh</button>
+          </div>
+          <p id="fsu-summary" class="muted-text">Loading…</p>
+          <div class="sadhana-roster-scroll">
+            <div class="sadhana-roster-header">
+              <span class="sr-col-name">Name</span>
+              <span>Rounds</span>
+              <span>Book Reading</span>
+              <span>Screen Time</span>
+              <span>Detox Time</span>
+              <span>Service</span>
+              <span>Swadhyaya</span>
+            </div>
+            <div id="fsu-list" class="sadhana-roster-list">
+              <p class="loading-row">Loading…</p>
+            </div>
+          </div>
+          <div class="sadhana-roster-savebar">
+            <span id="fsu-incomplete-count" class="muted-text m0"></span>
+            <button id="fsu-save-btn" class="btn btn-primary toolbar-btn">💾 Submit All</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="fsu-analytics-panel" class="fsu-panel hidden">
+        <div class="panel">
+          <div class="panel-row">
+            <label class="field inline"><span>From</span><input id="fsu-from" type="date" /></label>
+            <label class="field inline"><span>To</span><input id="fsu-to" type="date" /></label>
+            <button id="fsu-analytics-run-btn" class="btn btn-primary toolbar-btn">View</button>
+          </div>
+          <div class="stats-bar">
+            <div class="stat"><span id="fsu-stat-entries" class="stat-num">0</span><span class="stat-label">Total Entries</span></div>
+            <div class="stat"><span id="fsu-stat-consistency" class="stat-num">—</span><span class="stat-label">Consistency</span></div>
+            <div class="stat"><span id="fsu-stat-rounds-total" class="stat-num">0</span><span class="stat-label">Total Rounds</span></div>
+            <div class="stat"><span id="fsu-stat-rounds-avg" class="stat-num">0</span><span class="stat-label">Avg Rounds / Entry</span></div>
+            <div class="stat"><span id="fsu-stat-book-avg" class="stat-num">0</span><span class="stat-label">Avg Book Reading (min)</span></div>
+            <div class="stat"><span id="fsu-stat-detox-avg" class="stat-num">0</span><span class="stat-label">Avg Detox Time (min)</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== ADMIN: New Contacts ===== -->
     <section id="admin-new-contacts-section" class="page hidden">
       <div class="panel">
-        <div class="panel-row" style="flex-wrap:nowrap; overflow-x:auto; align-items:center;">
-          <h3 class="section-title" style="margin:0; white-space:nowrap;">New Contacts (Awaiting Approval)</h3>
-          <button id="add-contact-btn" class="btn btn-secondary" style="white-space:nowrap;">+ Add Contact</button>
-          <button id="new-contacts-refresh-btn" class="btn btn-secondary" style="white-space:nowrap;">↻ Refresh Sheets Data</button>
-          <p id="new-contacts-summary" class="muted-text" style="margin:0; white-space:nowrap;">Connecting to Sheets…</p>
-          <button id="new-contacts-add-all-btn" class="btn btn-primary" style="white-space:nowrap; margin-left:auto;">Add All to Master</button>
+        <div class="panel-row no-wrap">
+          <h3 class="section-title m0 nowrap">New Contacts (Awaiting Approval)</h3>
+          <button id="add-contact-btn" class="btn btn-secondary nowrap">+ Add Contact</button>
+          <button id="new-contacts-refresh-btn" class="btn btn-secondary nowrap">↻ Refresh Sheets Data</button>
+          <p id="new-contacts-summary" class="muted-text m0 nowrap">Connecting to Sheets…</p>
+          <button id="new-contacts-add-all-btn" class="btn btn-primary nowrap ml-auto">Add All to Master</button>
         </div>
       </div>
 
@@ -1213,8 +1916,8 @@
         <div class="stat stat-total"><span id="stat-total" class="stat-num">0</span><span class="stat-label">Total</span></div>
         <div class="stat stat-positive"><span id="stat-positive" class="stat-num">0</span><span class="stat-label">Positive</span></div>
         <div class="stat stat-pending"><span id="stat-pending" class="stat-num">0</span><span class="stat-label">Pending</span></div>
+        <div id="stat-followup-box" class="stat stat-assigned cursor-pointer" title="Show/hide Follow Up Calls"><span id="stat-followup" class="stat-num">0</span><span class="stat-label">Follow-up</span></div>
       </div>
-      <p id="caller-combined-total" class="muted-text combined-total-line"></p>
       <div class="caller-title-row">
         <div class="card-sub-row">
           <div id="caller-event-title" class="section-title"></div>
@@ -1227,7 +1930,7 @@
         <p class="loading-row">Loading your assigned contacts…</p>
       </div>
 
-      <div id="caller-followup-section" class="caller-followup-section">
+      <div id="caller-followup-section" class="caller-followup-section hidden">
         <div class="caller-title-row">
           <div class="section-title">Follow Up Calls <span id="caller-followup-count" class="completion-badge">0</span></div>
         </div>
@@ -1320,9 +2023,9 @@
       <div class="panel">
         <div class="caller-title-row">
           <h3 class="section-title">Today's Attendance</h3>
-          <label class="field inline select-inline" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
-            <span style="font-weight:600; font-size:12px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Sort By</span>
-            <select id="reception-attendance-sort" class="inline-edit" style="width:160px; margin:0; padding:6px 12px; height:36px; line-height:1.2;">
+          <label class="field inline select-inline">
+            <span>Sort By</span>
+            <select id="reception-attendance-sort" class="inline-edit">
               <option value="completion" selected>% Completion</option>
               <option value="name">Name (A-Z)</option>
               <option value="phone">Phone Number</option>
@@ -1376,7 +2079,7 @@
       <div id="one-to-one-user-request" class="panel hidden">
         <p class="muted-text">You haven't been added to One to One yet.</p>
         <button id="one-to-one-request-btn" class="btn btn-primary">Request Prabhu to get your slot</button>
-        <div id="one-to-one-request-form" class="hidden" style="margin-top:14px;">
+        <div id="one-to-one-request-form" class="hidden">
           <label class="field"><span>Your message to Prabhu</span><textarea id="one-to-one-request-text" rows="3" placeholder="Tell Prabhu why you'd like a One to One slot…"></textarea></label>
           <div id="one-to-one-request-error" class="field-error hidden"></div>
           <button id="one-to-one-request-submit" class="btn btn-primary">Submit</button>
@@ -1447,7 +2150,7 @@
 <div id="manage-events-modal" class="modal">
   <div class="modal-box modal-large">
     <h3>Edit Events</h3>
-    <div class="table-wrap" style="max-height:320px;">
+    <div class="table-wrap h-320">
       <table class="data-table" id="manage-events-table">
         <thead>
           <tr><th>S.No</th><th>Code</th><th>Display Name</th><th>Contacts</th><th></th></tr>
@@ -1458,7 +2161,7 @@
       </table>
     </div>
 
-    <h4 style="margin:18px 0 10px; color:var(--tulsi-dark); font-weight:800; font-size:15px;">Add New Event</h4>
+    <h4 class="modal-subheading">Add New Event</h4>
     <label class="field"><span>Event Code (short, e.g. GIC)</span><input id="add-event-code" type="text" maxlength="10" /></label>
     <label class="field"><span>Display Name</span><input id="add-event-name" type="text" /></label>
     <div id="add-event-error" class="field-error hidden"></div>
@@ -1486,6 +2189,7 @@
         <option value="book_places">Book Distribution: Distribution Places</option>
         <option value="book_inward">Book Distribution: Inward Stock</option>
         <option value="book_outward">Book Distribution: Outward Stock</option>
+        <option value="fnrg_sadhana">FNRG Sadhana</option>
       </select>
     </label>
 
@@ -1571,7 +2275,7 @@
     </div>
 
     <div id="bulk-delete-filter-events" class="bulk-delete-filter hidden">
-      <span style="display:block; font-size:13px; font-weight:700; color:var(--tulsi-dark); margin-bottom:6px;">Select Event(s) to Delete</span>
+      <span class="field-label">Select Event(s) to Delete</span>
       <div id="bulk-delete-events-checklist" class="tag-check-group"></div>
     </div>
 
@@ -1617,12 +2321,16 @@
       </label>
     </div>
 
-    <div id="bulk-delete-preview" class="muted-text" style="margin:14px 0; font-weight:700;"></div>
+    <div id="bulk-delete-filter-fnrg_sadhana" class="bulk-delete-filter hidden">
+      <p class="muted-text">This will delete ALL FNRG Sadhana records.</p>
+    </div>
+
+    <div id="bulk-delete-preview" class="muted-text bulk-delete-preview"></div>
     <div id="bulk-delete-error" class="field-error hidden"></div>
 
     <div class="modal-actions">
       <button id="bulk-delete-cancel" class="btn btn-secondary">Cancel</button>
-      <button id="bulk-delete-trigger" class="btn btn-primary" style="background:var(--danger); box-shadow:none;">Delete</button>
+      <button id="bulk-delete-trigger" class="btn btn-primary btn-danger">Delete</button>
     </div>
   </div>
 </div>
@@ -1634,7 +2342,7 @@
       <p id="bulk-delete-guard-message" class="muted-text"></p>
       <div class="modal-actions">
         <button id="bulk-delete-guard-cancel1" class="btn btn-secondary">Cancel</button>
-        <button id="bulk-delete-guard-yes" class="btn btn-primary" style="background:var(--danger); box-shadow:none;">Yes, Continue</button>
+        <button id="bulk-delete-guard-yes" class="btn btn-primary btn-danger">Yes, Continue</button>
       </div>
     </div>
     <div id="bulk-delete-guard-step2" class="hidden">
@@ -1644,7 +2352,7 @@
       <div id="bulk-delete-guard-error" class="field-error hidden"></div>
       <div class="modal-actions">
         <button id="bulk-delete-guard-cancel2" class="btn btn-secondary">Cancel</button>
-        <button id="bulk-delete-guard-confirm" class="btn btn-primary" style="background:var(--danger); box-shadow:none;">Permanently Delete</button>
+        <button id="bulk-delete-guard-confirm" class="btn btn-primary btn-danger">Permanently Delete</button>
       </div>
     </div>
   </div>
@@ -1780,7 +2488,7 @@
     <p id="delete-contact-message" class="muted-text"></p>
     <div class="modal-actions">
       <button id="delete-contact-cancel" class="btn btn-secondary">Cancel</button>
-      <button id="delete-contact-confirm" class="btn btn-primary" style="background:var(--danger); box-shadow:none;">Permanently Delete</button>
+      <button id="delete-contact-confirm" class="btn btn-primary btn-danger">Permanently Delete</button>
     </div>
   </div>
 </div>
@@ -1811,6 +2519,76 @@
     <div class="modal-actions">
       <button id="book-inward-cancel-btn" class="btn btn-secondary">Cancel</button>
       <button id="book-inward-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="sadhana-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add Sadhana</h3>
+    <label class="field"><span>Name</span><input id="sadhana-name" type="text" /></label>
+    <label class="field"><span>Date</span><input id="sadhana-date" type="date" /></label>
+    <label class="field"><span>Rounds</span><input id="sadhana-rounds" type="number" min="0" step="any" /></label>
+    <label class="field"><span>Book Reading</span><input id="sadhana-book-reading" type="number" min="0" step="any" /></label>
+    <label class="field"><span>Screen Time</span><input id="sadhana-screen-time" type="number" min="0" step="any" /></label>
+    <label class="field"><span>Detox Time</span><input id="sadhana-detox-time" type="number" min="0" step="any" /></label>
+    <label class="field"><span>Service</span>
+      <select id="sadhana-service">
+        <option value="">—</option>
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+        <option value="Na">Na</option>
+      </select>
+    </label>
+    <label class="field"><span>Swadhyaya</span>
+      <select id="sadhana-swadhyaya">
+        <option value="">—</option>
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+      </select>
+    </label>
+    <div id="sadhana-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="sadhana-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="sadhana-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="sadhana-bulk-import-modal" class="modal">
+  <div class="modal-box">
+    <h3>Bulk Add Sadhana (Excel)</h3>
+    <p class="field-hint">Upload an .xlsx/.csv file with columns: Name (required), Date, Rounds, Book Reading, Screen Time, Detox Time.</p>
+    <button id="sadhana-bulk-import-template-btn" type="button" class="btn btn-secondary btn-sm">⬇ Download Template</button>
+    <label class="field"><span>File</span><input id="sadhana-bulk-import-file" type="file" accept=".xlsx,.xls,.csv" /></label>
+    <div id="sadhana-bulk-import-preview" class="field-hint"></div>
+    <div id="sadhana-bulk-import-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="sadhana-bulk-import-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="sadhana-bulk-import-save-btn" class="btn btn-primary" disabled>Import</button>
+    </div>
+  </div>
+</div>
+
+<div id="sadhana-analytics-detail-modal" class="modal">
+  <div class="modal-box modal-large">
+    <h3 id="sadhana-analytics-detail-title">Details</h3>
+    <div class="table-wrap h-380">
+      <table class="data-table" id="sadhana-analytics-detail-table">
+        <thead><tr>
+          <th data-label="Date">Date</th>
+          <th data-label="Rounds">Rounds</th>
+          <th data-label="Book Reading">Book Reading</th>
+          <th data-label="Screen Time">Screen Time</th>
+          <th data-label="Detox Time">Detox Time</th>
+          <th data-label="Service">Service</th>
+          <th data-label="Swadhyaya">Swadhyaya</th>
+        </tr></thead>
+        <tbody id="sadhana-analytics-detail-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="sadhana-analytics-detail-close" class="btn btn-secondary">Close</button>
     </div>
   </div>
 </div>
@@ -1871,10 +2649,46 @@
   </div>
 </div>
 
+<div id="book-request-modal" class="modal">
+  <div class="modal-box">
+    <h3>Request a Book</h3>
+    <label class="field"><span>Book Title</span><input type="text" id="book-request-name" placeholder="Search or type a new book title…" autocomplete="off" /></label>
+    <label class="field"><span>Quantity</span><input type="number" id="book-request-quantity" min="1" step="1" /></label>
+    <label class="field"><span>Place</span><input type="text" id="book-request-place" placeholder="Search or type a place…" autocomplete="off" /></label>
+    <label class="field">
+      <span>Priority</span>
+      <select id="book-request-priority">
+        <option value="Immediately">Immediately</option>
+        <option value="Important">Important</option>
+        <option value="Can Wait" selected>Can Wait</option>
+      </select>
+    </label>
+    <div id="book-request-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="book-request-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="book-request-save-btn" class="btn btn-primary">Submit Request</button>
+    </div>
+  </div>
+</div>
+
+<div id="book-contribution-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add Contribution</h3>
+    <label class="field"><span>Date</span><input id="book-contribution-date" type="date" /></label>
+    <label class="field"><span>Amount</span><input id="book-contribution-amount" type="number" min="0" step="0.01" /></label>
+    <label class="field"><span>Paid To</span><select id="book-contribution-paid-to"><option value="">— Select User —</option></select></label>
+    <div id="book-contribution-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="book-contribution-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="book-contribution-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="book-dashboard-detail-modal" class="modal">
   <div class="modal-box modal-large">
     <h3 id="book-dashboard-detail-title">Details</h3>
-    <div class="table-wrap" style="max-height:380px;">
+    <div class="table-wrap h-380">
       <table class="data-table" id="book-dashboard-detail-table">
         <thead><tr></tr></thead>
         <tbody id="book-dashboard-detail-body"></tbody>
@@ -1882,6 +2696,36 @@
     </div>
     <div class="modal-actions">
       <button id="book-dashboard-detail-close" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="book-expense-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add Expense</h3>
+    <label class="field"><span>Date</span><input id="book-expense-date" type="date" /></label>
+    <label class="field"><span>Name</span><input id="book-expense-name" type="text" placeholder="What was this expense for?" /></label>
+    <label class="field"><span>Cost</span><input id="book-expense-cost" type="number" min="0" step="0.01" /></label>
+    <label class="field"><span>Place</span><select id="book-expense-place"><option value="">— Select Place —</option></select></label>
+    <label class="field"><span>To</span></label>
+    <div id="book-expense-to-group" class="tag-check-group"></div>
+    <label class="field"><span>Result / Profit</span><input id="book-expense-result" type="number" step="0.01" /></label>
+    <div id="book-expense-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="book-expense-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="book-expense-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="book-expense-to-modal" class="modal">
+  <div class="modal-box">
+    <h3>Edit Recipients (To)</h3>
+    <div id="book-expense-to-edit-group" class="tag-check-group"></div>
+    <div id="book-expense-to-edit-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="book-expense-to-edit-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="book-expense-to-edit-save-btn" class="btn btn-primary">Save</button>
     </div>
   </div>
 </div>
@@ -1953,7 +2797,7 @@
   <div class="modal-box modal-large">
     <h3>Help Asked by the Boy</h3>
     <p id="help-requests-sub" class="muted-text"></p>
-    <div class="table-wrap" style="max-height:300px;">
+    <div class="table-wrap h-300">
       <table class="data-table" id="help-requests-table">
         <thead><tr><th>S.No</th><th>Time</th><th>Question</th><th>Status</th><th>Response</th><th></th></tr></thead>
         <tbody id="help-requests-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
@@ -1969,7 +2813,7 @@
   <div class="modal-box modal-large">
     <h3>Remarks by SNKD</h3>
     <p id="remarks-sub" class="muted-text"></p>
-    <div class="table-wrap" style="max-height:220px;">
+    <div class="table-wrap h-220">
       <table class="data-table" id="remarks-table">
         <thead><tr><th>S.No</th><th>Time</th><th>Remark</th><th></th></tr></thead>
         <tbody id="remarks-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
@@ -2030,14 +2874,37 @@
   </div>
 </div>
 
+<div id="cc-general-data-modal" class="modal">
+  <div class="modal-box modal-large" id="cc-general-data-modal-box">
+    <div class="modal-title-row">
+      <h3>Core Cultivation — General Data</h3>
+      <div class="zoom-controls">
+        <button id="cc-general-data-zoom-out" class="btn btn-secondary" type="button" title="Zoom out">−</button>
+        <span id="cc-general-data-zoom-level">100%</span>
+        <button id="cc-general-data-zoom-in" class="btn btn-secondary" type="button" title="Zoom in">+</button>
+      </div>
+    </div>
+    <p class="muted-text">Per cultivator: how many of their cultivated contacts got at least 2 calls in the last 10 days.</p>
+    <div id="cc-general-data-table-wrap" class="table-wrap">
+      <table class="data-table" id="cc-general-data-table">
+        <thead><tr><th>S.No</th><th>Cultivator</th><th>Total</th><th>Completed</th><th>Pending</th><th>Completed %</th></tr></thead>
+        <tbody id="cc-general-data-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="cc-general-data-close" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="history-modal" class="modal">
-  <div class="modal-box modal-large">
-    <h3 id="history-modal-title">Call History</h3>
+  <div class="modal-box modal-large history-modal-box">
+    <div class="modal-title-row">
+      <h3 id="history-modal-title">Call History</h3>
+      <span id="history-count-badge" class="completion-badge"></span>
+    </div>
     <div id="history-contact-info" class="muted-text"></div>
-    <table class="data-table">
-      <thead><tr><th>S.No</th><th>Time</th><th>Status</th><th>Additional</th></tr></thead>
-      <tbody id="history-body"></tbody>
-    </table>
+    <div id="history-body" class="history-list"></div>
     <div class="modal-actions">
       <button id="history-close" class="btn btn-secondary">Close</button>
     </div>

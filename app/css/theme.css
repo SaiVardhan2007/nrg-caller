@@ -67,7 +67,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.page:not(.hidden), #dashboard:not(.hidden), #admin-module-dashboard:not(.hidden) { animation: fadeUp 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+.page:not(.hidden), .dashboard:not(.hidden) { animation: fadeUp 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
 
 /* ============ LOGIN ============ */
 #login-view {
@@ -89,6 +89,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   text-align: center;
   animation: fadeUp 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
+.login-logo-img { width: 72px; height: 72px; border-radius: 16px; }
 .login-logo {
   font-size: 34px;
   width: 68px; height: 68px;
@@ -151,11 +152,13 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .field-error { color: var(--danger); font-size: 13px; margin: -8px 0 14px; font-weight: 500; }
 .field-hint { color: var(--text-muted); font-size: 12.5px; margin: -2px 0 6px; }
 .stock-row-reference-row { display: flex; flex-wrap: wrap; gap: 8px 16px; width: 100%; margin: -2px 0 6px; }
-.stock-row-stock-hint, .stock-row-price-hint {
+.stock-row-stock-hint, .stock-row-price-hint, .stock-row-total-hint {
   font-size: 14.5px; font-weight: 700; color: var(--tulsi-dark);
 }
-.stock-row-stock-hint:empty, .stock-row-price-hint:empty { display: none; }
+.stock-row-stock-hint:empty, .stock-row-price-hint:empty, .stock-row-total-hint:empty { display: none; }
 #caller-search { margin-bottom: 14px; }
+#book-latest-location-indicator { margin-bottom: 8px; }
+#one-to-one-request-form { margin-top: 14px; }
 .field-warning { color: var(--warning); font-size: 13px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px; }
 
 /* ============ BUTTONS ============ */
@@ -178,6 +181,11 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .btn-secondary:hover:not(:disabled) { border-color: var(--tulsi); background: rgba(5,150,105,0.05); }
 .btn-link { background: none; border: none; color: var(--tulsi-dark); text-decoration: underline; padding: 4px 6px; font-weight: 600; font-family: inherit; cursor: pointer; }
 .btn-block { width: 100%; }
+/* Destructive confirm actions (bulk-delete, permanent-delete modals) used to
+   hardcode background:var(--danger);box-shadow:none inline on .btn-primary,
+   four times over — a real class so it's a shared, adjustable look instead. */
+.btn-danger { background: linear-gradient(135deg, #ef4444, var(--danger)); color: #fff; box-shadow: 0 3px 10px rgba(220,38,38,0.3); }
+.btn-danger:hover:not(:disabled) { box-shadow: 0 5px 16px rgba(220,38,38,0.4); }
 
 /* small pill-style action buttons used inside table cells (counts, view, edit) */
 .cell-chip {
@@ -254,23 +262,28 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .admin-tabs-hscroll { display: none; gap: 4px; margin-left: auto; padding-left: 8px; align-self: center; }
 #admin-tabs:has(.admin-tab.active[data-target="admin-users-section"]) .admin-tabs-hscroll { display: inline-flex; }
 
-.main-content { padding: 16px; max-width: 900px; margin: 0 auto; }
-/* the admin table pages carry a lot more columns — give them more breathing room
-   without stretching the simpler card-based pages (caller/reception/collection). */
-.main-content:has(> #admin-contacts-section:not(.hidden)),
-.main-content:has(> #admin-users-section:not(.hidden)),
-.main-content:has(> #admin-analytics-section:not(.hidden)),
-.main-content:has(> #admin-reception-analytics-section:not(.hidden)),
-.main-content:has(> #admin-new-contacts-section:not(.hidden)),
-.main-content:has(> #book-dashboard-section:not(.hidden)),
-.main-content:has(> #book-inward-section:not(.hidden)),
-.main-content:has(> #book-outward-section:not(.hidden)),
-.main-content:has(> #book-places-section:not(.hidden)),
-.main-content:has(> #book-analytics-section:not(.hidden)),
-.main-content:has(> #commander-section:not(.hidden)) {
-  max-width: 100%;
-  margin: 0;
-  padding: 12px 8px;
+/* Full width is the default: most pages hold a data-table, and a table
+   squeezed into a 900px column is what kept shipping broken (Sadhana,
+   One-to-One and Book Requests all launched wide-worthy tables that nobody
+   remembered to add to the old "give these pages more room" allowlist below
+   — each one silently rendered cramped until someone noticed). Flipping the
+   default to wide means a forgotten new page just looks fine; only the
+   handful of simple card/form pages below need to opt into the narrow,
+   centered reading column. */
+.main-content { padding: 12px 8px; max-width: 100%; margin: 0; }
+.main-content:has(> #book-stock-entry-section:not(.hidden)),
+.main-content:has(> #book-requests-user-section:not(.hidden)),
+.main-content:has(> #contact-collection-section:not(.hidden)),
+.main-content:has(> #fnrg-sadhana-user-section:not(.hidden)),
+.main-content:has(> #admin-message-section:not(.hidden)),
+.main-content:has(> #caller-section:not(.hidden)),
+.main-content:has(> #core-cultivation-section:not(.hidden)),
+.main-content:has(> #reception-section:not(.hidden)),
+.main-content:has(> #one-to-one-user-section:not(.hidden)),
+.main-content:has(> #book-savings-user-section:not(.hidden)) {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
 }
 
 /* ============ DASHBOARD ============ */
@@ -326,6 +339,8 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .panel { background: var(--surface); border: 1px solid var(--sandstone); border-radius: var(--card-radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow); }
 .panel-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
 .muted-text { color: var(--text-muted); font-size: 13px; margin: 0; }
+.muted-text.fw-normal { font-weight: 400; }
+.cmd-total-unrealised { font-weight: 800; font-size: 15px; color: var(--danger); margin: 6px 0 0; }
 .section-title { font-weight: 800; color: var(--tulsi-dark); margin: 0 0 12px; font-size: 15px; letter-spacing: -0.01em; }
 .caller-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .caller-title-row .section-title { margin-bottom: 0; }
@@ -333,6 +348,23 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .btn-sm { padding: 7px 14px; font-size: 13px; }
 .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-weight: 800; color: var(--tulsi-dark); font-size: 15px; }
 .book-stock-add-row .btn { flex: 1 1 auto; }
+.panel-row.no-wrap { flex-wrap: nowrap; overflow-x: auto; }
+.nowrap { white-space: nowrap; }
+.m0 { margin: 0; }
+.ml-auto { margin-left: auto; }
+
+/* Master Contact / Reception Analytics "Sort By" control: previously an
+   identical ~5-property inline style block duplicated on two separate pages. */
+.field.inline.select-inline { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+.field.inline.select-inline span { font-weight: 600; font-size: 12px; color: var(--text-muted); text-transform: uppercase; white-space: nowrap; margin-bottom: 0; }
+.field.inline.select-inline select { width: 160px; margin: 0; padding: 6px 12px; height: 36px; line-height: 1.2; }
+
+/* Modal table-wraps that need a shorter cap than the default (calc(100vh -
+   220px)) so a short list doesn't force the whole modal box to full height. */
+.table-wrap.h-220 { max-height: 220px; }
+.table-wrap.h-300 { max-height: 300px; }
+.table-wrap.h-320 { max-height: 320px; }
+.table-wrap.h-380 { max-height: 380px; }
 
 /* ============ MESSAGE TEMPLATES (sticky notes) ============ */
 .sticky-note-grid {
@@ -455,6 +487,19 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #book-places-table { min-width: 750px; }
   #ba-segments-table { min-width: 780px; }
 }
+
+/* FNRG Sadhana has few, simple columns — shrinking it to content (like the
+   Book Distribution tables above) left a dead gap beside the sidebar on
+   normal screens. table-layout:fixed makes the percentage widths below a
+   ceiling as well as a floor, so width:100% actually fills the row instead
+   of the browser distributing the extra space unevenly. Below 900px, where
+   the sidebar drops above the table, a min-width floor comes back so columns
+   don't get crushed — the wrapper's overflow-x:auto turns that into a
+   horizontal scroll instead. */
+#sadhana-table { width: 100%; table-layout: fixed; }
+@media (max-width: 900px) {
+  #sadhana-table { min-width: 900px; }
+}
 .data-table th {
   position: sticky;
   top: 0;
@@ -469,9 +514,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--sandstone); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tbody tr { transition: background 0.12s ease; }
+/* Faint zebra striping so a dense, many-column row can be scanned across
+   without losing your place — placed before hover/highlight rules below so
+   those (equal specificity, later in source) still win over it as needed. */
+.data-table tbody tr:nth-child(even) { background: rgba(6,95,70,0.025); }
 .data-table tbody tr:hover { background: rgba(5,150,105,0.04); }
 .data-table tbody tr.row-low-stock { background: rgba(220,38,38,0.12); }
 .data-table tbody tr.row-low-stock:hover { background: rgba(220,38,38,0.2); }
+.data-table tbody tr.row-cc-stale { background: rgba(220,38,38,0.12); }
+.data-table tbody tr.row-cc-stale:hover { background: rgba(220,38,38,0.2); }
 .clickable-row { cursor: pointer; }
 .clickable-row:hover { background: rgba(5,150,105,0.1) !important; }
 .data-table input[type="number"], .data-table select { padding: 4px 6px; font-size: 12.5px; }
@@ -500,6 +551,10 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    position — on Users & Assignment that squeezed "S.No" into Master Contact's
    32px, cramming the header text. Widen just this table's first column. */
 #users-table th:nth-child(1) { width: 44px !important; max-width: 44px !important; }
+.auto-assign-select-all-check { margin-left: 6px; width: 16px; height: 16px; vertical-align: middle; cursor: pointer; }
+.bd-profit { font-weight: 600; }
+.bd-profit-positive { color: var(--tulsi); }
+.bd-profit-negative { color: var(--danger); }
 
 /* Call Limit is still an editable number field (unlike Count/Completed Calls),
    so it becomes a pill rather than a literal circle — "No limit" needs the
@@ -546,24 +601,28 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   text-align: center;
 }
 
-.data-table th .th-label { margin-bottom: 4px; }
+.data-table th .th-label { margin-bottom: 4px; display: block; }
 .data-table th .th-filter {
   display: block;
   width: 100%;
-  font-size: 10.5px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: none;
   letter-spacing: normal;
-  padding: 3px 4px;
-  border-radius: 4px;
-  border: none;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid transparent;
   color: var(--text-main);
-  background: #fff;
+  background: rgba(255,255,255,0.92);
   cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
+.data-table th .th-filter:hover { background: #fff; }
+.data-table th .th-filter:focus { outline: none; border-color: var(--tulsi-light); background: #fff; }
+.data-table th .th-filter::placeholder { color: var(--text-muted); font-weight: 500; }
 .inline-edit {
   width: 100%; min-width: 50px; padding: 5px 6px; font-size: 13px;
-  border: 1.5px solid transparent; border-radius: 8px; background: transparent;
+  border: 1.5px solid var(--sandstone); border-radius: 8px; background: transparent;
   color: var(--text-main); font-family: inherit; transition: border-color 0.15s ease, background 0.15s ease;
   /* An <input>'s own text rendering clips silently with no "…" when its
      value is wider than the box — the parent td's overflow/text-overflow
@@ -696,11 +755,17 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    that leak would otherwise win (a min-width bigger than our target width,
    or an unwanted centered/cramped cell), the property is neutralized
    explicitly below even though it looks redundant. */
-#book-dashboard-table th[data-label="Name"], #book-dashboard-table td[data-label="Name"] { width: 260px !important; max-width: none !important; min-width: 260px !important; text-align: left !important; }
-/* Name here is an <input class="bd-name-edit"> — the generic Master
+#book-dashboard-table th[data-label="Name"], #book-dashboard-table td[data-label="Name"] { width: 420px !important; max-width: none !important; min-width: 420px !important; text-align: left !important; }
+/* 420px is sized to the longest actual book name in the DB — "Bhagavad
+   Gita As It Is ( Bhagavad Gita - Yathaaroop)-H 330" (58 chars, ~360px at
+   13px) — plus the input's own padding/border and the td's padding, so
+   every real title fits without an ellipsis but the column isn't wider
+   than the data actually needs. Re-check this if a much longer book name
+   gets added.
+   Name here is an <input class="bd-name-edit"> — the generic Master
    Contact-tuned .data-table td[data-label="Name"] input rule elsewhere in
    this file hard-caps it at 140px regardless of the td's own width, so it
-   needs its own descendant override to actually use the 260px above. */
+   needs its own descendant override to actually use the 420px above. */
 #book-dashboard-table td[data-label="Name"] input { width: 100% !important; max-width: none !important; }
 #book-dashboard-table th[data-label="Selling Price"], #book-dashboard-table td[data-label="Selling Price"] { width: 130px !important; max-width: 130px !important; text-align: center; }
 #book-dashboard-table th[data-label="Language"], #book-dashboard-table td[data-label="Language"] { width: 90px !important; max-width: 90px !important; }
@@ -800,6 +865,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #book-places-table th[data-label="Map Link"], #book-places-table td[data-label="Map Link"] { width: 100px !important; max-width: 100px !important; text-align: center; }
 #book-places-table th[data-label=""], #book-places-table td[data-label=""] { width: 170px !important; max-width: 170px !important; min-width: 170px !important; }
 
+#sadhana-table th[data-label="S.No"], #sadhana-table td[data-label="S.No"] { width: 5% !important; max-width: none !important; text-align: center; }
+#sadhana-table th[data-label="Name"], #sadhana-table td[data-label="Name"] { width: 20% !important; max-width: none !important; text-align: left !important; }
+#sadhana-table th[data-label="Date"], #sadhana-table td[data-label="Date"] { width: 14% !important; max-width: none !important; text-align: center; }
+#sadhana-table th[data-label="Rounds"], #sadhana-table td[data-label="Rounds"] { width: 11% !important; max-width: none !important; text-align: center; }
+#sadhana-table th[data-label="Book Reading"], #sadhana-table td[data-label="Book Reading"] { width: 13% !important; max-width: none !important; text-align: center; }
+#sadhana-table th[data-label="Screen Time"], #sadhana-table td[data-label="Screen Time"] { width: 13% !important; max-width: none !important; text-align: center; }
+#sadhana-table th[data-label="Detox Time"], #sadhana-table td[data-label="Detox Time"] { width: 13% !important; max-width: none !important; text-align: center; }
+#sadhana-table th[data-label=""], #sadhana-table td[data-label=""] { width: 11% !important; max-width: none !important; min-width: 90px !important; text-align: center; padding: 4px 2px !important; }
+
 /* Book Analytics segments table: same reasoning as Master Contact/Book
    Distribution above — every column gets an explicit width so the generic
    .data-table th:nth-child(N) rules (tuned for Master Contact's 13-column
@@ -833,19 +907,26 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .data-table th.col-draggable { cursor: grab; user-select: none; }
 .data-table th.dragging-col { opacity: 0.4; }
 .data-table th.drag-over-col { box-shadow: inset 3px 0 0 var(--tulsi); }
-.inline-edit:hover { border-color: var(--sandstone); background: var(--surface); }
+.inline-edit:hover { border-color: var(--tulsi-light); background: var(--surface); }
 .inline-edit:focus { outline: none; border-color: var(--tulsi); background: var(--surface); box-shadow: 0 0 0 3px rgba(5,150,105,0.12); }
-/* .inline-edit's border/background are transparent by default so plain text
-   values (Name, Language, ...) don't look boxed-in — but that leaves number
-   fields (Purchase/Sold/Selling Price, Quantity, Min Stock, Call Limit) with
-   no visible affordance that they're editable at all until the admin
-   happens to hover over the exact cell. Give number inputs the same
-   bordered/filled look as .btn-secondary so they read as a field to type
-   into at a glance, everywhere they appear. */
-.inline-edit[type="number"] { border-color: var(--sandstone); background: var(--surface); }
+/* Every editable cell keeps a visible sandstone outline at rest (not just on
+   hover/focus) so every column reads as a bordered field at a glance instead
+   of looking plain until the pointer happens to land on it. Number fields
+   (Purchase/Sold/Selling Price, Quantity, Min Stock, Call Limit) additionally
+   get a filled background, same treatment as .btn-secondary. */
+.inline-edit[type="number"] { background: var(--surface); }
 .inline-edit[type="number"]:hover { border-color: var(--tulsi); }
-.loading-row { text-align: center; color: var(--text-muted); padding: 26px !important; font-size: 14px; animation: pulseFade 1.4s ease-in-out infinite; }
-@keyframes pulseFade { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+.loading-row {
+  text-align: center; color: var(--text-muted); padding: 22px !important; font-size: 13.5px;
+  font-weight: 600; position: relative;
+}
+.loading-row::before {
+  content: ""; display: block; width: min(220px, 70%); height: 8px; margin: 0 auto 10px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--sandstone) 25%, #f4efe0 37%, var(--sandstone) 63%);
+  background-size: 400px 100%;
+  animation: shimmer 1.3s ease-in-out infinite;
+}
 
 /* Duplicate attendance highlight */
 .duplicate-attendance { background: rgba(245, 158, 11, 0.12) !important; }
@@ -999,10 +1080,51 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 .modal-box h3 { margin-top: 0; color: var(--tulsi-dark); font-weight: 800; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+.modal-actions.justify-start { justify-content: flex-start; }
+.modal-subheading { margin: 18px 0 10px; color: var(--tulsi-dark); font-weight: 800; font-size: 15px; }
+.field-label { display: block; font-size: 13px; font-weight: 700; color: var(--tulsi-dark); margin-bottom: 6px; }
+.bulk-delete-preview { margin: 14px 0; font-weight: 700; }
 
 .modal-large {
   max-width: 720px;
   width: 95%;
+}
+
+/* ============ HISTORY MODAL (call history / session attendance) ============
+   A rigid <table> truncated long status/remarks text with nowrap+ellipsis and
+   had no responsive fallback; entries render as a compact card list instead
+   so long remarks wrap in full and the layout stays tidy at any width. */
+.history-modal-box { padding: 20px 22px; }
+.history-modal-box #history-contact-info { margin: 2px 0 14px; }
+.history-list {
+  display: flex; flex-direction: column; gap: 8px;
+  max-height: 58vh; overflow-y: auto; margin: 0 -4px; padding: 2px 4px;
+}
+.history-item {
+  background: var(--surface); border: 1px solid var(--sandstone); border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+.history-item-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.history-item-datetime { font-size: 13px; color: var(--text-main); }
+.history-item-datetime strong { font-weight: 700; }
+.history-item-meta { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
+.history-item-note {
+  font-size: 13px; color: var(--text-main); margin-top: 6px; padding-top: 6px;
+  border-top: 1px dashed var(--sandstone); white-space: pre-wrap; word-break: break-word;
+}
+.history-badge {
+  display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 700;
+  padding: 3px 10px; border-radius: 20px; white-space: nowrap; flex-shrink: 0;
+}
+.history-badge-positive { background: #ecfdf5; color: var(--tulsi-dark); border: 1px solid #bbf7d0; }
+.history-badge-negative { background: #fef2f2; color: var(--danger); border: 1px solid #fca5a5; }
+.history-badge-neutral { background: #f3f4f6; color: var(--text-muted); border: 1px solid var(--sandstone); }
+.history-empty { text-align: center; color: var(--text-muted); padding: 26px 10px; font-size: 14px; }
+@media (max-width: 560px) {
+  .history-modal-box { padding: 16px; }
+  .history-item-datetime { font-size: 12.5px; }
 }
 
 .stock-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
@@ -1322,6 +1444,170 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     display: none !important;
   }
 
+  /* ============ BOOK DASHBOARD: single row, tap to expand ============
+     Same reasoning as Commander above: Name, Current Stock and Profit are
+     what an admin scans this table for — the other 9 columns (mostly
+     read-only detail/averages) reveal on tap instead of always eating
+     screen space. */
+  #book-dashboard-table tbody tr {
+    position: relative;
+    cursor: pointer;
+    padding-right: 26px;
+  }
+  #book-dashboard-table tbody tr::after {
+    content: "▾";
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tulsi-dark);
+    opacity: 0.55;
+    transition: transform 0.15s ease;
+  }
+  #book-dashboard-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #book-dashboard-table td[data-label="Selling Price"],
+  #book-dashboard-table td[data-label="Language"],
+  #book-dashboard-table td[data-label="Total Inward"],
+  #book-dashboard-table td[data-label="Avg Purchase Price"],
+  #book-dashboard-table td[data-label="Min Stock"],
+  #book-dashboard-table td[data-label="Current Stock Value"],
+  #book-dashboard-table td[data-label="Total Sold"],
+  #book-dashboard-table td[data-label="Avg Selling Price"],
+  #book-dashboard-table td[data-label="Total Sales Value"] {
+    display: none !important;
+  }
+  #book-dashboard-table tr.expanded td[data-label="Selling Price"],
+  #book-dashboard-table tr.expanded td[data-label="Language"],
+  #book-dashboard-table tr.expanded td[data-label="Total Inward"],
+  #book-dashboard-table tr.expanded td[data-label="Avg Purchase Price"],
+  #book-dashboard-table tr.expanded td[data-label="Min Stock"],
+  #book-dashboard-table tr.expanded td[data-label="Current Stock Value"],
+  #book-dashboard-table tr.expanded td[data-label="Total Sold"],
+  #book-dashboard-table tr.expanded td[data-label="Avg Selling Price"],
+  #book-dashboard-table tr.expanded td[data-label="Total Sales Value"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+
+  #book-dashboard-table td[data-label="S.No"] { order: 1; width: 12% !important; font-weight: 700; }
+  #book-dashboard-table td[data-label="Name"] { order: 2; width: 46% !important; }
+  #book-dashboard-table td[data-label="Current Stock"] { order: 3; width: 21% !important; text-align: center; }
+  #book-dashboard-table td[data-label="Profit"] { order: 4; width: 21% !important; }
+  #book-dashboard-table td[data-label="Selling Price"] { order: 5; }
+  #book-dashboard-table td[data-label="Language"] { order: 6; }
+  #book-dashboard-table td[data-label="Total Inward"] { order: 7; }
+  #book-dashboard-table td[data-label="Avg Purchase Price"] { order: 8; }
+  #book-dashboard-table td[data-label="Min Stock"] { order: 9; }
+  #book-dashboard-table td[data-label="Current Stock Value"] { order: 10; }
+  #book-dashboard-table td[data-label="Total Sold"] { order: 11; }
+  #book-dashboard-table td[data-label="Avg Selling Price"] { order: 12; }
+  #book-dashboard-table td[data-label="Total Sales Value"] { order: 13; }
+
+  #book-dashboard-table td[data-label="S.No"]::before,
+  #book-dashboard-table td[data-label="Name"]::before,
+  #book-dashboard-table td[data-label="Current Stock"]::before,
+  #book-dashboard-table td[data-label="Profit"]::before {
+    display: none !important;
+  }
+
+  /* ============ BOOK ANALYTICS SEGMENTS: single row, tap to expand ============
+     S.No/User/Date/Value are the scan-at-a-glance fields; Area, Start/End
+     Time and Qty (a second, more granular number alongside Value) reveal
+     on tap. Fully read-only table, same tap gesture as Commander/Dashboard. */
+  #ba-segments-table tbody tr {
+    position: relative;
+    cursor: pointer;
+    padding-right: 26px;
+  }
+  #ba-segments-table tbody tr::after {
+    content: "▾";
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tulsi-dark);
+    opacity: 0.55;
+    transition: transform 0.15s ease;
+  }
+  #ba-segments-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #ba-segments-table td[data-label="Area"],
+  #ba-segments-table td[data-label="Start Time"],
+  #ba-segments-table td[data-label="End Time"],
+  #ba-segments-table td[data-label="Qty"] {
+    display: none !important;
+  }
+  #ba-segments-table tr.expanded td[data-label="Area"],
+  #ba-segments-table tr.expanded td[data-label="Start Time"],
+  #ba-segments-table tr.expanded td[data-label="End Time"],
+  #ba-segments-table tr.expanded td[data-label="Qty"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+
+  #ba-segments-table td[data-label="S.No"] { order: 1; width: 12% !important; font-weight: 700; }
+  #ba-segments-table td[data-label="User"] { order: 2; width: 30% !important; }
+  #ba-segments-table td[data-label="Date"] { order: 3; width: 28% !important; }
+  #ba-segments-table td[data-label="Value"] { order: 4; width: 30% !important; }
+  #ba-segments-table td[data-label="Area"] { order: 5; }
+  #ba-segments-table td[data-label="Start Time"] { order: 6; }
+  #ba-segments-table td[data-label="End Time"] { order: 7; }
+  #ba-segments-table td[data-label="Qty"] { order: 8; }
+
+  #ba-segments-table td[data-label="S.No"]::before,
+  #ba-segments-table td[data-label="User"]::before,
+  #ba-segments-table td[data-label="Date"]::before,
+  #ba-segments-table td[data-label="Value"]::before {
+    display: none !important;
+  }
+
+  /* ============ EDIT-HEAVY BOOK/SADHANA TABLES: flat reflow, no hiding =====
+     Book Inward/Outward, Distribution Places and Sadhana are per-row edit
+     forms (nearly every cell is an <input>/<select>) — unlike the read-heavy
+     tables above, hiding a field behind a tap would just add friction to
+     editing it. Reordered instead so the identity field leads, full-width,
+     with short paired fields below it — same technique as My Outward Stock. */
+  #book-inward-table td[data-label="Name"] { order: 1; width: 100% !important; }
+  #book-inward-table td[data-label="S.No"] { order: 2; width: 22% !important; font-weight: 700; }
+  #book-inward-table td[data-label="Time"] { order: 3; width: 78% !important; }
+  #book-inward-table td[data-label="Purchase Price"] { order: 4; width: 49% !important; }
+  #book-inward-table td[data-label="Quantity"] { order: 5; width: 49% !important; }
+  #book-inward-table td[data-label="Purchased From"] { order: 6; width: 100% !important; }
+  #book-inward-table td[data-label="Language"] { order: 7; width: 49% !important; }
+  #book-inward-table td[data-label=""] { order: 8; width: 100% !important; }
+  #book-inward-table td[data-label="S.No"]::before { display: none !important; }
+
+  #book-outward-table td[data-label="Name"] { order: 1; width: 100% !important; }
+  #book-outward-table td[data-label="S.No"] { order: 2; width: 22% !important; font-weight: 700; }
+  #book-outward-table td[data-label="Time"] { order: 3; width: 78% !important; }
+  #book-outward-table td[data-label="Sold Price"] { order: 4; width: 33% !important; }
+  #book-outward-table td[data-label="Quantity"] { order: 5; width: 33% !important; }
+  #book-outward-table td[data-label="Total"] { order: 6; width: 34% !important; }
+  #book-outward-table td[data-label="Sold Area"] { order: 7; width: 100% !important; }
+  #book-outward-table td[data-label="Sold By"] { order: 8; width: 60% !important; }
+  #book-outward-table td[data-label="Language"] { order: 9; width: 40% !important; }
+  #book-outward-table td[data-label="Realised"] { order: 10; width: 49% !important; flex-direction: row !important; align-items: center !important; gap: 6px; }
+  #book-outward-table td[data-label=""] { order: 11; width: 51% !important; }
+  #book-outward-table td[data-label="S.No"]::before { display: none !important; }
+
+  #book-places-table td[data-label="Name"] { order: 1; width: 100% !important; }
+  #book-places-table td[data-label="Description"] { order: 2; width: 100% !important; }
+  #book-places-table td[data-label="Map Link"] { order: 3; width: 55% !important; }
+  #book-places-table td[data-label=""] { order: 4; width: 45% !important; }
+
+  #sadhana-table td[data-label="Name"] { order: 1; width: 100% !important; }
+  #sadhana-table td[data-label="S.No"] { order: 2; width: 20% !important; font-weight: 700; }
+  #sadhana-table td[data-label="Date"] { order: 3; width: 80% !important; }
+  #sadhana-table td[data-label="Rounds"] { order: 4; width: 33% !important; }
+  #sadhana-table td[data-label="Book Reading"] { order: 5; width: 33% !important; }
+  #sadhana-table td[data-label="Screen Time"] { order: 6; width: 34% !important; }
+  #sadhana-table td[data-label="Detox Time"] { order: 7; width: 49% !important; }
+  #sadhana-table td[data-label=""] { order: 8; width: 51% !important; }
+  #sadhana-table td[data-label="S.No"]::before { display: none !important; }
+
   /* Full width for long columns */
   .data-table td[data-label="Name"],
   .data-table td[data-label="Time"],
@@ -1330,8 +1616,23 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   .data-table td[data-label="Admin Review"],
   .data-table td[data-label="Actions"],
   .data-table td[data-label="Admin Remarks"],
-  .data-table td[data-label="User Name"] {
+  .data-table td[data-label="User Name"],
+  .data-table td[data-label="Question"],
+  .data-table td[data-label="Response"],
+  .data-table td[data-label="Remark"] {
     width: 100%;
+  }
+  /* One to One's Question/Response/Remark are free text (unlike the button-
+     driven Admin Review/Admin Remarks cells above) — width:100% alone still
+     let the inherited nowrap+ellipsis from .data-table td cut a long question
+     or reply down to one truncated line. Let it wrap in full instead. */
+  .data-table td[data-label="Question"],
+  .data-table td[data-label="Response"],
+  .data-table td[data-label="Remark"] {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    word-break: break-word;
   }
   .data-table td[data-label]::before {
     content: attr(data-label);
@@ -1359,31 +1660,38 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     grid-column: span 2 !important;
   }
 
-  /* My Calls and Core Cultivation have exactly three: keep them on one line,
-     all the same width, instead of dropping Pending onto its own full-width
-     row. Tighter padding and type so three still fit a narrow phone. */
-  #caller-section .stats-bar,
+  /* Core Cultivation has exactly three: keep them on one line, all the same
+     width, instead of dropping Pending onto its own full-width row. */
   #core-cultivation-section .stats-bar {
     grid-template-columns: repeat(3, 1fr) !important;
     gap: 8px !important;
   }
-  #caller-section .stats-bar .stat:last-child:nth-child(odd),
   #core-cultivation-section .stats-bar .stat:last-child:nth-child(odd) {
     grid-column: auto !important;
   }
-  #caller-section .stat,
   #core-cultivation-section .stat { padding: 12px 4px; }
-  #caller-section .stat-num,
   #core-cultivation-section .stat-num { font-size: 22px; }
-  #caller-section .stat-label,
   #core-cultivation-section .stat-label { font-size: 10px; letter-spacing: 0; }
+
+  /* My Calls has exactly four boxes (Total/Positive/Pending/Follow-up): keep
+     them on one line, all the same width. Tighter padding and type so four
+     still fit a narrow phone. */
+  #caller-section .stats-bar {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 6px !important;
+  }
+  #caller-section .stats-bar .stat:last-child:nth-child(odd) {
+    grid-column: auto !important;
+  }
+  #caller-section .stat { padding: 10px 2px; }
+  #caller-section .stat-num { font-size: 18px; }
+  #caller-section .stat-label { font-size: 9px; letter-spacing: 0; }
 
   /* Follow Up Calls used to sit at the very bottom, past the whole main list
      — easy to miss on a phone. Reflow it up to be the second section (right
      after the stats bar), ahead of the main "Your Calls" list. */
   #caller-section { display: flex; flex-direction: column; }
   #caller-section .stats-bar { order: 1; }
-  #caller-combined-total { order: 2; }
   #caller-followup-section { order: 3; margin-top: 12px; padding-top: 12px; }
   #caller-section > .caller-title-row { order: 4; }
   #caller-section > #caller-search { order: 5; }
@@ -1610,7 +1918,6 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 
 /* ============ MY CALLS: FOLLOW UP CALLS ============ */
 .caller-followup-section { margin-top: 24px; padding-top: 16px; border-top: 1px dashed var(--border-color, #ddd); }
-.combined-total-line { text-align: center; font-size: 12px; margin: 6px 0 0; }
 
 /* ============ ANALYTICS: ASSIGN FOR FOLLOW-UP ============ */
 #analytics-assigned-table .followup-select-col { text-align: center; width: 38px; padding-left: 8px; padding-right: 8px; }
@@ -1619,13 +1926,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #analytics-assigned-table tbody tr:has(.followup-select:checked) { background: rgba(5, 150, 105, 0.08); }
 
 /* The assign window's From/To sit inside their pill and grey out until the
-   Time Stamp box is ticked. */
-#timestamp-filter-group .ts-range { gap: 6px; font-weight: 600; color: var(--text-muted); }
-#timestamp-filter-group .ts-range input {
+   owning "enable" box is ticked. Shared by the Time Stamp, Call Status
+   (call time) and Attendance filter dropdowns. */
+.ts-range { gap: 6px; font-weight: 600; color: var(--text-muted); }
+.ts-range input {
   width: auto; font-size: 12.5px; padding: 2px 6px; border: 1.5px solid var(--sandstone);
   border-radius: 8px; background: #fff;
 }
-#timestamp-filter-group .ts-range input:disabled { opacity: 0.5; cursor: not-allowed; }
+.ts-range input:disabled { opacity: 0.5; cursor: not-allowed; }
+.tag-check-divider { width: 100%; height: 1px; margin: 4px 0; background: var(--border-color, #ddd); border: none; }
 
 /* ============ USERS & ASSIGNMENT: STICKY SIDEBAR + INDEPENDENT SCROLL ============
    Event/tag/GFY/time filters and the action buttons live in a left rail that
@@ -1713,6 +2022,92 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .users-sidebar .filter-toggle-btn { padding: 7px 12px; font-size: 12.5px; }
 .users-sidebar .filter-dropdown-panel { padding: 10px; }
 .users-sidebar .tag-check { padding: 4px 10px 4px 8px; font-size: 12px; }
+
+/* Enter Sadhana: one compact row per user (name + 4 narrow number fields +
+   Service/Swadhyaya dropdowns), built as flex/grid rows instead of a
+   .data-table so it never falls back to the card-per-field mobile reflow —
+   on a phone this stays one line per person, which is the whole point of a
+   fast daily roster entry screen. */
+.sadhana-roster-panel { display: flex; flex-direction: column; }
+/* Horizontal scroll wrapper: keeps the name column at a fixed, fully
+   readable width instead of squeezing it down to make room for the six
+   numeric/dropdown columns — the row scrolls sideways instead. Header and
+   list share this one scroll container so their columns stay aligned. */
+.sadhana-roster-scroll { overflow-x: auto; }
+.sadhana-roster-header,
+.sadhana-roster-row {
+  display: grid;
+  grid-template-columns: 140px 52px 52px 52px 52px 58px 62px;
+  gap: 6px;
+  align-items: center;
+  min-width: 500px;
+}
+.sadhana-roster-header {
+  padding: 0 8px 8px;
+  border-bottom: 1px solid var(--sandstone);
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.2;
+}
+.sadhana-roster-header .sr-col-name { text-align: left; }
+.sadhana-roster-list { max-height: calc(100vh - 340px); min-height: 200px; overflow-y: auto; }
+.sadhana-roster-row {
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+.sadhana-roster-row:nth-child(even) { background: var(--cream); }
+.sadhana-roster-row.sr-dirty { background: rgba(217,119,6,0.1); }
+.sadhana-roster-row.sr-incomplete { border-color: rgba(220,38,38,0.35); }
+.sadhana-roster-row.sr-hidden { display: none; }
+.sadhana-roster-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sadhana-roster-input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 2px;
+  text-align: center;
+  font-size: 13px;
+  border: 1px solid var(--sandstone);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.sadhana-roster-input:focus { outline: 2px solid var(--tulsi-light); border-color: var(--tulsi); }
+.sadhana-roster-savebar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 8px 2px;
+  border-top: 1px solid var(--sandstone);
+  background: var(--surface);
+}
+.sadhana-roster-savebar .btn.toolbar-btn { width: auto; padding: 9px 22px; }
+.sadhana-roster-savebar .stat-negative-text { color: var(--danger); font-weight: 700; }
+
+@media (max-width: 640px) {
+  .sadhana-roster-header,
+  .sadhana-roster-row { grid-template-columns: 120px 40px 40px 40px 40px 46px 50px; gap: 3px; min-width: 400px; }
+  .sadhana-roster-header { font-size: 9.5px; padding: 0 4px 6px; }
+  .sadhana-roster-name { font-size: 12.5px; }
+  .sadhana-roster-input { padding: 5px 1px; font-size: 11.5px; }
+  .sadhana-roster-list { max-height: calc(100vh - 420px); }
+}
+
+/* User-facing FNRG Sadhana: a lightweight in-page toggle (not a routed
+   nav — it never touches the header/back-button plumbing) between the
+   single-person Enter Sadhana row and the personal Analytics view. */
+.fsu-tabs { border-radius: var(--radius-sm) var(--radius-sm) 0 0; margin-bottom: 14px; }
+.fsu-date-field { max-width: 220px; margin-bottom: 14px; }
 
 /* Every sidebar button carries color, not just Assign/View (btn-primary) — a
    plain white btn-secondary reads as "disabled" next to the colored filter

@@ -74,6 +74,33 @@ function matchesNumberFilters(row, filters) {
   return true;
 }
 
+// Every Book Distribution filter field lives in two places at once — the
+// sidebar toolbar and a matching control embedded in its own <th> (the
+// "click the column header, pick a value" ask) — kept in sync here so
+// either one can be used interchangeably instead of drifting apart and
+// silently AND-ing against each other.
+function pairFilterControls(idA, idB, onChange) {
+  const elA = document.getElementById(idA);
+  const elB = document.getElementById(idB);
+  if (!elA || !elB) return;
+  const wire = (src, dst) => {
+    if (src.tagName === "SELECT") {
+      src.addEventListener("change", () => { dst.value = src.value; onChange(); });
+    } else {
+      src.addEventListener("input", debounce(() => { dst.value = src.value; onChange(); }, 200));
+    }
+  };
+  wire(elA, elB);
+  wire(elB, elA);
+}
+
+// Populates a sidebar <select> and its paired header <select> with the same
+// distinct-value option list in one call.
+function populatePairedSelect(idA, idB, values) {
+  populateFilterSelect(document.getElementById(idA), values);
+  populateFilterSelect(document.getElementById(idB), values);
+}
+
 // Click-to-edit for table cells: an <input>/<select class="inline-edit"> sits
 // directly in the cell (borderless until hover/focus, see .inline-edit in
 // theme.css) instead of a separate Edit button + modal — matches Master
@@ -195,8 +222,8 @@ function wirePlacesFilters() {
   placesFiltersWired = true;
   document.getElementById("bp-search").addEventListener("input", debounce(applyPlacesFilters, 200));
   document.getElementById("bp-sort").addEventListener("change", applyPlacesFilters);
-  document.getElementById("bp-filter-description").addEventListener("change", applyPlacesFilters);
-  document.getElementById("bp-filter-map-link").addEventListener("change", applyPlacesFilters);
+  pairFilterControls("bp-filter-description", "bp-th-filter-description", applyPlacesFilters);
+  pairFilterControls("bp-filter-map-link", "bp-th-filter-map-link", applyPlacesFilters);
   initColumnDragReorder("book-places-table", { storageKey: PLACES_COLUMNS_KEY, columns: DEFAULT_PLACES_COLUMNS, resetBtnId: "bp-reset-columns-btn" });
   initHorizontalScroll("book-places-table-wrap", { leftBtnId: "bp-scroll-left", rightBtnId: "bp-scroll-right" });
 }
@@ -373,10 +400,10 @@ function wireInwardFilters() {
   inwardFiltersWired = true;
   document.getElementById("bi-search").addEventListener("input", debounce(applyInwardFilters, 200));
   document.getElementById("bi-sort").addEventListener("change", applyInwardFilters);
-  ["bi-filter-language", "bi-filter-from"].forEach((id) =>
-    document.getElementById(id).addEventListener("change", applyInwardFilters));
-  ["bi-filter-price", "bi-filter-qty"].forEach((id) =>
-    document.getElementById(id).addEventListener("input", debounce(applyInwardFilters, 200)));
+  pairFilterControls("bi-filter-language", "bi-th-filter-language", applyInwardFilters);
+  pairFilterControls("bi-filter-from", "bi-th-filter-from", applyInwardFilters);
+  pairFilterControls("bi-filter-price", "bi-th-filter-price", applyInwardFilters);
+  pairFilterControls("bi-filter-qty", "bi-th-filter-qty", applyInwardFilters);
   initColumnDragReorder("book-inward-table", { storageKey: INWARD_COLUMNS_KEY, columns: DEFAULT_INWARD_COLUMNS, resetBtnId: "bi-reset-columns-btn" });
   initHorizontalScroll("book-inward-table-wrap", { leftBtnId: "bi-scroll-left", rightBtnId: "bi-scroll-right" });
 }
@@ -411,13 +438,13 @@ export async function initInwardTable(currentUser) {
     return;
   }
   inwardCache = data || [];
-  populateFilterSelect(document.getElementById("bi-filter-language"), distinctValues(inwardCache, "language"));
-  populateFilterSelect(document.getElementById("bi-filter-from"), distinctValues(inwardCache, "purchased_from"));
+  populatePairedSelect("bi-filter-language", "bi-th-filter-language", distinctValues(inwardCache, "language"));
+  populatePairedSelect("bi-filter-from", "bi-th-filter-from", distinctValues(inwardCache, "purchased_from"));
   applyInwardFilters();
 }
 
 const OUTWARD_COLUMNS_KEY = "nrg-book-outward-column-order";
-const DEFAULT_OUTWARD_COLUMNS = ["S.No", "Time", "Name", "Language", "Sold Price", "Quantity", "Sold Area", "Sold By", "Realised", ""];
+const DEFAULT_OUTWARD_COLUMNS = ["S.No", "Time", "Name", "Language", "Sold Price", "Quantity", "Total", "Sold Area", "Sold By", "Realised", ""];
 const OUTWARD_SELECT_FILTERS = [["bo-filter-language", "language"], ["bo-filter-area", "sold_area"], ["bo-filter-by", "sold_by"]];
 const OUTWARD_NUMBER_FILTERS = [["bo-filter-price", "sold_price"], ["bo-filter-qty", "quantity"]];
 let outwardCache = [];
@@ -426,7 +453,7 @@ let outwardFiltersWired = false;
 function renderOutwardRows(rows, emptyMessage) {
   const tbody = document.getElementById("book-outward-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="muted-text">${emptyMessage}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => `
@@ -435,8 +462,9 @@ function renderOutwardRows(rows, emptyMessage) {
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
       <td data-label="Language"><input class="inline-edit" data-field="language" value="${escapeHtml(r.language || "")}" /></td>
-      <td data-label="Sold Price"><input class="inline-edit" type="number" min="0" step="0.01" data-field="sold_price" value="${r.sold_price ?? ""}" /></td>
-      <td data-label="Quantity"><input class="inline-edit" type="number" min="0" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
+      <td data-label="Sold Price"><input class="inline-edit outward-price-input" type="number" min="0" step="0.01" data-field="sold_price" value="${r.sold_price ?? ""}" /></td>
+      <td data-label="Quantity"><input class="inline-edit outward-qty-input" type="number" min="0" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
+      <td data-label="Total" class="outward-total-cell">${fmtMoney((r.sold_price || 0) * (r.quantity || 0))}</td>
       <td data-label="Sold Area"><input class="inline-edit" data-field="sold_area" list="book-places-list" value="${escapeHtml(r.sold_area || "")}" /></td>
       <td data-label="Sold By"><input class="inline-edit" data-field="sold_by" value="${escapeHtml(r.sold_by || "")}" /></td>
       <td data-label="Realised"><input type="checkbox" class="realised-checkbox outward-realised-input" ${r.realised ? "checked" : ""} /></td>
@@ -449,7 +477,20 @@ function renderOutwardRows(rows, emptyMessage) {
     btn.addEventListener("click", () => deleteOutwardRow(btn.closest("tr").dataset.id));
   });
   tbody.querySelectorAll(".outward-realised-input").forEach((input) => {
-    input.addEventListener("change", (e) => toggleOutwardRealised(e.target, outwardCache));
+    input.addEventListener("change", async (e) => {
+      await toggleOutwardRealised(e.target, outwardCache);
+      if ((document.getElementById("bo-filter-realised")?.value ?? "__ALL__") !== "__ALL__") applyOutwardFilters();
+    });
+  });
+  tbody.querySelectorAll("tr[data-id]").forEach((row) => {
+    const priceInput = row.querySelector(".outward-price-input");
+    const qtyInput = row.querySelector(".outward-qty-input");
+    const totalCell = row.querySelector(".outward-total-cell");
+    const updateRowTotal = () => {
+      totalCell.textContent = fmtMoney((Number(priceInput.value) || 0) * (Number(qtyInput.value) || 0));
+    };
+    priceInput.addEventListener("input", updateRowTotal);
+    qtyInput.addEventListener("input", updateRowTotal);
   });
   wireInlineEditCells(tbody, "book_outward_stock", outwardCache, { numberFields: ["sold_price", "quantity"], requiredFields: ["name"] }, renderDashboard);
   reapplyColumnOrder("book-outward-table");
@@ -474,10 +515,12 @@ async function toggleOutwardRealised(checkboxEl, cache) {
 
 function applyOutwardFilters() {
   const search = document.getElementById("bo-search")?.value.trim().toLowerCase() || "";
+  const realisedFilter = document.getElementById("bo-filter-realised")?.value ?? "__ALL__";
   let rows = outwardCache.filter((r) =>
     matchesSearch(r, search, ["name", "sold_area", "sold_by"]) &&
     matchesSelectFilters(r, OUTWARD_SELECT_FILTERS) &&
-    matchesNumberFilters(r, OUTWARD_NUMBER_FILTERS)
+    matchesNumberFilters(r, OUTWARD_NUMBER_FILTERS) &&
+    (realisedFilter === "__ALL__" || (realisedFilter === "yes" ? r.realised : !r.realised))
   );
   rows = sortRows(rows, document.getElementById("bo-sort")?.value, "created_at-desc");
   renderOutwardRows(rows, outwardCache.length ? "No records match your filters." : "No records yet.");
@@ -488,10 +531,12 @@ function wireOutwardFilters() {
   outwardFiltersWired = true;
   document.getElementById("bo-search").addEventListener("input", debounce(applyOutwardFilters, 200));
   document.getElementById("bo-sort").addEventListener("change", applyOutwardFilters);
-  ["bo-filter-language", "bo-filter-area", "bo-filter-by"].forEach((id) =>
-    document.getElementById(id).addEventListener("change", applyOutwardFilters));
-  ["bo-filter-price", "bo-filter-qty"].forEach((id) =>
-    document.getElementById(id).addEventListener("input", debounce(applyOutwardFilters, 200)));
+  pairFilterControls("bo-filter-language", "bo-th-filter-language", applyOutwardFilters);
+  pairFilterControls("bo-filter-area", "bo-th-filter-area", applyOutwardFilters);
+  pairFilterControls("bo-filter-by", "bo-th-filter-by", applyOutwardFilters);
+  pairFilterControls("bo-filter-realised", "bo-th-filter-realised", applyOutwardFilters);
+  pairFilterControls("bo-filter-price", "bo-th-filter-price", applyOutwardFilters);
+  pairFilterControls("bo-filter-qty", "bo-th-filter-qty", applyOutwardFilters);
   initColumnDragReorder("book-outward-table", { storageKey: OUTWARD_COLUMNS_KEY, columns: DEFAULT_OUTWARD_COLUMNS, resetBtnId: "bo-reset-columns-btn" });
   initHorizontalScroll("book-outward-table-wrap", { leftBtnId: "bo-scroll-left", rightBtnId: "bo-scroll-right" });
 }
@@ -512,7 +557,7 @@ async function deleteOutwardRow(id) {
 export async function initOutwardTable() {
   wireOutwardFilters();
   const tbody = document.getElementById("book-outward-body");
-  tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Loading…</td></tr>`;
 
   const [{ data, error }, placeNames] = await Promise.all([
     supabase
@@ -524,14 +569,14 @@ export async function initOutwardTable() {
 
   if (error) {
     console.error("book_outward_stock load failed:", error);
-    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Could not load outward stock: ${escapeHtml(error.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Could not load outward stock: ${escapeHtml(error.message)}</td></tr>`;
     return;
   }
   outwardCache = data || [];
   populateDatalist(document.getElementById("book-places-list"), placeNames);
-  populateFilterSelect(document.getElementById("bo-filter-language"), distinctValues(outwardCache, "language"));
-  populateFilterSelect(document.getElementById("bo-filter-area"), distinctValues(outwardCache, "sold_area"));
-  populateFilterSelect(document.getElementById("bo-filter-by"), distinctValues(outwardCache, "sold_by"));
+  populatePairedSelect("bo-filter-language", "bo-th-filter-language", distinctValues(outwardCache, "language"));
+  populatePairedSelect("bo-filter-area", "bo-th-filter-area", distinctValues(outwardCache, "sold_area"));
+  populatePairedSelect("bo-filter-by", "bo-th-filter-by", distinctValues(outwardCache, "sold_by"));
   applyOutwardFilters();
 }
 
@@ -589,7 +634,7 @@ async function renderMyOutward(userName) {
     .order("created_at", { ascending: false });
 
   if (error || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="muted-text">No records in the last 72 hours.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">No records in the last 72 hours.</td></tr>`;
     return;
   }
   tbody.innerHTML = data.map((r, idx) => `
@@ -598,6 +643,8 @@ async function renderMyOutward(userName) {
       <td data-label="Name">${escapeHtml(r.name)}</td>
       <td data-label="Count">${r.quantity ?? "—"}</td>
       <td data-label="Price">${r.sold_price ?? "—"}</td>
+      <td data-label="Total">${fmtMoney((r.sold_price || 0) * (r.quantity || 0))}</td>
+      <td data-label="Realised"><span class="history-badge history-badge-${r.realised ? "positive" : "neutral"}">${r.realised ? "✓ Realised" : "Pending"}</span></td>
     </tr>
   `).join("");
 }
@@ -839,12 +886,20 @@ function buildOutwardRow(catalog, removable, standardPriceByKey, stockByKey, onC
     <div class="stock-row-reference-row">
       <span class="stock-row-stock-hint"></span>
       <span class="stock-row-price-hint"></span>
+      <span class="stock-row-total-hint"></span>
     </div>
   `;
   const titleInput = row.querySelector(".stock-row-title");
   const priceInput = row.querySelector(".stock-row-price");
+  const qtyInput = row.querySelector(".stock-row-qty");
   const stockHintEl = row.querySelector(".stock-row-stock-hint");
   const priceHintEl = row.querySelector(".stock-row-price-hint");
+  const totalHintEl = row.querySelector(".stock-row-total-hint");
+  const updateRowTotal = () => {
+    const price = Number(priceInput.value) || 0;
+    const qty = Number(qtyInput.value) || 0;
+    totalHintEl.textContent = price && qty ? `🧾 Total: ${fmtMoney(price * qty)}` : "";
+  };
   const titleCombo = wireSearchableCombo(titleInput, () => catalog.map(bookLabel));
   row._destroyCombo = titleCombo.destroy;
 
@@ -860,10 +915,11 @@ function buildOutwardRow(catalog, removable, standardPriceByKey, stockByKey, onC
     } else {
       priceHintEl.textContent = matched ? "💰 Selling Price: —" : "";
     }
+    updateRowTotal();
     onChange();
   });
-  priceInput.addEventListener("input", onChange);
-  row.querySelector(".stock-row-qty").addEventListener("input", onChange);
+  priceInput.addEventListener("input", () => { updateRowTotal(); onChange(); });
+  qtyInput.addEventListener("input", () => { updateRowTotal(); onChange(); });
   if (removable) {
     row.querySelector(".stock-row-remove").addEventListener("click", () => { titleCombo.destroy(); row.remove(); onChange(); });
   }
@@ -1106,6 +1162,249 @@ function wireOutwardModal(currentUser) {
   };
 }
 
+/* ======================= BOOK REQUESTS ======================= */
+// Anyone (regular user or admin) can request a book — either picking one
+// from the existing catalog or typing a brand-new title — for a place, with
+// a priority. Requests all land in one table; the admin Book Requests tab
+// reviews/fulfills them, and each requester's own submissions show on their
+// Book Distribution page.
+
+function priorityRank(p) {
+  return p === "Immediately" ? 0 : p === "Important" ? 1 : 2;
+}
+
+async function fetchBookNames() {
+  const catalog = await fetchBookCatalog();
+  return Array.from(new Set(catalog.map((b) => b.name))).sort();
+}
+
+let requestModalWired = false;
+
+// Shared by the admin "Book Requests" tab and the user's Book Distribution
+// page — same modal, same table, just opened from different buttons (see
+// wireInwardAdminModal above for the same pattern). Only one of the two
+// contexts is ever active in a given session, so the onSaved callback
+// captured on first wire is always the right one for that session.
+function wireRequestModal(currentUser, onSaved) {
+  if (requestModalWired) return;
+  requestModalWired = true;
+
+  const modal = document.getElementById("book-request-modal");
+  const errorEl = document.getElementById("book-request-error");
+  const nameInput = document.getElementById("book-request-name");
+  const placeInput = document.getElementById("book-request-place");
+  const qtyInput = document.getElementById("book-request-quantity");
+  const prioritySelect = document.getElementById("book-request-priority");
+  let nameCombo = null;
+  let placeCombo = null;
+
+  const close = () => {
+    nameCombo?.destroy();
+    placeCombo?.destroy();
+    nameCombo = null;
+    placeCombo = null;
+    modal.classList.remove("active");
+  };
+
+  const open = async () => {
+    nameInput.value = "";
+    placeInput.value = "";
+    qtyInput.value = "";
+    prioritySelect.value = "Can Wait";
+    errorEl.classList.add("hidden");
+
+    const [bookNames, placeNames] = await Promise.all([fetchBookNames(), fetchPlaceNames()]);
+    nameCombo = wireSearchableCombo(nameInput, () => bookNames);
+    placeCombo = wireSearchableCombo(placeInput, () => placeNames);
+    modal.classList.add("active");
+  };
+
+  document.querySelectorAll(".open-book-request-btn").forEach((btn) => btn.addEventListener("click", open));
+  document.getElementById("book-request-cancel-btn").onclick = close;
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
+
+  document.getElementById("book-request-save-btn").onclick = async () => {
+    const name = nameInput.value.trim();
+    const place = placeInput.value.trim();
+    const quantity = qtyInput.value;
+    const priority = prioritySelect.value;
+
+    if (!name) {
+      errorEl.textContent = "Please enter a book title.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    if (!quantity || Number(quantity) <= 0) {
+      errorEl.textContent = "Please enter a quantity.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+
+    const { error } = await supabase.from("book_requests").insert({
+      name,
+      quantity: Number(quantity),
+      place: place || null,
+      priority,
+      requested_by: currentUser.user_name,
+    });
+
+    if (error) {
+      errorEl.textContent = error.message;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    close();
+    showToast("Book request submitted", "success");
+    if (onSaved) await onSaved();
+  };
+}
+
+const REQUESTS_COLUMNS_KEY = "nrg-book-requests-column-order";
+const DEFAULT_REQUESTS_COLUMNS = ["S.No", "Time", "Name", "Quantity", "Place", "Priority", "Requested By", "Fulfilled", ""];
+const REQUESTS_SELECT_FILTERS = [["br-filter-priority", "priority"], ["br-filter-place", "place"], ["br-filter-by", "requested_by"]];
+const REQUESTS_NUMBER_FILTERS = [["br-filter-qty", "quantity"]];
+let requestsCache = [];
+let requestsFiltersWired = false;
+
+function renderRequestsRows(rows, emptyMessage) {
+  const tbody = document.getElementById("book-requests-body");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="9" class="muted-text">${emptyMessage}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r, idx) => `
+    <tr data-id="${r.id}" class="${r.priority === "Immediately" && !r.fulfilled ? "row-low-stock" : ""}">
+      <td data-label="S.No">${idx + 1}</td>
+      <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
+      <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
+      <td data-label="Quantity"><input class="inline-edit" type="number" min="1" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
+      <td data-label="Place"><input class="inline-edit" data-field="place" list="book-places-list" value="${escapeHtml(r.place || "")}" /></td>
+      <td data-label="Priority">
+        <select class="inline-edit" data-field="priority">
+          ${["Immediately", "Important", "Can Wait"].map((p) => `<option value="${p}" ${r.priority === p ? "selected" : ""}>${p}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="Requested By">${escapeHtml(r.requested_by || "—")}</td>
+      <td data-label="Fulfilled"><input type="checkbox" class="inline-edit request-fulfilled-input" data-field="fulfilled" ${r.fulfilled ? "checked" : ""} /></td>
+      <td data-label="">
+        <button type="button" class="cell-chip danger request-delete-btn" title="Delete">🗑 Delete</button>
+      </td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll(".request-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", () => deleteRequest(btn.closest("tr").dataset.id));
+  });
+  tbody.querySelectorAll(".request-fulfilled-input").forEach((input) => {
+    input.addEventListener("change", async (e) => {
+      const id = e.target.closest("tr").dataset.id;
+      const record = requestsCache.find((x) => x.id === id);
+      const checked = e.target.checked;
+      const { error } = await supabase.from("book_requests").update({ fulfilled: checked }).eq("id", id);
+      if (error) {
+        showToast("Update failed: " + error.message, "error");
+        e.target.checked = !checked;
+        return;
+      }
+      if (record) record.fulfilled = checked;
+      e.target.closest("tr").classList.toggle("row-low-stock", record.priority === "Immediately" && !checked);
+      showToast(checked ? "Marked as fulfilled" : "Marked as not fulfilled", "success");
+    });
+  });
+  wireInlineEditCells(tbody, "book_requests", requestsCache, { numberFields: ["quantity"], requiredFields: ["name"] }, applyRequestsFilters);
+  reapplyColumnOrder("book-requests-table");
+}
+
+function applyRequestsFilters() {
+  const search = document.getElementById("br-search")?.value.trim().toLowerCase() || "";
+  const fulfilledFilter = document.getElementById("br-filter-fulfilled")?.value ?? "__ALL__";
+  let rows = requestsCache.filter((r) =>
+    matchesSearch(r, search, ["name", "place", "requested_by"]) &&
+    matchesSelectFilters(r, REQUESTS_SELECT_FILTERS) &&
+    matchesNumberFilters(r, REQUESTS_NUMBER_FILTERS) &&
+    (fulfilledFilter === "__ALL__" || (fulfilledFilter === "yes" ? r.fulfilled : !r.fulfilled))
+  );
+  rows = sortRows(rows, document.getElementById("br-sort")?.value, "created_at-desc");
+  renderRequestsRows(rows, requestsCache.length ? "No requests match your filters." : "No book requests yet.");
+}
+
+function wireRequestsFilters() {
+  if (requestsFiltersWired) return;
+  requestsFiltersWired = true;
+  document.getElementById("br-search").addEventListener("input", debounce(applyRequestsFilters, 200));
+  document.getElementById("br-sort").addEventListener("change", applyRequestsFilters);
+  pairFilterControls("br-filter-priority", "br-th-filter-priority", applyRequestsFilters);
+  pairFilterControls("br-filter-place", "br-th-filter-place", applyRequestsFilters);
+  pairFilterControls("br-filter-by", "br-th-filter-by", applyRequestsFilters);
+  pairFilterControls("br-filter-fulfilled", "br-th-filter-fulfilled", applyRequestsFilters);
+  pairFilterControls("br-filter-qty", "br-th-filter-qty", applyRequestsFilters);
+  initColumnDragReorder("book-requests-table", { storageKey: REQUESTS_COLUMNS_KEY, columns: DEFAULT_REQUESTS_COLUMNS, resetBtnId: "br-reset-columns-btn" });
+  initHorizontalScroll("book-requests-table-wrap", { leftBtnId: "br-scroll-left", rightBtnId: "br-scroll-right" });
+}
+
+async function deleteRequest(id) {
+  const r = requestsCache.find((x) => x.id === id);
+  if (!confirm(`Delete request for "${r?.name || ""}"?`)) return;
+  const { error } = await supabase.from("book_requests").delete().eq("id", id);
+  if (error) {
+    showToast("Delete failed: " + error.message, "error");
+    return;
+  }
+  showToast("Request deleted", "success");
+  await initBookRequests();
+}
+
+export async function initBookRequests(currentUser) {
+  wireRequestsFilters();
+  wireRequestModal(currentUser, () => initBookRequests(currentUser));
+  const tbody = document.getElementById("book-requests-body");
+  tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Loading…</td></tr>`;
+
+  const { data, error } = await supabase
+    .from("book_requests")
+    .select("id,name,quantity,place,priority,requested_by,fulfilled,created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Could not load book requests.</td></tr>`;
+    return;
+  }
+  requestsCache = (data || []).map((r) => ({ ...r, priorityRank: priorityRank(r.priority) }));
+  populatePairedSelect("br-filter-priority", "br-th-filter-priority", distinctValues(requestsCache, "priority"));
+  populatePairedSelect("br-filter-place", "br-th-filter-place", distinctValues(requestsCache, "place"));
+  populatePairedSelect("br-filter-by", "br-th-filter-by", distinctValues(requestsCache, "requested_by"));
+  applyRequestsFilters();
+}
+
+async function renderMyRequests(userName) {
+  const tbody = document.getElementById("my-requests-body");
+  const { data, error } = await supabase
+    .from("book_requests")
+    .select("name,quantity,place,priority,fulfilled,created_at")
+    .eq("requested_by", userName)
+    .order("created_at", { ascending: false });
+
+  if (error || !data.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">No requests yet.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map((r, idx) => `
+    <tr>
+      <td data-label="S.No">${idx + 1}</td>
+      <td data-label="Name">${escapeHtml(r.name)}</td>
+      <td data-label="Quantity">${r.quantity ?? "—"}</td>
+      <td data-label="Place">${escapeHtml(r.place || "—")}</td>
+      <td data-label="Priority">${escapeHtml(r.priority)}</td>
+      <td data-label="Status">${r.fulfilled ? "✅ Fulfilled" : "⏳ Pending"}</td>
+    </tr>
+  `).join("");
+}
+
+export async function initRequestPanel(currentUser) {
+  wireRequestModal(currentUser, () => renderMyRequests(currentUser.user_name));
+  await renderMyRequests(currentUser.user_name);
+}
+
 async function renderMyOutwardScore(userName) {
   const fromInput = document.getElementById("my-outward-score-date-from");
   const toInput = document.getElementById("my-outward-score-date-to");
@@ -1163,7 +1462,8 @@ export async function initStockEntry(currentUser) {
 // is display-only here — editing an entry itself stays on the admin
 // Outward Stock page (BookDistribution.initOutwardTable).
 
-const COMMANDER_SELECT_FILTERS = [["cmd-filter-by", "sold_by"]];
+const COMMANDER_SELECT_FILTERS = [["cmd-filter-by", "sold_by"], ["cmd-filter-language", "language"], ["cmd-filter-area", "sold_area"]];
+const COMMANDER_NUMBER_FILTERS = [["cmd-filter-price", "sold_price"], ["cmd-filter-qty", "quantity"]];
 let commanderCache = [];
 let commanderFiltersWired = false;
 
@@ -1177,16 +1477,20 @@ function matchesDateRange(row, fromVal, toVal) {
 
 function updateCommanderSummary(rows) {
   const total = rows.length;
-  const unrealised = rows.filter((r) => !r.realised).length;
+  const unrealisedRows = rows.filter((r) => !r.realised);
+  const unrealisedTotal = unrealisedRows.reduce((sum, r) => sum + (r.sold_price || 0) * (r.quantity || 0), 0);
   document.getElementById("cmd-summary").textContent = total
-    ? `${total} entr${total === 1 ? "y" : "ies"} shown, ${unrealised} not realised`
+    ? `${total} entr${total === 1 ? "y" : "ies"} shown, ${unrealisedRows.length} not realised`
+    : "";
+  document.getElementById("cmd-total-unrealised").textContent = total
+    ? `Total Not Realised (shown above): ${fmtMoney(unrealisedTotal)}`
     : "";
 }
 
 function renderCommanderRows(rows, emptyMessage) {
   const tbody = document.getElementById("commander-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="muted-text">${emptyMessage}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => `
@@ -1197,6 +1501,7 @@ function renderCommanderRows(rows, emptyMessage) {
       <td data-label="Language">${escapeHtml(r.language || "—")}</td>
       <td data-label="Sold Price">${r.sold_price ?? "—"}</td>
       <td data-label="Quantity">${r.quantity ?? "—"}</td>
+      <td data-label="Total">${fmtMoney((r.sold_price || 0) * (r.quantity || 0))}</td>
       <td data-label="Sold Area">${escapeHtml(r.sold_area || "—")}</td>
       <td data-label="Sold By">${escapeHtml(r.sold_by || "—")}</td>
       <td data-label="Realised"><input type="checkbox" class="realised-checkbox commander-realised-input" ${r.realised ? "checked" : ""} /></td>
@@ -1218,6 +1523,7 @@ function matchesCommanderFilters(r) {
   const unrealisedOnly = document.getElementById("cmd-filter-unrealised")?.checked;
   return matchesSearch(r, search, ["name", "sold_area", "sold_by"]) &&
     matchesSelectFilters(r, COMMANDER_SELECT_FILTERS) &&
+    matchesNumberFilters(r, COMMANDER_NUMBER_FILTERS) &&
     matchesDateRange(r, from, to) &&
     (!unrealisedOnly || !r.realised);
 }
@@ -1234,7 +1540,11 @@ function wireCommanderFilters() {
   commanderFiltersWired = true;
   document.getElementById("cmd-search").addEventListener("input", debounce(applyCommanderFilters, 200));
   document.getElementById("cmd-sort").addEventListener("change", applyCommanderFilters);
-  document.getElementById("cmd-filter-by").addEventListener("change", applyCommanderFilters);
+  pairFilterControls("cmd-filter-by", "cmd-th-filter-by", applyCommanderFilters);
+  pairFilterControls("cmd-filter-language", "cmd-th-filter-language", applyCommanderFilters);
+  pairFilterControls("cmd-filter-area", "cmd-th-filter-area", applyCommanderFilters);
+  pairFilterControls("cmd-filter-price", "cmd-th-filter-price", applyCommanderFilters);
+  pairFilterControls("cmd-filter-qty", "cmd-th-filter-qty", applyCommanderFilters);
   document.getElementById("cmd-filter-from").addEventListener("change", applyCommanderFilters);
   document.getElementById("cmd-filter-to").addEventListener("change", applyCommanderFilters);
   document.getElementById("cmd-filter-unrealised").addEventListener("change", applyCommanderFilters);
@@ -1254,7 +1564,7 @@ function wireCommanderFilters() {
 export async function initCommander() {
   wireCommanderFilters();
   const tbody = document.getElementById("commander-body");
-  tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Loading…</td></tr>`;
 
   const { data, error } = await supabase
     .from("book_outward_stock")
@@ -1263,11 +1573,13 @@ export async function initCommander() {
 
   if (error) {
     console.error("Commander book_outward_stock load failed:", error);
-    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Could not load outward stock: ${escapeHtml(error.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Could not load outward stock: ${escapeHtml(error.message)}</td></tr>`;
     return;
   }
   commanderCache = data || [];
-  populateFilterSelect(document.getElementById("cmd-filter-by"), distinctValues(commanderCache, "sold_by"));
+  populatePairedSelect("cmd-filter-by", "cmd-th-filter-by", distinctValues(commanderCache, "sold_by"));
+  populatePairedSelect("cmd-filter-language", "cmd-th-filter-language", distinctValues(commanderCache, "language"));
+  populatePairedSelect("cmd-filter-area", "cmd-th-filter-area", distinctValues(commanderCache, "sold_area"));
   applyCommanderFilters();
 }
 
@@ -1279,8 +1591,13 @@ const DEFAULT_DASHBOARD_COLUMNS = [
   "Min Stock", "Current Stock Value", "Total Sold", "Avg Selling Price", "Total Sales Value", "Profit",
 ];
 const DASHBOARD_SELECT_FILTERS = [["bd-filter-language", "language"]];
-const DASHBOARD_NUMBER_FILTERS = [["bd-filter-current-stock", "currentStock"]];
+const DASHBOARD_NUMBER_FILTERS = [
+  ["bd-filter-current-stock", "currentStock"],
+  ["bd-filter-selling-price", "standardSellingPrice"],
+  ["bd-filter-min-stock", "minStock"],
+];
 let dashboardStatsCache = [];
+let dashboardTotalExpenses = 0;
 let dashboardFiltersWired = false;
 
 let dashboardExportWired = false;
@@ -1404,10 +1721,22 @@ function wireDashboardFilters() {
   dashboardFiltersWired = true;
   document.getElementById("bd-search").addEventListener("input", debounce(applyDashboardFilters, 200));
   document.getElementById("bd-sort").addEventListener("change", applyDashboardFilters);
-  document.getElementById("bd-filter-language").addEventListener("change", applyDashboardFilters);
-  document.getElementById("bd-filter-current-stock").addEventListener("input", debounce(applyDashboardFilters, 200));
+  pairFilterControls("bd-filter-language", "bd-th-filter-language", applyDashboardFilters);
+  pairFilterControls("bd-filter-current-stock", "bd-th-filter-current-stock", applyDashboardFilters);
+  pairFilterControls("bd-filter-selling-price", "bd-th-filter-selling-price", applyDashboardFilters);
+  pairFilterControls("bd-filter-min-stock", "bd-th-filter-min-stock", applyDashboardFilters);
   initColumnDragReorder("book-dashboard-table", { storageKey: DASHBOARD_COLUMNS_KEY, columns: DEFAULT_DASHBOARD_COLUMNS, resetBtnId: "bd-reset-columns-btn" });
   initHorizontalScroll("book-dashboard-table-wrap", { leftBtnId: "bd-scroll-left", rightBtnId: "bd-scroll-right" });
+
+  // Mobile: tapping a row (not one of its inputs/buttons) expands it in
+  // place to reveal the rest of the book's stats — see Commander's identical
+  // pattern above.
+  document.getElementById("book-dashboard-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("input, button, select, a")) return;
+    const row = e.target.closest("tr[data-key]");
+    if (row) row.classList.toggle("expanded");
+  });
 }
 
 function computeBookStats(book) {
@@ -1440,16 +1769,19 @@ async function renderDashboard() {
   const tbody = document.getElementById("book-dashboard-body");
   tbody.innerHTML = `<tr><td colspan="13" class="loading-row">Loading…</td></tr>`;
 
-  const [{ data: inward, error: inErr }, { data: outward, error: outErr }, { data: standardPrices, error: spErr }] = await Promise.all([
+  const [{ data: inward, error: inErr }, { data: outward, error: outErr }, { data: standardPrices, error: spErr }, { data: expenses, error: expErr }] = await Promise.all([
     supabase.from("book_inward_stock").select("name,language,purchase_price,quantity,purchased_from,created_at"),
     supabase.from("book_outward_stock").select("name,language,sold_price,quantity,sold_area,sold_by,created_at"),
     supabase.from("book_standard_prices").select("book_key,standard_selling_price,min_stock"),
+    supabase.from("book_expenses").select("cost"),
   ]);
 
-  if (inErr || outErr || spErr) {
+  if (inErr || outErr || spErr || expErr) {
     tbody.innerHTML = `<tr><td colspan="13" class="loading-row">Could not load dashboard data.</td></tr>`;
     return;
   }
+
+  dashboardTotalExpenses = (expenses || []).reduce((s, r) => s + (r.cost || 0), 0);
 
   const standardPriceByKey = new Map((standardPrices || []).map((r) => [r.book_key, r.standard_selling_price]));
   const minStockByKey = new Map((standardPrices || []).map((r) => [r.book_key, r.min_stock]));
@@ -1471,7 +1803,7 @@ async function renderDashboard() {
   });
 
   dashboardStatsCache = Array.from(dashboardBooks.values()).map(computeBookStats);
-  populateFilterSelect(document.getElementById("bd-filter-language"), distinctValues(dashboardStatsCache, "language"));
+  populatePairedSelect("bd-filter-language", "bd-th-filter-language", distinctValues(dashboardStatsCache, "language"));
   applyDashboardFilters();
 }
 
@@ -1501,7 +1833,7 @@ function renderDashboardRows(rows, emptyMessage) {
       <td data-label="Total Sold">${s.totalSoldQty ? `<button type="button" class="cell-chip bd-detail-btn" data-kind="outward">${s.totalSoldQty}</button>` : "0"}</td>
       <td data-label="Avg Selling Price">${s.totalSoldQty ? `<button type="button" class="cell-chip bd-detail-btn" data-kind="selling-prices">${fmtMoney(s.avgSellingPrice)}</button>` : "—"}</td>
       <td data-label="Total Sales Value">${fmtMoney(s.totalSalesValue)}</td>
-      <td data-label="Profit"><span style="color:${s.profit < 0 ? "var(--danger)" : "var(--tulsi)"}; font-weight:600;">${fmtMoney(s.profit)}</span></td>
+      <td data-label="Profit"><span class="bd-profit ${s.profit < 0 ? "bd-profit-negative" : "bd-profit-positive"}">${fmtMoney(s.profit)}</span></td>
     </tr>
   `).join("");
 
@@ -1628,14 +1960,17 @@ async function renameBookEverywhere(book, newName, newLanguage) {
   return true;
 }
 
-// Sums realized profit across whatever rows are currently shown (i.e. respects
-// active search/filters, same as the per-book figures below it) rather than
-// always totaling the whole catalog.
+// Net profit = realized profit across whatever rows are currently shown
+// (i.e. respects active search/filters, same as the per-book figures below
+// it) minus org-wide expenses (book_expenses isn't tracked per-book, so the
+// same total is netted out regardless of which books are filtered in —
+// matching how Book Analytics/Expenses net their own gross profit figures).
 function updateTotalProfitStat(rows) {
   const el = document.getElementById("bd-stat-total-profit");
   const card = document.getElementById("bd-stat-profit-card");
   if (!el) return;
-  const total = rows.reduce((s, r) => s + (r.profit || 0), 0);
+  const grossProfit = rows.reduce((s, r) => s + (r.profit || 0), 0);
+  const total = grossProfit - dashboardTotalExpenses;
   el.textContent = fmtMoney(total);
   card.classList.toggle("stat-negative", total < 0);
   card.classList.toggle("stat-positive", total >= 0);
@@ -1824,12 +2159,13 @@ function computeDaySegments(dayRows) {
   return { segments, areaTotals };
 }
 
-function renderAnalyticsStats(bookStats) {
+function renderAnalyticsStats(bookStats, totalExpenses) {
   const totalInwardQty = bookStats.reduce((s, r) => s + r.totalInwardQty, 0);
   const totalSoldQty = bookStats.reduce((s, r) => s + r.totalSoldQty, 0);
   const totalSalesValue = bookStats.reduce((s, r) => s + r.totalSalesValue, 0);
   const totalPurchaseValue = bookStats.reduce((s, r) => s + r.totalPurchaseValue, 0);
   const totalProfit = bookStats.reduce((s, r) => s + r.profit, 0);
+  const netProfit = totalProfit - totalExpenses;
 
   document.getElementById("ba-stat-inward-qty").textContent = totalInwardQty;
   document.getElementById("ba-stat-sold-qty").textContent = totalSoldQty;
@@ -1839,6 +2175,11 @@ function renderAnalyticsStats(bookStats) {
   const card = document.getElementById("ba-stat-profit-card");
   card.classList.toggle("stat-negative", totalProfit < 0);
   card.classList.toggle("stat-positive", totalProfit >= 0);
+
+  document.getElementById("ba-stat-net-profit").textContent = fmtMoney(netProfit);
+  const netCard = document.getElementById("ba-stat-net-profit-card");
+  netCard.classList.toggle("stat-negative", netProfit < 0);
+  netCard.classList.toggle("stat-positive", netProfit >= 0);
 }
 
 // Groups outward rows into per-user-per-day location segments — a revisit to
@@ -1895,24 +2236,39 @@ async function runAnalytics() {
   const to = document.getElementById("ba-to").value;
   const userSel = document.getElementById("ba-filter-user-select").value;
   const placeSel = document.getElementById("ba-filter-place-select").value;
+  const bookSel = document.getElementById("ba-filter-book-select").value;
   const fromISO = from ? new Date(`${from}T00:00:00`).toISOString() : null;
   const toISO = to ? new Date(`${to}T23:59:59.999`).toISOString() : null;
 
   let inwardQuery = supabase.from("book_inward_stock").select("name,language,purchase_price,quantity,purchased_from,created_at");
   let outwardQuery = supabase.from("book_outward_stock").select("name,language,sold_price,quantity,sold_area,sold_by,created_at");
+  let expensesQuery = supabase.from("book_expenses").select("cost,expense_date,to_users");
   if (fromISO) { inwardQuery = inwardQuery.gte("created_at", fromISO); outwardQuery = outwardQuery.gte("created_at", fromISO); }
   if (toISO) { inwardQuery = inwardQuery.lte("created_at", toISO); outwardQuery = outwardQuery.lte("created_at", toISO); }
+  if (from) expensesQuery = expensesQuery.gte("expense_date", from);
+  if (to) expensesQuery = expensesQuery.lte("expense_date", to);
   if (userSel && userSel !== "__ALL__") outwardQuery = outwardQuery.eq("sold_by", userSel);
   if (placeSel && placeSel !== "__ALL__") outwardQuery = outwardQuery.eq("sold_area", placeSel);
+  if (bookSel && bookSel !== "__ALL__") { inwardQuery = inwardQuery.eq("name", bookSel); outwardQuery = outwardQuery.eq("name", bookSel); }
 
-  const [{ data: inward, error: inErr }, { data: outward, error: outErr }] = await Promise.all([inwardQuery, outwardQuery]);
-  if (inErr || outErr) {
+  const [{ data: inward, error: inErr }, { data: outward, error: outErr }, { data: expenses, error: expErr }] = await Promise.all([inwardQuery, outwardQuery, expensesQuery]);
+  if (inErr || outErr || expErr) {
     showToast("Could not load analytics data.", "error");
     return;
   }
 
+  // With a specific user selected, only that user's share of each expense
+  // (split across its to_users) counts against their net profit — an expense
+  // billed to other users shouldn't reduce this user's number.
+  const specificUser = userSel && userSel !== "__ALL__" ? userSel : null;
+  const totalExpenses = (expenses || []).reduce((s, r) => {
+    if (!specificUser) return s + (r.cost || 0);
+    const toUsers = r.to_users || [];
+    if (!toUsers.includes(specificUser)) return s;
+    return s + (r.cost || 0) / (toUsers.length || 1);
+  }, 0);
   const bookStats = buildBookBuckets(inward || [], outward || []).map(computeBookStats);
-  renderAnalyticsStats(bookStats);
+  renderAnalyticsStats(bookStats, totalExpenses);
   renderAnalyticsSegments(outward || [], !userSel || userSel === "__ALL__");
 }
 
@@ -1929,19 +2285,568 @@ async function wireAnalyticsFilters() {
   fromInput.value = analyticsDateInput(d);
   toInput.value = analyticsDateInput(new Date());
 
-  const [{ data: users }, placeNames] = await Promise.all([
+  const [{ data: users }, placeNames, bookNames] = await Promise.all([
     supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
     fetchPlaceNames(),
+    fetchBookNames(),
   ]);
   const userNames = (users || []).map((u) => u.user_name);
   populateFilterSelect(document.getElementById("ba-filter-user-select"), userNames);
   populateFilterSelect(document.getElementById("ba-filter-place-select"), placeNames);
+  populateFilterSelect(document.getElementById("ba-filter-book-select"), bookNames);
 
   document.getElementById("ba-run-btn").addEventListener("click", runAnalytics);
+
+  // Mobile: tapping a row (not one of its detail buttons) expands it in
+  // place to reveal Area/Start Time/End Time/Qty — same pattern as
+  // Commander/Book Dashboard above. Rows have no stable id, but the toggle
+  // only needs to flip a CSS class, not look anything up.
+  document.getElementById("ba-segments-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("button")) return;
+    const row = e.target.closest("tbody tr");
+    if (row) row.classList.toggle("expanded");
+  });
 }
 
 export async function initAnalytics() {
   wireDashboardDetailModal();
   await wireAnalyticsFilters();
   await runAnalytics();
+}
+
+/* ======================= EXPENSES (admin only) =======================
+   Simple ledger: date/name/cost/place/recipients/result — recipients is the
+   only multi-value field, so it's edited via a small dedicated modal instead
+   of squeezing a checkbox dropdown into a table cell (the table-wrap's
+   overflow:auto would clip a popover positioned inside a <td>). Every other
+   field is inline-edit, same as the rest of Book Distribution's tables. */
+
+const EXPENSES_COLUMNS_KEY = "nrg-book-expenses-column-order";
+const DEFAULT_EXPENSES_COLUMNS = ["S.No", "Date", "Name", "Cost", "Place", "To", "Result / Profit", ""];
+const EXPENSES_SELECT_FILTERS = [["be-filter-place", "place"]];
+const EXPENSES_NUMBER_FILTERS = [["be-filter-cost", "cost"], ["be-filter-result-profit", "result_profit"]];
+let expensesCache = [];
+let expensesFiltersWired = false;
+let expenseModalWired = false;
+let expenseToModalWired = false;
+async function fetchAllUserNames() {
+  const { data } = await supabase.from("users").select("user_name").order("user_name");
+  return (data || []).map((u) => u.user_name);
+}
+
+function renderToCheckGroup(container, userNames, selected) {
+  const selectedSet = new Set(selected || []);
+  container.innerHTML = userNames.map((name) => `
+    <label class="tag-check">
+      <input type="checkbox" value="${escapeHtml(name)}" ${selectedSet.has(name) ? "checked" : ""} /> ${escapeHtml(name)}
+    </label>
+  `).join("") || `<span class="muted-text">No users found.</span>`;
+}
+
+function readCheckedValues(container) {
+  return Array.from(container.querySelectorAll("input[type=checkbox]:checked")).map((el) => el.value);
+}
+
+function matchesToFilter(row, selectId) {
+  const val = document.getElementById(selectId)?.value ?? "__ALL__";
+  if (val === "__ALL__") return true;
+  return (row.to_users || []).includes(val);
+}
+
+function renderExpensesRows(rows, emptyMessage) {
+  const tbody = document.getElementById("book-expenses-body");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="muted-text">${emptyMessage}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r, idx) => `
+    <tr data-id="${r.id}">
+      <td data-label="S.No">${idx + 1}</td>
+      <td data-label="Date"><input class="inline-edit" type="date" data-field="expense_date" value="${r.expense_date || ""}" /></td>
+      <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
+      <td data-label="Cost"><input class="inline-edit" type="number" min="0" step="0.01" data-field="cost" value="${r.cost ?? ""}" /></td>
+      <td data-label="Place"><input class="inline-edit" data-field="place" list="book-places-list" value="${escapeHtml(r.place || "")}" /></td>
+      <td data-label="To">
+        <button type="button" class="cell-chip expense-edit-to-btn" title="${escapeHtml((r.to_users || []).join(", ")) || "Edit recipients"}">${(r.to_users || []).length ? escapeHtml(r.to_users.join(", ")) : "— Select —"}</button>
+      </td>
+      <td data-label="Result / Profit"><input class="inline-edit ${Number(r.result_profit) < 0 ? "bd-profit-negative" : Number(r.result_profit) > 0 ? "bd-profit-positive" : ""}" type="number" step="0.01" data-field="result_profit" value="${r.result_profit ?? ""}" /></td>
+      <td data-label="">
+        <button type="button" class="cell-chip danger expense-delete-btn" title="Delete">🗑 Delete</button>
+      </td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll(".expense-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", () => deleteExpense(btn.closest("tr").dataset.id));
+  });
+  tbody.querySelectorAll(".expense-edit-to-btn").forEach((btn) => {
+    btn.addEventListener("click", () => openExpenseToModal(btn.closest("tr").dataset.id));
+  });
+  wireInlineEditCells(tbody, "book_expenses", expensesCache, { numberFields: ["cost", "result_profit"], requiredFields: ["name", "expense_date"] }, async () => { applyExpensesFilters(); await updateExpensesSummaryStats(); });
+  reapplyColumnOrder("book-expenses-table");
+}
+
+function applyExpensesFilters() {
+  const search = document.getElementById("be-search")?.value.trim().toLowerCase() || "";
+  let rows = expensesCache.filter((r) =>
+    matchesSearch(r, search, ["name", "place"]) &&
+    matchesSelectFilters(r, EXPENSES_SELECT_FILTERS) &&
+    matchesNumberFilters(r, EXPENSES_NUMBER_FILTERS) &&
+    matchesToFilter(r, "be-filter-to")
+  );
+  rows = sortRows(rows, document.getElementById("be-sort")?.value, "expense_date-desc");
+  renderExpensesRows(rows, expensesCache.length ? "No expenses match your filters." : "No expenses yet — add one to get started.");
+}
+
+function wireExpensesFilters() {
+  if (expensesFiltersWired) return;
+  expensesFiltersWired = true;
+  document.getElementById("be-search").addEventListener("input", debounce(applyExpensesFilters, 200));
+  document.getElementById("be-sort").addEventListener("change", applyExpensesFilters);
+  pairFilterControls("be-filter-place", "be-th-filter-place", applyExpensesFilters);
+  pairFilterControls("be-filter-to", "be-th-filter-to", applyExpensesFilters);
+  pairFilterControls("be-filter-cost", "be-th-filter-cost", applyExpensesFilters);
+  pairFilterControls("be-filter-result-profit", "be-th-filter-result-profit", applyExpensesFilters);
+  initColumnDragReorder("book-expenses-table", { storageKey: EXPENSES_COLUMNS_KEY, columns: DEFAULT_EXPENSES_COLUMNS, resetBtnId: "be-reset-columns-btn" });
+  initHorizontalScroll("book-expenses-table-wrap", { leftBtnId: "be-scroll-left", rightBtnId: "be-scroll-right" });
+}
+
+async function deleteExpense(id) {
+  const r = expensesCache.find((x) => x.id === id);
+  if (!confirm(`Delete expense "${r?.name || ""}"?`)) return;
+  const { error } = await supabase.from("book_expenses").delete().eq("id", id);
+  if (error) {
+    showToast("Delete failed: " + error.message, "error");
+    return;
+  }
+  showToast("Expense deleted", "success");
+  await loadExpenses();
+}
+
+async function openExpenseModal() {
+  document.getElementById("book-expense-date").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("book-expense-name").value = "";
+  document.getElementById("book-expense-cost").value = "";
+
+  const placeNames = await fetchPlaceNames();
+  const placesFromCache = distinctValues(expensesCache, "place");
+  const allPlaces = Array.from(new Set([...placeNames, ...placesFromCache])).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const placeSelect = document.getElementById("book-expense-place");
+  placeSelect.innerHTML = `<option value="">— Select Place —</option>` +
+    allPlaces.map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
+  placeSelect.value = "";
+
+  document.getElementById("book-expense-result").value = "";
+  document.getElementById("book-expense-error").classList.add("hidden");
+  renderToCheckGroup(document.getElementById("book-expense-to-group"), await fetchAllUserNames(), []);
+  document.getElementById("book-expense-modal").classList.add("active");
+}
+
+function wireExpenseModal(currentUser) {
+  if (expenseModalWired) return;
+  expenseModalWired = true;
+  const modal = document.getElementById("book-expense-modal");
+  const errorEl = document.getElementById("book-expense-error");
+
+  document.getElementById("add-book-expense-btn").onclick = () => openExpenseModal();
+  document.getElementById("book-expense-cancel-btn").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  document.getElementById("book-expense-save-btn").onclick = async () => {
+    const date = document.getElementById("book-expense-date").value;
+    const name = document.getElementById("book-expense-name").value.trim();
+    const cost = document.getElementById("book-expense-cost").value;
+    const place = document.getElementById("book-expense-place").value.trim();
+    const result = document.getElementById("book-expense-result").value;
+    const toUsers = readCheckedValues(document.getElementById("book-expense-to-group"));
+
+    if (!date) {
+      errorEl.textContent = "Please choose a date.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    if (!name) {
+      errorEl.textContent = "Please enter a name for this expense.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+
+    const payload = {
+      expense_date: date,
+      name,
+      cost: cost === "" ? null : Number(cost),
+      place: place || null,
+      to_users: toUsers.length ? toUsers : null,
+      result_profit: result === "" ? null : Number(result),
+      added_by: currentUser?.user_name || null,
+    };
+    const { error } = await supabase.from("book_expenses").insert(payload);
+
+    if (error) {
+      errorEl.textContent = error.message;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    modal.classList.remove("active");
+    showToast("Expense added", "success");
+    await loadExpenses();
+  };
+}
+
+let editingExpenseToId = null;
+
+async function openExpenseToModal(id) {
+  const r = expensesCache.find((x) => x.id === id);
+  if (!r) return;
+  editingExpenseToId = id;
+  document.getElementById("book-expense-to-edit-error").classList.add("hidden");
+  renderToCheckGroup(document.getElementById("book-expense-to-edit-group"), await fetchAllUserNames(), r.to_users);
+  document.getElementById("book-expense-to-modal").classList.add("active");
+}
+
+function wireExpenseToModal() {
+  if (expenseToModalWired) return;
+  expenseToModalWired = true;
+  const modal = document.getElementById("book-expense-to-modal");
+  const errorEl = document.getElementById("book-expense-to-edit-error");
+
+  document.getElementById("book-expense-to-edit-cancel-btn").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  document.getElementById("book-expense-to-edit-save-btn").onclick = async () => {
+    const toUsers = readCheckedValues(document.getElementById("book-expense-to-edit-group"));
+    const { error } = await supabase.from("book_expenses").update({ to_users: toUsers.length ? toUsers : null }).eq("id", editingExpenseToId);
+    if (error) {
+      errorEl.textContent = error.message;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    modal.classList.remove("active");
+    showToast("Recipients updated", "success");
+    await loadExpenses();
+  };
+}
+
+async function loadExpenses() {
+  const tbody = document.getElementById("book-expenses-body");
+  tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Loading…</td></tr>`;
+
+  const { data, error } = await supabase
+    .from("book_expenses")
+    .select("id,expense_date,name,cost,place,to_users,result_profit")
+    .order("expense_date", { ascending: false });
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Could not load expenses.</td></tr>`;
+    return;
+  }
+  expensesCache = data || [];
+  populatePairedSelect("be-filter-place", "be-th-filter-place", distinctValues(expensesCache, "place"));
+  const userNames = await fetchAllUserNames();
+  ["be-filter-to", "be-th-filter-to"].forEach((id) => {
+    const toSelect = document.getElementById(id);
+    const currentTo = toSelect.value;
+    toSelect.innerHTML = `<option value="__ALL__">All</option>` + userNames.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+    toSelect.value = [...toSelect.options].some((o) => o.value === currentTo) ? currentTo : "__ALL__";
+  });
+  applyExpensesFilters();
+  await updateExpensesSummaryStats();
+}
+
+// Gross Amount/Profit come from the same buildBookBuckets+computeBookStats
+// pipeline as Dashboard/Analytics (org-wide, all-time) so this figure never
+// drifts from what those tabs show for the same underlying sales.
+async function updateExpensesSummaryStats() {
+  const [{ data: inward }, { data: outward }] = await Promise.all([
+    supabase.from("book_inward_stock").select("name,language,purchase_price,quantity"),
+    supabase.from("book_outward_stock").select("name,language,sold_price,quantity"),
+  ]);
+
+  const bookStats = buildBookBuckets(inward || [], outward || []).map(computeBookStats);
+  const grossAmount = bookStats.reduce((s, r) => s + r.totalSalesValue, 0);
+  const grossProfit = bookStats.reduce((s, r) => s + r.profit, 0);
+  const totalExpenses = expensesCache.reduce((s, r) => s + (r.cost || 0), 0);
+  const netProfit = grossProfit - totalExpenses;
+
+  document.getElementById("be-stat-gross-amount").textContent = fmtMoney(grossAmount);
+  document.getElementById("be-stat-gross-profit").textContent = fmtMoney(grossProfit);
+  document.getElementById("be-stat-expenses").textContent = fmtMoney(totalExpenses);
+
+  const netEl = document.getElementById("be-stat-net-profit");
+  netEl.textContent = fmtMoney(netProfit);
+  const netCard = document.getElementById("be-stat-net-profit-card");
+  netCard.classList.toggle("stat-negative", netProfit < 0);
+  netCard.classList.toggle("stat-positive", netProfit >= 0);
+}
+
+export async function initExpenses(currentUser) {
+  wireExpenseModal(currentUser);
+  wireExpenseToModal();
+  wireExpensesFilters();
+  await loadExpenses();
+}
+
+/* ======================= SAVINGS (user & admin) ======================= */
+let currentSavingsUser = null;
+
+async function renderSavingsPanel() {
+  const targetUser = currentSavingsUser?.user_name || "";
+  if (!targetUser) return;
+
+  // Admin isn't a book distributor, so "their" personal sales/contributions
+  // are always empty. Admin gets a "Show contribution for" picker: "All
+  // Users" aggregates org-wide (same figures as the Expenses tab), or a
+  // specific coordinator's name shows that person's own numbers.
+  const isAdmin = currentSavingsUser?.role === "Admin";
+  const scopeSel = isAdmin ? (document.getElementById("bs-stats-user-select")?.value || "__ALL__") : targetUser;
+  const isOrgWide = scopeSel === "__ALL__";
+  const scopeUser = isOrgWide ? null : scopeSel;
+
+  let outwardQuery = supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by");
+  let contributionsQuery = supabase.from("book_contributions").select("amount");
+  if (!isOrgWide) {
+    outwardQuery = outwardQuery.eq("sold_by", scopeUser);
+    contributionsQuery = contributionsQuery.eq("submitted_by", scopeUser);
+  }
+
+  const [
+    { data: outwardData, error: outError },
+    { data: inwardData },
+    { data: contributionsData }
+  ] = await Promise.all([
+    outwardQuery,
+    supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
+    contributionsQuery
+  ]);
+
+  if (outError) {
+    console.error("Failed to load savings data:", outError);
+    return;
+  }
+
+  const bookCostMap = new Map();
+  (inwardData || []).forEach((row) => {
+    const key = bookKey(row.name, row.language);
+    if (!bookCostMap.has(key)) bookCostMap.set(key, { qty: 0, val: 0 });
+    const b = bookCostMap.get(key);
+    b.qty += (row.quantity || 0);
+    b.val += (row.purchase_price || 0) * (row.quantity || 0);
+  });
+
+  const getUnitCost = (name, lang) => {
+    const key = bookKey(name, lang);
+    const b = bookCostMap.get(key);
+    return (b && b.qty > 0) ? b.val / b.qty : 0;
+  };
+
+  let salesRevenue = 0;
+  let bookCost = 0;
+  (outwardData || []).forEach((r) => {
+    const qty = r.quantity || 0;
+    salesRevenue += (r.sold_price || 0) * qty;
+    bookCost += getUnitCost(r.name, r.language) * qty;
+  });
+
+  // Tirtha Nidhi intentionally shows a different number than Dashboard/
+  // Analytics/Expenses: a fixed 70% of realised (gross) profit, ignoring
+  // expenses entirely, floored at 0. Expenses are billed later and would
+  // otherwise claw back a figure the user already saw, which reads as
+  // demotivating even though nothing was actually wrong. This display is
+  // for user motivation only — admins still see the real expense-netted
+  // profit everywhere else.
+  const grossProfit = salesRevenue - bookCost;
+  const netProfit = grossProfit > 0 ? grossProfit * 0.7 : 0;
+  const totalMyContribution = (contributionsData || []).reduce((sum, r) => sum + (r.amount || 0), 0);
+
+  const netEl = document.getElementById("bs-total-net");
+  if (netEl) {
+    netEl.textContent = fmtMoney(netProfit);
+    netEl.style.color = netProfit < 0 ? "#dc2626" : netProfit > 0 ? "#16a34a" : "var(--text-main, #111)";
+  }
+
+  const myContributionEl = document.getElementById("bs-total-mycontribution");
+  if (myContributionEl) myContributionEl.textContent = fmtMoney(totalMyContribution);
+  const myContributionLabel = document.querySelector("#bs-my-contribution-card .stat-label");
+  if (myContributionLabel) {
+    myContributionLabel.textContent = isOrgWide ? "All Contributions" : (scopeUser === targetUser ? "My Contribution" : `${scopeUser}'s Contribution`);
+  }
+  const myContributionCard = document.getElementById("bs-my-contribution-card");
+  if (myContributionCard) myContributionCard.title = isOrgWide ? "Tap to view all submissions" : "Tap to view submissions";
+
+  const grandTotalEl = document.getElementById("bs-total-grand");
+  if (grandTotalEl) grandTotalEl.textContent = fmtMoney(totalMyContribution + netProfit);
+}
+
+/* ---- Tirtha Nidhi: manual contributions (add / my submissions / realise) ---- */
+let contributionModalWired = false;
+
+async function openContributionModal(currentUser) {
+  document.getElementById("book-contribution-date").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("book-contribution-amount").value = "";
+
+  const userNames = (await fetchAllUserNames()).filter((n) => n !== currentUser.user_name);
+  const paidToSelect = document.getElementById("book-contribution-paid-to");
+  paidToSelect.innerHTML = `<option value="">— Select User —</option>` +
+    userNames.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+
+  document.getElementById("book-contribution-error").classList.add("hidden");
+  document.getElementById("book-contribution-modal").classList.add("active");
+}
+
+function wireContributionModal(currentUser, onSaved) {
+  if (contributionModalWired) return;
+  contributionModalWired = true;
+
+  const modal = document.getElementById("book-contribution-modal");
+  const errorEl = document.getElementById("book-contribution-error");
+
+  document.getElementById("add-book-contribution-btn").onclick = () => openContributionModal(currentUser);
+  document.getElementById("book-contribution-cancel-btn").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  document.getElementById("book-contribution-save-btn").onclick = async () => {
+    const contribution_date = document.getElementById("book-contribution-date").value;
+    const amount = document.getElementById("book-contribution-amount").value;
+    const paid_to = document.getElementById("book-contribution-paid-to").value;
+
+    if (!contribution_date) {
+      errorEl.textContent = "Please select a date.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    if (!amount || Number(amount) <= 0) {
+      errorEl.textContent = "Please enter an amount.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    if (!paid_to) {
+      errorEl.textContent = "Please select who this was paid to.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+
+    const { error } = await supabase.from("book_contributions").insert({
+      contribution_date,
+      amount: Number(amount),
+      submitted_by: currentUser.user_name,
+      paid_to,
+    });
+
+    if (error) {
+      errorEl.textContent = error.message;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    modal.classList.remove("active");
+    showToast("Contribution added", "success");
+    if (onSaved) await onSaved();
+  };
+}
+
+async function openMyContributionsPopup(userName, showAll = false) {
+  let query = supabase
+    .from("book_contributions")
+    .select("contribution_date, amount, submitted_by, paid_to, realised")
+    .order("contribution_date", { ascending: false });
+  if (!showAll) query = query.eq("submitted_by", userName);
+  const { data, error } = await query;
+
+  const title = document.getElementById("book-dashboard-detail-title");
+  const theadRow = document.querySelector("#book-dashboard-detail-table thead tr");
+  const tbody = document.getElementById("book-dashboard-detail-body");
+
+  title.textContent = showAll ? "All Contributions" : "My Contributions";
+  theadRow.innerHTML = showAll
+    ? "<th>S.No</th><th>Date</th><th>Amount</th><th>Submitted By</th><th>Paid To</th><th>Realised</th>"
+    : "<th>S.No</th><th>Date</th><th>Amount</th><th>Paid To</th><th>Realised</th>";
+
+  if (error || !data?.length) {
+    tbody.innerHTML = `<tr><td colspan="${showAll ? 6 : 5}" class="muted-text">No contributions submitted yet.</td></tr>`;
+  } else {
+    tbody.innerHTML = data.map((r, idx) => `
+      <tr>
+        <td>${idx + 1}</td>
+        <td>${escapeHtml(r.contribution_date || "")}</td>
+        <td>${fmtMoney(r.amount)}</td>
+        ${showAll ? `<td>${escapeHtml(r.submitted_by || "—")}</td>` : ""}
+        <td>${escapeHtml(r.paid_to || "—")}</td>
+        <td>${r.realised ? "✓ Realised" : "Pending"}</td>
+      </tr>
+    `).join("");
+  }
+
+  document.getElementById("book-dashboard-detail-modal").classList.add("active");
+}
+
+async function renderRealiseSection(userName) {
+  const tbody = document.getElementById("bs-realise-body");
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
+
+  const { data, error } = await supabase
+    .from("book_contributions")
+    .select("id, contribution_date, amount, submitted_by, realised")
+    .eq("paid_to", userName)
+    .order("contribution_date", { ascending: false });
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Could not load contributions.</td></tr>`;
+    return;
+  }
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="muted-text">No contributions paid to you yet.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map((r, idx) => `
+    <tr data-id="${r.id}">
+      <td data-label="S.No">${idx + 1}</td>
+      <td data-label="Date">${escapeHtml(r.contribution_date || "")}</td>
+      <td data-label="Amount">${fmtMoney(r.amount)}</td>
+      <td data-label="Paid By">${escapeHtml(r.submitted_by || "—")}</td>
+      <td data-label="Realised"><input type="checkbox" class="realised-checkbox bs-realise-input" ${r.realised ? "checked" : ""} /></td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll(".bs-realise-input").forEach((input) => {
+    input.addEventListener("change", async (e) => {
+      const id = e.target.closest("tr").dataset.id;
+      const checked = e.target.checked;
+      const { error: updError } = await supabase.from("book_contributions").update({ realised: checked }).eq("id", id);
+      if (updError) {
+        showToast("Update failed: " + updError.message, "error");
+        e.target.checked = !checked;
+        return;
+      }
+      showToast(checked ? "Marked as realised" : "Marked as not realised", "success");
+    });
+  });
+}
+
+export async function initSavingsPanel(currentUser) {
+  currentSavingsUser = currentUser;
+  const isAdmin = currentUser?.role === "Admin";
+
+  const statsToolbar = document.getElementById("bs-stats-user-toolbar");
+  statsToolbar?.classList.toggle("hidden", !isAdmin);
+  if (isAdmin) {
+    const select = document.getElementById("bs-stats-user-select");
+    if (select && !select.dataset.wired) {
+      select.dataset.wired = "1";
+      const { data: coordinators } = await supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name");
+      select.innerHTML = `<option value="__ALL__">All Users (combined)</option>` +
+        (coordinators || []).map((u) => `<option value="${escapeHtml(u.user_name)}">${escapeHtml(u.user_name)}</option>`).join("");
+      select.addEventListener("change", renderSavingsPanel);
+    }
+  }
+
+  wireDashboardDetailModal();
+  wireContributionModal(currentUser, renderSavingsPanel);
+  document.getElementById("bs-my-contribution-card").onclick = () => {
+    const scopeSel = isAdmin ? (document.getElementById("bs-stats-user-select")?.value || "__ALL__") : currentUser.user_name;
+    openMyContributionsPopup(scopeSel === "__ALL__" ? null : scopeSel, scopeSel === "__ALL__");
+  };
+
+  await Promise.all([renderSavingsPanel(), renderRealiseSection(currentUser.user_name)]);
 }

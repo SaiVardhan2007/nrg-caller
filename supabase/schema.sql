@@ -15,12 +15,14 @@ create table if not exists users (
   auto_assign boolean not null default true,
   commander   boolean not null default false,
   assigned_count int not null default 0,    -- mirrors "No of Call Assigned by Automation" in Sheets
+  sadhana_track boolean not null default false, -- only tracked users show in the FNRG Sadhana "Enter Sadhana" roster
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
 
 alter table users add column if not exists assigned_count int not null default 0;
 alter table users add column if not exists commander boolean not null default false;
+alter table users add column if not exists sadhana_track boolean not null default false;
 
 -- Sheet: Master Contact
 create table if not exists contacts (
@@ -251,6 +253,85 @@ create table if not exists book_standard_prices (
 );
 alter table book_standard_prices add column if not exists min_stock integer;
 
+-- No sheet: Book Distribution > Book Requests. Anyone can request a book be
+-- stocked/brought to a place; admin reviews and marks it fulfilled.
+create table if not exists book_requests (
+  id           uuid primary key default gen_random_uuid(),
+  name         text not null,
+  quantity     integer not null,
+  place        text,
+  priority     text not null default 'Can Wait' check (priority in ('Immediately','Important','Can Wait')),
+  requested_by text,
+  fulfilled    boolean not null default false,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+create index if not exists idx_book_requests_created_at on book_requests(created_at);
+
+-- No sheet: Book Distribution > Expenses. Admin-only ledger of money spent
+-- (travel, printing, etc.), who it went to, and the resulting profit/loss.
+create table if not exists book_expenses (
+  id            uuid primary key default gen_random_uuid(),
+  expense_date  date not null default current_date,
+  name          text not null,
+  cost          numeric,
+  place         text,
+  to_users      text[],
+  result_profit numeric,
+  added_by      text,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index if not exists idx_book_expenses_expense_date on book_expenses(expense_date);
+
+-- No sheet: Book Distribution > Tirtha Nidhi personal contributions. A user
+-- logs cash they're handing over to another user; only that recipient can
+-- mark it realised (confirmed received), mirroring book_outward_stock.realised.
+create table if not exists book_contributions (
+  id                 uuid primary key default gen_random_uuid(),
+  contribution_date  date not null default current_date,
+  amount             numeric not null,
+  submitted_by       text not null,
+  paid_to            text not null,
+  realised           boolean not null default false,
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now()
+);
+create index if not exists idx_book_contributions_submitted_by on book_contributions(submitted_by);
+create index if not exists idx_book_contributions_paid_to on book_contributions(paid_to);
+
+-- No sheet: FNRG Sadhana module. Per-person daily sadhana log.
+create table if not exists fnrg_sadhana (
+  id            uuid primary key default gen_random_uuid(),
+  name          text not null,
+  sadhana_date  date not null default current_date,
+  rounds        numeric,
+  book_reading  numeric,
+  screen_time   numeric,
+  detox_time    numeric,
+  service       text check (service in ('Yes','No','Na')),
+  swadhyaya     text check (swadhyaya in ('Yes','No')),
+  added_by      text,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+alter table fnrg_sadhana add column if not exists service text check (service in ('Yes','No','Na'));
+alter table fnrg_sadhana add column if not exists swadhyaya text check (swadhyaya in ('Yes','No'));
+
+-- ============ HELPER FUNCTIONS ============
+
+-- Lets the app's "Download All Data" export discover tables live instead of
+-- from a hardcoded JS list, so a table added here later shows up in the
+-- export with no app code change (it still needs an RLS policy below, like
+-- every other table, or its rows just come back empty to anon/authenticated).
+create or replace function list_app_tables() returns text[] language sql stable as $$
+  select array_agg(table_name order by table_name)
+  from information_schema.tables
+  where table_schema = 'public' and table_type = 'BASE TABLE';
+$$;
+grant execute on function list_app_tables() to anon, authenticated;
+
 -- ============ TRIGGERS ============
 
 -- keep updated_at fresh
@@ -281,6 +362,18 @@ drop trigger if exists trg_book_standard_prices_touch on book_standard_prices;
 create trigger trg_book_standard_prices_touch before update on book_standard_prices
   for each row execute function touch_updated_at();
 
+drop trigger if exists trg_book_requests_touch on book_requests;
+create trigger trg_book_requests_touch before update on book_requests
+  for each row execute function touch_updated_at();
+
+drop trigger if exists trg_fnrg_sadhana_touch on fnrg_sadhana;
+create trigger trg_fnrg_sadhana_touch before update on fnrg_sadhana
+  for each row execute function touch_updated_at();
+
+drop trigger if exists trg_book_expenses_touch on book_expenses;
+create trigger trg_book_expenses_touch before update on book_expenses
+  for each row execute function touch_updated_at();
+
 -- attendance insert -> contacts.sessions_count + 1 (the "No of Sessions" column)
 create or replace function bump_sessions_count() returns trigger language plpgsql as $$
 begin
@@ -302,6 +395,24 @@ end $$;
 drop trigger if exists trg_attendance_unbump on session_attendance;
 create trigger trg_attendance_unbump after delete on session_attendance
   for each row execute function unbump_sessions_count();
+
+-- Reception can mark attendance for a phone number before that person is
+-- added to Master Contacts (e.g. walk-in logged via session_attendance,
+-- added to contacts later via Add All to Master / Sheets sync). When that
+-- happens, trg_attendance_bump's UPDATE above matches zero rows because the
+-- contact doesn't exist yet, so those sessions are lost once the contact row
+-- is created with sessions_count defaulting to 0. Backfill from any
+-- already-existing session_attendance rows at contact-insert time so the
+-- count is never short.
+create or replace function backfill_sessions_count_on_contact_insert() returns trigger language plpgsql as $$
+begin
+  select count(*) into new.sessions_count from session_attendance where mob_no = new.mob_no;
+  return new;
+end $$;
+
+drop trigger if exists trg_contact_backfill_sessions on contacts;
+create trigger trg_contact_backfill_sessions before insert on contacts
+  for each row execute function backfill_sessions_count_on_contact_insert();
 
 -- call response insert -> contacts.calls_count + 1
 create or replace function bump_calls_count() returns trigger language plpgsql as $$
@@ -359,6 +470,9 @@ alter table book_places           enable row level security;
 alter table book_inward_stock     enable row level security;
 alter table book_outward_stock    enable row level security;
 alter table book_standard_prices  enable row level security;
+alter table book_requests         enable row level security;
+alter table book_expenses         enable row level security;
+alter table book_contributions    enable row level security;
 
 do $$ declare t text;
 begin
@@ -366,7 +480,8 @@ begin
                            'session_attendance','contact_collection','events','settings',
                            'help_requests','one_to_one_remarks','book_places',
                            'book_inward_stock','book_outward_stock','book_standard_prices',
-                           'follow_up_assignments'] loop
+                           'follow_up_assignments','book_requests','book_expenses',
+                           'book_contributions'] loop
     execute format('drop policy if exists app_all on %I', t);
     execute format('create policy app_all on %I for all to anon, authenticated using (true) with check (true)', t);
   end loop;

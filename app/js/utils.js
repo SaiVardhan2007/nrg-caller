@@ -146,6 +146,18 @@ export function startOfLast4Weeks() {
   return d;
 }
 
+// A core-cultivated contact is considered "going cold" once its cultivator
+// hasn't called in this many days — drives both the red-row flag on Core
+// Cultivation Health and the call-count window on its General Data summary.
+export const CORE_CULTIVATION_STALE_DAYS = 10;
+
+export function daysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 // The GFY/AOMC picker on a call card. "GFY/AOMC" is the field's name, shown as
 // a chip beside the control — not an option inside it, which made it read like
 // a selectable value. Any value already on the contact is rendered even if it

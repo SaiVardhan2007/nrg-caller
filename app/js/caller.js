@@ -65,8 +65,28 @@ export async function init(user) {
   wireReviewModal();
   wireHistoryModal();
   wireRefreshButton();
+  wireFollowUpToggle();
   wireSearch();
   subscribeRealtime();
+}
+
+// Follow Up Calls stays out of the way while there's still work in the main
+// list — it auto-reveals once every assigned call is done, but a caller can
+// always peek at it early via the Follow-up stat box.
+let followUpRevealed = false;
+function applyFollowUpVisibility(pending) {
+  document.getElementById("caller-followup-section").classList.toggle("hidden", !(pending === 0 || followUpRevealed));
+}
+
+let followUpToggleWired = false;
+function wireFollowUpToggle() {
+  if (followUpToggleWired) return;
+  followUpToggleWired = true;
+  document.getElementById("stat-followup-box").addEventListener("click", () => {
+    followUpRevealed = !followUpRevealed;
+    const pending = Number(document.getElementById("stat-pending").textContent) || 0;
+    applyFollowUpVisibility(pending);
+  });
 }
 
 let searchWired = false;
@@ -176,9 +196,7 @@ async function loadAndRenderCards() {
     listEl.innerHTML = visibleAssignments.map((a) => renderCard(a, weekCallCounts[a.contacts.mob_no] || 0)).join("");
     wireCard(listEl, visibleAssignments);
   }
-  updateStatsBar(visibleAssignments);
-  document.getElementById("caller-combined-total").textContent =
-    `${visibleAssignments.length} assigned + ${followUpSection.length} follow-up = ${visibleAssignments.length + followUpSection.length} total`;
+  updateStatsBar(visibleAssignments, followUpSection);
 
   const followUpListEl = document.getElementById("caller-followup-cards");
   document.getElementById("caller-followup-count").textContent = followUpSection.length;
@@ -425,33 +443,58 @@ function updateCompletionBadges(total, pending) {
   document.getElementById("dash-completion-badge").textContent = `${pct}%`;
 }
 
-function updateStatsBar(assignments) {
-  const total = assignments.length;
-  let positive = 0, pending = 0;
+// Total/Positive/Pending fold in the handed-off follow-up load too, so the
+// bar always reflects everything a caller actually owes (main + follow-up).
+// The Follow-up tile stays a separate count of how much of that is follow-up.
+// Follow-up visibility (auto-reveal once the main list is clear) still keys
+// off main-list pending only — a caller shouldn't need to finish follow-ups
+// just to have the section reveal itself.
+function updateStatsBar(assignments, followUps = []) {
+  let positive = 0, mainPending = 0;
   assignments.forEach((a) => {
     const s = (a.status || STATUS_DEFAULT).toLowerCase();
     if (POSITIVE.includes(s)) positive++;
-    else if (PENDING.includes(s)) pending++;
+    else if (PENDING.includes(s)) mainPending++;
   });
+  let followUpPositive = 0, followUpPending = 0;
+  followUps.forEach((f) => {
+    const s = (f.status || STATUS_DEFAULT).toLowerCase();
+    if (POSITIVE.includes(s)) followUpPositive++;
+    else if (PENDING.includes(s)) followUpPending++;
+  });
+  const total = assignments.length + followUps.length;
+  const pending = mainPending + followUpPending;
   document.getElementById("stat-total").textContent = total;
-  document.getElementById("stat-positive").textContent = positive;
+  document.getElementById("stat-positive").textContent = positive + followUpPositive;
   document.getElementById("stat-pending").textContent = pending;
+  document.getElementById("stat-followup").textContent = followUps.length;
   updateCompletionBadges(total, pending);
+  applyFollowUpVisibility(mainPending);
 }
 
 function updateStatsBarFromDom() {
-  // Scoped to the main list only — Follow Up Calls must never affect this bar.
-  const cards = document.querySelectorAll("#caller-cards .call-card");
-  let total = cards.length, positive = 0, pending = 0;
-  cards.forEach((card) => {
+  const mainCards = document.querySelectorAll("#caller-cards .call-card");
+  const followUpCards = document.querySelectorAll("#caller-followup-cards .call-card");
+  let positive = 0, mainPending = 0;
+  mainCards.forEach((card) => {
     const s = card.querySelector(".status-select").value.toLowerCase();
     if (POSITIVE.includes(s)) positive++;
-    else if (PENDING.includes(s)) pending++;
+    else if (PENDING.includes(s)) mainPending++;
   });
+  let followUpPositive = 0, followUpPending = 0;
+  followUpCards.forEach((card) => {
+    const s = card.querySelector(".status-select").value.toLowerCase();
+    if (POSITIVE.includes(s)) followUpPositive++;
+    else if (PENDING.includes(s)) followUpPending++;
+  });
+  const total = mainCards.length + followUpCards.length;
+  const pending = mainPending + followUpPending;
   document.getElementById("stat-total").textContent = total;
-  document.getElementById("stat-positive").textContent = positive;
+  document.getElementById("stat-positive").textContent = positive + followUpPositive;
   document.getElementById("stat-pending").textContent = pending;
+  document.getElementById("stat-followup").textContent = followUpCards.length;
   updateCompletionBadges(total, pending);
+  applyFollowUpVisibility(mainPending);
 }
 
 // Fires the moment a status is picked (any status, not just "Others"), mirroring
@@ -527,18 +570,30 @@ function wireReviewModal() {
   });
 }
 
+function historyTimeParts(ts) {
+  const d = new Date(ts);
+  return {
+    date: d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }),
+    time: d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+  };
+}
+
+function historyEmptyState(text) {
+  return `<div class="history-empty">${escapeHtml(text)}</div>`;
+}
+
 async function openHistoryModal(mob, name, kind = "calls") {
   const titleEl = document.getElementById("history-modal-title");
-  const theadRow = document.querySelector("#history-modal thead tr");
-  const tbody = document.getElementById("history-body");
+  const countBadge = document.getElementById("history-count-badge");
+  const body = document.getElementById("history-body");
 
   document.getElementById("history-contact-info").textContent = `Contact: ${name} (${formatPhone(mob)})`;
-  tbody.innerHTML = `<tr><td colspan="4" class="no-history">Loading…</td></tr>`;
+  countBadge.textContent = "";
+  body.innerHTML = historyEmptyState("Loading…");
   document.getElementById("history-modal").classList.add("active");
 
   if (kind === "sessions") {
     titleEl.textContent = "Session Attendance";
-    theadRow.innerHTML = "<th>S.No</th><th>Time</th><th>Marked By</th><th>Event</th>";
 
     const { data, error } = await supabase
       .from("session_attendance")
@@ -547,20 +602,24 @@ async function openHistoryModal(mob, name, kind = "calls") {
       .order("ts", { ascending: false });
 
     if (error || !data || !data.length) {
-      tbody.innerHTML = `<tr><td colspan="4" class="no-history">No sessions attended yet.</td></tr>`;
+      body.innerHTML = historyEmptyState("No sessions attended yet.");
       return;
     }
-    tbody.innerHTML = data.map((r, idx) => `
-      <tr>
-        <td>${idx + 1}</td>
-        <td>${new Date(r.ts).toLocaleString()}</td>
-        <td>${escapeHtml(r.took_by)}</td>
-        <td>${escapeHtml(r.event_code || "—")}</td>
-      </tr>
-    `).join("");
+    countBadge.textContent = `${data.length} session${data.length === 1 ? "" : "s"}`;
+    body.innerHTML = data.map((r) => {
+      const { date, time } = historyTimeParts(r.ts);
+      return `
+        <div class="history-item">
+          <div class="history-item-head">
+            <span class="history-item-datetime"><strong>${date}</strong> · ${time}</span>
+            <span class="history-badge history-badge-neutral">${escapeHtml(r.event_code || "—")}</span>
+          </div>
+          <div class="history-item-meta">Marked by ${escapeHtml(r.took_by)}</div>
+        </div>
+      `;
+    }).join("");
   } else {
     titleEl.textContent = "Call History";
-    theadRow.innerHTML = "<th>S.No</th><th>Time</th><th>Status</th><th>Additional</th>";
 
     const { data, error } = await supabase
       .from("call_responses")
@@ -569,17 +628,23 @@ async function openHistoryModal(mob, name, kind = "calls") {
       .order("ts", { ascending: false });
 
     if (error || !data || !data.length) {
-      tbody.innerHTML = `<tr><td colspan="4" class="no-history">No call history yet.</td></tr>`;
+      body.innerHTML = historyEmptyState("No call history yet.");
       return;
     }
-    tbody.innerHTML = data.map((r, idx) => `
-      <tr>
-        <td>${idx + 1}</td>
-        <td>${new Date(r.ts).toLocaleString()}</td>
-        <td>${escapeHtml(r.remarks)}</td>
-        <td>${escapeHtml(r.addl_remarks || "")}</td>
-      </tr>
-    `).join("");
+    countBadge.textContent = `${data.length} call${data.length === 1 ? "" : "s"}`;
+    body.innerHTML = data.map((r) => {
+      const { date, time } = historyTimeParts(r.ts);
+      const status = r.remarks || "—";
+      return `
+        <div class="history-item">
+          <div class="history-item-head">
+            <span class="history-item-datetime"><strong>${date}</strong> · ${time}</span>
+            <span class="history-badge history-badge-${statusCategory(status)}">${escapeHtml(status)}</span>
+          </div>
+          ${r.addl_remarks ? `<div class="history-item-note">${escapeHtml(r.addl_remarks)}</div>` : ""}
+        </div>
+      `;
+    }).join("");
   }
 }
 

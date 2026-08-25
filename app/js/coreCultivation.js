@@ -426,18 +426,30 @@ function wireReviewModal() {
   });
 }
 
+function historyTimeParts(ts) {
+  const d = new Date(ts);
+  return {
+    date: d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }),
+    time: d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+  };
+}
+
+function historyEmptyState(text) {
+  return `<div class="history-empty">${escapeHtml(text)}</div>`;
+}
+
 async function openHistoryModal(mob, name, kind = "calls") {
   const titleEl = document.getElementById("history-modal-title");
-  const theadRow = document.querySelector("#history-modal thead tr");
-  const tbody = document.getElementById("history-body");
+  const countBadge = document.getElementById("history-count-badge");
+  const body = document.getElementById("history-body");
 
   document.getElementById("history-contact-info").textContent = `Contact: ${name} (${formatPhone(mob)})`;
-  tbody.innerHTML = `<tr><td colspan="4" class="no-history">Loading…</td></tr>`;
+  countBadge.textContent = "";
+  body.innerHTML = historyEmptyState("Loading…");
   document.getElementById("history-modal").classList.add("active");
 
   if (kind === "sessions") {
     titleEl.textContent = "Session Attendance";
-    theadRow.innerHTML = "<th>S.No</th><th>Time</th><th>Marked By</th><th>Event</th>";
 
     const { data, error } = await supabase
       .from("session_attendance")
@@ -446,20 +458,24 @@ async function openHistoryModal(mob, name, kind = "calls") {
       .order("ts", { ascending: false });
 
     if (error || !data || !data.length) {
-      tbody.innerHTML = `<tr><td colspan="4" class="no-history">No sessions attended yet.</td></tr>`;
+      body.innerHTML = historyEmptyState("No sessions attended yet.");
       return;
     }
-    tbody.innerHTML = data.map((r, idx) => `
-      <tr>
-        <td>${idx + 1}</td>
-        <td>${new Date(r.ts).toLocaleString()}</td>
-        <td>${escapeHtml(r.took_by)}</td>
-        <td>${escapeHtml(r.event_code || "—")}</td>
-      </tr>
-    `).join("");
+    countBadge.textContent = `${data.length} session${data.length === 1 ? "" : "s"}`;
+    body.innerHTML = data.map((r) => {
+      const { date, time } = historyTimeParts(r.ts);
+      return `
+        <div class="history-item">
+          <div class="history-item-head">
+            <span class="history-item-datetime"><strong>${date}</strong> · ${time}</span>
+            <span class="history-badge history-badge-neutral">${escapeHtml(r.event_code || "—")}</span>
+          </div>
+          <div class="history-item-meta">Marked by ${escapeHtml(r.took_by)}</div>
+        </div>
+      `;
+    }).join("");
   } else {
     titleEl.textContent = "Call History";
-    theadRow.innerHTML = "<th>S.No</th><th>Time</th><th>Status</th><th>Additional</th>";
 
     const { data, error } = await supabase
       .from("call_responses")
@@ -468,17 +484,23 @@ async function openHistoryModal(mob, name, kind = "calls") {
       .order("ts", { ascending: false });
 
     if (error || !data || !data.length) {
-      tbody.innerHTML = `<tr><td colspan="4" class="no-history">No call history yet.</td></tr>`;
+      body.innerHTML = historyEmptyState("No call history yet.");
       return;
     }
-    tbody.innerHTML = data.map((r, idx) => `
-      <tr>
-        <td>${idx + 1}</td>
-        <td>${new Date(r.ts).toLocaleString()}</td>
-        <td>${escapeHtml(r.remarks)}</td>
-        <td>${escapeHtml(r.addl_remarks || "")}</td>
-      </tr>
-    `).join("");
+    countBadge.textContent = `${data.length} call${data.length === 1 ? "" : "s"}`;
+    body.innerHTML = data.map((r) => {
+      const { date, time } = historyTimeParts(r.ts);
+      const status = r.remarks || "—";
+      return `
+        <div class="history-item">
+          <div class="history-item-head">
+            <span class="history-item-datetime"><strong>${date}</strong> · ${time}</span>
+            <span class="history-badge history-badge-${statusCategory(status)}">${escapeHtml(status)}</span>
+          </div>
+          ${r.addl_remarks ? `<div class="history-item-note">${escapeHtml(r.addl_remarks)}</div>` : ""}
+        </div>
+      `;
+    }).join("");
   }
 }
 

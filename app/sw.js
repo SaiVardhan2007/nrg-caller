@@ -1,4 +1,4 @@
-const CACHE_NAME = "fnrg-preaching-v66";
+const CACHE_NAME = "fnrg-preaching-v122";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -31,20 +31,20 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// App shell: cache-first (instant load). All Supabase API calls go straight
-// to the network (never cached) so data is always live.
+// App shell: network-first. Always fetch the latest JS/HTML when online so
+// code fixes reach an already-open tab/PWA session immediately instead of
+// waiting for a stale-while-revalidate cache to catch up over two reloads.
+// Falls back to the cache only when the network is unavailable (offline).
+// All Supabase API calls go straight to the network untouched, same as before.
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return; // let Supabase/CDN requests pass through untouched
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetchPromise = fetch(event.request).then((networkResp) => {
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResp.clone()));
-        return networkResp;
-      }).catch(() => cached);
-      return cached || fetchPromise;
-    })
+    fetch(event.request).then((networkResp) => {
+      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResp.clone()));
+      return networkResp;
+    }).catch(() => caches.match(event.request))
   );
 });
 
