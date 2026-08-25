@@ -2029,11 +2029,16 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    on a phone this stays one line per person, which is the whole point of a
    fast daily roster entry screen. */
 .sadhana-roster-panel { display: flex; flex-direction: column; }
-/* Horizontal scroll wrapper: keeps the name column at a fixed, fully
-   readable width instead of squeezing it down to make room for the six
-   numeric/dropdown columns — the row scrolls sideways instead. Header and
-   list share this one scroll container so their columns stay aligned. */
-.sadhana-roster-scroll { overflow-x: auto; }
+/* Scroll wrapper: handles BOTH axes in one element (never split across
+   nested containers) — a vertical-only overflow on a descendant would get
+   its own overflow-x auto-promoted by the UA (CSS can't mix "visible" on
+   one axis with a non-"visible" value on the other), silently decoupling
+   that descendant's horizontal scroll position from this one and breaking
+   position:sticky's left:0 anchoring for the name column. Keeping the name
+   column at a fixed, fully readable width instead of squeezing it down to
+   make room for the six numeric/dropdown columns — the row scrolls sideways
+   instead, with Name (sticky left) and header (sticky top) pinned in place. */
+.sadhana-roster-scroll { overflow: auto; max-height: calc(100vh - 340px); min-height: 200px; }
 .sadhana-roster-header,
 .sadhana-roster-row {
   display: grid;
@@ -2043,6 +2048,9 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   min-width: 500px;
 }
 .sadhana-roster-header {
+  position: sticky;
+  top: 0;
+  z-index: 4;
   padding: 0 8px 8px;
   border-bottom: 1px solid var(--sandstone);
   margin-bottom: 4px;
@@ -2051,13 +2059,20 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   color: var(--text-muted);
   text-align: center;
   line-height: 1.2;
+  background: var(--surface);
 }
-.sadhana-roster-header .sr-col-name { text-align: left; }
-.sadhana-roster-list { max-height: calc(100vh - 340px); min-height: 200px; overflow-y: auto; }
+.sadhana-roster-header .sr-col-name {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--surface);
+}
 .sadhana-roster-row {
   padding: 6px 8px;
   border-radius: 10px;
   border: 1px solid transparent;
+  background: var(--surface);
 }
 .sadhana-roster-row:nth-child(even) { background: var(--cream); }
 .sadhana-roster-row.sr-dirty { background: rgba(217,119,6,0.1); }
@@ -2067,6 +2082,10 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   font-size: 13.5px;
   font-weight: 600;
   white-space: nowrap;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: inherit;
 }
 .sadhana-roster-input {
   width: 100%;
@@ -2074,7 +2093,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   padding: 6px 2px;
   text-align: center;
   font-size: 13px;
-  border: 1px solid var(--sandstone);
+  border: 1.5px solid var(--text-muted);
   border-radius: 8px;
   background: var(--surface);
 }
@@ -2100,7 +2119,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   .sadhana-roster-header { font-size: 9.5px; padding: 0 4px 6px; }
   .sadhana-roster-name { font-size: 12.5px; }
   .sadhana-roster-input { padding: 5px 1px; font-size: 11.5px; }
-  .sadhana-roster-list { max-height: calc(100vh - 420px); }
+  .sadhana-roster-scroll { max-height: calc(100vh - 420px); }
 }
 
 /* User-facing FNRG Sadhana: a lightweight in-page toggle (not a routed
