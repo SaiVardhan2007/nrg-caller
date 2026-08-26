@@ -8,6 +8,7 @@ let dashboardWired = false;
 let bulkImportWired = false;
 let dashboardBooks = new Map();
 let latestTodayArea = null;
+let latestTodayEvent = null;
 
 // The "Add Sales" modal's reference data (book catalog, places, standard
 // prices, current stock) needs 4 queries — 2 of them full-table scans over
@@ -826,7 +827,7 @@ async function renderLatestEntryLocation(userName) {
   const indicator = document.getElementById("book-latest-location-indicator");
   const { data, error } = await supabase
     .from("book_outward_stock")
-    .select("sold_area,created_at")
+    .select("sold_area,event,created_at")
     .eq("sold_by", userName)
     .order("created_at", { ascending: false })
     .limit(1);
@@ -834,9 +835,11 @@ async function renderLatestEntryLocation(userName) {
   const row = !error && data && data[0];
   const isToday = row && new Date(row.created_at) >= startOfLocalDay();
   latestTodayArea = isToday ? row.sold_area : null;
+  latestTodayEvent = isToday ? row.event : null;
 
   if (isToday) {
-    indicator.textContent = `📍 Latest entry today: ${row.sold_area} (${new Date(row.created_at).toLocaleTimeString()})`;
+    const eventPart = row.event ? ` — ${row.event}` : "";
+    indicator.textContent = `📍 Latest entry today: ${row.sold_area}${eventPart} (${new Date(row.created_at).toLocaleTimeString()})`;
     indicator.classList.remove("hidden");
   } else {
     indicator.classList.add("hidden");
@@ -1271,7 +1274,7 @@ function wireOutwardModal(currentUser) {
       draft.rows.forEach((data, idx) => addRow(idx > 0, data));
     } else {
       areaInput.value = latestTodayArea || "";
-      eventInput.value = "";
+      eventInput.value = latestTodayEvent || "";
       addRow(false);
     }
     errorEl.classList.add("hidden");
@@ -1306,14 +1309,16 @@ function wireOutwardModal(currentUser) {
     }
 
     const eventTyped = eventInput.value.trim();
-    let event = null;
-    if (eventTyped) {
-      event = events.find((ev) => ev.toLowerCase() === eventTyped.toLowerCase());
-      if (!event) {
-        errorEl.textContent = "Please choose a valid event from the suggestions, or leave it blank.";
-        errorEl.classList.remove("hidden");
-        return;
-      }
+    if (!eventTyped) {
+      errorEl.textContent = "Please select an event.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    const event = events.find((ev) => ev.toLowerCase() === eventTyped.toLowerCase());
+    if (!event) {
+      errorEl.textContent = "Please choose a valid event from the suggestions.";
+      errorEl.classList.remove("hidden");
+      return;
     }
 
     const payload = [];
@@ -1832,6 +1837,7 @@ const DASHBOARD_NUMBER_FILTERS = [
 ];
 let dashboardStatsCache = [];
 let dashboardTotalExpenses = 0;
+let dashboardLowStockOnly = false;
 let dashboardFiltersWired = false;
 
 let dashboardExportWired = false;
@@ -1959,6 +1965,12 @@ function wireDashboardFilters() {
   pairFilterControls("bd-filter-current-stock", "bd-th-filter-current-stock", applyDashboardFilters);
   pairFilterControls("bd-filter-selling-price", "bd-th-filter-selling-price", applyDashboardFilters);
   pairFilterControls("bd-filter-min-stock", "bd-th-filter-min-stock", applyDashboardFilters);
+  document.getElementById("bd-filter-low-stock-btn").addEventListener("click", (e) => {
+    dashboardLowStockOnly = !dashboardLowStockOnly;
+    e.currentTarget.classList.toggle("btn-danger", dashboardLowStockOnly);
+    e.currentTarget.classList.toggle("btn-secondary", !dashboardLowStockOnly);
+    applyDashboardFilters();
+  });
   initColumnDragReorder("book-dashboard-table", { storageKey: DASHBOARD_COLUMNS_KEY, columns: DEFAULT_DASHBOARD_COLUMNS, resetBtnId: "bd-reset-columns-btn" });
   initHorizontalScroll("book-dashboard-table-wrap", { leftBtnId: "bd-scroll-left", rightBtnId: "bd-scroll-right" });
 
@@ -2215,7 +2227,8 @@ function applyDashboardFilters() {
   let rows = dashboardStatsCache.filter((s) =>
     matchesSearch(s, search, ["name"]) &&
     matchesSelectFilters(s, DASHBOARD_SELECT_FILTERS) &&
-    matchesNumberFilters(s, DASHBOARD_NUMBER_FILTERS)
+    matchesNumberFilters(s, DASHBOARD_NUMBER_FILTERS) &&
+    (!dashboardLowStockOnly || isLowStock(s))
   );
   rows = sortRows(rows, document.getElementById("bd-sort")?.value, "name-asc");
   renderDashboardRows(rows, dashboardStatsCache.length ? "No books match your filters." : "No stock entries yet.");

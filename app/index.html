@@ -779,6 +779,7 @@
               <span>Min Stock</span>
               <input type="number" min="0" id="bd-filter-min-stock" placeholder="All" />
             </label>
+            <button id="bd-filter-low-stock-btn" type="button" class="btn btn-secondary toolbar-btn" title="Show only books below their minimum stock (rows highlighted in red)">🔴 Low Stock Only</button>
             <button id="add-book-dashboard-btn" class="btn btn-primary toolbar-btn">+ Add Book</button>
             <button id="add-book-bulk-btn" class="btn btn-secondary toolbar-btn">⬆ Bulk Add (Excel)</button>
             <button id="bd-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
@@ -2877,7 +2878,7 @@
       </div>
     </div>
     <label class="field"><span>Area</span><input type="text" id="book-outward-area-select" placeholder="Search or type an area…" autocomplete="off" /></label>
-    <label class="field"><span>Event (optional)</span><input type="text" id="book-outward-event-select" placeholder="Search or type an event…" autocomplete="off" /></label>
+    <label class="field"><span>Event</span><input type="text" id="book-outward-event-select" placeholder="Search or type an event…" autocomplete="off" /></label>
     <div id="book-outward-rows" class="stock-rows"></div>
     <button id="book-outward-add-row-btn" type="button" class="btn btn-secondary btn-sm">+ Add Another Book</button>
     <div id="book-outward-error" class="field-error hidden"></div>
