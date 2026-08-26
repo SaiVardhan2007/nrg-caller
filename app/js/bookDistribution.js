@@ -257,7 +257,7 @@ function wirePlacesFilters() {
   pairFilterControls("bp-filter-map-link", "bp-th-filter-map-link", applyPlacesFilters);
   wireExportBtn("bp-export-btn", "book-places-table", "Distribution_Places");
   initColumnDragReorder("book-places-table", { storageKey: PLACES_COLUMNS_KEY, columns: DEFAULT_PLACES_COLUMNS, resetBtnId: "bp-reset-columns-btn" });
-  initHorizontalScroll("book-places-table-wrap", { leftBtnId: "bp-scroll-left", rightBtnId: "bp-scroll-right" });
+  initHorizontalScroll("book-places-table-wrap");
 }
 
 async function deletePlace(id) {
@@ -403,7 +403,7 @@ function wireEventsFilters() {
   pairFilterControls("bev-filter-map-link", "bev-th-filter-map-link", applyEventsFilters);
   wireExportBtn("bev-export-btn", "book-events-table", "Book_Events");
   initColumnDragReorder("book-events-table", { storageKey: EVENTS_COLUMNS_KEY, columns: DEFAULT_EVENTS_COLUMNS, resetBtnId: "bev-reset-columns-btn" });
-  initHorizontalScroll("book-events-table-wrap", { leftBtnId: "bev-scroll-left", rightBtnId: "bev-scroll-right" });
+  initHorizontalScroll("book-events-table-wrap");
 }
 
 async function deleteBookEvent(id) {
@@ -584,7 +584,7 @@ function wireInwardFilters() {
   pairFilterControls("bi-filter-qty", "bi-th-filter-qty", applyInwardFilters);
   wireExportBtn("bi-export-btn", "book-inward-table", "Inward_Stock");
   initColumnDragReorder("book-inward-table", { storageKey: INWARD_COLUMNS_KEY, columns: DEFAULT_INWARD_COLUMNS, resetBtnId: "bi-reset-columns-btn" });
-  initHorizontalScroll("book-inward-table-wrap", { leftBtnId: "bi-scroll-left", rightBtnId: "bi-scroll-right" });
+  initHorizontalScroll("book-inward-table-wrap");
 }
 
 async function deleteInwardRow(id) {
@@ -720,7 +720,7 @@ function wireOutwardFilters() {
   pairFilterControls("bo-filter-qty", "bo-th-filter-qty", applyOutwardFilters);
   wireExportBtn("bo-export-btn", "book-outward-table", "Outward_Stock");
   initColumnDragReorder("book-outward-table", { storageKey: OUTWARD_COLUMNS_KEY, columns: DEFAULT_OUTWARD_COLUMNS, resetBtnId: "bo-reset-columns-btn" });
-  initHorizontalScroll("book-outward-table-wrap", { leftBtnId: "bo-scroll-left", rightBtnId: "bo-scroll-right" });
+  initHorizontalScroll("book-outward-table-wrap");
 }
 
 async function deleteOutwardRow(id) {
@@ -1585,7 +1585,7 @@ function wireRequestsFilters() {
   pairFilterControls("br-filter-qty", "br-th-filter-qty", applyRequestsFilters);
   wireExportBtn("br-export-btn", "book-requests-table", "Book_Requests");
   initColumnDragReorder("book-requests-table", { storageKey: REQUESTS_COLUMNS_KEY, columns: DEFAULT_REQUESTS_COLUMNS, resetBtnId: "br-reset-columns-btn" });
-  initHorizontalScroll("book-requests-table-wrap", { leftBtnId: "br-scroll-left", rightBtnId: "br-scroll-right" });
+  initHorizontalScroll("book-requests-table-wrap");
 }
 
 async function deleteRequest(id) {
@@ -1798,7 +1798,7 @@ function wireCommanderFilters() {
   document.getElementById("cmd-filter-from").addEventListener("change", applyCommanderFilters);
   document.getElementById("cmd-filter-to").addEventListener("change", applyCommanderFilters);
   document.getElementById("cmd-filter-unrealised").addEventListener("change", applyCommanderFilters);
-  initHorizontalScroll("commander-table-wrap", { leftBtnId: "cmd-scroll-left", rightBtnId: "cmd-scroll-right" });
+  initHorizontalScroll("commander-table-wrap");
 
   // Mobile: tapping a row (not its Realised checkbox) expands it in place to
   // reveal the rest of the entry's details. Delegated on the tbody so it
@@ -1983,7 +1983,7 @@ function wireDashboardFilters() {
     applyDashboardFilters();
   });
   initColumnDragReorder("book-dashboard-table", { storageKey: DASHBOARD_COLUMNS_KEY, columns: DEFAULT_DASHBOARD_COLUMNS, resetBtnId: "bd-reset-columns-btn" });
-  initHorizontalScroll("book-dashboard-table-wrap", { leftBtnId: "bd-scroll-left", rightBtnId: "bd-scroll-right" });
+  initHorizontalScroll("book-dashboard-table-wrap");
 
   // Mobile: tapping a row (not one of its inputs/buttons) expands it in
   // place to reveal the rest of the book's stats — see Commander's identical
@@ -2676,7 +2676,7 @@ function wireExpensesFilters() {
   pairFilterControls("be-filter-result-profit", "be-th-filter-result-profit", applyExpensesFilters);
   wireExportBtn("be-export-btn", "book-expenses-table", "Book_Expenses");
   initColumnDragReorder("book-expenses-table", { storageKey: EXPENSES_COLUMNS_KEY, columns: DEFAULT_EXPENSES_COLUMNS, resetBtnId: "be-reset-columns-btn" });
-  initHorizontalScroll("book-expenses-table-wrap", { leftBtnId: "be-scroll-left", rightBtnId: "be-scroll-right" });
+  initHorizontalScroll("book-expenses-table-wrap");
 }
 
 async function deleteExpense(id) {
@@ -2955,6 +2955,186 @@ async function renderSavingsPanel() {
   if (grandTotalEl) grandTotalEl.textContent = fmtMoney(totalMyContribution + netProfit);
 }
 
+/* ---- Tirtha Nidhi: book-wise breakdown behind the "Srila Prabhupada's
+   Contribution" stat card ----
+   Same scope as the stats bar (a specific distributor, or all combined for
+   admin). Unlike that stat's headline number, this lists every book sale
+   so the real profit/loss and Prabhupada's 70% share is visible per book,
+   plus a real "Net Profit" figure that (unlike the headline stat) actually
+   deducts each distributor's share of expenses billed to them. */
+let bsUserContributionModalWired = false;
+function wireBsUserContributionModal() {
+  if (bsUserContributionModalWired) return;
+  bsUserContributionModalWired = true;
+  const modal = document.getElementById("bs-user-contribution-modal");
+  document.getElementById("bs-user-contribution-close").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+}
+
+async function openBsUserContributionModal(isAdmin, currentUser) {
+  const scopeSel = isAdmin ? (document.getElementById("bs-stats-user-select")?.value || "__ALL__") : currentUser.user_name;
+  const isOrgWide = scopeSel === "__ALL__";
+  const scopeUser = isOrgWide ? null : scopeSel;
+
+  const modal = document.getElementById("bs-user-contribution-modal");
+  modal.classList.add("active");
+  document.getElementById("bs-ucm-title").textContent = isOrgWide ? "All Distributors — Book-wise Details" : `${scopeUser} — Book-wise Details`;
+  const tbody = document.getElementById("bs-user-contribution-body");
+  tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
+
+  let outwardQuery = supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_area, created_at");
+  if (!isOrgWide) outwardQuery = outwardQuery.eq("sold_by", scopeUser);
+
+  const [{ data: outwardData, error }, { data: inwardData }, { data: expensesData }] = await Promise.all([
+    outwardQuery.order("created_at", { ascending: true }),
+    supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
+    supabase.from("book_expenses").select("cost, to_users"),
+  ]);
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Could not load data.</td></tr>`;
+    return;
+  }
+
+  const bookCostMap = new Map();
+  (inwardData || []).forEach((row) => {
+    const key = bookKey(row.name, row.language);
+    if (!bookCostMap.has(key)) bookCostMap.set(key, { qty: 0, val: 0 });
+    const b = bookCostMap.get(key);
+    b.qty += (row.quantity || 0);
+    b.val += (row.purchase_price || 0) * (row.quantity || 0);
+  });
+  const getUnitCost = (name, lang) => {
+    const b = bookCostMap.get(bookKey(name, lang));
+    return (b && b.qty > 0) ? b.val / b.qty : 0;
+  };
+
+  const rows = (outwardData || []).map((r) => {
+    const qty = r.quantity || 0;
+    const revenue = (r.sold_price || 0) * qty;
+    const cost = getUnitCost(r.name, r.language) * qty;
+    const actualProfit = revenue - cost;
+    return { name: r.name, language: r.language, soldAt: r.sold_area, actualProfit, shown: Math.round(actualProfit * 0.7) };
+  });
+
+  const grossProfit = rows.reduce((s, r) => s + r.actualProfit, 0);
+  const totalShown = grossProfit > 0 ? Math.round(grossProfit * 0.7) : 0;
+
+  // Same per-user expense split as Analytics: an expense only counts against
+  // a specific distributor if they're one of its to_users, split evenly.
+  const totalExpenses = (expensesData || []).reduce((s, r) => {
+    if (isOrgWide) return s + (r.cost || 0);
+    const toUsers = r.to_users || [];
+    if (!toUsers.includes(scopeUser)) return s;
+    return s + (r.cost || 0) / (toUsers.length || 1);
+  }, 0);
+  const netProfit = grossProfit - totalExpenses;
+
+  document.getElementById("bs-ucm-net-profit").textContent = fmtMoney(netProfit);
+  document.getElementById("bs-ucm-contribution").textContent = fmtMoney(totalShown);
+
+  tbody.innerHTML = rows.length
+    ? rows.map((r, idx) => `
+        <tr>
+          <td data-label="S.No">${idx + 1}</td>
+          <td data-label="Book Name">${escapeHtml(r.name)}${r.language ? ` (${escapeHtml(r.language)})` : ""}</td>
+          <td data-label="Sold At">${escapeHtml(r.soldAt || "—")}</td>
+          <td data-label="Net Profit">${fmtMoney(r.actualProfit)}</td>
+          <td data-label="Prabhupada's Contribution">${fmtMoney(r.shown)}</td>
+        </tr>`).join("") +
+      `<tr class="total-row">
+        <td colspan="3">Total</td>
+        <td data-label="Net Profit">${fmtMoney(grossProfit)}</td>
+        <td data-label="Prabhupada's Contribution">${fmtMoney(rows.reduce((s, r) => s + r.shown, 0))}</td>
+      </tr>`
+    : `<tr><td colspan="5" class="loading-row">No book sales found.</td></tr>`;
+}
+
+/* ---- Tirtha Nidhi: General Data (admin) ----
+   A projector-friendly summary — just Name and Srila Prabhupada's share of
+   each distributor's book sales (same 70%-of-gross-profit figure as the
+   stats bar), deliberately leaving out anyone's personal contribution
+   submissions. */
+let bsGeneralDataModalWired = false;
+function wireBsGeneralDataModal() {
+  if (bsGeneralDataModalWired) return;
+  bsGeneralDataModalWired = true;
+  const modal = document.getElementById("bs-general-data-modal");
+  document.getElementById("bs-general-data-close").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  let bsGeneralDataZoom = 100;
+  const zoomBox = document.getElementById("bs-general-data-modal-box");
+  const zoomLevel = document.getElementById("bs-general-data-zoom-level");
+  const applyBsGeneralDataZoom = () => {
+    zoomBox.style.transform = `scale(${bsGeneralDataZoom / 100})`;
+    zoomLevel.textContent = bsGeneralDataZoom + "%";
+  };
+  document.getElementById("bs-general-data-zoom-in").onclick = () => {
+    bsGeneralDataZoom = Math.min(200, bsGeneralDataZoom + 10);
+    applyBsGeneralDataZoom();
+  };
+  document.getElementById("bs-general-data-zoom-out").onclick = () => {
+    bsGeneralDataZoom = Math.max(40, bsGeneralDataZoom - 10);
+    applyBsGeneralDataZoom();
+  };
+
+  initColumnDragReorder("bs-general-data-table");
+
+  document.getElementById("bs-general-data-btn").onclick = async () => {
+    modal.classList.add("active");
+    const tbody = document.getElementById("bs-general-data-body");
+    tbody.innerHTML = `<tr><td colspan="3" class="loading-row">Loading…</td></tr>`;
+
+    const [{ data: coordinators }, { data: inwardData }, { data: outwardData }] = await Promise.all([
+      supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
+      supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
+      supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by"),
+    ]);
+
+    const bookCostMap = new Map();
+    (inwardData || []).forEach((row) => {
+      const key = bookKey(row.name, row.language);
+      if (!bookCostMap.has(key)) bookCostMap.set(key, { qty: 0, val: 0 });
+      const b = bookCostMap.get(key);
+      b.qty += (row.quantity || 0);
+      b.val += (row.purchase_price || 0) * (row.quantity || 0);
+    });
+    const getUnitCost = (name, lang) => {
+      const b = bookCostMap.get(bookKey(name, lang));
+      return (b && b.qty > 0) ? b.val / b.qty : 0;
+    };
+
+    const profitBySeller = new Map();
+    (outwardData || []).forEach((r) => {
+      const qty = r.quantity || 0;
+      const revenue = (r.sold_price || 0) * qty;
+      const cost = getUnitCost(r.name, r.language) * qty;
+      const prev = profitBySeller.get(r.sold_by) || 0;
+      profitBySeller.set(r.sold_by, prev + (revenue - cost));
+    });
+
+    const rows = (coordinators || [])
+      .map((u) => {
+        const grossProfit = profitBySeller.get(u.user_name) || 0;
+        const netProfit = grossProfit > 0 ? Math.round(grossProfit * 0.7) : 0;
+        return { name: u.user_name, netProfit };
+      })
+      .filter((r) => r.netProfit > 0)
+      .sort((a, b) => b.netProfit - a.netProfit);
+
+    tbody.innerHTML = rows.length
+      ? rows.map((r, idx) => `
+          <tr>
+            <td data-label="S.No">${idx + 1}</td>
+            <td data-label="Name">${escapeHtml(r.name)}</td>
+            <td data-label="Prabhupada Contribution">${fmtMoney(r.netProfit)}</td>
+          </tr>`).join("")
+      : `<tr><td colspan="3" class="loading-row">No distributors found.</td></tr>`;
+    reapplyColumnOrder("bs-general-data-table");
+  };
+}
+
 /* ---- Tirtha Nidhi: manual contributions (add / my submissions / realise) ---- */
 let contributionModalWired = false;
 
@@ -3166,15 +3346,16 @@ function applyContributionsAdminFilters() {
 function wireContributionsAdminFilters() {
   if (contributionsAdminFiltersWired) return;
   contributionsAdminFiltersWired = true;
-  document.getElementById("bsc-search").addEventListener("input", debounce(applyContributionsAdminFilters, 200));
-  document.getElementById("bsc-sort").addEventListener("change", applyContributionsAdminFilters);
-  pairFilterControls("bsc-filter-submitted-by", "bsc-th-filter-submitted-by", applyContributionsAdminFilters);
-  pairFilterControls("bsc-filter-paid-to", "bsc-th-filter-paid-to", applyContributionsAdminFilters);
-  pairFilterControls("bsc-filter-realised", "bsc-th-filter-realised", applyContributionsAdminFilters);
-  pairFilterControls("bsc-filter-amount", "bsc-th-filter-amount", applyContributionsAdminFilters);
+  // Filters only take effect on "View" — sidebar/header inputs just stage
+  // the values so admins can set several before running the query once.
+  document.getElementById("bsc-view-btn").addEventListener("click", applyContributionsAdminFilters);
+  pairFilterControls("bsc-filter-submitted-by", "bsc-th-filter-submitted-by", () => {});
+  pairFilterControls("bsc-filter-paid-to", "bsc-th-filter-paid-to", () => {});
+  pairFilterControls("bsc-filter-realised", "bsc-th-filter-realised", () => {});
+  pairFilterControls("bsc-filter-amount", "bsc-th-filter-amount", () => {});
   wireExportBtn("bsc-export-btn", "bsc-all-table", "Tirtha_Nidhi");
   initColumnDragReorder("bsc-all-table", { storageKey: CONTRIBUTIONS_ADMIN_COLUMNS_KEY, columns: DEFAULT_CONTRIBUTIONS_ADMIN_COLUMNS, resetBtnId: "bsc-reset-columns-btn" });
-  initHorizontalScroll("bsc-all-table-wrap", { leftBtnId: "bsc-scroll-left", rightBtnId: "bsc-scroll-right" });
+  initHorizontalScroll("bsc-all-table-wrap");
 }
 
 async function deleteContribution(id) {
@@ -3234,6 +3415,8 @@ export async function initSavingsPanel(currentUser) {
   }
 
   wireDashboardDetailModal();
+  if (isAdmin) wireBsGeneralDataModal();
+  wireBsUserContributionModal();
   wireContributionModal(currentUser, async () => {
     await renderSavingsPanel();
     if (isAdmin) await initContributionsAdminTable();
@@ -3242,6 +3425,7 @@ export async function initSavingsPanel(currentUser) {
     const scopeSel = isAdmin ? (document.getElementById("bs-stats-user-select")?.value || "__ALL__") : currentUser.user_name;
     openMyContributionsPopup(scopeSel === "__ALL__" ? null : scopeSel, scopeSel === "__ALL__");
   };
+  document.getElementById("bs-net-profit-card").onclick = () => openBsUserContributionModal(isAdmin, currentUser);
 
   const tasks = [renderSavingsPanel()];
   if (isAdmin) tasks.push(initContributionsAdminTable());

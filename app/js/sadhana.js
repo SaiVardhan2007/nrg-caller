@@ -133,7 +133,7 @@ function wireSadhanaFilters() {
   document.getElementById("sadhana-search").addEventListener("input", debounce(applySadhanaFilters, 200));
   document.getElementById("sadhana-sort").addEventListener("change", applySadhanaFilters);
   initColumnDragReorder("sadhana-table", { storageKey: SADHANA_COLUMNS_KEY, columns: DEFAULT_SADHANA_COLUMNS, resetBtnId: "sadhana-reset-columns-btn" });
-  initHorizontalScroll("sadhana-table-wrap", { leftBtnId: "sadhana-scroll-left", rightBtnId: "sadhana-scroll-right" });
+  initHorizontalScroll("sadhana-table-wrap");
 }
 
 async function deleteSadhanaRow(id) {

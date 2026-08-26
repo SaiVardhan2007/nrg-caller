@@ -2020,6 +2020,22 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   max-height: none;
 }
 
+/* Book Dashboard: same idea — the book table is the only content on the
+   right, so let it stretch to the sidebar's height instead of stopping
+   short and leaving blank space below the last row. Capped (not "none") so
+   a long book list scrolls inside the wrap rather than growing past the
+   viewport — that containment is what lets the header row stay sticky,
+   same as Inward/Outward Stock. */
+#book-dashboard-section .users-content {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 92px);
+}
+#book-dashboard-section #book-dashboard-table-wrap {
+  flex: 1;
+  max-height: calc(100vh - 92px);
+}
+
 /* A row of pill-shaped action + filter buttons that all share one visual
    language — same height, radius and lift, whether it opens a dropdown
    (Admin Tag/GFY/Time Stamp) or fires an action (Assign/Rebalance/Export).
@@ -2294,22 +2310,17 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 
 /* Commander's toolbar mixes a search box, a select, a merged date-range
-   pill, a lone checkbox and a pair of scroll buttons — not the uniform row
-   of same-height pill buttons the flex-wrap rule above was built for.
-   Wrapping that mix onto shared rows is what crammed a date input against
-   a select and squeezed the checkbox against the scroll buttons on phones.
+   pill and a lone checkbox — not the uniform row of same-height pill
+   buttons the flex-wrap rule above was built for. Wrapping that mix onto
+   shared rows is what crammed a date input against a select on phones.
    Force one full-width field per row at every viewport instead — matching
-   plain .users-toolbar's own >900px default — and let only the scroll
-   buttons size to their own (small) content rather than stretching. */
+   plain .users-toolbar's own >900px default. */
 #commander-section .users-toolbar {
   flex-direction: column !important;
   flex-wrap: nowrap !important;
 }
 #commander-section .users-toolbar > * {
   width: 100% !important;
-}
-#commander-section .users-toolbar .hscroll-controls {
-  width: auto !important;
 }
 
 .filter-dropdown { position: relative; }
@@ -2405,6 +2416,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    scroll. */
 #contact-info-modal .modal-large {
   max-width: 1040px;
+}
+/* Book-wise Tirtha Nidhi breakdown carries 5 columns of money/text — needs
+   more room than the default modal-large width. */
+#bs-user-contribution-modal .modal-large {
+  max-width: 900px;
+}
+#bs-user-contribution-table tr.total-row td {
+  font-weight: 800;
+  border-top: 2px solid var(--sandstone);
 }
 /* Zoom +/- scales the whole modal box (not just the text), growing/shrinking
    around its top-center so it stays anchored under the title row. The modal
