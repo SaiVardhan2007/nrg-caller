@@ -1848,7 +1848,6 @@ const DASHBOARD_NUMBER_FILTERS = [
   ["bd-filter-min-stock", "minStock"],
 ];
 let dashboardStatsCache = [];
-let dashboardTotalExpenses = 0;
 let dashboardLowStockOnly = false;
 let dashboardFiltersWired = false;
 
@@ -2027,19 +2026,16 @@ async function renderDashboard() {
   const tbody = document.getElementById("book-dashboard-body");
   tbody.innerHTML = `<tr><td colspan="13" class="loading-row">Loading…</td></tr>`;
 
-  const [{ data: inward, error: inErr }, { data: outward, error: outErr }, { data: standardPrices, error: spErr }, { data: expenses, error: expErr }] = await Promise.all([
+  const [{ data: inward, error: inErr }, { data: outward, error: outErr }, { data: standardPrices, error: spErr }] = await Promise.all([
     supabase.from("book_inward_stock").select("name,language,purchase_price,quantity,purchased_from,created_at"),
     supabase.from("book_outward_stock").select("name,language,sold_price,quantity,sold_area,sold_by,created_at"),
     supabase.from("book_standard_prices").select("book_key,standard_selling_price,min_stock"),
-    supabase.from("book_expenses").select("cost"),
   ]);
 
-  if (inErr || outErr || spErr || expErr) {
+  if (inErr || outErr || spErr) {
     tbody.innerHTML = `<tr><td colspan="13" class="loading-row">Could not load dashboard data.</td></tr>`;
     return;
   }
-
-  dashboardTotalExpenses = (expenses || []).reduce((s, r) => s + (r.cost || 0), 0);
 
   const standardPriceByKey = new Map((standardPrices || []).map((r) => [r.book_key, r.standard_selling_price]));
   const minStockByKey = new Map((standardPrices || []).map((r) => [r.book_key, r.min_stock]));
@@ -2071,7 +2067,6 @@ function isLowStock(s) {
 
 function renderDashboardRows(rows, emptyMessage) {
   const tbody = document.getElementById("book-dashboard-body");
-  updateTotalProfitStat(rows);
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="13" class="muted-text">${emptyMessage}</td></tr>`;
     return;
@@ -2216,22 +2211,6 @@ async function renameBookEverywhere(book, newName, newLanguage) {
   }
 
   return true;
-}
-
-// Net profit = realized profit across whatever rows are currently shown
-// (i.e. respects active search/filters, same as the per-book figures below
-// it) minus org-wide expenses (book_expenses isn't tracked per-book, so the
-// same total is netted out regardless of which books are filtered in —
-// matching how Book Analytics/Expenses net their own gross profit figures).
-function updateTotalProfitStat(rows) {
-  const el = document.getElementById("bd-stat-total-profit");
-  const card = document.getElementById("bd-stat-profit-card");
-  if (!el) return;
-  const grossProfit = rows.reduce((s, r) => s + (r.profit || 0), 0);
-  const total = grossProfit - dashboardTotalExpenses;
-  el.textContent = fmtMoney(total);
-  card.classList.toggle("stat-negative", total < 0);
-  card.classList.toggle("stat-positive", total >= 0);
 }
 
 function applyDashboardFilters() {

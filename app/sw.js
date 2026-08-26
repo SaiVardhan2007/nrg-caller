@@ -1,4 +1,4 @@
-const CACHE_NAME = "fnrg-preaching-v134";
+const CACHE_NAME = "fnrg-preaching-v135";
 const SHELL_FILES = [
   "./",
   "./index.html",
