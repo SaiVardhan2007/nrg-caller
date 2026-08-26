@@ -1,6 +1,13 @@
 import { supabase } from "./supabaseClient.js";
 import { showToast, escapeHtml, debounce, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, downloadExcel, exportTableToExcel } from "./utils.js";
 
+// Wires a page's "⬇ Export Excel" button to dump its current (filtered/sorted) table as-is.
+function wireExportBtn(btnId, tableId, filenamePrefix) {
+  document.getElementById(btnId)?.addEventListener("click", () => {
+    exportTableToExcel(document.getElementById(tableId), `${filenamePrefix}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  });
+}
+
 let placesCache = [];
 let wired = false;
 let stockWired = false;
@@ -248,6 +255,7 @@ function wirePlacesFilters() {
   document.getElementById("bp-sort").addEventListener("change", applyPlacesFilters);
   pairFilterControls("bp-filter-description", "bp-th-filter-description", applyPlacesFilters);
   pairFilterControls("bp-filter-map-link", "bp-th-filter-map-link", applyPlacesFilters);
+  wireExportBtn("bp-export-btn", "book-places-table", "Distribution_Places");
   initColumnDragReorder("book-places-table", { storageKey: PLACES_COLUMNS_KEY, columns: DEFAULT_PLACES_COLUMNS, resetBtnId: "bp-reset-columns-btn" });
   initHorizontalScroll("book-places-table-wrap", { leftBtnId: "bp-scroll-left", rightBtnId: "bp-scroll-right" });
 }
@@ -393,6 +401,7 @@ function wireEventsFilters() {
   document.getElementById("bev-sort").addEventListener("change", applyEventsFilters);
   pairFilterControls("bev-filter-description", "bev-th-filter-description", applyEventsFilters);
   pairFilterControls("bev-filter-map-link", "bev-th-filter-map-link", applyEventsFilters);
+  wireExportBtn("bev-export-btn", "book-events-table", "Book_Events");
   initColumnDragReorder("book-events-table", { storageKey: EVENTS_COLUMNS_KEY, columns: DEFAULT_EVENTS_COLUMNS, resetBtnId: "bev-reset-columns-btn" });
   initHorizontalScroll("book-events-table-wrap", { leftBtnId: "bev-scroll-left", rightBtnId: "bev-scroll-right" });
 }
@@ -573,6 +582,7 @@ function wireInwardFilters() {
   pairFilterControls("bi-filter-from", "bi-th-filter-from", applyInwardFilters);
   pairFilterControls("bi-filter-price", "bi-th-filter-price", applyInwardFilters);
   pairFilterControls("bi-filter-qty", "bi-th-filter-qty", applyInwardFilters);
+  wireExportBtn("bi-export-btn", "book-inward-table", "Inward_Stock");
   initColumnDragReorder("book-inward-table", { storageKey: INWARD_COLUMNS_KEY, columns: DEFAULT_INWARD_COLUMNS, resetBtnId: "bi-reset-columns-btn" });
   initHorizontalScroll("book-inward-table-wrap", { leftBtnId: "bi-scroll-left", rightBtnId: "bi-scroll-right" });
 }
@@ -708,6 +718,7 @@ function wireOutwardFilters() {
   pairFilterControls("bo-filter-realised", "bo-th-filter-realised", applyOutwardFilters);
   pairFilterControls("bo-filter-price", "bo-th-filter-price", applyOutwardFilters);
   pairFilterControls("bo-filter-qty", "bo-th-filter-qty", applyOutwardFilters);
+  wireExportBtn("bo-export-btn", "book-outward-table", "Outward_Stock");
   initColumnDragReorder("book-outward-table", { storageKey: OUTWARD_COLUMNS_KEY, columns: DEFAULT_OUTWARD_COLUMNS, resetBtnId: "bo-reset-columns-btn" });
   initHorizontalScroll("book-outward-table-wrap", { leftBtnId: "bo-scroll-left", rightBtnId: "bo-scroll-right" });
 }
@@ -1572,6 +1583,7 @@ function wireRequestsFilters() {
   pairFilterControls("br-filter-by", "br-th-filter-by", applyRequestsFilters);
   pairFilterControls("br-filter-fulfilled", "br-th-filter-fulfilled", applyRequestsFilters);
   pairFilterControls("br-filter-qty", "br-th-filter-qty", applyRequestsFilters);
+  wireExportBtn("br-export-btn", "book-requests-table", "Book_Requests");
   initColumnDragReorder("book-requests-table", { storageKey: REQUESTS_COLUMNS_KEY, columns: DEFAULT_REQUESTS_COLUMNS, resetBtnId: "br-reset-columns-btn" });
   initHorizontalScroll("book-requests-table-wrap", { leftBtnId: "br-scroll-left", rightBtnId: "br-scroll-right" });
 }
@@ -2568,6 +2580,7 @@ async function wireAnalyticsFilters() {
   populateFilterSelect(document.getElementById("ba-filter-book-select"), bookNames);
 
   document.getElementById("ba-run-btn").addEventListener("click", runAnalytics);
+  wireExportBtn("ba-export-btn", "ba-segments-table", "Book_Analytics");
 
   // Mobile: tapping a row (not one of its detail buttons) expands it in
   // place to reveal Area/Start Time/End Time/Qty — same pattern as
@@ -2682,6 +2695,7 @@ function wireExpensesFilters() {
   pairFilterControls("be-filter-to", "be-th-filter-to", applyExpensesFilters);
   pairFilterControls("be-filter-cost", "be-th-filter-cost", applyExpensesFilters);
   pairFilterControls("be-filter-result-profit", "be-th-filter-result-profit", applyExpensesFilters);
+  wireExportBtn("be-export-btn", "book-expenses-table", "Book_Expenses");
   initColumnDragReorder("book-expenses-table", { storageKey: EXPENSES_COLUMNS_KEY, columns: DEFAULT_EXPENSES_COLUMNS, resetBtnId: "be-reset-columns-btn" });
   initHorizontalScroll("book-expenses-table-wrap", { leftBtnId: "be-scroll-left", rightBtnId: "be-scroll-right" });
 }
@@ -3179,6 +3193,7 @@ function wireContributionsAdminFilters() {
   pairFilterControls("bsc-filter-paid-to", "bsc-th-filter-paid-to", applyContributionsAdminFilters);
   pairFilterControls("bsc-filter-realised", "bsc-th-filter-realised", applyContributionsAdminFilters);
   pairFilterControls("bsc-filter-amount", "bsc-th-filter-amount", applyContributionsAdminFilters);
+  wireExportBtn("bsc-export-btn", "bsc-all-table", "Tirtha_Nidhi");
   initColumnDragReorder("bsc-all-table", { storageKey: CONTRIBUTIONS_ADMIN_COLUMNS_KEY, columns: DEFAULT_CONTRIBUTIONS_ADMIN_COLUMNS, resetBtnId: "bsc-reset-columns-btn" });
   initHorizontalScroll("bsc-all-table-wrap", { leftBtnId: "bsc-scroll-left", rightBtnId: "bsc-scroll-right" });
 }
