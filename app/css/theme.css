@@ -879,13 +879,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #book-places-table th[data-label=""], #book-places-table td[data-label=""] { width: 170px !important; max-width: 170px !important; min-width: 170px !important; }
 
 #sadhana-table th[data-label="S.No"], #sadhana-table td[data-label="S.No"] { width: 5% !important; max-width: none !important; text-align: center; }
-#sadhana-table th[data-label="Name"], #sadhana-table td[data-label="Name"] { width: 20% !important; max-width: none !important; text-align: left !important; }
-#sadhana-table th[data-label="Date"], #sadhana-table td[data-label="Date"] { width: 14% !important; max-width: none !important; text-align: center; }
-#sadhana-table th[data-label="Rounds"], #sadhana-table td[data-label="Rounds"] { width: 11% !important; max-width: none !important; text-align: center; }
-#sadhana-table th[data-label="Book Reading"], #sadhana-table td[data-label="Book Reading"] { width: 13% !important; max-width: none !important; text-align: center; }
-#sadhana-table th[data-label="Screen Time"], #sadhana-table td[data-label="Screen Time"] { width: 13% !important; max-width: none !important; text-align: center; }
-#sadhana-table th[data-label="Detox Time"], #sadhana-table td[data-label="Detox Time"] { width: 13% !important; max-width: none !important; text-align: center; }
-#sadhana-table th[data-label=""], #sadhana-table td[data-label=""] { width: 11% !important; max-width: none !important; min-width: 90px !important; text-align: center; padding: 4px 2px !important; }
+#sadhana-table th[data-label="Name"], #sadhana-table td[data-label="Name"] { width: 16% !important; max-width: none !important; text-align: left !important; }
+#sadhana-table th[data-label="Date"], #sadhana-table td[data-label="Date"] { width: 12% !important; max-width: none !important; text-align: center; }
+#sadhana-table th[data-label="Rounds"], #sadhana-table td[data-label="Rounds"] { width: 10% !important; max-width: none !important; text-align: center; }
+#sadhana-table th[data-label="Book Reading"], #sadhana-table td[data-label="Book Reading"] { width: 11% !important; max-width: none !important; text-align: center; }
+#sadhana-table th[data-label="Screen Time"], #sadhana-table td[data-label="Screen Time"] { width: 11% !important; max-width: none !important; text-align: center; }
+#sadhana-table th[data-label="Detox Time"], #sadhana-table td[data-label="Detox Time"] { width: 11% !important; max-width: none !important; text-align: center; }
+#sadhana-table th[data-label="Service"], #sadhana-table td[data-label="Service"] { width: 8% !important; max-width: none !important; min-width: 70px !important; text-align: center; }
+#sadhana-table th[data-label="Swadhyaya"], #sadhana-table td[data-label="Swadhyaya"] { width: 8% !important; max-width: none !important; min-width: 70px !important; text-align: center; }
+#sadhana-table th[data-label=""], #sadhana-table td[data-label=""] { width: 8% !important; max-width: none !important; min-width: 90px !important; text-align: center; padding: 4px 2px !important; }
 
 /* Book Analytics segments table: same reasoning as Master Contact/Book
    Distribution above — every column gets an explicit width so the generic
@@ -1638,7 +1640,9 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #sadhana-table td[data-label="Book Reading"] { order: 5; width: 33% !important; }
   #sadhana-table td[data-label="Screen Time"] { order: 6; width: 34% !important; }
   #sadhana-table td[data-label="Detox Time"] { order: 7; width: 49% !important; }
-  #sadhana-table td[data-label=""] { order: 8; width: 51% !important; }
+  #sadhana-table td[data-label="Service"] { order: 8; width: 49% !important; }
+  #sadhana-table td[data-label="Swadhyaya"] { order: 9; width: 49% !important; }
+  #sadhana-table td[data-label=""] { order: 10; width: 51% !important; }
   #sadhana-table td[data-label="S.No"]::before { display: none !important; }
 
   /* Full width for long columns */
