@@ -186,6 +186,11 @@
         <span class="card-label">Tīrtha Nidhi</span>
         <span class="card-arrow">→</span>
       </button>
+      <button class="dashboard-card" data-target="book-places-events-user-section">
+        <span class="card-icon-badge badge-indigo"><span class="card-emoji">📍</span></span>
+        <span class="card-label">Places &amp; Events</span>
+        <span class="card-arrow">→</span>
+      </button>
       <button id="commander-dashboard-card" class="dashboard-card hidden" data-target="commander-section">
         <span class="card-icon-badge badge-indigo"><span class="card-emoji">🎖️</span></span>
         <span class="card-label">Commander</span>
@@ -925,7 +930,6 @@
       <div class="users-page-layout">
         <div class="panel users-sidebar">
           <div class="users-toolbar">
-            <input id="bo-search" type="search" placeholder="Search name / sold area / sold by…" class="search-input" />
             <label class="field inline">
               <span>Sort By</span>
               <select id="bo-sort" class="inline-edit">
@@ -939,20 +943,20 @@
                 <option value="quantity-asc">Quantity (Low-High)</option>
               </select>
             </label>
+            <div class="field inline">
+              <span>Date Range</span>
+              <div class="date-range-inputs">
+                <input type="date" id="bo-filter-from" />
+                <span class="date-range-sep">–</span>
+                <input type="date" id="bo-filter-to" />
+              </div>
+            </div>
             <label class="field inline">
               <span>Language</span>
               <select id="bo-filter-language">
                 <option value="__ALL__">All</option>
                 <option value="">—</option>
               </select>
-            </label>
-            <label class="field inline">
-              <span>Sold Price</span>
-              <input type="number" id="bo-filter-price" placeholder="All" />
-            </label>
-            <label class="field inline">
-              <span>Quantity</span>
-              <input type="number" min="0" id="bo-filter-qty" placeholder="All" />
             </label>
             <label class="field inline">
               <span>Sold Area</span>
@@ -1333,9 +1337,9 @@
           <div class="stats-bar">
             <div class="stat"><span id="ba-stat-inward-qty" class="stat-num">0</span><span class="stat-label">Current Stock</span></div>
             <div class="stat"><span id="ba-stat-purchase-value" class="stat-num">₹0</span><span class="stat-label">Stock Value</span></div>
-            <div class="stat"><span id="ba-stat-sold-qty" class="stat-num">0</span><span class="stat-label">Total Sold</span></div>
+            <div class="stat"><span id="ba-stat-sold-qty" class="stat-num">0</span><span class="stat-label">Books Sold</span></div>
             <div class="stat"><span id="ba-stat-sales-value" class="stat-num">₹0</span><span class="stat-label">Sales Value</span></div>
-            <div id="ba-stat-profit-card" class="stat"><span id="ba-stat-profit" class="stat-num">₹0</span><span class="stat-label">Realized Profit</span></div>
+            <div id="ba-stat-profit-card" class="stat"><span id="ba-stat-profit" class="stat-num">₹0</span><span class="stat-label">Gross Profit</span></div>
             <div id="ba-stat-net-profit-card" class="stat"><span id="ba-stat-net-profit" class="stat-num">₹0</span><span class="stat-label">Net Profit</span></div>
           </div>
 
@@ -1415,7 +1419,7 @@
 
         <div class="users-content">
           <div class="stats-bar">
-            <div class="stat"><span id="be-stat-gross-amount" class="stat-num">₹0</span><span class="stat-label">Gross Amount</span></div>
+            <div class="stat"><span id="be-stat-gross-amount" class="stat-num">₹0</span><span class="stat-label">Net Sales</span></div>
             <div class="stat"><span id="be-stat-gross-profit" class="stat-num">₹0</span><span class="stat-label">Gross Profit</span></div>
             <div class="stat stat-pending"><span id="be-stat-expenses" class="stat-num">₹0</span><span class="stat-label">Expenses</span></div>
             <div id="be-stat-net-profit-card" class="stat"><span id="be-stat-net-profit" class="stat-num">₹0</span><span class="stat-label">Net Profit</span></div>
@@ -1703,10 +1707,6 @@
               </select>
             </label>
             <label class="field inline">
-              <span>Amount</span>
-              <input type="number" id="bsc-filter-amount" placeholder="All" />
-            </label>
-            <label class="field inline">
               <span>Submitted By</span>
               <select id="bsc-filter-submitted-by">
                 <option value="__ALL__">All</option>
@@ -1808,6 +1808,53 @@
               </table>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== USER: Places & Events ===== -->
+    <section id="book-places-events-user-section" class="page hidden">
+      <div class="panel">
+        <div class="panel-title-row">
+          <span>Distribution Places</span>
+        </div>
+        <div class="panel-row book-stock-add-row">
+          <button id="add-book-place-user-btn" class="btn btn-primary btn-sm">+ Add Place</button>
+        </div>
+        <div class="table-wrap" id="book-places-user-table-wrap">
+          <table class="data-table" id="book-places-user-table">
+            <thead>
+              <tr>
+                <th data-label="S.No">S.No</th>
+                <th data-label="Name">Name</th>
+                <th data-label="Description">Description</th>
+                <th data-label="Map Link">Map Link</th>
+              </tr>
+            </thead>
+            <tbody id="book-places-user-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title-row">
+          <span>Events</span>
+        </div>
+        <div class="panel-row book-stock-add-row">
+          <button id="add-book-event-user-btn" class="btn btn-primary btn-sm">+ Add Event</button>
+        </div>
+        <div class="table-wrap" id="book-events-user-table-wrap">
+          <table class="data-table" id="book-events-user-table">
+            <thead>
+              <tr>
+                <th data-label="S.No">S.No</th>
+                <th data-label="Name">Name</th>
+                <th data-label="Description">Description</th>
+                <th data-label="Map Link">Map Link</th>
+              </tr>
+            </thead>
+            <tbody id="book-events-user-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -2784,9 +2831,6 @@
   </div>
 </div>
 
-<datalist id="book-places-list"></datalist>
-<datalist id="book-events-list"></datalist>
-
 <div id="book-event-modal" class="modal">
   <div class="modal-box">
     <h3 id="book-event-modal-title">Add Event</h3>
@@ -2894,7 +2938,7 @@
 </div>
 
 <div id="book-dashboard-detail-modal" class="modal">
-  <div class="modal-box modal-large">
+  <div class="modal-box modal-xl">
     <h3 id="book-dashboard-detail-title">Details</h3>
     <div class="table-wrap h-380">
       <table class="data-table" id="book-dashboard-detail-table">

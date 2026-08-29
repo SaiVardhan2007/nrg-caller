@@ -57,6 +57,22 @@ function distinctValues(rows, field) {
   return Array.from(new Set(rows.map((r) => r[field]).filter(Boolean))).sort();
 }
 
+// Renders a <select class="inline-edit"> in place of a free-text input for
+// table cells whose values should come from a known set (Language, Sold
+// Area, Event, Sold By, Place) — cuts down on typo'd variants of the same
+// place/event fragmenting the filters and reports. The row's own current
+// value is always included even if it's since fallen out of `values`, so
+// editing a row never silently blanks a legacy/one-off value.
+function editSelectHtml(field, values, current, extraClass = "") {
+  const opts = new Set(values);
+  if (current) opts.add(current);
+  const sorted = Array.from(opts).sort();
+  return `<select class="inline-edit${extraClass ? " " + extraClass : ""}" data-field="${field}">` +
+    `<option value=""${current ? "" : " selected"}>— Select —</option>` +
+    sorted.map((v) => `<option value="${escapeHtml(v)}"${v === current ? " selected" : ""}>${escapeHtml(v)}</option>`).join("") +
+    `</select>`;
+}
+
 function groupBy(rows, field) {
   const map = new Map();
   rows.forEach((r) => {
@@ -287,6 +303,7 @@ function wirePlaceModal() {
   const errorEl = document.getElementById("book-place-error");
 
   document.getElementById("add-book-place-btn").onclick = () => openPlaceModal();
+  document.getElementById("add-book-place-user-btn")?.addEventListener("click", () => openPlaceModal());
   document.getElementById("book-place-cancel-btn").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
@@ -316,7 +333,54 @@ function wirePlaceModal() {
     modal.classList.remove("active");
     showToast("Place added", "success");
     await loadPlaces();
+    await loadPlacesUser();
   };
+}
+
+/* ---- Places & Events: read-only-except-edit view for regular users
+   (Book Distribution dashboard → "Places & Events") — same book_places/
+   book_events tables as the admin pages above, minus delete and the
+   search/sort/column-reorder toolbar. ---- */
+let placesUserCache = [];
+
+async function loadPlacesUser() {
+  const tbody = document.getElementById("book-places-user-body");
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Loading…</td></tr>`;
+
+  const { data, error } = await supabase
+    .from("book_places")
+    .select("id,name,description,map_link")
+    .order("name", { ascending: true });
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Could not load places.</td></tr>`;
+    return;
+  }
+  placesUserCache = data || [];
+  renderPlacesUserRows(placesUserCache);
+}
+
+function renderPlacesUserRows(rows) {
+  const tbody = document.getElementById("book-places-user-body");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="muted-text">No places yet — add one to get started.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((p, idx) => `
+    <tr data-id="${p.id}">
+      <td data-label="S.No">${idx + 1}</td>
+      <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(p.name)}" /></td>
+      <td data-label="Description"><input class="inline-edit" data-field="description" value="${escapeHtml(p.description || "")}" /></td>
+      <td data-label="Map Link">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input class="inline-edit" data-field="map_link" value="${escapeHtml(p.map_link || "")}" placeholder="https://" />
+          ${p.map_link ? `<a href="${escapeHtml(p.map_link)}" target="_blank" rel="noopener noreferrer" class="cell-chip" title="Open Map">📍</a>` : ""}
+        </div>
+      </td>
+    </tr>
+  `).join("");
+  wireInlineEditCells(tbody, "book_places", placesUserCache, { requiredFields: ["name"] }, loadPlacesUser);
 }
 
 /* ======================= BOOK EVENTS =======================
@@ -433,6 +497,7 @@ function wireEventModal() {
   const errorEl = document.getElementById("book-event-error");
 
   document.getElementById("add-book-event-btn").onclick = () => openEventModal();
+  document.getElementById("add-book-event-user-btn")?.addEventListener("click", () => openEventModal());
   document.getElementById("book-event-cancel-btn").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
@@ -462,7 +527,56 @@ function wireEventModal() {
     modal.classList.remove("active");
     showToast("Event added", "success");
     await loadBookEvents();
+    await loadEventsUser();
   };
+}
+
+let eventsUserCache = [];
+
+async function loadEventsUser() {
+  const tbody = document.getElementById("book-events-user-body");
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Loading…</td></tr>`;
+
+  const { data, error } = await supabase
+    .from("book_events")
+    .select("id,name,description,map_link")
+    .order("name", { ascending: true });
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Could not load events.</td></tr>`;
+    return;
+  }
+  eventsUserCache = data || [];
+  renderEventsUserRows(eventsUserCache);
+}
+
+function renderEventsUserRows(rows) {
+  const tbody = document.getElementById("book-events-user-body");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="muted-text">No events yet — add one to get started.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((e, idx) => `
+    <tr data-id="${e.id}">
+      <td data-label="S.No">${idx + 1}</td>
+      <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(e.name)}" /></td>
+      <td data-label="Description"><input class="inline-edit" data-field="description" value="${escapeHtml(e.description || "")}" /></td>
+      <td data-label="Map Link">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input class="inline-edit" data-field="map_link" value="${escapeHtml(e.map_link || "")}" placeholder="https://" />
+          ${e.map_link ? `<a href="${escapeHtml(e.map_link)}" target="_blank" rel="noopener noreferrer" class="cell-chip" title="Open Map">📍</a>` : ""}
+        </div>
+      </td>
+    </tr>
+  `).join("");
+  wireInlineEditCells(tbody, "book_events", eventsUserCache, { requiredFields: ["name"] }, loadEventsUser);
+}
+
+export async function initPlacesEventsUser() {
+  wirePlaceModal();
+  wireEventModal();
+  await Promise.all([loadPlacesUser(), loadEventsUser()]);
 }
 
 let inwardAdminWired = false;
@@ -543,7 +657,7 @@ function renderInwardRows(rows, emptyMessage) {
       <td data-label="S.No">${idx + 1}</td>
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
-      <td data-label="Language"><input class="inline-edit" data-field="language" value="${escapeHtml(r.language || "")}" /></td>
+      <td data-label="Language">${editSelectHtml("language", distinctValues(inwardCache, "language"), r.language || "")}</td>
       <td data-label="Purchase Price"><input class="inline-edit" type="number" min="0" step="0.01" data-field="purchase_price" value="${r.purchase_price ?? ""}" /></td>
       <td data-label="Quantity"><input class="inline-edit" type="number" min="0" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
       <td data-label="Purchased From"><input class="inline-edit" data-field="purchased_from" list="book-purchased-from-list" value="${escapeHtml(r.purchased_from || "")}" /></td>
@@ -625,7 +739,7 @@ export async function initInwardTable(currentUser) {
 const OUTWARD_COLUMNS_KEY = "nrg-book-outward-column-order";
 const DEFAULT_OUTWARD_COLUMNS = ["S.No", "Time", "Name", "Language", "Sold Price", "Quantity", "Total", "Sold Area", "Event", "Sold By", "Realised", ""];
 const OUTWARD_SELECT_FILTERS = [["bo-filter-language", "language"], ["bo-filter-area", "sold_area"], ["bo-filter-event", "event"], ["bo-filter-by", "sold_by"]];
-const OUTWARD_NUMBER_FILTERS = [["bo-filter-price", "sold_price"], ["bo-filter-qty", "quantity"]];
+const OUTWARD_NUMBER_FILTERS = [["bo-th-filter-price", "sold_price"], ["bo-th-filter-qty", "quantity"]];
 let outwardCache = [];
 let outwardFiltersWired = false;
 
@@ -640,13 +754,13 @@ function renderOutwardRows(rows, emptyMessage) {
       <td data-label="S.No">${idx + 1}</td>
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
-      <td data-label="Language"><input class="inline-edit" data-field="language" value="${escapeHtml(r.language || "")}" /></td>
+      <td data-label="Language">${editSelectHtml("language", distinctValues(outwardCache, "language"), r.language || "")}</td>
       <td data-label="Sold Price"><input class="inline-edit outward-price-input" type="number" min="0" step="0.01" data-field="sold_price" value="${r.sold_price ?? ""}" /></td>
       <td data-label="Quantity"><input class="inline-edit outward-qty-input" type="number" min="0" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
       <td data-label="Total" class="outward-total-cell">${fmtMoney((r.sold_price || 0) * (r.quantity || 0))}</td>
-      <td data-label="Sold Area"><input class="inline-edit" data-field="sold_area" list="book-places-list" value="${escapeHtml(r.sold_area || "")}" /></td>
-      <td data-label="Event"><input class="inline-edit" data-field="event" list="book-events-list" value="${escapeHtml(r.event || "")}" /></td>
-      <td data-label="Sold By"><input class="inline-edit" data-field="sold_by" value="${escapeHtml(r.sold_by || "")}" /></td>
+      <td data-label="Sold Area">${editSelectHtml("sold_area", distinctValues(outwardCache, "sold_area"), r.sold_area || "")}</td>
+      <td data-label="Event">${editSelectHtml("event", distinctValues(outwardCache, "event"), r.event || "")}</td>
+      <td data-label="Sold By">${editSelectHtml("sold_by", distinctValues(outwardCache, "sold_by"), r.sold_by || "")}</td>
       <td data-label="Realised"><input type="checkbox" class="realised-checkbox outward-realised-input" ${r.realised ? "checked" : ""} /></td>
       <td data-label="">
         <button type="button" class="cell-chip danger outward-delete-btn" title="Delete">🗑 Delete</button>
@@ -694,12 +808,13 @@ async function toggleOutwardRealised(checkboxEl, cache) {
 }
 
 function applyOutwardFilters() {
-  const search = document.getElementById("bo-search")?.value.trim().toLowerCase() || "";
+  const from = document.getElementById("bo-filter-from")?.value || "";
+  const to = document.getElementById("bo-filter-to")?.value || "";
   const realisedFilter = document.getElementById("bo-filter-realised")?.value ?? "__ALL__";
   let rows = outwardCache.filter((r) =>
-    matchesSearch(r, search, ["name", "sold_area", "event", "sold_by"]) &&
     matchesSelectFilters(r, OUTWARD_SELECT_FILTERS) &&
     matchesNumberFilters(r, OUTWARD_NUMBER_FILTERS) &&
+    matchesDateRange(r, from, to) &&
     (realisedFilter === "__ALL__" || (realisedFilter === "yes" ? r.realised : !r.realised))
   );
   rows = sortRows(rows, document.getElementById("bo-sort")?.value, "created_at-desc");
@@ -709,15 +824,16 @@ function applyOutwardFilters() {
 function wireOutwardFilters() {
   if (outwardFiltersWired) return;
   outwardFiltersWired = true;
-  document.getElementById("bo-search").addEventListener("input", debounce(applyOutwardFilters, 200));
   document.getElementById("bo-sort").addEventListener("change", applyOutwardFilters);
+  document.getElementById("bo-filter-from").addEventListener("change", applyOutwardFilters);
+  document.getElementById("bo-filter-to").addEventListener("change", applyOutwardFilters);
   pairFilterControls("bo-filter-language", "bo-th-filter-language", applyOutwardFilters);
   pairFilterControls("bo-filter-area", "bo-th-filter-area", applyOutwardFilters);
   pairFilterControls("bo-filter-event", "bo-th-filter-event", applyOutwardFilters);
   pairFilterControls("bo-filter-by", "bo-th-filter-by", applyOutwardFilters);
   pairFilterControls("bo-filter-realised", "bo-th-filter-realised", applyOutwardFilters);
-  pairFilterControls("bo-filter-price", "bo-th-filter-price", applyOutwardFilters);
-  pairFilterControls("bo-filter-qty", "bo-th-filter-qty", applyOutwardFilters);
+  document.getElementById("bo-th-filter-price")?.addEventListener("input", debounce(applyOutwardFilters, 200));
+  document.getElementById("bo-th-filter-qty")?.addEventListener("input", debounce(applyOutwardFilters, 200));
   wireExportBtn("bo-export-btn", "book-outward-table", "Outward_Stock");
   initColumnDragReorder("book-outward-table", { storageKey: OUTWARD_COLUMNS_KEY, columns: DEFAULT_OUTWARD_COLUMNS, resetBtnId: "bo-reset-columns-btn" });
   initHorizontalScroll("book-outward-table-wrap");
@@ -741,14 +857,10 @@ export async function initOutwardTable() {
   const tbody = document.getElementById("book-outward-body");
   tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Loading…</td></tr>`;
 
-  const [{ data, error }, placeNames, eventNames] = await Promise.all([
-    supabase
-      .from("book_outward_stock")
-      .select("id,name,language,sold_price,quantity,sold_area,event,sold_by,created_at,realised")
-      .order("created_at", { ascending: false }),
-    fetchPlaceNames(),
-    fetchEventNames(),
-  ]);
+  const { data, error } = await supabase
+    .from("book_outward_stock")
+    .select("id,name,language,sold_price,quantity,sold_area,event,sold_by,created_at,realised")
+    .order("created_at", { ascending: false });
 
   if (error) {
     console.error("book_outward_stock load failed:", error);
@@ -756,8 +868,6 @@ export async function initOutwardTable() {
     return;
   }
   outwardCache = data || [];
-  populateDatalist(document.getElementById("book-places-list"), placeNames);
-  populateDatalist(document.getElementById("book-events-list"), eventNames);
   populatePairedSelect("bo-filter-language", "bo-th-filter-language", distinctValues(outwardCache, "language"));
   populatePairedSelect("bo-filter-area", "bo-th-filter-area", distinctValues(outwardCache, "sold_area"));
   populatePairedSelect("bo-filter-event", "bo-th-filter-event", distinctValues(outwardCache, "event"));
@@ -1521,8 +1631,8 @@ function renderRequestsRows(rows, emptyMessage) {
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
       <td data-label="Quantity"><input class="inline-edit" type="number" min="1" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
-      <td data-label="Place"><input class="inline-edit" data-field="place" list="book-places-list" value="${escapeHtml(r.place || "")}" /></td>
-      <td data-label="Event"><input class="inline-edit" data-field="event" list="book-events-list" value="${escapeHtml(r.event || "")}" /></td>
+      <td data-label="Place">${editSelectHtml("place", distinctValues(requestsCache, "place"), r.place || "")}</td>
+      <td data-label="Event">${editSelectHtml("event", distinctValues(requestsCache, "event"), r.event || "")}</td>
       <td data-label="Priority">
         <select class="inline-edit" data-field="priority">
           ${["Immediately", "Important", "Can Wait"].map((p) => `<option value="${p}" ${r.priority === p ? "selected" : ""}>${p}</option>`).join("")}
@@ -2080,7 +2190,7 @@ function renderDashboardRows(rows, emptyMessage) {
       <td data-label="Language"><input class="inline-edit bd-language-edit" data-field="language" value="${escapeHtml(s.language || "")}" /></td>
       <td data-label="Total Inward">${s.totalInwardQty ? `<button type="button" class="cell-chip bd-detail-btn" data-kind="inward">${s.totalInwardQty}</button>` : "0"}</td>
       <td data-label="Avg Purchase Price">${s.totalInwardQty ? `<button type="button" class="cell-chip bd-detail-btn" data-kind="purchase-prices">${fmtMoney(s.avgPurchasePrice)}</button>` : "—"}</td>
-      <td data-label="Current Stock">${s.currentStock}</td>
+      <td data-label="Current Stock"><span class="cell-chip">${s.currentStock}</span></td>
       <td data-label="Min Stock"><input class="inline-edit bd-min-stock" type="number" min="0" step="1" value="${s.minStock ?? ""}" /></td>
       <td data-label="Current Stock Value">${fmtMoney(s.currentStockValue)}</td>
       <td data-label="Total Sold">${s.totalSoldQty ? `<button type="button" class="cell-chip bd-detail-btn" data-kind="outward">${s.totalSoldQty}</button>` : "0"}</td>
@@ -2315,7 +2425,7 @@ function openSegmentDetail(rows) {
   const theadRow = document.querySelector("#book-dashboard-detail-table thead tr");
   const tbody = document.getElementById("book-dashboard-detail-body");
   title.textContent = "Segment Entries";
-  theadRow.innerHTML = "<th>S.No</th><th>Time</th><th>Name</th><th>Language</th><th>Sold Price</th><th>Quantity</th>";
+  theadRow.innerHTML = "<th>S.No</th><th>Time</th><th>Name</th><th>Language</th><th>Sold Price</th><th>Quantity</th><th>Event</th>";
   const sorted = [...rows].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
   tbody.innerHTML = sorted.map((r, idx) => `
     <tr>
@@ -2325,6 +2435,7 @@ function openSegmentDetail(rows) {
       <td>${escapeHtml(r.language || "—")}</td>
       <td>${r.sold_price ?? "—"}</td>
       <td>${r.quantity ?? "—"}</td>
+      <td>${escapeHtml(r.event || "—")}</td>
     </tr>
   `).join("");
   document.getElementById("book-dashboard-detail-modal").classList.add("active");
@@ -2630,8 +2741,8 @@ function renderExpensesRows(rows, emptyMessage) {
       <td data-label="Date"><input class="inline-edit" type="date" data-field="expense_date" value="${r.expense_date || ""}" /></td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
       <td data-label="Cost"><input class="inline-edit" type="number" min="0" step="0.01" data-field="cost" value="${r.cost ?? ""}" /></td>
-      <td data-label="Place"><input class="inline-edit" data-field="place" list="book-places-list" value="${escapeHtml(r.place || "")}" /></td>
-      <td data-label="Event"><input class="inline-edit" data-field="event" list="book-events-list" value="${escapeHtml(r.event || "")}" /></td>
+      <td data-label="Place">${editSelectHtml("place", distinctValues(expensesCache, "place"), r.place || "")}</td>
+      <td data-label="Event">${editSelectHtml("event", distinctValues(expensesCache, "event"), r.event || "")}</td>
       <td data-label="To">
         <button type="button" class="cell-chip expense-edit-to-btn" title="${escapeHtml((r.to_users || []).join(", ")) || "Edit recipients"}">${(r.to_users || []).length ? escapeHtml(r.to_users.join(", ")) : "— Select —"}</button>
       </td>
@@ -3287,7 +3398,7 @@ let contributionsAdminFiltersWired = false;
 const CONTRIBUTIONS_ADMIN_COLUMNS_KEY = "nrg-book-contributions-column-order";
 const DEFAULT_CONTRIBUTIONS_ADMIN_COLUMNS = ["S.No", "Date", "Amount", "Submitted By", "Paid To", "Realised", ""];
 const CONTRIBUTIONS_ADMIN_SELECT_FILTERS = [["bsc-filter-submitted-by", "submitted_by"], ["bsc-filter-paid-to", "paid_to"]];
-const CONTRIBUTIONS_ADMIN_NUMBER_FILTERS = [["bsc-filter-amount", "amount"]];
+const CONTRIBUTIONS_ADMIN_NUMBER_FILTERS = [["bsc-th-filter-amount", "amount"]];
 
 function renderContributionsAdminRows(rows, emptyMessage) {
   const tbody = document.getElementById("bsc-all-body");
@@ -3352,7 +3463,6 @@ function wireContributionsAdminFilters() {
   pairFilterControls("bsc-filter-submitted-by", "bsc-th-filter-submitted-by", () => {});
   pairFilterControls("bsc-filter-paid-to", "bsc-th-filter-paid-to", () => {});
   pairFilterControls("bsc-filter-realised", "bsc-th-filter-realised", () => {});
-  pairFilterControls("bsc-filter-amount", "bsc-th-filter-amount", () => {});
   wireExportBtn("bsc-export-btn", "bsc-all-table", "Tirtha_Nidhi");
   initColumnDragReorder("bsc-all-table", { storageKey: CONTRIBUTIONS_ADMIN_COLUMNS_KEY, columns: DEFAULT_CONTRIBUTIONS_ADMIN_COLUMNS, resetBtnId: "bsc-reset-columns-btn" });
   initHorizontalScroll("bsc-all-table-wrap");

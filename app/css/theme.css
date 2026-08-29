@@ -832,6 +832,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #book-outward-table th[data-label="Sold Price"], #book-outward-table td[data-label="Sold Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
 #book-outward-table th[data-label="Quantity"], #book-outward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
 #book-outward-table th[data-label="Sold Area"], #book-outward-table td[data-label="Sold Area"] { width: 200px !important; max-width: 200px !important; padding: 8px 10px !important; }
+#book-outward-table th[data-label="Event"], #book-outward-table td[data-label="Event"] { width: 190px !important; max-width: 190px !important; padding: 8px 10px !important; }
 #book-outward-table th[data-label="Sold By"], #book-outward-table td[data-label="Sold By"] { width: 150px !important; max-width: 150px !important; padding: 8px 10px !important; }
 #book-outward-table th[data-label="Realised"], #book-outward-table td[data-label="Realised"] { width: 90px !important; max-width: 90px !important; text-align: center; }
 #book-outward-table th[data-label=""], #book-outward-table td[data-label=""] { width: 80px !important; max-width: 80px !important; min-width: 80px !important; text-align: center; padding: 4px 2px !important; }
@@ -1100,6 +1101,11 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .modal-large {
   max-width: 720px;
   width: 95%;
+}
+
+.modal-xl {
+  max-width: 1100px;
+  width: 96%;
 }
 
 /* ============ HISTORY MODAL (call history / session attendance) ============
@@ -1613,10 +1619,11 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #book-outward-table td[data-label="Quantity"] { order: 5; width: 33% !important; }
   #book-outward-table td[data-label="Total"] { order: 6; width: 34% !important; }
   #book-outward-table td[data-label="Sold Area"] { order: 7; width: 100% !important; }
-  #book-outward-table td[data-label="Sold By"] { order: 8; width: 60% !important; }
-  #book-outward-table td[data-label="Language"] { order: 9; width: 40% !important; }
-  #book-outward-table td[data-label="Realised"] { order: 10; width: 49% !important; flex-direction: row !important; align-items: center !important; gap: 6px; }
-  #book-outward-table td[data-label=""] { order: 11; width: 51% !important; }
+  #book-outward-table td[data-label="Event"] { order: 8; width: 100% !important; }
+  #book-outward-table td[data-label="Sold By"] { order: 9; width: 60% !important; }
+  #book-outward-table td[data-label="Language"] { order: 10; width: 40% !important; }
+  #book-outward-table td[data-label="Realised"] { order: 11; width: 49% !important; flex-direction: row !important; align-items: center !important; gap: 6px; }
+  #book-outward-table td[data-label=""] { order: 12; width: 51% !important; }
   #book-outward-table td[data-label="S.No"]::before { display: none !important; }
 
   #book-places-table td[data-label="Name"] { order: 1; width: 100% !important; }

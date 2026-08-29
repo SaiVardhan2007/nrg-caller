@@ -55,6 +55,7 @@ const PAGE_TITLES = {
   "book-stock-entry-section": "Book Distribution",
   "book-requests-user-section": "Book Requests",
   "book-savings-user-section": "Tīrtha Nidhi",
+  "book-places-events-user-section": "Places & Events",
   "commander-section": "Commander",
   "fnrg-sadhana-user-section": "FNRG Sadhana",
 };
@@ -136,6 +137,7 @@ function showScreen(id, { forceRefresh = false } = {}) {
     if (id === "book-stock-entry-section") BookDistribution.initStockEntry(currentUser);
     if (id === "book-requests-user-section") BookDistribution.initRequestPanel(currentUser);
     if (id === "book-savings-user-section") BookDistribution.initSavingsPanel(currentUser);
+    if (id === "book-places-events-user-section") BookDistribution.initPlacesEventsUser();
     if (id === "commander-section") BookDistribution.initCommander();
     if (id === "admin-sadhana-section") Sadhana.initSadhana(currentUser);
     if (id === "sadhana-users-section") Sadhana.initSadhanaUsers(currentUser);
