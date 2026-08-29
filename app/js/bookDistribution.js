@@ -3425,7 +3425,10 @@ export async function initSavingsPanel(currentUser) {
     const scopeSel = isAdmin ? (document.getElementById("bs-stats-user-select")?.value || "__ALL__") : currentUser.user_name;
     openMyContributionsPopup(scopeSel === "__ALL__" ? null : scopeSel, scopeSel === "__ALL__");
   };
-  document.getElementById("bs-net-profit-card").onclick = () => openBsUserContributionModal(isAdmin, currentUser);
+  const netProfitCard = document.getElementById("bs-net-profit-card");
+  netProfitCard.classList.toggle("cursor-pointer", isAdmin);
+  netProfitCard.title = isAdmin ? "Tap to view book-wise details" : "";
+  netProfitCard.onclick = isAdmin ? () => openBsUserContributionModal(isAdmin, currentUser) : null;
 
   const tasks = [renderSavingsPanel()];
   if (isAdmin) tasks.push(initContributionsAdminTable());
