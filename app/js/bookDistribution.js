@@ -337,10 +337,10 @@ function wirePlaceModal() {
   };
 }
 
-/* ---- Places & Events: read-only-except-edit view for regular users
-   (Book Distribution dashboard → "Places & Events") — same book_places/
-   book_events tables as the admin pages above, minus delete and the
-   search/sort/column-reorder toolbar. ---- */
+/* ---- Add Places / Add Events: read-only-except-edit views for regular
+   users (Book Distribution dashboard → "Add Places" / "Add Events") — same
+   book_places/book_events tables as the admin pages above, minus delete and
+   the search/sort/column-reorder toolbar. ---- */
 let placesUserCache = [];
 
 async function loadPlacesUser() {
@@ -573,10 +573,14 @@ function renderEventsUserRows(rows) {
   wireInlineEditCells(tbody, "book_events", eventsUserCache, { requiredFields: ["name"] }, loadEventsUser);
 }
 
-export async function initPlacesEventsUser() {
+export async function initPlacesUser() {
   wirePlaceModal();
+  await loadPlacesUser();
+}
+
+export async function initEventsUser() {
   wireEventModal();
-  await Promise.all([loadPlacesUser(), loadEventsUser()]);
+  await loadEventsUser();
 }
 
 let inwardAdminWired = false;
@@ -641,7 +645,7 @@ function wireInwardAdminModal(currentUser) {
 const INWARD_COLUMNS_KEY = "nrg-book-inward-column-order";
 const DEFAULT_INWARD_COLUMNS = ["S.No", "Time", "Name", "Language", "Purchase Price", "Quantity", "Purchased From", ""];
 const INWARD_SELECT_FILTERS = [["bi-filter-language", "language"], ["bi-filter-from", "purchased_from"]];
-const INWARD_NUMBER_FILTERS = [["bi-filter-price", "purchase_price"], ["bi-filter-qty", "quantity"]];
+const INWARD_NUMBER_FILTERS = [["bi-th-filter-price", "purchase_price"], ["bi-th-filter-qty", "quantity"]];
 let inwardCache = [];
 let inwardFiltersWired = false;
 let currentInwardUser = null;
@@ -694,8 +698,8 @@ function wireInwardFilters() {
   document.getElementById("bi-sort").addEventListener("change", applyInwardFilters);
   pairFilterControls("bi-filter-language", "bi-th-filter-language", applyInwardFilters);
   pairFilterControls("bi-filter-from", "bi-th-filter-from", applyInwardFilters);
-  pairFilterControls("bi-filter-price", "bi-th-filter-price", applyInwardFilters);
-  pairFilterControls("bi-filter-qty", "bi-th-filter-qty", applyInwardFilters);
+  document.getElementById("bi-th-filter-price")?.addEventListener("input", debounce(applyInwardFilters, 200));
+  document.getElementById("bi-th-filter-qty")?.addEventListener("input", debounce(applyInwardFilters, 200));
   wireExportBtn("bi-export-btn", "book-inward-table", "Inward_Stock");
   initColumnDragReorder("book-inward-table", { storageKey: INWARD_COLUMNS_KEY, columns: DEFAULT_INWARD_COLUMNS, resetBtnId: "bi-reset-columns-btn" });
   initHorizontalScroll("book-inward-table-wrap");
@@ -1615,7 +1619,7 @@ function wireRequestModal(currentUser, onSaved) {
 const REQUESTS_COLUMNS_KEY = "nrg-book-requests-column-order";
 const DEFAULT_REQUESTS_COLUMNS = ["S.No", "Time", "Name", "Quantity", "Place", "Event", "Priority", "Requested By", "Fulfilled", ""];
 const REQUESTS_SELECT_FILTERS = [["br-filter-priority", "priority"], ["br-filter-place", "place"], ["br-filter-event", "event"], ["br-filter-by", "requested_by"]];
-const REQUESTS_NUMBER_FILTERS = [["br-filter-qty", "quantity"]];
+const REQUESTS_NUMBER_FILTERS = [["br-th-filter-qty", "quantity"]];
 let requestsCache = [];
 let requestsFiltersWired = false;
 
@@ -1692,7 +1696,7 @@ function wireRequestsFilters() {
   pairFilterControls("br-filter-event", "br-th-filter-event", applyRequestsFilters);
   pairFilterControls("br-filter-by", "br-th-filter-by", applyRequestsFilters);
   pairFilterControls("br-filter-fulfilled", "br-th-filter-fulfilled", applyRequestsFilters);
-  pairFilterControls("br-filter-qty", "br-th-filter-qty", applyRequestsFilters);
+  document.getElementById("br-th-filter-qty")?.addEventListener("input", debounce(applyRequestsFilters, 200));
   wireExportBtn("br-export-btn", "book-requests-table", "Book_Requests");
   initColumnDragReorder("book-requests-table", { storageKey: REQUESTS_COLUMNS_KEY, columns: DEFAULT_REQUESTS_COLUMNS, resetBtnId: "br-reset-columns-btn" });
   initHorizontalScroll("book-requests-table-wrap");
@@ -1953,9 +1957,9 @@ const DEFAULT_DASHBOARD_COLUMNS = [
 ];
 const DASHBOARD_SELECT_FILTERS = [["bd-filter-language", "language"]];
 const DASHBOARD_NUMBER_FILTERS = [
-  ["bd-filter-current-stock", "currentStock"],
-  ["bd-filter-selling-price", "standardSellingPrice"],
-  ["bd-filter-min-stock", "minStock"],
+  ["bd-th-filter-current-stock", "currentStock"],
+  ["bd-th-filter-selling-price", "standardSellingPrice"],
+  ["bd-th-filter-min-stock", "minStock"],
 ];
 let dashboardStatsCache = [];
 let dashboardLowStockOnly = false;
@@ -2083,9 +2087,9 @@ function wireDashboardFilters() {
   document.getElementById("bd-search").addEventListener("input", debounce(applyDashboardFilters, 200));
   document.getElementById("bd-sort").addEventListener("change", applyDashboardFilters);
   pairFilterControls("bd-filter-language", "bd-th-filter-language", applyDashboardFilters);
-  pairFilterControls("bd-filter-current-stock", "bd-th-filter-current-stock", applyDashboardFilters);
-  pairFilterControls("bd-filter-selling-price", "bd-th-filter-selling-price", applyDashboardFilters);
-  pairFilterControls("bd-filter-min-stock", "bd-th-filter-min-stock", applyDashboardFilters);
+  document.getElementById("bd-th-filter-current-stock")?.addEventListener("input", debounce(applyDashboardFilters, 200));
+  document.getElementById("bd-th-filter-selling-price")?.addEventListener("input", debounce(applyDashboardFilters, 200));
+  document.getElementById("bd-th-filter-min-stock")?.addEventListener("input", debounce(applyDashboardFilters, 200));
   document.getElementById("bd-filter-low-stock-btn").addEventListener("click", (e) => {
     dashboardLowStockOnly = !dashboardLowStockOnly;
     e.currentTarget.classList.toggle("btn-danger", dashboardLowStockOnly);
@@ -2489,6 +2493,7 @@ function computeDaySegments(dayRows) {
   const singleSegmentDay = groups.length === 1;
   const segments = groups.map((g, i) => ({
     area: g.area,
+    event: g.rows[0].event || "—",
     startTime: singleSegmentDay ? dayStart : new Date(g.rows[0].created_at),
     endTime: singleSegmentDay ? dayEnd
       : (i < groups.length - 1 ? new Date(groups[i + 1].rows[0].created_at) : dayEnd),
@@ -2555,18 +2560,19 @@ function renderAnalyticsSegments(outward, showUserCol) {
         const key = `${dayKey}||${user}||${idx}`;
         const totals = areaTotals.get(seg.area.trim().toLowerCase());
         segmentRowsByKey.set(key, totals.rows);
-        displayRows.push({ key, dayKey, user, area: seg.area, startTime: seg.startTime, endTime: seg.endTime, qty: totals.qty, value: totals.value });
+        displayRows.push({ key, dayKey, user, area: seg.area, event: seg.event, startTime: seg.startTime, endTime: seg.endTime, qty: totals.qty, value: totals.value });
       });
     });
   });
 
-  if (!displayRows.length) { tbody.innerHTML = `<tr><td colspan="8" class="muted-text">No sales in this range.</td></tr>`; return; }
+  if (!displayRows.length) { tbody.innerHTML = `<tr><td colspan="9" class="muted-text">No sales in this range.</td></tr>`; return; }
   tbody.innerHTML = displayRows.map((r, idx) => `
     <tr>
       <td data-label="S.No">${idx + 1}</td>
       <td data-label="User" class="ba-seg-user-cell ${showUserCol ? "" : "hidden"}">${escapeHtml(r.user)}</td>
       <td data-label="Date">${r.dayKey}</td>
       <td data-label="Area">${escapeHtml(r.area)}</td>
+      <td data-label="Event">${escapeHtml(r.event)}</td>
       <td data-label="Start Time">${r.startTime.toLocaleTimeString()}</td>
       <td data-label="End Time">${r.endTime.toLocaleTimeString()}</td>
       <td data-label="Qty"><button type="button" class="cell-chip ba-segment-detail-btn" data-key="${escapeHtml(r.key)}">${r.qty}</button></td>
@@ -2700,7 +2706,7 @@ export async function initAnalytics() {
 const EXPENSES_COLUMNS_KEY = "nrg-book-expenses-column-order";
 const DEFAULT_EXPENSES_COLUMNS = ["S.No", "Date", "Name", "Cost", "Place", "Event", "To", "Result / Profit", ""];
 const EXPENSES_SELECT_FILTERS = [["be-filter-place", "place"], ["be-filter-event", "event"]];
-const EXPENSES_NUMBER_FILTERS = [["be-filter-cost", "cost"], ["be-filter-result-profit", "result_profit"]];
+const EXPENSES_NUMBER_FILTERS = [["be-th-filter-cost", "cost"], ["be-filter-result-profit", "result_profit"]];
 let expensesCache = [];
 let expensesFiltersWired = false;
 let expenseModalWired = false;
@@ -2783,7 +2789,7 @@ function wireExpensesFilters() {
   pairFilterControls("be-filter-place", "be-th-filter-place", applyExpensesFilters);
   pairFilterControls("be-filter-event", "be-th-filter-event", applyExpensesFilters);
   pairFilterControls("be-filter-to", "be-th-filter-to", applyExpensesFilters);
-  pairFilterControls("be-filter-cost", "be-th-filter-cost", applyExpensesFilters);
+  document.getElementById("be-th-filter-cost")?.addEventListener("input", debounce(applyExpensesFilters, 200));
   pairFilterControls("be-filter-result-profit", "be-th-filter-result-profit", applyExpensesFilters);
   wireExportBtn("be-export-btn", "book-expenses-table", "Book_Expenses");
   initColumnDragReorder("book-expenses-table", { storageKey: EXPENSES_COLUMNS_KEY, columns: DEFAULT_EXPENSES_COLUMNS, resetBtnId: "be-reset-columns-btn" });
@@ -3442,10 +3448,8 @@ function renderContributionsAdminRows(rows, emptyMessage) {
 }
 
 function applyContributionsAdminFilters() {
-  const search = document.getElementById("bsc-search")?.value.trim().toLowerCase() || "";
   const realisedFilter = document.getElementById("bsc-filter-realised")?.value ?? "__ALL__";
   let rows = contributionsAdminCache.filter((r) =>
-    matchesSearch(r, search, ["submitted_by", "paid_to"]) &&
     matchesSelectFilters(r, CONTRIBUTIONS_ADMIN_SELECT_FILTERS) &&
     matchesNumberFilters(r, CONTRIBUTIONS_ADMIN_NUMBER_FILTERS) &&
     (realisedFilter === "__ALL__" || (realisedFilter === "yes" ? r.realised : !r.realised))

@@ -186,9 +186,14 @@
         <span class="card-label">Tīrtha Nidhi</span>
         <span class="card-arrow">→</span>
       </button>
-      <button class="dashboard-card" data-target="book-places-events-user-section">
+      <button class="dashboard-card" data-target="book-places-user-section">
         <span class="card-icon-badge badge-indigo"><span class="card-emoji">📍</span></span>
-        <span class="card-label">Places &amp; Events</span>
+        <span class="card-label">Add Places</span>
+        <span class="card-arrow">→</span>
+      </button>
+      <button class="dashboard-card" data-target="book-events-user-section">
+        <span class="card-icon-badge badge-indigo"><span class="card-emoji">📅</span></span>
+        <span class="card-label">Add Events</span>
         <span class="card-arrow">→</span>
       </button>
       <button id="commander-dashboard-card" class="dashboard-card hidden" data-target="commander-section">
@@ -772,18 +777,6 @@
                 <option value="">—</option>
               </select>
             </label>
-            <label class="field inline">
-              <span>Selling Price</span>
-              <input type="number" id="bd-filter-selling-price" placeholder="All" />
-            </label>
-            <label class="field inline">
-              <span>Current Stock</span>
-              <input type="number" id="bd-filter-current-stock" placeholder="All" />
-            </label>
-            <label class="field inline">
-              <span>Min Stock</span>
-              <input type="number" min="0" id="bd-filter-min-stock" placeholder="All" />
-            </label>
             <button id="bd-filter-low-stock-btn" type="button" class="btn btn-secondary toolbar-btn" title="Show only books below their minimum stock (rows highlighted in red)">🔴 Low Stock Only</button>
             <button id="add-book-dashboard-btn" class="btn btn-primary toolbar-btn">+ Add Book</button>
             <button id="add-book-bulk-btn" class="btn btn-secondary toolbar-btn">⬆ Bulk Add (Excel)</button>
@@ -861,14 +854,6 @@
                 <option value="__ALL__">All</option>
                 <option value="">—</option>
               </select>
-            </label>
-            <label class="field inline">
-              <span>Purchase Price</span>
-              <input type="number" id="bi-filter-price" placeholder="All" />
-            </label>
-            <label class="field inline">
-              <span>Quantity</span>
-              <input type="number" min="0" id="bi-filter-qty" placeholder="All" />
             </label>
             <label class="field inline">
               <span>Purchased From</span>
@@ -1206,10 +1191,6 @@
               </select>
             </label>
             <label class="field inline">
-              <span>Quantity</span>
-              <input type="number" min="0" id="br-filter-qty" placeholder="All" />
-            </label>
-            <label class="field inline">
               <span>Priority</span>
               <select id="br-filter-priority">
                 <option value="__ALL__">All</option>
@@ -1351,12 +1332,13 @@
                   <th data-label="User" id="ba-seg-user-col-header">User</th>
                   <th data-label="Date">Date</th>
                   <th data-label="Area">Area</th>
+                  <th data-label="Event">Event</th>
                   <th data-label="Start Time">Start Time</th>
                   <th data-label="End Time">End Time</th>
                   <th data-label="Qty">Qty</th>
                   <th data-label="Value">Value</th>
                 </tr></thead>
-                <tbody id="ba-segments-body"><tr><td colspan="8" class="loading-row">Loading…</td></tr></tbody>
+                <tbody id="ba-segments-body"><tr><td colspan="9" class="loading-row">Loading…</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -1382,10 +1364,6 @@
                 <option value="name-asc">Name (A-Z)</option>
                 <option value="name-desc">Name (Z-A)</option>
               </select>
-            </label>
-            <label class="field inline">
-              <span>Cost</span>
-              <input type="number" id="be-filter-cost" placeholder="All" />
             </label>
             <label class="field inline">
               <span>Place</span>
@@ -1694,7 +1672,6 @@
       <div class="users-page-layout">
         <div class="panel users-sidebar hidden" id="bsc-admin-sidebar">
           <div class="users-toolbar">
-            <input id="bsc-search" type="search" placeholder="Search submitted by / paid to…" class="search-input" />
             <label class="field inline">
               <span>Sort By</span>
               <select id="bsc-sort" class="inline-edit">
@@ -1812,8 +1789,8 @@
       </div>
     </section>
 
-    <!-- ===== USER: Places & Events ===== -->
-    <section id="book-places-events-user-section" class="page hidden">
+    <!-- ===== USER: Add Places ===== -->
+    <section id="book-places-user-section" class="page hidden">
       <div class="panel">
         <div class="panel-title-row">
           <span>Distribution Places</span>
@@ -1835,7 +1812,10 @@
           </table>
         </div>
       </div>
+    </section>
 
+    <!-- ===== USER: Add Events ===== -->
+    <section id="book-events-user-section" class="page hidden">
       <div class="panel">
         <div class="panel-title-row">
           <span>Events</span>
