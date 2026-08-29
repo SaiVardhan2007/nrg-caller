@@ -14,10 +14,10 @@ const STATUS_OPTIONS = [
   { value: "Available on Weekend", label: "Available on Weekend" },
   { value: "Others", label: "Others" },
 ];
-const POSITIVE = ["joining the session", "next week will join", "will try to attend"];
+const POSITIVE = ["joining the session"];
 const PENDING = ["not done", "yet to call", ""];
 // "yet to call again" kept for older rows already saved under the previous label
-const NEGATIVE = ["out of station", "wrong number", "shifted to home town", "yet to call again", "need to call again", "available on weekend"];
+const NEGATIVE = ["out of station", "wrong number", "shifted to home town", "yet to call again", "need to call again", "available on weekend", "next week will join", "will try to attend"];
 const WS_OPTIONS = ["NA", "W", "S"];
 // Sending the WhatsApp invite only gates Submit for the two statuses where the
 // contact actually intends to come — for "Wrong Number", "Out of Station" etc.

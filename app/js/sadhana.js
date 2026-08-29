@@ -15,6 +15,24 @@ let sadhanaCache = [];
 let filtersWired = false;
 let modalWired = false;
 let bulkImportWired = false;
+let trackedNamesCache = [];
+
+// Names come from the tracked-user roster (same set as the "Enter Sadhana"
+// page) so admin entries can't drift into typo'd variants of a real name.
+// A row's own current name is always kept as an option even if it's since
+// fallen out of the tracked roster, so editing never silently blanks it.
+async function loadTrackedNames() {
+  const { data } = await supabase.from("users").select("user_name").eq("sadhana_track", true).order("user_name");
+  trackedNamesCache = (data || []).map((u) => u.user_name);
+}
+
+function nameOptionsHtml(current) {
+  const opts = new Set(trackedNamesCache);
+  if (current) opts.add(current);
+  const sorted = Array.from(opts).sort((a, b) => a.localeCompare(b));
+  return `<option value="">— Select —</option>` +
+    sorted.map((v) => `<option value="${escapeHtml(v)}" ${v === current ? "selected" : ""}>${escapeHtml(v)}</option>`).join("");
+}
 
 function duplicateKey(name, date) {
   return `${String(name || "").trim().toLowerCase()}||${date || ""}`;
@@ -100,7 +118,7 @@ function renderSadhanaRows(rows, emptyMessage) {
   tbody.innerHTML = rows.map((r, idx) => `
     <tr data-id="${r.id}" class="${dupCounts.get(duplicateKey(r.name, r.sadhana_date)) > 1 ? "contact-duplicate" : ""}" title="${dupCounts.get(duplicateKey(r.name, r.sadhana_date)) > 1 ? "Another entry already exists for this name + date" : ""}">
       <td data-label="S.No">${idx + 1}</td>
-      <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
+      <td data-label="Name"><select class="inline-edit" data-field="name">${nameOptionsHtml(r.name)}</select></td>
       <td data-label="Date"><input class="inline-edit" type="date" data-field="sadhana_date" value="${r.sadhana_date || ""}" /></td>
       <td data-label="Rounds"><input class="inline-edit" type="number" min="0" step="any" data-field="rounds" value="${r.rounds ?? ""}" /></td>
       <td data-label="Book Reading"><input class="inline-edit" type="number" min="0" step="any" data-field="book_reading" value="${r.book_reading ?? ""}" /></td>
@@ -148,8 +166,9 @@ async function deleteSadhanaRow(id) {
   await loadSadhana();
 }
 
-function openSadhanaModal() {
-  document.getElementById("sadhana-name").value = "";
+async function openSadhanaModal() {
+  await loadTrackedNames();
+  document.getElementById("sadhana-name").innerHTML = nameOptionsHtml("");
   document.getElementById("sadhana-date").value = todayLocalDate();
   document.getElementById("sadhana-rounds").value = "";
   document.getElementById("sadhana-book-reading").value = "";
@@ -339,10 +358,13 @@ async function loadSadhana() {
   const tbody = document.getElementById("sadhana-body");
   tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Loading…</td></tr>`;
 
-  const { data, error } = await supabase
-    .from("fnrg_sadhana")
-    .select("id,name,sadhana_date,rounds,book_reading,screen_time,detox_time,service,swadhyaya")
-    .order("sadhana_date", { ascending: false });
+  const [{ data, error }] = await Promise.all([
+    supabase
+      .from("fnrg_sadhana")
+      .select("id,name,sadhana_date,rounds,book_reading,screen_time,detox_time,service,swadhyaya")
+      .order("sadhana_date", { ascending: false }),
+    loadTrackedNames(),
+  ]);
 
   if (error) {
     tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Could not load sadhana records.</td></tr>`;

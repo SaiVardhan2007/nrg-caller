@@ -1385,10 +1385,6 @@
                 <option value="__ALL__">All</option>
               </select>
             </label>
-            <label class="field inline">
-              <span>Result / Profit</span>
-              <input type="number" id="be-filter-result-profit" placeholder="All" />
-            </label>
             <button id="add-book-expense-btn" class="btn btn-primary toolbar-btn">+ Add Expense</button>
             <button id="be-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
             <button id="be-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
@@ -1434,15 +1430,11 @@
                       <option value="__ALL__">All</option>
                     </select>
                   </th>
-                  <th draggable="true" data-label="Result / Profit">
-                    <div class="th-label">Result / Profit</div>
-                    <input type="number" id="be-th-filter-result-profit" class="th-filter" placeholder="All" />
-                  </th>
                   <th data-label=""></th>
                 </tr>
               </thead>
               <tbody id="book-expenses-body">
-                <tr><td colspan="9" class="loading-row">Loading…</td></tr>
+                <tr><td colspan="8" class="loading-row">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -2744,7 +2736,7 @@
 <div id="sadhana-modal" class="modal">
   <div class="modal-box">
     <h3>Add Sadhana</h3>
-    <label class="field"><span>Name</span><input id="sadhana-name" type="text" /></label>
+    <label class="field"><span>Name</span><select id="sadhana-name"></select></label>
     <label class="field"><span>Date</span><input id="sadhana-date" type="date" /></label>
     <label class="field"><span>Rounds</span><input id="sadhana-rounds" type="number" min="0" step="any" /></label>
     <label class="field"><span>Book Reading</span><input id="sadhana-book-reading" type="number" min="0" step="any" /></label>

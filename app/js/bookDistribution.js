@@ -2704,9 +2704,9 @@ export async function initAnalytics() {
    field is inline-edit, same as the rest of Book Distribution's tables. */
 
 const EXPENSES_COLUMNS_KEY = "nrg-book-expenses-column-order";
-const DEFAULT_EXPENSES_COLUMNS = ["S.No", "Date", "Name", "Cost", "Place", "Event", "To", "Result / Profit", ""];
+const DEFAULT_EXPENSES_COLUMNS = ["S.No", "Date", "Name", "Cost", "Place", "Event", "To", ""];
 const EXPENSES_SELECT_FILTERS = [["be-filter-place", "place"], ["be-filter-event", "event"]];
-const EXPENSES_NUMBER_FILTERS = [["be-th-filter-cost", "cost"], ["be-filter-result-profit", "result_profit"]];
+const EXPENSES_NUMBER_FILTERS = [["be-th-filter-cost", "cost"]];
 let expensesCache = [];
 let expensesFiltersWired = false;
 let expenseModalWired = false;
@@ -2738,7 +2738,7 @@ function matchesToFilter(row, selectId) {
 function renderExpensesRows(rows, emptyMessage) {
   const tbody = document.getElementById("book-expenses-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="muted-text">${emptyMessage}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => `
@@ -2752,7 +2752,6 @@ function renderExpensesRows(rows, emptyMessage) {
       <td data-label="To">
         <button type="button" class="cell-chip expense-edit-to-btn" title="${escapeHtml((r.to_users || []).join(", ")) || "Edit recipients"}">${(r.to_users || []).length ? escapeHtml(r.to_users.join(", ")) : "— Select —"}</button>
       </td>
-      <td data-label="Result / Profit"><input class="inline-edit ${Number(r.result_profit) < 0 ? "bd-profit-negative" : Number(r.result_profit) > 0 ? "bd-profit-positive" : ""}" type="number" step="0.01" data-field="result_profit" value="${r.result_profit ?? ""}" /></td>
       <td data-label="">
         <button type="button" class="cell-chip danger expense-delete-btn" title="Delete">🗑 Delete</button>
       </td>
@@ -2765,7 +2764,7 @@ function renderExpensesRows(rows, emptyMessage) {
   tbody.querySelectorAll(".expense-edit-to-btn").forEach((btn) => {
     btn.addEventListener("click", () => openExpenseToModal(btn.closest("tr").dataset.id));
   });
-  wireInlineEditCells(tbody, "book_expenses", expensesCache, { numberFields: ["cost", "result_profit"], requiredFields: ["name", "expense_date"] }, async () => { applyExpensesFilters(); await updateExpensesSummaryStats(); });
+  wireInlineEditCells(tbody, "book_expenses", expensesCache, { numberFields: ["cost"], requiredFields: ["name", "expense_date"] }, async () => { applyExpensesFilters(); await updateExpensesSummaryStats(); });
   reapplyColumnOrder("book-expenses-table");
 }
 
@@ -2790,7 +2789,6 @@ function wireExpensesFilters() {
   pairFilterControls("be-filter-event", "be-th-filter-event", applyExpensesFilters);
   pairFilterControls("be-filter-to", "be-th-filter-to", applyExpensesFilters);
   document.getElementById("be-th-filter-cost")?.addEventListener("input", debounce(applyExpensesFilters, 200));
-  pairFilterControls("be-filter-result-profit", "be-th-filter-result-profit", applyExpensesFilters);
   wireExportBtn("be-export-btn", "book-expenses-table", "Book_Expenses");
   initColumnDragReorder("book-expenses-table", { storageKey: EXPENSES_COLUMNS_KEY, columns: DEFAULT_EXPENSES_COLUMNS, resetBtnId: "be-reset-columns-btn" });
   initHorizontalScroll("book-expenses-table-wrap");
@@ -2923,7 +2921,7 @@ function wireExpenseToModal() {
 
 async function loadExpenses() {
   const tbody = document.getElementById("book-expenses-body");
-  tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Loading…</td></tr>`;
 
   const { data, error } = await supabase
     .from("book_expenses")
@@ -2931,7 +2929,7 @@ async function loadExpenses() {
     .order("expense_date", { ascending: false });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="9" class="loading-row">Could not load expenses.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Could not load expenses.</td></tr>`;
     return;
   }
   expensesCache = data || [];

@@ -57,11 +57,14 @@ function setup() {
  * removes Master Contact rows for contacts deleted in Supabase, which the
  * webhook can't do (it only fires on insert/update, never delete).
  *
- * Note: Apps Script's time-based trigger service has no seconds-level
- * option — `everyMinutes()` only accepts 1/5/10/15/30, so 1 minute is the
- * fastest this backup trigger can run. Real-time changes still reach the
- * Sheet within seconds via the doPost webhook below; this trigger only
- * matters when a webhook call gets silently dropped.
+ * Note: this pulls `select=*` on the full contacts/call_responses/
+ * session_attendance tables every time it runs — at the previous 1-minute
+ * interval that was ~700KB x 1440 runs/day, several GB/day of pure Supabase
+ * egress against a 5GB/month free-tier cap, almost entirely wasted since a
+ * webhook drop is rare. 30 minutes (the coarsest `everyMinutes()` allows)
+ * still repairs a dropped webhook well within the same working session,
+ * at ~1/30th the cost. Real-time changes still reach the Sheet within
+ * seconds via the doPost webhook below regardless of this interval.
  */
 function setupResyncTrigger() {
   ScriptApp.getProjectTriggers().forEach((t) => {
@@ -71,9 +74,9 @@ function setupResyncTrigger() {
   });
   ScriptApp.newTrigger('fullResyncAll')
     .timeBased()
-    .everyMinutes(1)
+    .everyMinutes(30)
     .create();
-  Logger.log('Full-resync time trigger installed (every 1 minute).');
+  Logger.log('Full-resync time trigger installed (every 30 minutes).');
 }
 
 function onOpen() {

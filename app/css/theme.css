@@ -108,7 +108,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .field input, .field select, .field textarea, .search-input {
   width: 100%;
   padding: 12px 14px;
-  border: 1.5px solid var(--sandstone);
+  border: 1.5px solid var(--text-main);
   border-radius: var(--radius-sm);
   font-size: 15px;
   font-family: inherit;
@@ -634,7 +634,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .data-table th .th-filter::placeholder { color: var(--text-muted); font-weight: 500; }
 .inline-edit {
   width: 100%; min-width: 50px; padding: 5px 6px; font-size: 13px;
-  border: 1.5px solid var(--sandstone); border-radius: 8px; background: transparent;
+  border: 1.5px solid var(--text-main); border-radius: 8px; background: transparent;
   color: var(--text-main); font-family: inherit; transition: border-color 0.15s ease, background 0.15s ease;
   /* An <input>'s own text rendering clips silently with no "…" when its
      value is wider than the box — the parent td's overflow/text-overflow
@@ -1378,7 +1378,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #collection-submissions-admin-table td select.inline-edit {
     font-size: 13px !important;
     padding: 4px 6px !important;
-    border: 1px solid var(--sandstone) !important;
+    border: 1px solid var(--text-main) !important;
     border-radius: 6px !important;
     background: var(--surface) !important;
   }
@@ -1967,7 +1967,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    (call time) and Attendance filter dropdowns. */
 .ts-range { gap: 6px; font-weight: 600; color: var(--text-muted); }
 .ts-range input {
-  width: auto; font-size: 12.5px; padding: 2px 6px; border: 1.5px solid var(--sandstone);
+  width: auto; font-size: 12.5px; padding: 2px 6px; border: 1.5px solid var(--text-main);
   border-radius: 8px; background: #fff;
 }
 .ts-range input:disabled { opacity: 0.5; cursor: not-allowed; }

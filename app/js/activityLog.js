@@ -66,9 +66,11 @@ export function logEvent(action, { section = null, target = null, meta = null } 
     action,
     section,
     target,
-    // Hard string cap so one unexpectedly large payload can't balloon a batch —
-    // this log is for pattern analysis, not full record reconstruction.
-    meta: meta ? JSON.stringify(meta).slice(0, 2000) : null,
+    // meta is a jsonb column — pass the object itself, not a JSON string,
+    // or Postgres stores a double-encoded jsonb *string* scalar and every
+    // ->> / #> query on it comes back null. Still cap size so one
+    // unexpectedly large payload can't balloon a batch.
+    meta: meta && JSON.stringify(meta).length > 2000 ? { truncated: true } : meta,
   });
   if (queue.length >= MAX_BATCH) flush();
   else persist();
