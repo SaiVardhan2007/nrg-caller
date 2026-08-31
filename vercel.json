@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/cron/db-export", "schedule": "25 10 * * *" }
+  ]
+}
