@@ -6,6 +6,45 @@ const DEFAULT_SADHANA_COLUMNS = ["S.No", "Name", "Date", "Rounds", "Book Reading
 const NUMBER_FIELDS = ["rounds", "book_reading", "screen_time", "detox_time"];
 const SERVICE_OPTIONS = ["Yes", "No", "Na"];
 const SWADHYAYA_OPTIONS = ["Yes", "No"];
+const SADHANA_NUMBER_FILTERS = [
+  ["sadhana-th-filter-rounds", "rounds"],
+  ["sadhana-th-filter-book-reading", "book_reading"],
+  ["sadhana-th-filter-screen-time", "screen_time"],
+  ["sadhana-th-filter-detox-time", "detox_time"],
+];
+const SADHANA_SELECT_FILTERS = [
+  ["sadhana-th-filter-service", "service"],
+  ["sadhana-th-filter-swadhyaya", "swadhyaya"],
+];
+
+// "All" (default) applies no filter; picking a real value shows only rows
+// with that value; picking the blank option ("") shows only untagged rows.
+function matchesSelectFilters(row, filters) {
+  for (const [selectId, field] of filters) {
+    const val = document.getElementById(selectId)?.value ?? "__ALL__";
+    if (val === "__ALL__") continue;
+    const cellVal = row[field] || "";
+    if (val === "" ? cellVal !== "" : cellVal !== val) return false;
+  }
+  return true;
+}
+
+function matchesNumberFilters(row, filters) {
+  for (const [inputId, field] of filters) {
+    const raw = document.getElementById(inputId)?.value ?? "";
+    if (raw === "") continue;
+    const num = parseFloat(raw);
+    if (Number.isNaN(num)) continue;
+    if (Number(row[field] ?? NaN) !== num) return false;
+  }
+  return true;
+}
+
+function matchesDateFilter(row) {
+  const val = document.getElementById("sadhana-th-filter-date")?.value || "";
+  if (!val) return true;
+  return row.sadhana_date === val;
+}
 
 function selectOptionsHtml(options, selected) {
   return `<option value="">—</option>` + options.map((o) => `<option value="${o}" ${o === selected ? "selected" : ""}>${o}</option>`).join("");
@@ -50,12 +89,12 @@ function findDuplicateKeys() {
   return counts;
 }
 
-function localDateInput(d) {
+export function localDateInput(d) {
   const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
-function todayLocalDate() {
+export function todayLocalDate() {
   return localDateInput(new Date());
 }
 
@@ -140,9 +179,14 @@ function renderSadhanaRows(rows, emptyMessage) {
 
 function applySadhanaFilters() {
   const search = document.getElementById("sadhana-search")?.value.trim().toLowerCase() || "";
-  const rows = sadhanaCache.filter((r) => matchesSearch(r, search));
+  const rows = sadhanaCache.filter((r) =>
+    matchesSearch(r, search) &&
+    matchesDateFilter(r) &&
+    matchesNumberFilters(r, SADHANA_NUMBER_FILTERS) &&
+    matchesSelectFilters(r, SADHANA_SELECT_FILTERS)
+  );
   const sorted = sortRows(rows, document.getElementById("sadhana-sort")?.value);
-  renderSadhanaRows(sorted, sadhanaCache.length ? "No records match your search." : "No records yet — add one to get started.");
+  renderSadhanaRows(sorted, sadhanaCache.length ? "No records match your filters." : "No records yet — add one to get started.");
 }
 
 function wireSadhanaFilters() {
@@ -150,6 +194,13 @@ function wireSadhanaFilters() {
   filtersWired = true;
   document.getElementById("sadhana-search").addEventListener("input", debounce(applySadhanaFilters, 200));
   document.getElementById("sadhana-sort").addEventListener("change", applySadhanaFilters);
+  document.getElementById("sadhana-th-filter-date").addEventListener("change", applySadhanaFilters);
+  SADHANA_NUMBER_FILTERS.forEach(([inputId]) => {
+    document.getElementById(inputId)?.addEventListener("input", debounce(applySadhanaFilters, 200));
+  });
+  SADHANA_SELECT_FILTERS.forEach(([selectId]) => {
+    document.getElementById(selectId)?.addEventListener("change", applySadhanaFilters);
+  });
   initColumnDragReorder("sadhana-table", { storageKey: SADHANA_COLUMNS_KEY, columns: DEFAULT_SADHANA_COLUMNS, resetBtnId: "sadhana-reset-columns-btn" });
   initHorizontalScroll("sadhana-table-wrap");
 }

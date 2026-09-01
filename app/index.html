@@ -94,6 +94,14 @@
     <button class="admin-tab" data-target="sadhana-analytics-section">Analytics</button>
   </nav>
 
+  <!-- ---- Donations tabs ---- -->
+  <nav id="donations-tabs" class="admin-tabs hidden">
+    <button class="admin-tab active" data-target="donations-dashboard-section">Dashboard</button>
+    <button class="admin-tab" data-target="donations-transactions-section">Transactions</button>
+    <button class="admin-tab" data-target="donations-events-section">Events</button>
+    <button class="admin-tab" data-target="donations-analytics-section">Analytics</button>
+  </nav>
+
   <!-- ---- Admin module chooser ---- -->
   <div id="admin-module-dashboard" class="dashboard hidden">
     <div class="dashboard-cards">
@@ -110,6 +118,11 @@
       <button class="dashboard-card" data-target="sadhana">
         <span class="card-icon-badge badge-tulsi"><span class="card-emoji">🙏</span></span>
         <span class="card-label">FNRG Sadhana</span>
+        <span class="card-arrow">→</span>
+      </button>
+      <button class="dashboard-card" data-target="donations">
+        <span class="card-icon-badge badge-saffron"><span class="card-emoji">💰</span></span>
+        <span class="card-label">Donations</span>
         <span class="card-arrow">→</span>
       </button>
     </div>
@@ -327,11 +340,12 @@
                     Auto Assign
                     <input type="checkbox" id="auto-assign-select-all" title="Enable/disable Auto Assign for all users" class="auto-assign-select-all-check" />
                   </th>
+                  <th>Fulfilled</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody id="users-table-body">
-                <tr><td colspan="11" class="loading-row">Loading users…</td></tr>
+                <tr><td colspan="12" class="loading-row">Loading users…</td></tr>
               </tbody>
             </table>
           </div>
@@ -1470,13 +1484,45 @@
                 <tr>
                   <th draggable="true" data-label="S.No">S.No</th>
                   <th draggable="true" data-label="Name">Name</th>
-                  <th draggable="true" data-label="Date">Date</th>
-                  <th draggable="true" data-label="Rounds">Rounds</th>
-                  <th draggable="true" data-label="Book Reading">Book Reading</th>
-                  <th draggable="true" data-label="Screen Time">Screen Time</th>
-                  <th draggable="true" data-label="Detox Time">Detox Time</th>
-                  <th draggable="true" data-label="Service">Service</th>
-                  <th draggable="true" data-label="Swadhyaya">Swadhyaya</th>
+                  <th draggable="true" data-label="Date">
+                    <div class="th-label">Date</div>
+                    <input type="date" id="sadhana-th-filter-date" class="th-filter" />
+                  </th>
+                  <th draggable="true" data-label="Rounds">
+                    <div class="th-label">Rounds</div>
+                    <input type="number" min="0" id="sadhana-th-filter-rounds" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Book Reading">
+                    <div class="th-label">Book Reading</div>
+                    <input type="number" min="0" id="sadhana-th-filter-book-reading" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Screen Time">
+                    <div class="th-label">Screen Time</div>
+                    <input type="number" min="0" id="sadhana-th-filter-screen-time" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Detox Time">
+                    <div class="th-label">Detox Time</div>
+                    <input type="number" min="0" id="sadhana-th-filter-detox-time" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Service">
+                    <div class="th-label">Service</div>
+                    <select id="sadhana-th-filter-service" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                      <option value="Yes">Yes</option>
+                      <option value="No">No</option>
+                      <option value="Na">Na</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="Swadhyaya">
+                    <div class="th-label">Swadhyaya</div>
+                    <select id="sadhana-th-filter-swadhyaya" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                      <option value="Yes">Yes</option>
+                      <option value="No">No</option>
+                    </select>
+                  </th>
                   <th data-label=""></th>
                 </tr>
               </thead>
@@ -1589,6 +1635,211 @@
                   </tr>
                 </thead>
                 <tbody id="sa-leaderboard-body"><tr><td colspan="11" class="loading-row">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== DONATIONS: Dashboard ===== -->
+    <section id="donations-dashboard-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="donations-dashboard-search" type="search" placeholder="Search name / number…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="donations-dashboard-sort" class="inline-edit">
+                <option value="amount-desc">Total Amount (High-Low)</option>
+                <option value="amount-asc">Total Amount (Low-High)</option>
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+              </select>
+            </label>
+          </div>
+          <div class="sidebar-divider"></div>
+          <div class="field-label">Add Donor</div>
+          <div class="panel-row">
+            <input id="donations-add-donor-search" type="tel" inputmode="numeric" placeholder="Search phone number…" class="search-input" />
+          </div>
+          <div id="donations-add-donor-result" class="reception-result hidden">
+            <div id="donations-add-donor-name" class="reception-name"></div>
+            <div id="donations-add-donor-phone" class="reception-phone"></div>
+            <div class="modal-actions justify-start">
+              <button id="donations-add-donor-btn" class="btn btn-primary">Add</button>
+              <button id="donations-add-donor-cancel" class="btn btn-secondary">Cancel</button>
+            </div>
+          </div>
+          <div id="donations-add-donor-not-found" class="reception-not-found hidden">
+            <p>No contact found in Master Contact with this number.</p>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="table-wrap" id="donations-dashboard-table-wrap">
+            <table class="data-table" id="donations-dashboard-table">
+              <thead>
+                <tr>
+                  <th data-label="S.No">S.No</th>
+                  <th data-label="Name">Name</th>
+                  <th data-label="Number">Number</th>
+                  <th data-label="Total Amount">Total Amount</th>
+                  <th data-label=""></th>
+                </tr>
+              </thead>
+              <tbody id="donations-dashboard-body">
+                <tr><td colspan="5" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== DONATIONS: Transactions ===== -->
+    <section id="donations-transactions-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="donations-tx-search" type="search" placeholder="Search name / number…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="donations-tx-sort" class="inline-edit">
+                <option value="created_at-desc">Date (Newest)</option>
+                <option value="created_at-asc">Date (Oldest)</option>
+                <option value="amount-desc">Amount (High-Low)</option>
+                <option value="amount-asc">Amount (Low-High)</option>
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+              </select>
+            </label>
+            <button id="add-donation-btn" class="btn btn-primary toolbar-btn">+ Add Transaction</button>
+            <button id="donations-tx-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="table-wrap" id="donations-tx-table-wrap">
+            <table class="data-table" id="donations-tx-table">
+              <thead>
+                <tr>
+                  <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Name">Name</th>
+                  <th draggable="true" data-label="Number">Number</th>
+                  <th draggable="true" data-label="Amount">Amount</th>
+                  <th draggable="true" data-label="Event">
+                    <div class="th-label">Event</div>
+                    <select id="donations-tx-th-filter-event" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th data-label=""></th>
+                </tr>
+              </thead>
+              <tbody id="donations-tx-body">
+                <tr><td colspan="6" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== DONATIONS: Events ===== -->
+    <section id="donations-events-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="donations-ev-search" type="search" placeholder="Search name…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="donations-ev-sort" class="inline-edit">
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+              </select>
+            </label>
+            <button id="add-donation-event-btn" class="btn btn-primary toolbar-btn">+ Add Event</button>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="table-wrap" id="donations-ev-table-wrap">
+            <table class="data-table" id="donations-ev-table">
+              <thead>
+                <tr>
+                  <th data-label="S.No">S.No</th>
+                  <th data-label="Name">Name</th>
+                  <th data-label=""></th>
+                </tr>
+              </thead>
+              <tbody id="donations-ev-body">
+                <tr><td colspan="3" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== DONATIONS: Analytics ===== -->
+    <section id="donations-analytics-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <div class="field inline">
+              <span>Date Range</span>
+              <div class="date-range-inputs">
+                <input id="da-from" type="date" />
+                <span class="date-range-sep">–</span>
+                <input id="da-to" type="date" />
+              </div>
+            </div>
+            <label class="field inline"><span>Donor</span><select id="da-filter-donor-select" class="inline-edit"></select></label>
+            <label class="field inline"><span>Event</span><select id="da-filter-event-select" class="inline-edit"></select></label>
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="da-sort" class="inline-edit">
+                <option value="amount-desc">Total Amount (High-Low)</option>
+                <option value="amount-asc">Total Amount (Low-High)</option>
+                <option value="count-desc">Transactions (High-Low)</option>
+                <option value="count-asc">Transactions (Low-High)</option>
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+              </select>
+            </label>
+            <button id="da-run-btn" class="btn btn-primary toolbar-btn">View</button>
+            <button id="da-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="stats-bar">
+            <div class="stat"><span id="da-stat-amount" class="stat-num">0</span><span class="stat-label">Total Amount</span></div>
+            <div class="stat"><span id="da-stat-transactions" class="stat-num">0</span><span class="stat-label">Transactions</span></div>
+            <div class="stat"><span id="da-stat-donors" class="stat-num">0</span><span class="stat-label">Donors</span></div>
+            <div class="stat"><span id="da-stat-avg" class="stat-num">0</span><span class="stat-label">Avg Donation</span></div>
+          </div>
+
+          <div class="panel">
+            <div class="caller-title-row">
+              <h3 class="section-title">Donor Leaderboard</h3>
+            </div>
+            <div class="table-wrap" id="da-leaderboard-table-wrap">
+              <table class="data-table" id="da-leaderboard-table">
+                <thead>
+                  <tr>
+                    <th data-label="S.No">S.No</th>
+                    <th data-label="Name">Name</th>
+                    <th data-label="Number">Number</th>
+                    <th data-label="Transactions">Transactions</th>
+                    <th data-label="Total Amount">Total Amount</th>
+                    <th data-label="Last Donation">Last Donation</th>
+                    <th class="no-export" data-label=""></th>
+                  </tr>
+                </thead>
+                <tbody id="da-leaderboard-body"><tr><td colspan="7" class="loading-row">Loading…</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -2761,6 +3012,66 @@
     <div class="modal-actions">
       <button id="sadhana-cancel-btn" class="btn btn-secondary">Cancel</button>
       <button id="sadhana-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="donation-transaction-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add Transaction</h3>
+    <label class="field"><span>Donor (Name / Number)</span><input id="donation-tx-donor" type="text" placeholder="Type name or number…" autocomplete="off" /></label>
+    <label class="field"><span>Amount</span><input id="donation-tx-amount" type="number" min="0" step="any" /></label>
+    <label class="field"><span>Event</span><select id="donation-tx-event"><option value="">—</option></select></label>
+    <div id="donation-tx-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="donation-tx-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="donation-tx-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="donation-event-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add Event</h3>
+    <label class="field"><span>Name</span><input id="donation-event-name" type="text" /></label>
+    <div id="donation-event-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="donation-event-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="donation-event-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="donation-donor-detail-modal" class="modal">
+  <div class="modal-box">
+    <h3 id="donation-donor-detail-title">Transactions</h3>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Date</th><th>Amount</th><th>Event</th></tr></thead>
+        <tbody id="donation-donor-detail-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="donation-donor-detail-close-btn" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="donation-analytics-detail-modal" class="modal">
+  <div class="modal-box modal-large">
+    <h3 id="donation-analytics-detail-title">Transactions</h3>
+    <div class="table-wrap h-380">
+      <table class="data-table" id="donation-analytics-detail-table">
+        <thead><tr>
+          <th data-label="Date">Date</th>
+          <th data-label="Amount">Amount</th>
+          <th data-label="Event">Event</th>
+        </tr></thead>
+        <tbody id="donation-analytics-detail-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="donation-analytics-detail-close" class="btn btn-secondary">Close</button>
     </div>
   </div>
 </div>

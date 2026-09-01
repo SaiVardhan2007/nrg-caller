@@ -16,6 +16,7 @@ create table if not exists users (
   commander   boolean not null default false,
   assigned_count int not null default 0,    -- mirrors "No of Call Assigned by Automation" in Sheets
   sadhana_track boolean not null default false, -- only tracked users show in the FNRG Sadhana "Enter Sadhana" roster
+  fulfilled   boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
@@ -23,6 +24,7 @@ create table if not exists users (
 alter table users add column if not exists assigned_count int not null default 0;
 alter table users add column if not exists commander boolean not null default false;
 alter table users add column if not exists sadhana_track boolean not null default false;
+alter table users add column if not exists fulfilled boolean not null default false;
 
 -- Sheet: Master Contact
 create table if not exists contacts (

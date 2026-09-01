@@ -597,14 +597,14 @@ function wireManageEventsModal() {
 
 async function renderUsersTable() {
   const tbody = document.getElementById("users-table-body");
-  tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Loading users…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Loading users…</td></tr>`;
 
   const { data: users, error } = await supabase
     .from("users")
-    .select("id,user_name,login_pw,role,call_limit,auto_assign,commander")
+    .select("id,user_name,login_pw,role,call_limit,auto_assign,commander,fulfilled")
     .order("user_name");
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Could not load users.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Could not load users.</td></tr>`;
     return;
   }
   usersCache = users || [];
@@ -623,7 +623,7 @@ async function renderUsersTable() {
   });
 
   if (!usersCache.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">No users yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="loading-row">No users yet.</td></tr>`;
     return;
   }
 
@@ -652,6 +652,9 @@ async function renderUsersTable() {
       <td data-label="Completed %"><span class="pct-badge">${pct}</span></td>
       <td data-label="Auto Assign">
         <input type="checkbox" class="auto-assign-input" ${u.auto_assign ? "checked" : ""} ${u.role !== "Coordinator" ? "disabled" : ""} />
+      </td>
+      <td data-label="Fulfilled">
+        <input type="checkbox" class="fulfilled-input" ${u.fulfilled ? "checked" : ""} />
       </td>
       <td data-label="">
         <button class="btn btn-link delete-user-btn">Delete</button>
@@ -684,6 +687,14 @@ async function renderUsersTable() {
       const id = e.target.closest("tr").dataset.id;
       await supabase.from("users").update({ commander: e.target.checked }).eq("id", id);
       showToast("Commander updated", "success");
+    });
+  });
+
+  tbody.querySelectorAll(".fulfilled-input").forEach((input) => {
+    input.addEventListener("change", async (e) => {
+      const id = e.target.closest("tr").dataset.id;
+      await supabase.from("users").update({ fulfilled: e.target.checked }).eq("id", id);
+      showToast("Fulfilled updated", "success");
     });
   });
 
@@ -4607,14 +4618,38 @@ async function fetchAllRows(table) {
   return rows;
 }
 
-// Fire-and-forget ping to the weekly-db-export Edge Function, called once
-// per admin page load. The function itself decides whether 7 days have
-// actually passed since the last run (via the `settings` table) — this is
-// just "did an admin open the app today", not a real cron.
-export function maybeRunWeeklyDbExport() {
-  fetch(`${SUPABASE_URL}/functions/v1/weekly-db-export`, {
-    headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, apikey: SUPABASE_ANON_KEY },
-  }).catch((err) => console.warn("weekly-db-export ping failed:", err.message));
+// Called once per admin page load. First asks the weekly-db-export Edge
+// Function whether 7 days have actually passed since the last run (via the
+// `settings` table) — if not, this is a no-op. If it's due, the .xlsx is
+// built right here in the browser (same code path as the "Download All DB
+// Data" button, buildFullDbWorkbook() below) and POSTed to the Edge
+// Function to email out. Building it client-side — rather than inside the
+// Edge Function itself — avoids Supabase's per-invocation CPU/memory limit
+// (WORKER_RESOURCE_LIMIT), which the workbook-building was blowing past
+// when it ran as Deno isolate code.
+export async function maybeRunWeeklyDbExport() {
+  try {
+    const checkRes = await fetch(`${SUPABASE_URL}/functions/v1/weekly-db-export`, {
+      headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, apikey: SUPABASE_ANON_KEY },
+    });
+    const check = await checkRes.json();
+    if (!check.shouldRun) return;
+
+    const { wb, tableCount, rowCount } = await buildFullDbWorkbook();
+    const base64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
+
+    await fetch(`${SUPABASE_URL}/functions/v1/weekly-db-export`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ base64, tables: tableCount, rows: rowCount }),
+    });
+  } catch (err) {
+    console.warn("weekly-db-export failed:", err.message);
+  }
 }
 
 // Same fire-and-forget-ping pattern as maybeRunWeeklyDbExport above, for the
@@ -4626,12 +4661,10 @@ export function maybeRunWeeklyActivityReport() {
   }).catch((err) => console.warn("weekly-activity-report ping failed:", err.message));
 }
 
-export async function downloadAllDbData() {
-  const btn = document.getElementById("download-all-db-btn");
-  btn.disabled = true;
-  btn.textContent = "…";
-  showToast("Preparing full database export…", "info");
-
+// Fetches every table and builds an in-memory XLSX workbook, one sheet per
+// table. Shared by the "Download All DB Data" button and the weekly emailed
+// backup (maybeRunWeeklyDbExport) so both stay on the exact same export.
+async function buildFullDbWorkbook() {
   // list_app_tables() (schema.sql) reads information_schema live, so any
   // table added later shows up here automatically with no code change.
   let DB_TABLES = DB_TABLES_FALLBACK;
@@ -4642,34 +4675,45 @@ export async function downloadAllDbData() {
     console.warn("list_app_tables() unavailable, using fallback table list:", liveTablesError?.message);
   }
 
+  const allData = {};
+  let rowCount = 0;
+  for (const table of DB_TABLES) {
+    try {
+      allData[table] = await fetchAllRows(table);
+    } catch (error) {
+      console.warn(`Could not fetch ${table}:`, error.message);
+      allData[table] = [];
+    }
+    rowCount += allData[table].length;
+  }
+
+  const wb = XLSX.utils.book_new();
+  for (const table of DB_TABLES) {
+    const rows = allData[table];
+    const aoa = rows.length
+      ? [Object.keys(rows[0]), ...rows.map((row) => Object.keys(rows[0]).map((h) => {
+          const v = row[h];
+          return v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : v;
+        }))]
+      : [["(empty)"]];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(wb, ws, table.slice(0, 31)); // Excel sheet names cap at 31 chars
+  }
+
+  return { wb, tableCount: DB_TABLES.length, rowCount };
+}
+
+export async function downloadAllDbData() {
+  const btn = document.getElementById("download-all-db-btn");
+  btn.disabled = true;
+  btn.textContent = "…";
+  showToast("Preparing full database export…", "info");
+
   try {
-    const allData = {};
-    for (const table of DB_TABLES) {
-      try {
-        allData[table] = await fetchAllRows(table);
-      } catch (error) {
-        console.warn(`Could not fetch ${table}:`, error.message);
-        allData[table] = [];
-      }
-    }
-
+    const { wb, tableCount } = await buildFullDbWorkbook();
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
-
-    const wb = XLSX.utils.book_new();
-    for (const table of DB_TABLES) {
-      const rows = allData[table];
-      const aoa = rows.length
-        ? [Object.keys(rows[0]), ...rows.map((row) => Object.keys(rows[0]).map((h) => {
-            const v = row[h];
-            return v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : v;
-          }))]
-        : [["(empty)"]];
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-      XLSX.utils.book_append_sheet(wb, ws, table.slice(0, 31)); // Excel sheet names cap at 31 chars
-    }
     XLSX.writeFile(wb, `FNRG_Preaching_Full_DB_${timestamp}.xlsx`);
-
-    showToast(`Exported ${DB_TABLES.length} tables successfully! 📁`, "success");
+    showToast(`Exported ${tableCount} tables successfully! 📁`, "success");
   } catch (err) {
     console.error("DB export error:", err);
     showToast("Export failed: " + err.message, "error");

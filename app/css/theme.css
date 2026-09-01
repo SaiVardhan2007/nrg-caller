@@ -496,7 +496,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #book-outward-table { min-width: 1400px; }
   #my-outward-table { min-width: 1100px; }
   #commander-table { min-width: 1300px; }
-  #book-places-table { min-width: 750px; }
+  #book-places-table { min-width: 850px; }
   #ba-segments-table { min-width: 780px; }
 }
 
@@ -872,11 +872,36 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #commander-table th[data-label="Sold By"], #commander-table td[data-label="Sold By"] { width: 150px !important; max-width: 150px !important; padding: 8px 10px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
 #commander-table th[data-label="Realised"], #commander-table td[data-label="Realised"] { width: 90px !important; max-width: 90px !important; text-align: center; }
 
-#book-places-table th[data-label="Name"], #book-places-table td[data-label="Name"] { width: 160px !important; max-width: 160px !important; text-align: left !important; }
-#book-places-table td[data-label="Name"] input { width: 100% !important; max-width: none !important; }
-#book-places-table th[data-label="Description"], #book-places-table td[data-label="Description"] { width: 260px !important; max-width: 260px !important; }
-#book-places-table th[data-label="Map Link"], #book-places-table td[data-label="Map Link"] { width: 100px !important; max-width: 100px !important; text-align: center; }
-#book-places-table th[data-label=""], #book-places-table td[data-label=""] { width: 170px !important; max-width: 170px !important; min-width: 170px !important; }
+/* Book Distribution Places & Events (admin + user views): Name was capped at
+   140-160px with the .inline-edit default ellipsis, silently cutting off
+   longer place/event names — the one field these tables exist to show.
+   Give it real room on all four tables instead. */
+#book-places-table th[data-label="Name"], #book-places-table td[data-label="Name"],
+#book-events-table th[data-label="Name"], #book-events-table td[data-label="Name"],
+#book-places-user-table th[data-label="Name"], #book-places-user-table td[data-label="Name"],
+#book-events-user-table th[data-label="Name"], #book-events-user-table td[data-label="Name"] {
+  width: 260px !important; max-width: 260px !important; text-align: left !important;
+}
+#book-places-table td[data-label="Name"] input, #book-events-table td[data-label="Name"] input,
+#book-places-user-table td[data-label="Name"] input, #book-events-user-table td[data-label="Name"] input {
+  width: 100% !important; max-width: none !important; text-overflow: clip !important;
+}
+#book-places-table th[data-label="Description"], #book-places-table td[data-label="Description"],
+#book-events-table th[data-label="Description"], #book-events-table td[data-label="Description"],
+#book-places-user-table th[data-label="Description"], #book-places-user-table td[data-label="Description"],
+#book-events-user-table th[data-label="Description"], #book-events-user-table td[data-label="Description"] {
+  width: 260px !important; max-width: 260px !important;
+}
+#book-places-table th[data-label="Map Link"], #book-places-table td[data-label="Map Link"],
+#book-events-table th[data-label="Map Link"], #book-events-table td[data-label="Map Link"],
+#book-places-user-table th[data-label="Map Link"], #book-places-user-table td[data-label="Map Link"],
+#book-events-user-table th[data-label="Map Link"], #book-events-user-table td[data-label="Map Link"] {
+  width: 100px !important; max-width: 100px !important; text-align: center;
+}
+#book-places-table th[data-label=""], #book-places-table td[data-label=""],
+#book-events-table th[data-label=""], #book-events-table td[data-label=""] {
+  width: 170px !important; max-width: 170px !important; min-width: 170px !important;
+}
 
 #sadhana-table th[data-label="S.No"], #sadhana-table td[data-label="S.No"] { width: 5% !important; max-width: none !important; text-align: center; }
 #sadhana-table th[data-label="Name"], #sadhana-table td[data-label="Name"] { width: 16% !important; max-width: none !important; text-align: left !important; }
@@ -1633,6 +1658,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #book-places-table td[data-label="Map Link"] { order: 3; width: 55% !important; }
   #book-places-table td[data-label=""] { order: 4; width: 45% !important; }
 
+  #book-events-table td[data-label="Name"] { order: 1; width: 100% !important; }
+  #book-events-table td[data-label="Description"] { order: 2; width: 100% !important; }
+  #book-events-table td[data-label="Map Link"] { order: 3; width: 55% !important; }
+  #book-events-table td[data-label=""] { order: 4; width: 45% !important; }
+
+  #book-places-user-table td[data-label="Name"], #book-events-user-table td[data-label="Name"] { order: 1; width: 100% !important; }
+  #book-places-user-table td[data-label="Description"], #book-events-user-table td[data-label="Description"] { order: 2; width: 100% !important; }
+  #book-places-user-table td[data-label="Map Link"], #book-events-user-table td[data-label="Map Link"] { order: 3; width: 100% !important; }
+
   #sadhana-table td[data-label="Name"] { order: 1; width: 100% !important; }
   #sadhana-table td[data-label="S.No"] { order: 2; width: 20% !important; font-weight: 700; }
   #sadhana-table td[data-label="Date"] { order: 3; width: 80% !important; }
@@ -1996,6 +2030,10 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .users-content {
   flex: 1;
   min-width: 0;
+}
+.sidebar-divider {
+  border-top: 1px solid var(--sandstone);
+  margin: 14px 0 12px;
 }
 
 /* Users & Assignment has just one table on the right, so let it stretch to

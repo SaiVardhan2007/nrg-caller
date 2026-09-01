@@ -40,7 +40,7 @@ async function getOutwardModalData() {
   return outwardModalDataCache;
 }
 
-function fmtMoney(n) {
+export function fmtMoney(n) {
   return "₹" + (Math.round((n || 0) * 100) / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
@@ -1038,7 +1038,7 @@ function bookLabel(b) {
 // { destroy } — callers must invoke it when the input is removed (e.g. a
 // stock row is deleted), since the dropdown lives outside the row's subtree
 // and won't be garbage-collected by removing the row alone.
-function wireSearchableCombo(input, getOptions) {
+export function wireSearchableCombo(input, getOptions) {
   const dropdown = document.createElement("div");
   dropdown.className = "combo-dropdown";
   document.body.appendChild(dropdown);

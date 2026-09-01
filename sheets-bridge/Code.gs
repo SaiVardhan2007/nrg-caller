@@ -47,31 +47,40 @@ function setup() {
 }
 
 /**
- * Run this ONCE from the Apps Script editor after `setup()`. Installs a
- * time-based trigger that self-heals every synced tab every minute — a
- * safety net for the per-row webhook below, which is fire-and-forget with no
- * retry: two rows changing at nearly the same instant (e.g. a new contact
- * registered in Reception inserts into `contacts` AND `session_attendance`
- * within milliseconds) can fire more simultaneous webhook calls than Apps
- * Script's concurrency limit allows, silently dropping one. This also
- * removes Master Contact rows for contacts deleted in Supabase, which the
- * webhook can't do (it only fires on insert/update, never delete).
+ * The periodic fullResyncAll trigger is currently DISABLED (run
+ * stopResyncTrigger() below, or delete it via Triggers in the editor UI, if
+ * one is still installed). It was a self-heal safety net for the per-row
+ * webhook below, which is fire-and-forget with no retry: two rows changing
+ * at nearly the same instant (e.g. a new contact registered in Reception
+ * inserts into `contacts` AND `session_attendance` within milliseconds) can
+ * fire more simultaneous webhook calls than Apps Script's concurrency limit
+ * allows, silently dropping one. It also removed Master Contact rows for
+ * contacts deleted in Supabase, which the webhook can't do (it only fires on
+ * insert/update, never delete).
  *
- * Note: this pulls `select=*` on the full contacts/call_responses/
- * session_attendance tables every time it runs — at the previous 1-minute
- * interval that was ~700KB x 1440 runs/day, several GB/day of pure Supabase
- * egress against a 5GB/month free-tier cap, almost entirely wasted since a
- * webhook drop is rare. 30 minutes (the coarsest `everyMinutes()` allows)
- * still repairs a dropped webhook well within the same working session,
- * at ~1/30th the cost. Real-time changes still reach the Sheet within
- * seconds via the doPost webhook below regardless of this interval.
+ * It was disabled because it pulls `select=*` on the full contacts/
+ * call_responses/session_attendance tables every time it runs — at a
+ * 1-minute interval that was ~700KB x 1440 runs/day, several GB/day of pure
+ * Supabase egress against a 5GB/month free-tier cap, almost entirely wasted
+ * since a webhook drop is rare. Real-time changes still reach the Sheet
+ * within seconds via the doPost webhook below regardless; use the "Full
+ * Resync All Sheets (now)" menu item to repair a dropped webhook manually.
+ *
+ * To re-enable as a periodic safety net, run setupResyncTrigger() — 30
+ * minutes (the coarsest `everyMinutes()` allows) is the recommended
+ * interval, at ~1/30th the egress cost of the old 1-minute one.
  */
-function setupResyncTrigger() {
+function stopResyncTrigger() {
   ScriptApp.getProjectTriggers().forEach((t) => {
     if (t.getHandlerFunction() === 'fullResyncMasterContact' || t.getHandlerFunction() === 'fullResyncAll') {
       ScriptApp.deleteTrigger(t);
     }
   });
+  Logger.log('Full-resync time trigger removed.');
+}
+
+function setupResyncTrigger() {
+  stopResyncTrigger();
   ScriptApp.newTrigger('fullResyncAll')
     .timeBased()
     .everyMinutes(30)

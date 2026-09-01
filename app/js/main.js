@@ -10,6 +10,7 @@ import * as CoreCultivation from "./coreCultivation.js";
 import * as Collection from "./collection.js";
 import * as BookDistribution from "./bookDistribution.js";
 import * as Sadhana from "./sadhana.js";
+import * as Donations from "./donations.js";
 
 const loginView = document.getElementById("login-view");
 const appView = document.getElementById("app-view");
@@ -23,6 +24,7 @@ const adminModuleDashboard = document.getElementById("admin-module-dashboard");
 const adminTabs = document.getElementById("admin-tabs");
 const bookTabs = document.getElementById("book-tabs");
 const sadhanaTabs = document.getElementById("sadhana-tabs");
+const donationsTabs = document.getElementById("donations-tabs");
 const backBtn = document.getElementById("back-btn");
 const headerTitle = document.getElementById("header-title");
 const userNameEl = document.getElementById("user-name");
@@ -47,6 +49,10 @@ const PAGE_TITLES = {
   "admin-sadhana-section": "FNRG Sadhana",
   "sadhana-users-section": "FNRG Sadhana",
   "sadhana-analytics-section": "FNRG Sadhana",
+  "donations-dashboard-section": "Donations",
+  "donations-transactions-section": "Donations",
+  "donations-events-section": "Donations",
+  "donations-analytics-section": "Donations",
   "caller-section": "My Calls",
   "reception-section": "Reception",
   "one-to-one-user-section": "One to One with Prabhu",
@@ -84,6 +90,10 @@ const CACHEABLE_SECTIONS = new Set([
   "admin-sadhana-section",
   "sadhana-users-section",
   "sadhana-analytics-section",
+  "donations-dashboard-section",
+  "donations-transactions-section",
+  "donations-events-section",
+  "donations-analytics-section",
   "book-dashboard-section",
   "book-inward-section",
   "book-outward-section",
@@ -145,6 +155,10 @@ function showScreen(id, { forceRefresh = false } = {}) {
     if (id === "sadhana-users-section") Sadhana.initSadhanaUsers(currentUser);
     if (id === "sadhana-analytics-section") Sadhana.initSadhanaAnalytics();
     if (id === "fnrg-sadhana-user-section") Sadhana.initFnrgSadhanaUser(currentUser);
+    if (id === "donations-dashboard-section") Donations.initDonationsDashboard(currentUser);
+    if (id === "donations-transactions-section") Donations.initDonationsTransactions(currentUser);
+    if (id === "donations-events-section") Donations.initDonationsEvents(currentUser);
+    if (id === "donations-analytics-section") Donations.initDonationsAnalytics();
   }
 
   if (id !== "admin-new-contacts-section") Admin.stopNewContactsPolling();
@@ -211,6 +225,7 @@ function goAdminModules() {
   adminTabs.classList.add("hidden");
   bookTabs.classList.add("hidden");
   sadhanaTabs.classList.add("hidden");
+  donationsTabs.classList.add("hidden");
   document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
   adminModuleDashboard.classList.remove("hidden");
   backBtn.classList.add("hidden");
@@ -224,6 +239,7 @@ function enterAdminModule(module) {
   if (module === "book-distribution") {
     adminTabs.classList.add("hidden");
     sadhanaTabs.classList.add("hidden");
+    donationsTabs.classList.add("hidden");
     bookTabs.classList.remove("hidden");
     bookTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
     bookTabs.querySelector(".admin-tab").classList.add("active");
@@ -233,15 +249,27 @@ function enterAdminModule(module) {
   } else if (module === "sadhana") {
     adminTabs.classList.add("hidden");
     bookTabs.classList.add("hidden");
+    donationsTabs.classList.add("hidden");
     sadhanaTabs.classList.remove("hidden");
     sadhanaTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
     sadhanaTabs.querySelector(".admin-tab").classList.add("active");
     document.getElementById("download-all-db-btn").classList.add("hidden");
     document.getElementById("bulk-delete-btn").classList.remove("hidden");
     showScreen("admin-sadhana-section");
+  } else if (module === "donations") {
+    adminTabs.classList.add("hidden");
+    bookTabs.classList.add("hidden");
+    sadhanaTabs.classList.add("hidden");
+    donationsTabs.classList.remove("hidden");
+    donationsTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
+    donationsTabs.querySelector(".admin-tab").classList.add("active");
+    document.getElementById("download-all-db-btn").classList.add("hidden");
+    document.getElementById("bulk-delete-btn").classList.remove("hidden");
+    showScreen("donations-dashboard-section");
   } else {
     bookTabs.classList.add("hidden");
     sadhanaTabs.classList.add("hidden");
+    donationsTabs.classList.add("hidden");
     adminTabs.classList.remove("hidden");
     adminTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
     adminTabs.querySelector(".admin-tab").classList.add("active");
@@ -313,6 +341,14 @@ function wireNav() {
       showScreen(tab.dataset.target);
     });
   });
+
+  donationsTabs.querySelectorAll(".admin-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      donationsTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      showScreen(tab.dataset.target);
+    });
+  });
 }
 
 function renderForRole(user) {
@@ -329,6 +365,7 @@ function renderForRole(user) {
     adminTabs.classList.add("hidden");
     bookTabs.classList.add("hidden");
     sadhanaTabs.classList.add("hidden");
+    donationsTabs.classList.add("hidden");
     homeDashboard.classList.add("hidden");
     preachingDashboard.classList.add("hidden");
     bookDistUserDashboard.classList.add("hidden");
@@ -348,6 +385,7 @@ function renderForRole(user) {
     adminTabs.classList.add("hidden");
     bookTabs.classList.add("hidden");
     sadhanaTabs.classList.add("hidden");
+    donationsTabs.classList.add("hidden");
     homeDashboard.classList.add("hidden");
     preachingDashboard.classList.add("hidden");
     bookDistUserDashboard.classList.add("hidden");
@@ -357,6 +395,7 @@ function renderForRole(user) {
     adminTabs.classList.add("hidden");
     bookTabs.classList.add("hidden");
     sadhanaTabs.classList.add("hidden");
+    donationsTabs.classList.add("hidden");
     goHome();
   }
 }
