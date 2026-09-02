@@ -701,11 +701,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   min-width: 105px !important;
   width: 105px !important;
 }
-.data-table td[data-label="Admin Tag"] select, .data-table th:nth-child(11) {
-  min-width: 85px !important;
-  width: 85px !important;
-}
-.data-table td[data-label="Core Cultivation"] select, .data-table th:nth-child(12) {
+.data-table td[data-label="Core Cultivation"] select, .data-table th:nth-child(11) {
   min-width: 100px !important;
   width: 100px !important;
 }
@@ -720,7 +716,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   padding-left: 4px !important;
   white-space: nowrap;
 }
-.data-table td[data-label="Calling Purpose"] select, .data-table th:nth-child(13) {
+.data-table td[data-label="Calling Purpose"] select, .data-table th:nth-child(12) {
   min-width: 100px !important;
   width: 100px !important;
 }
@@ -738,7 +734,6 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #contacts-table th[data-label="Sessions"], #contacts-table td[data-label="Sessions"],
 #contacts-table th[data-label="Calls"], #contacts-table td[data-label="Calls"] { width: 48px !important; text-align: center; }
 #contacts-table th[data-label="Admin Tag to Users"], #contacts-table td[data-label="Admin Tag to Users"] select { min-width: 105px !important; width: 105px !important; }
-#contacts-table th[data-label="Admin Tag"], #contacts-table td[data-label="Admin Tag"] select { min-width: 85px !important; width: 85px !important; }
 #contacts-table th[data-label="Core Cultivation"], #contacts-table td[data-label="Core Cultivation"] select { min-width: 100px !important; width: 100px !important; }
 #contacts-table th[data-label="Calling Purpose"], #contacts-table td[data-label="Calling Purpose"] select { min-width: 100px !important; width: 100px !important; }
 #contacts-table th[data-label="GFY Status"], #contacts-table td[data-label="GFY Status"] select { min-width: 105px !important; width: 105px !important; }

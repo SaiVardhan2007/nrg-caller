@@ -1326,7 +1326,7 @@ export async function initContacts() {
 const CONTACTS_COLUMN_ORDER_KEY = "nrg-contacts-column-order";
 const DEFAULT_CONTACTS_COLUMNS = [
   "S.No", "Time Stamp", "Name", "Phone", "PG Name", "Org", "Profession", "Gender", "Sessions", "Calls",
-  "Admin Tag to Users", "Admin Tag", "Core Cultivation", "Calling Purpose", "GFY/AOMC", "Admin Review", "",
+  "Admin Tag to Users", "Core Cultivation", "Calling Purpose", "GFY/AOMC", "Admin Review", "",
 ];
 
 function wireContactsColumnReorder() {
@@ -1340,15 +1340,12 @@ function wireContactsColumnReorder() {
 
 const WS_ADMIN_OPTIONS = ["NA", "W", "S"];
 const GENDER_ADMIN_OPTIONS = ["", "M", "F"];
-const ADMIN_TAG_OPTIONS = ["", "LIT", "Folk HYD", "Focus"];
-
 // every column-header filter dropdown in Master Contact, paired with the
 // contacts column it filters on.
 const COLUMN_FILTER_FIELDS = [
   ["contacts-filter-ws", "ws"],
   ["contacts-filter-gender", "gender"],
   ["contacts-filter-tag-to-users", "admin_tag_to_users"],
-  ["contacts-filter-tag", "admin_tag"],
   ["contacts-filter-cultivation", "core_cultivation"],
   ["contacts-filter-purpose", "calling_purpose"],
   ["contacts-filter-gyc-status", "gyc_status"],
@@ -1387,7 +1384,7 @@ async function renderContactsTable(searchTerm = "") {
   // matters here. Every field below is read somewhere in this function or its
   // row-render below; don't drop one without checking both.
   let query = supabase.from("contacts").select(
-    "id,s_no,created_at,name,mob_no,pg_name,company_name,ws,gender,sessions_count,calls_count,admin_remarks,admin_tag_to_users,admin_tag,core_cultivation,calling_purpose,gyc_status"
+    "id,s_no,created_at,name,mob_no,pg_name,company_name,ws,gender,sessions_count,calls_count,admin_remarks,admin_tag_to_users,core_cultivation,calling_purpose,gyc_status"
   );
   if (field === "s_no") {
     query = query.order("s_no", { ascending, nullsFirst: false });
@@ -1503,11 +1500,6 @@ async function renderContactsTable(searchTerm = "") {
       <td data-label="Admin Tag to Users">
         <select class="inline-edit" data-field="admin_tag_to_users">
           ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (c.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
-        </select>
-      </td>
-      <td data-label="Admin Tag">
-        <select class="inline-edit" data-field="admin_tag">
-          ${ADMIN_TAG_OPTIONS.map((t) => `<option value="${t}" ${t === (c.admin_tag || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
         </select>
       </td>
       <td data-label="Core Cultivation">
@@ -1987,7 +1979,6 @@ async function openContactInfoModal(kind, mob, name, isNewContact = false) {
         { name: "Profession (W/S)", value: escapeHtml(contact.ws || "—") },
         { name: "Gender", value: escapeHtml(contact.gender || "—") },
         { name: "Admin Tag to Users", value: escapeHtml(contact.admin_tag_to_users || "—") },
-        { name: "Admin Tag", value: escapeHtml(contact.admin_tag || "—") },
         { name: "Core Cultivation", value: escapeHtml(contact.core_cultivation || "—") },
         { name: "Calling Purpose", value: escapeHtml(contact.calling_purpose || "—") },
         { name: "Admin Remarks", value: escapeHtml(contact.admin_remarks || "—") }
@@ -2015,7 +2006,6 @@ async function openContactInfoModal(kind, mob, name, isNewContact = false) {
         { name: "Sessions", value: contact.sessions_count || 0 },
         { name: "Calls", value: contact.calls_count || 0 },
         { name: "Admin Tag to Users", value: escapeHtml(contact.admin_tag_to_users || "—") },
-        { name: "Admin Tag", value: escapeHtml(contact.admin_tag || "—") },
         { name: "Core Cultivation", value: escapeHtml(contact.core_cultivation || "—") },
         { name: "Calling Purpose", value: escapeHtml(contact.calling_purpose || "—") },
         { name: "GFY/AOMC", value: escapeHtml(contact.gyc_status || "—") },
@@ -2174,7 +2164,7 @@ function wireContactsSearch() {
 
 const CONTACT_CSV_HEADERS = [
   "S No", "Time Stamp", "Name", "Phone", "PG Name", "Org", "Profession", "Gender", "Sessions", "Calls",
-  "Admin Tag to Users", "Admin Tag", "Core Cultivation", "Calling Purpose", "GFY/AOMC", "Admin Remarks",
+  "Admin Tag to Users", "Core Cultivation", "Calling Purpose", "GFY/AOMC", "Admin Remarks",
 ];
 
 let contactsImportExportWired = false;
@@ -2188,7 +2178,7 @@ function wireContactsImportExport() {
       rows.push([
         c.s_no ?? i + 1, c.created_at ? new Date(c.created_at).toLocaleString() : "", c.name, c.mob_no,
         c.pg_name || "", c.company_name || "", c.ws || "NA", c.gender || "", c.sessions_count, c.calls_count,
-        c.admin_tag_to_users || "", c.admin_tag || "", c.core_cultivation || "", c.calling_purpose || "",
+        c.admin_tag_to_users || "", c.core_cultivation || "", c.calling_purpose || "",
         c.gyc_status || "", c.admin_remarks || "",
       ]);
     });
@@ -2218,7 +2208,6 @@ function openAddContactModal() {
     document.getElementById("add-contact-ws").value = "NA";
     document.getElementById("add-contact-gender").value = "";
     document.getElementById("add-contact-tag-users").value = "";
-    document.getElementById("add-contact-tag").value = "";
     document.getElementById("add-contact-cultivator").value = "";
     document.getElementById("add-contact-event").value = eventsCache[0]?.code || "";
   });
@@ -2265,7 +2254,6 @@ function wireAddContactModal() {
       ws: document.getElementById("add-contact-ws").value,
       gender: document.getElementById("add-contact-gender").value || null,
       admin_tag_to_users: document.getElementById("add-contact-tag-users").value || null,
-      admin_tag: document.getElementById("add-contact-tag").value || null,
       core_cultivation: document.getElementById("add-contact-cultivator").value || null,
       calling_purpose: document.getElementById("add-contact-event").value || null,
       collected_by: "Admin",
@@ -3697,22 +3685,22 @@ let newContactsWired = false;
 // manually), Delete just dismisses the lead.
 async function renderCollectionSubmissions() {
   const tbody = document.getElementById("collection-submissions-admin-body");
-  tbody.innerHTML = `<tr><td colspan="20" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="19" class="loading-row">Loading…</td></tr>`;
 
   const [{ data, error }, { data: coordinators }] = await Promise.all([
     supabase.from("contact_collection")
-      .select("id,created_at,name,mob_no,staying,ws,profession,gender,admin_tag_to_users,admin_tag,core_cultivation,calling_purpose,gyc_status,comment,collected_by,source")
+      .select("id,created_at,name,mob_no,staying,ws,profession,gender,admin_tag_to_users,core_cultivation,calling_purpose,gyc_status,comment,collected_by,source")
       .order("created_at", { ascending: false }),
     supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
   ]);
   if (coordinators) newContactsCoordinators = coordinators;
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="20" class="loading-row">Could not load submissions.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="19" class="loading-row">Could not load submissions.</td></tr>`;
     return;
   }
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="20" class="loading-row">No submissions yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="19" class="loading-row">No submissions yet.</td></tr>`;
     return;
   }
 
@@ -3738,11 +3726,6 @@ async function renderCollectionSubmissions() {
       <td data-label="Admin Tag to Users">
         <select class="inline-edit collection-field" data-id="${r.id}" data-field="admin_tag_to_users">
           ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (r.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
-        </select>
-      </td>
-      <td data-label="Admin Tag">
-        <select class="inline-edit collection-field" data-id="${r.id}" data-field="admin_tag">
-          ${ADMIN_TAG_OPTIONS.map((t) => `<option value="${t}" ${t === (r.admin_tag || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
         </select>
       </td>
       <td data-label="Core Cultivation">
@@ -3823,7 +3806,6 @@ async function renderCollectionSubmissions() {
         company_name: row.company_name || null,
         calling_purpose: row.calling_purpose || null,
         gyc_status: row.gyc_status || null,
-        admin_tag: row.admin_tag || null,
         admin_tag_to_users: row.admin_tag_to_users || null,
         core_cultivation: row.core_cultivation || null,
         admin_remarks: row.comment || null,
@@ -3892,7 +3874,7 @@ export async function initNewContacts() {
   if (!sheetsWebhookUrl) {
     summaryEl.textContent = "Error: Apps Script Webhook URL is not configured in Settings.";
     document.getElementById("new-contacts-table-body").innerHTML =
-      `<tr><td colspan="20" class="loading-row">Please configure apps_script_webhook_url in DB settings first.</td></tr>`;
+      `<tr><td colspan="19" class="loading-row">Please configure apps_script_webhook_url in DB settings first.</td></tr>`;
     return;
   }
 
@@ -3924,7 +3906,7 @@ async function loadNewContacts(forceShowLoading = false) {
   const summaryEl = document.getElementById("new-contacts-summary");
 
   if (forceShowLoading || tbody.innerHTML.includes("Connecting")) {
-    tbody.innerHTML = `<tr><td colspan="20" class="loading-row">Loading new contacts from Sheets…</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="19" class="loading-row">Loading new contacts from Sheets…</td></tr>`;
   }
 
   isFetchingNewContacts = true;
@@ -3966,7 +3948,7 @@ function renderNewContactsTable() {
   const summaryEl = document.getElementById("new-contacts-summary");
 
   if (!newContactsCache.length) {
-    tbody.innerHTML = `<tr><td colspan="20" class="loading-row">No new contacts found in Google Sheets.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="19" class="loading-row">No new contacts found in Google Sheets.</td></tr>`;
     summaryEl.textContent = "";
     return;
   }
@@ -3999,11 +3981,6 @@ function renderNewContactsTable() {
         <td data-label="Admin Tag to Users">
           <select class="inline-edit new-contact-tag-users-select" data-index="${idx}">
             ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (c.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
-          </select>
-        </td>
-        <td data-label="Admin Tag">
-          <select class="inline-edit new-contact-tag-select" data-index="${idx}">
-            ${ADMIN_TAG_OPTIONS.map((t) => `<option value="${t}" ${t === (c.admin_tag || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
           </select>
         </td>
         <td data-label="Core Cultivation">
@@ -4058,13 +4035,6 @@ function renderNewContactsTable() {
     select.addEventListener("change", (e) => {
       const idx = parseInt(e.target.dataset.index, 10);
       newContactsCache[idx].admin_tag_to_users = e.target.value || null;
-    });
-  });
-
-  tbody.querySelectorAll(".new-contact-tag-select").forEach((select) => {
-    select.addEventListener("change", (e) => {
-      const idx = parseInt(e.target.dataset.index, 10);
-      newContactsCache[idx].admin_tag = e.target.value || null;
     });
   });
 
@@ -4238,7 +4208,6 @@ async function promoteSingleContact(newContact) {
               ws: newContact.ws || "NA",
               gender: newContact.gender || null,
               admin_tag_to_users: newContact.admin_tag_to_users || null,
-              admin_tag: newContact.admin_tag || null,
               core_cultivation: newContact.core_cultivation || null,
               calling_purpose: newContact.calling_purpose || null,
               gyc_status: newContact.gyc_status || null,
@@ -4267,7 +4236,6 @@ async function promoteSingleContact(newContact) {
           ws: newContact.ws || "NA",
           gender: newContact.gender || null,
           admin_tag_to_users: newContact.admin_tag_to_users || null,
-          admin_tag: newContact.admin_tag || null,
           core_cultivation: newContact.core_cultivation || null,
           calling_purpose: newContact.calling_purpose || null,
           gyc_status: newContact.gyc_status || null,
@@ -4382,7 +4350,6 @@ function normalizeCollectionRowForImport(r) {
     ws: r.ws || r.profession || "NA",
     gender: r.gender || null,
     admin_tag_to_users: r.admin_tag_to_users || null,
-    admin_tag: r.admin_tag || null,
     core_cultivation: r.core_cultivation || null,
     calling_purpose: r.calling_purpose || null,
     gyc_status: r.gyc_status || null,
@@ -4464,7 +4431,6 @@ async function addAllNewContacts() {
         ws: c.ws || "NA",
         gender: c.gender || null,
         admin_tag_to_users: c.admin_tag_to_users || null,
-        admin_tag: c.admin_tag || null,
         core_cultivation: c.core_cultivation || null,
         calling_purpose: c.calling_purpose || null,
         gyc_status: c.gyc_status || null,
@@ -4544,7 +4510,6 @@ function runBulkDuplicateResolution() {
             ws: dupItem.newContact.ws || "NA",
             gender: dupItem.newContact.gender || null,
             admin_tag_to_users: dupItem.newContact.admin_tag_to_users || null,
-            admin_tag: dupItem.newContact.admin_tag || null,
             core_cultivation: dupItem.newContact.core_cultivation || null,
             calling_purpose: dupItem.newContact.calling_purpose || null,
             gyc_status: dupItem.newContact.gyc_status || null,
@@ -4754,8 +4719,6 @@ async function populateBulkDeleteDropdowns() {
   ["bulk-delete-contacts-purpose", "bulk-delete-attendance-event", "bulk-delete-calls-event", "bulk-delete-assignments-event"]
     .forEach((id) => { document.getElementById(id).innerHTML = eventOptionsHtml; });
 
-  document.getElementById("bulk-delete-contacts-admin-tag").innerHTML =
-    `<option value="">— select —</option>` + ADMIN_TAG_OPTIONS.filter(Boolean).map((t) => `<option value="${t}">${t}</option>`).join("");
   document.getElementById("bulk-delete-contacts-tag-to-users").innerHTML =
     `<option value="">— select —</option>` + ADMIN_TAG_TO_USERS_OPTIONS.filter(Boolean).map((t) => `<option value="${t}">${t}</option>`).join("");
 
@@ -4804,11 +4767,6 @@ function getBulkDeleteConfig() {
       const val = document.getElementById("bulk-delete-contacts-purpose").value;
       if (!val) return { error: "Please select a calling purpose (event)." };
       return { table: "contacts", apply: (q) => q.eq("calling_purpose", val), label: `Master Contacts with Calling Purpose "${val}"` };
-    }
-    if (scope === "admin_tag") {
-      const val = document.getElementById("bulk-delete-contacts-admin-tag").value;
-      if (!val) return { error: "Please select an admin tag." };
-      return { table: "contacts", apply: (q) => q.eq("admin_tag", val), label: `Master Contacts with Admin Tag "${val}"` };
     }
     if (scope === "admin_tag_to_users") {
       const val = document.getElementById("bulk-delete-contacts-tag-to-users").value;
@@ -4970,7 +4928,7 @@ function wireBulkDeleteModal() {
   });
 
   [
-    "bulk-delete-contacts-purpose", "bulk-delete-contacts-admin-tag", "bulk-delete-contacts-tag-to-users",
+    "bulk-delete-contacts-purpose", "bulk-delete-contacts-tag-to-users",
     "bulk-delete-attendance-event", "bulk-delete-calls-event", "bulk-delete-calls-caller", "bulk-delete-assignments-event",
     "bulk-delete-book-inward-name",
     "bulk-delete-book-outward-name", "bulk-delete-book-outward-area", "bulk-delete-book-outward-event", "bulk-delete-book-outward-sold-by",

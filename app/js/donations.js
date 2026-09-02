@@ -221,10 +221,10 @@ function renderDonationsTxRows(rows) {
   tbody.innerHTML = rows.map((r, idx) => `
     <tr data-id="${r.id}">
       <td data-label="S.No">${idx + 1}</td>
-      <td data-label="Name">${escapeHtml(r.name)}</td>
-      <td data-label="Number">${formatPhone(r.mob_no)}</td>
-      <td data-label="Amount">${fmtMoney(r.amount)}</td>
-      <td data-label="Event">${escapeHtml(r.event || "—")}</td>
+      <td data-label="Name"><input class="inline-edit" type="text" data-field="name" value="${escapeHtml(r.name)}" /></td>
+      <td data-label="Number"><input class="inline-edit" type="tel" inputmode="numeric" data-field="mob_no" value="${escapeHtml(r.mob_no)}" /></td>
+      <td data-label="Amount"><input class="inline-edit" type="number" min="0" step="any" data-field="amount" value="${r.amount ?? ""}" /></td>
+      <td data-label="Event"><select class="inline-edit" data-field="event">${eventOptionsHtml(r.event || "")}</select></td>
       <td data-label="">
         <button type="button" class="cell-chip danger donation-tx-delete-btn" title="Delete">🗑 Delete</button>
       </td>
@@ -233,7 +233,54 @@ function renderDonationsTxRows(rows) {
   tbody.querySelectorAll(".donation-tx-delete-btn").forEach((btn) => {
     btn.addEventListener("click", () => deleteDonationTx(btn.closest("tr").dataset.id));
   });
+  wireDonationsTxInlineEdit(tbody);
   reapplyColumnOrder("donations-tx-table");
+}
+
+// Click-to-edit for Name/Number/Amount/Event, same pattern as Sadhana's
+// wireInlineEditCells — saves straight to Supabase on change/blur.
+function wireDonationsTxInlineEdit(tbody) {
+  tbody.querySelectorAll(".inline-edit").forEach((el) => {
+    el.addEventListener("change", async (e) => {
+      const id = e.target.closest("tr").dataset.id;
+      const field = e.target.dataset.field;
+      const record = transactionsCache.find((x) => x.id === id);
+      let raw = e.target.value.trim();
+
+      if (field === "name" && !raw) {
+        showToast("Name cannot be empty.", "error");
+        e.target.value = record.name ?? "";
+        return;
+      }
+      if (field === "mob_no") {
+        raw = normalizePhoneInput(raw);
+        if (raw.length !== 10) {
+          showToast("Phone number must be 10 digits.", "error");
+          e.target.value = record.mob_no ?? "";
+          return;
+        }
+        e.target.value = raw;
+      }
+      if (field === "amount") {
+        const amount = Number(raw);
+        if (!raw || Number.isNaN(amount) || amount <= 0) {
+          showToast("Please enter a valid amount.", "error");
+          e.target.value = record.amount ?? "";
+          return;
+        }
+        raw = amount;
+      }
+
+      const value = field === "event" ? (raw || null) : raw;
+      const { error } = await supabase.from("donations").update({ [field]: value }).eq("id", id);
+      if (error) {
+        showToast("Update failed: " + error.message, "error");
+        e.target.value = record[field] ?? "";
+        return;
+      }
+      record[field] = value;
+    });
+  });
 }
 
 function applyDonationsTxFilters() {
@@ -271,8 +318,8 @@ async function deleteDonationTx(id) {
   await loadDonationsTransactions();
 }
 
-function eventOptionsHtml() {
-  return `<option value="">—</option>` + eventsCache.map((e) => `<option value="${escapeHtml(e.name)}">${escapeHtml(e.name)}</option>`).join("");
+function eventOptionsHtml(selected = "") {
+  return `<option value="">—</option>` + eventsCache.map((e) => `<option value="${escapeHtml(e.name)}" ${e.name === selected ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("");
 }
 
 function openDonationTxModal() {

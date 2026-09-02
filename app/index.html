@@ -460,16 +460,6 @@
                   <option value="Assigned">Assigned</option>
                 </select>
               </th>
-              <th draggable="true" data-label="Admin Tag">
-                <div class="th-label">Admin Tag</div>
-                <select id="contacts-filter-tag" class="th-filter">
-                  <option value="__ALL__">All</option>
-                  <option value="">—</option>
-                  <option value="LIT">LIT</option>
-                  <option value="Folk HYD">Folk HYD</option>
-                  <option value="Focus">Focus</option>
-                </select>
-              </th>
               <th draggable="true" data-label="Core Cultivation">
                 <div class="th-label">Core Cultivation</div>
                 <select id="contacts-filter-cultivation" class="th-filter">
@@ -2327,7 +2317,6 @@
               <th>Sessions</th>
               <th>Calls</th>
               <th>Admin Tag to Users</th>
-              <th>Admin Tag</th>
               <th>Core Cultivation</th>
               <th>Calling Purpose</th>
               <th>GFY/AOMC</th>
@@ -2340,10 +2329,10 @@
             </tr>
           </thead>
           <tbody id="collection-submissions-admin-body">
-            <tr><td colspan="20" class="loading-row">Loading…</td></tr>
+            <tr><td colspan="19" class="loading-row">Loading…</td></tr>
           </tbody>
           <tbody id="new-contacts-table-body">
-            <tr><td colspan="20" class="loading-row">Connecting to Sheets…</td></tr>
+            <tr><td colspan="19" class="loading-row">Connecting to Sheets…</td></tr>
           </tbody>
         </table>
       </div>
@@ -2651,17 +2640,12 @@
         <select id="bulk-delete-contacts-scope">
           <option value="all">All Master Contacts</option>
           <option value="purpose">By Calling Purpose (Event)</option>
-          <option value="admin_tag">By Admin Tag</option>
           <option value="admin_tag_to_users">By Admin Tag to Users</option>
         </select>
       </label>
       <label class="field bulk-delete-sub" data-scope="purpose">
         <span>Calling Purpose</span>
         <select id="bulk-delete-contacts-purpose"></select>
-      </label>
-      <label class="field bulk-delete-sub" data-scope="admin_tag">
-        <span>Admin Tag</span>
-        <select id="bulk-delete-contacts-admin-tag"></select>
       </label>
       <label class="field bulk-delete-sub" data-scope="admin_tag_to_users">
         <span>Admin Tag to Users</span>
@@ -2919,14 +2903,6 @@
         <option value="Call">Call</option>
         <option value="Core">Core</option>
         <option value="Assigned">Assigned</option>
-      </select>
-    </label>
-    <label class="field"><span>Admin Tag</span>
-      <select id="add-contact-tag">
-        <option value="">— none —</option>
-        <option value="LIT">LIT</option>
-        <option value="Folk HYD">Folk HYD</option>
-        <option value="Focus">Focus</option>
       </select>
     </label>
     <label class="field"><span>Core Cultivation (user)</span>
