@@ -1321,11 +1321,134 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     text-align: left;
   }
 
-  /* Filter columns in admin contact tables for ultra-clean mobile views */
-  #contacts-table td:not([data-label="S.No"]):not([data-label="Name"]):not([data-label="Phone"]):not([data-label="Calling Purpose"]):not([data-label="Sessions"]):not([data-label="Admin Tag to Users"]),
-  #collection-submissions-admin-table td:not([data-label="S.No"]):not([data-label="Name"]):not([data-label="Phone"]):not([data-label="Calling Purpose"]):not([data-label="Sessions"]):not([data-label="Admin Tag to Users"]) {
+  /* ============ MASTER CONTACT / CONTACT SUBMISSIONS: two-row scan view, tap to expand ============
+     S.No, Name, Phone, Sessions, Admin Tag to Users and Calling Purpose are
+     the fields an admin scans/acts on constantly — always shown as two
+     packed rows. Tapping anywhere on the row (not an input/select/button)
+     reveals the rest — Time Stamp, PG Name, Org, Profession, Gender, Calls,
+     Core Cultivation, GFY/AOMC, Admin Review and Delete — same gesture as
+     Commander/Book Dashboard above. Previously these extra fields were
+     hidden with no way to reach them on mobile at all. */
+  #contacts-table tbody tr,
+  #collection-submissions-admin-table tbody tr {
+    position: relative;
+    cursor: pointer;
+    padding-right: 26px;
+  }
+  #contacts-table tbody tr::after,
+  #collection-submissions-admin-table tbody tr::after {
+    content: "▾";
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tulsi-dark);
+    opacity: 0.55;
+    transition: transform 0.15s ease;
+  }
+  #contacts-table tbody tr.expanded::after,
+  #collection-submissions-admin-table tbody tr.expanded::after {
+    transform: rotate(180deg);
+  }
+
+  #contacts-table td[data-label="Time Stamp"],
+  #contacts-table td[data-label="PG Name"],
+  #contacts-table td[data-label="Org"],
+  #contacts-table td[data-label="Profession"],
+  #contacts-table td[data-label="Gender"],
+  #contacts-table td[data-label="Calls"],
+  #contacts-table td[data-label="Core Cultivation"],
+  #contacts-table td[data-label="GFY/AOMC"],
+  #contacts-table td[data-label="Admin Review"] {
     display: none !important;
   }
+  #contacts-table tr.expanded td[data-label="Time Stamp"],
+  #contacts-table tr.expanded td[data-label="PG Name"],
+  #contacts-table tr.expanded td[data-label="Org"],
+  #contacts-table tr.expanded td[data-label="Profession"],
+  #contacts-table tr.expanded td[data-label="Gender"],
+  #contacts-table tr.expanded td[data-label="Calls"],
+  #contacts-table tr.expanded td[data-label="Core Cultivation"],
+  #contacts-table tr.expanded td[data-label="GFY/AOMC"],
+  #contacts-table tr.expanded td[data-label="Admin Review"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+  #contacts-table td[data-label=""] {
+    display: none !important;
+  }
+  #contacts-table tr.expanded td[data-label=""] {
+    display: flex !important;
+    width: 100% !important;
+  }
+
+  #contacts-table td[data-label="Time Stamp"] { order: 7; }
+  #contacts-table td[data-label="PG Name"] { order: 8; }
+  #contacts-table td[data-label="Org"] { order: 9; }
+  #contacts-table td[data-label="Profession"] { order: 10; }
+  #contacts-table td[data-label="Gender"] { order: 11; }
+  #contacts-table td[data-label="Calls"] { order: 12; }
+  #contacts-table td[data-label="Core Cultivation"] { order: 13; }
+  #contacts-table td[data-label="GFY/AOMC"] { order: 14; }
+  #contacts-table td[data-label="Admin Review"] { order: 15; }
+  #contacts-table td[data-label=""] { order: 16; }
+
+  /* New Contacts (Sheets import review) has a different column set from
+     Master Contact — "Time" not "Time Stamp", no Org, plus Comment/
+     Collected By/Source/User Reviews and a two-button ("" holds Add+Delete)
+     action cell — so it gets its own hide/expand list instead of sharing
+     Master Contact's selectors above. */
+  #collection-submissions-admin-table td[data-label="Time"],
+  #collection-submissions-admin-table td[data-label="PG Name"],
+  #collection-submissions-admin-table td[data-label="Profession"],
+  #collection-submissions-admin-table td[data-label="Gender"],
+  #collection-submissions-admin-table td[data-label="Calls"],
+  #collection-submissions-admin-table td[data-label="Core Cultivation"],
+  #collection-submissions-admin-table td[data-label="GFY/AOMC"],
+  #collection-submissions-admin-table td[data-label="Comment"],
+  #collection-submissions-admin-table td[data-label="Collected By"],
+  #collection-submissions-admin-table td[data-label="Source"],
+  #collection-submissions-admin-table td[data-label="User Reviews"],
+  #collection-submissions-admin-table td[data-label="Admin Review"] {
+    display: none !important;
+  }
+  #collection-submissions-admin-table tr.expanded td[data-label="Time"],
+  #collection-submissions-admin-table tr.expanded td[data-label="PG Name"],
+  #collection-submissions-admin-table tr.expanded td[data-label="Profession"],
+  #collection-submissions-admin-table tr.expanded td[data-label="Gender"],
+  #collection-submissions-admin-table tr.expanded td[data-label="Calls"],
+  #collection-submissions-admin-table tr.expanded td[data-label="Core Cultivation"],
+  #collection-submissions-admin-table tr.expanded td[data-label="GFY/AOMC"],
+  #collection-submissions-admin-table tr.expanded td[data-label="Comment"],
+  #collection-submissions-admin-table tr.expanded td[data-label="Collected By"],
+  #collection-submissions-admin-table tr.expanded td[data-label="Source"],
+  #collection-submissions-admin-table tr.expanded td[data-label="User Reviews"],
+  #collection-submissions-admin-table tr.expanded td[data-label="Admin Review"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+  #collection-submissions-admin-table td[data-label=""] {
+    display: none !important;
+  }
+  #collection-submissions-admin-table tr.expanded td[data-label=""] {
+    display: flex !important;
+    width: 100% !important;
+  }
+
+  #collection-submissions-admin-table td[data-label="Time"] { order: 7; }
+  #collection-submissions-admin-table td[data-label="PG Name"] { order: 8; }
+  #collection-submissions-admin-table td[data-label="Profession"] { order: 9; }
+  #collection-submissions-admin-table td[data-label="Gender"] { order: 10; }
+  #collection-submissions-admin-table td[data-label="Calls"] { order: 11; }
+  #collection-submissions-admin-table td[data-label="Core Cultivation"] { order: 12; }
+  #collection-submissions-admin-table td[data-label="GFY/AOMC"] { order: 13; }
+  #collection-submissions-admin-table td[data-label="Comment"] { order: 14; }
+  #collection-submissions-admin-table td[data-label="Collected By"] { order: 15; }
+  #collection-submissions-admin-table td[data-label="Source"] { order: 16; }
+  #collection-submissions-admin-table td[data-label="User Reviews"] { order: 17; }
+  #collection-submissions-admin-table td[data-label="Admin Review"] { order: 18; }
+  #collection-submissions-admin-table td[data-label=""] { order: 19; }
 
   /* …except the tick box while assigning, which has to stay reachable. */
   #contacts-table.select-mode td[data-label="Select"] {
@@ -1336,14 +1459,35 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     justify-content: center !important;
   }
 
-  /* Hide labels in mobile view for contacts tables */
-  #contacts-table td[data-label]::before,
-  #collection-submissions-admin-table td[data-label]::before {
+  /* Hide labels only for the always-visible scan fields — the fields
+     revealed on tap keep their attr(data-label) header from the generic
+     rule below so an admin can tell what each one is. */
+  #contacts-table td[data-label="S.No"]::before, #collection-submissions-admin-table td[data-label="S.No"]::before,
+  #contacts-table td[data-label="Name"]::before, #collection-submissions-admin-table td[data-label="Name"]::before,
+  #contacts-table td[data-label="Phone"]::before, #collection-submissions-admin-table td[data-label="Phone"]::before,
+  #contacts-table td[data-label="Sessions"]::before, #collection-submissions-admin-table td[data-label="Sessions"]::before,
+  #contacts-table td[data-label="Admin Tag to Users"]::before, #collection-submissions-admin-table td[data-label="Admin Tag to Users"]::before,
+  #contacts-table td[data-label="Calling Purpose"]::before, #collection-submissions-admin-table td[data-label="Calling Purpose"]::before {
     display: none !important;
+  }
+
+  /* This file's earlier table-agnostic column rules cap S.No/Time Stamp/
+     Name/Phone/PG Name at fixed px widths !important (40/110/140/105/130)
+     — reset them here so the percentages below actually apply. Left
+     capped, Name+Phone render narrower than intended and leave enough
+     slack on Row 1 for Sessions to wrongly join it instead of starting
+     Row 2. */
+  #contacts-table td[data-label="S.No"], #collection-submissions-admin-table td[data-label="S.No"],
+  #contacts-table td[data-label="Name"], #collection-submissions-admin-table td[data-label="Name"],
+  #contacts-table td[data-label="Phone"], #collection-submissions-admin-table td[data-label="Phone"],
+  #contacts-table td[data-label="Time Stamp"],
+  #contacts-table td[data-label="PG Name"], #collection-submissions-admin-table td[data-label="PG Name"] {
+    max-width: none !important;
   }
 
   /* Two rows layout structure: S.No (6%) + Name (60%) + Phone (30%) on Row 1; Sessions (18%) + Admin Tag to Users (44%) + Calling Purpose (34%) on Row 2 */
   #contacts-table td[data-label="S.No"], #collection-submissions-admin-table td[data-label="S.No"] {
+    order: 1;
     width: 6% !important;
     padding: 2px 0 !important;
     display: flex !important;
@@ -1352,18 +1496,21 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     font-weight: 600;
   }
   #contacts-table td[data-label="Name"], #collection-submissions-admin-table td[data-label="Name"] {
+    order: 2;
     width: 60% !important;
     padding: 2px 0 !important;
     display: flex !important;
     align-items: center !important;
   }
   #contacts-table td[data-label="Phone"], #collection-submissions-admin-table td[data-label="Phone"] {
+    order: 3;
     width: 30% !important;
     padding: 2px 0 !important;
     display: flex !important;
     align-items: center !important;
   }
   #contacts-table td[data-label="Sessions"], #collection-submissions-admin-table td[data-label="Sessions"] {
+    order: 4;
     width: 18% !important;
     padding: 2px 0 !important;
     display: flex !important;
@@ -1371,12 +1518,14 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     justify-content: flex-start !important;
   }
   #contacts-table td[data-label="Admin Tag to Users"], #collection-submissions-admin-table td[data-label="Admin Tag to Users"] {
+    order: 5;
     width: 44% !important;
     padding: 2px 0 !important;
     display: flex !important;
     align-items: center !important;
   }
   #contacts-table td[data-label="Calling Purpose"], #collection-submissions-admin-table td[data-label="Calling Purpose"] {
+    order: 6;
     width: 34% !important;
     padding: 2px 0 !important;
     display: flex !important;
@@ -1626,15 +1775,127 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     display: none !important;
   }
 
+  /* ============ DONATIONS DASHBOARD: single row, tap to expand ============
+     S.No, Name and Total Amount are what an admin scans for; Number and
+     the Remove action reveal on tap, same gesture as Commander/Book
+     Dashboard above. */
+  #donations-dashboard-table tbody tr {
+    position: relative;
+    cursor: pointer;
+    padding-right: 26px;
+  }
+  #donations-dashboard-table tbody tr::after {
+    content: "▾";
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tulsi-dark);
+    opacity: 0.55;
+    transition: transform 0.15s ease;
+  }
+  #donations-dashboard-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #donations-dashboard-table td[data-label="Number"],
+  #donations-dashboard-table td[data-label=""] {
+    display: none !important;
+  }
+  #donations-dashboard-table tr.expanded td[data-label="Number"],
+  #donations-dashboard-table tr.expanded td[data-label=""] {
+    display: flex !important;
+    width: 49% !important;
+  }
+
+  /* A table-agnostic rule earlier in this file caps any "S.No"/"Name"
+     column at 40px/140px !important (for the contact-style tables it was
+     written for) — reset it here so this table's own percentage widths
+     aren't silently clamped back down. */
+  #donations-dashboard-table td[data-label="S.No"],
+  #donations-dashboard-table td[data-label="Name"] {
+    max-width: none !important;
+  }
+  #donations-dashboard-table td[data-label="S.No"] { order: 1; width: 12% !important; font-weight: 700; }
+  #donations-dashboard-table td[data-label="Name"] { order: 2; width: 46% !important; }
+  #donations-dashboard-table td[data-label="Total Amount"] { order: 3; width: 42% !important; }
+  #donations-dashboard-table td[data-label="Number"] { order: 4; }
+  #donations-dashboard-table td[data-label=""] { order: 5; }
+
+  #donations-dashboard-table td[data-label="S.No"]::before,
+  #donations-dashboard-table td[data-label="Name"]::before,
+  #donations-dashboard-table td[data-label="Total Amount"]::before {
+    display: none !important;
+  }
+
+  /* ============ DONATIONS ANALYTICS LEADERBOARD: single row, tap to expand ===
+     S.No, Name, Total Amount and the View action are what an admin scans
+     for; Number, Transactions and Last Donation reveal on tap, same
+     gesture as Commander/Book Dashboard/Book Analytics Segments above. */
+  #da-leaderboard-table tbody tr {
+    position: relative;
+    cursor: pointer;
+    padding-right: 26px;
+  }
+  #da-leaderboard-table tbody tr::after {
+    content: "▾";
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tulsi-dark);
+    opacity: 0.55;
+    transition: transform 0.15s ease;
+  }
+  #da-leaderboard-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #da-leaderboard-table td[data-label="Number"],
+  #da-leaderboard-table td[data-label="Transactions"],
+  #da-leaderboard-table td[data-label="Last Donation"] {
+    display: none !important;
+  }
+  #da-leaderboard-table tr.expanded td[data-label="Number"],
+  #da-leaderboard-table tr.expanded td[data-label="Transactions"],
+  #da-leaderboard-table tr.expanded td[data-label="Last Donation"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+
+  /* Reset the table-agnostic S.No/Name width cap (see Donations Dashboard
+     above) so this table's own percentage widths apply. */
+  #da-leaderboard-table td[data-label="S.No"],
+  #da-leaderboard-table td[data-label="Name"] {
+    max-width: none !important;
+  }
+  #da-leaderboard-table td[data-label="S.No"] { order: 1; width: 10% !important; font-weight: 700; }
+  #da-leaderboard-table td[data-label="Name"] { order: 2; width: 42% !important; }
+  #da-leaderboard-table td[data-label="Total Amount"] { order: 3; width: 26% !important; }
+  #da-leaderboard-table td[data-label=""] { order: 4; width: 22% !important; }
+  #da-leaderboard-table td[data-label="Number"] { order: 5; }
+  #da-leaderboard-table td[data-label="Transactions"] { order: 6; }
+  #da-leaderboard-table td[data-label="Last Donation"] { order: 7; }
+
+  #da-leaderboard-table td[data-label="S.No"]::before,
+  #da-leaderboard-table td[data-label="Name"]::before,
+  #da-leaderboard-table td[data-label="Total Amount"]::before {
+    display: none !important;
+  }
+
   /* ============ EDIT-HEAVY BOOK/SADHANA TABLES: flat reflow, no hiding =====
      Book Inward/Outward, Distribution Places and Sadhana are per-row edit
      forms (nearly every cell is an <input>/<select>) — unlike the read-heavy
      tables above, hiding a field behind a tap would just add friction to
      editing it. Reordered instead so the identity field leads, full-width,
      with short paired fields below it — same technique as My Outward Stock. */
+  /* This table's own desktop column-width rule caps Name at 230px
+     !important — reset it here so the mobile row-leading 100% width below
+     actually applies (otherwise Purchase Price/Quantity have enough
+     leftover room to wrongly join Name's row instead of starting the
+     next one). */
+  #book-inward-table td[data-label="Name"] { max-width: none !important; }
   #book-inward-table td[data-label="Name"] { order: 1; width: 100% !important; }
-  #book-inward-table td[data-label="S.No"] { order: 2; width: 22% !important; font-weight: 700; }
-  #book-inward-table td[data-label="Time"] { order: 3; width: 78% !important; }
+  #book-inward-table td[data-label="S.No"] { order: 2; width: 21% !important; font-weight: 700; }
+  #book-inward-table td[data-label="Time"] { order: 3; width: 77% !important; }
   #book-inward-table td[data-label="Purchase Price"] { order: 4; width: 49% !important; }
   #book-inward-table td[data-label="Quantity"] { order: 5; width: 49% !important; }
   #book-inward-table td[data-label="Purchased From"] { order: 6; width: 100% !important; }
@@ -1642,9 +1903,12 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #book-inward-table td[data-label=""] { order: 8; width: 100% !important; }
   #book-inward-table td[data-label="S.No"]::before { display: none !important; }
 
+  /* Reset this table's own desktop 230px Name cap (see Book Inward
+     above). */
+  #book-outward-table td[data-label="Name"] { max-width: none !important; }
   #book-outward-table td[data-label="Name"] { order: 1; width: 100% !important; }
-  #book-outward-table td[data-label="S.No"] { order: 2; width: 22% !important; font-weight: 700; }
-  #book-outward-table td[data-label="Time"] { order: 3; width: 78% !important; }
+  #book-outward-table td[data-label="S.No"] { order: 2; width: 21% !important; font-weight: 700; }
+  #book-outward-table td[data-label="Time"] { order: 3; width: 77% !important; }
   #book-outward-table td[data-label="Sold Price"] { order: 4; width: 33% !important; }
   #book-outward-table td[data-label="Quantity"] { order: 5; width: 33% !important; }
   #book-outward-table td[data-label="Total"] { order: 6; width: 34% !important; }
@@ -1656,23 +1920,60 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #book-outward-table td[data-label=""] { order: 12; width: 51% !important; }
   #book-outward-table td[data-label="S.No"]::before { display: none !important; }
 
+  /* Reset the shared Places/Events desktop 260px Name cap (see Book
+     Inward above) so the mobile row-leading 100% width actually applies. */
+  #book-places-table td[data-label="Name"] { max-width: none !important; }
   #book-places-table td[data-label="Name"] { order: 1; width: 100% !important; }
   #book-places-table td[data-label="Description"] { order: 2; width: 100% !important; }
   #book-places-table td[data-label="Map Link"] { order: 3; width: 55% !important; }
   #book-places-table td[data-label=""] { order: 4; width: 45% !important; }
 
+  #book-events-table td[data-label="Name"] { max-width: none !important; }
   #book-events-table td[data-label="Name"] { order: 1; width: 100% !important; }
   #book-events-table td[data-label="Description"] { order: 2; width: 100% !important; }
   #book-events-table td[data-label="Map Link"] { order: 3; width: 55% !important; }
   #book-events-table td[data-label=""] { order: 4; width: 45% !important; }
+
+  /* Reset the table-agnostic S.No/Name/Time Stamp width caps (see
+     Donations Dashboard above) — critical here since Name is meant to
+     force its own full-width row; left capped at 140px it leaves enough
+     slack for the next field to wrongly join that row. */
+  #donations-tx-table td[data-label="Name"],
+  #donations-tx-table td[data-label="S.No"],
+  #donations-tx-table td[data-label="Time Stamp"] {
+    max-width: none !important;
+  }
+  #donations-tx-table td[data-label="Name"] { order: 1; width: 100% !important; }
+  /* 21/77 rather than 22/78 — the tr's 2% column-gap needs headroom, or
+     these two never actually pair onto one line despite summing to 100%
+     (same fix as Book Inward above). */
+  #donations-tx-table td[data-label="S.No"] { order: 2; width: 21% !important; font-weight: 700; }
+  #donations-tx-table td[data-label="Time Stamp"] { order: 3; width: 77% !important; }
+  #donations-tx-table td[data-label="Number"] { order: 4; width: 49% !important; }
+  #donations-tx-table td[data-label="Amount"] { order: 5; width: 49% !important; }
+  #donations-tx-table td[data-label="Date"] { order: 6; width: 49% !important; }
+  #donations-tx-table td[data-label="Event"] { order: 7; width: 49% !important; }
+  #donations-tx-table td[data-label=""] { order: 8; width: 100% !important; }
+  #donations-tx-table td[data-label="S.No"]::before { display: none !important; }
+
+  /* Reset the table-agnostic S.No/Name width cap (see Donations Dashboard
+     above). */
+  #donations-ev-table td[data-label="S.No"],
+  #donations-ev-table td[data-label="Name"] {
+    max-width: none !important;
+  }
+  #donations-ev-table td[data-label="S.No"] { order: 1; width: 21% !important; font-weight: 700; }
+  #donations-ev-table td[data-label="Name"] { order: 2; width: 77% !important; }
+  #donations-ev-table td[data-label=""] { order: 3; width: 100% !important; }
+  #donations-ev-table td[data-label="S.No"]::before { display: none !important; }
 
   #book-places-user-table td[data-label="Name"], #book-events-user-table td[data-label="Name"] { order: 1; width: 100% !important; }
   #book-places-user-table td[data-label="Description"], #book-events-user-table td[data-label="Description"] { order: 2; width: 100% !important; }
   #book-places-user-table td[data-label="Map Link"], #book-events-user-table td[data-label="Map Link"] { order: 3; width: 100% !important; }
 
   #sadhana-table td[data-label="Name"] { order: 1; width: 100% !important; }
-  #sadhana-table td[data-label="S.No"] { order: 2; width: 20% !important; font-weight: 700; }
-  #sadhana-table td[data-label="Date"] { order: 3; width: 80% !important; }
+  #sadhana-table td[data-label="S.No"] { order: 2; width: 19% !important; font-weight: 700; }
+  #sadhana-table td[data-label="Date"] { order: 3; width: 79% !important; }
   #sadhana-table td[data-label="Rounds"] { order: 4; width: 33% !important; }
   #sadhana-table td[data-label="Book Reading"] { order: 5; width: 33% !important; }
   #sadhana-table td[data-label="Screen Time"] { order: 6; width: 34% !important; }
@@ -1681,6 +1982,407 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #sadhana-table td[data-label="Swadhyaya"] { order: 9; width: 49% !important; }
   #sadhana-table td[data-label=""] { order: 10; width: 51% !important; }
   #sadhana-table td[data-label="S.No"]::before { display: none !important; }
+
+  /* Reset the table-agnostic S.No/Name width cap (see Donations Dashboard
+     above) — critical here since Name is meant to force its own
+     full-width row; left capped at 140px, Quantity/Priority would wrongly
+     join that row instead of starting the next one. */
+  #book-requests-table td[data-label="Name"],
+  #book-requests-table td[data-label="S.No"] {
+    max-width: none !important;
+  }
+  #book-requests-table td[data-label="Name"] { order: 1; width: 100% !important; }
+  #book-requests-table td[data-label="S.No"] { order: 2; width: 21% !important; font-weight: 700; }
+  #book-requests-table td[data-label="Time"] { order: 3; width: 77% !important; }
+  #book-requests-table td[data-label="Quantity"] { order: 4; width: 49% !important; }
+  #book-requests-table td[data-label="Priority"] { order: 5; width: 49% !important; }
+  #book-requests-table td[data-label="Place"] { order: 6; width: 49% !important; }
+  #book-requests-table td[data-label="Event"] { order: 7; width: 49% !important; }
+  #book-requests-table td[data-label="Requested By"] { order: 8; width: 60% !important; }
+  #book-requests-table td[data-label="Fulfilled"] { order: 9; width: 40% !important; flex-direction: row !important; align-items: center !important; gap: 6px; }
+  #book-requests-table td[data-label=""] { order: 10; width: 100% !important; }
+  #book-requests-table td[data-label="S.No"]::before { display: none !important; }
+
+  /* Reset the table-agnostic S.No/Name width cap (see Book Requests
+     above) — same reasoning: Name must force its own full-width row. */
+  #book-expenses-table td[data-label="Name"],
+  #book-expenses-table td[data-label="S.No"] {
+    max-width: none !important;
+  }
+  #book-expenses-table td[data-label="Name"] { order: 1; width: 100% !important; }
+  #book-expenses-table td[data-label="S.No"] { order: 2; width: 21% !important; font-weight: 700; }
+  #book-expenses-table td[data-label="Date"] { order: 3; width: 77% !important; }
+  #book-expenses-table td[data-label="Cost"] { order: 4; width: 49% !important; }
+  #book-expenses-table td[data-label="Place"] { order: 5; width: 49% !important; }
+  #book-expenses-table td[data-label="Event"] { order: 6; width: 49% !important; }
+  #book-expenses-table td[data-label="To"] { order: 7; width: 100% !important; }
+  #book-expenses-table td[data-label=""] { order: 8; width: 100% !important; }
+  #book-expenses-table td[data-label="S.No"]::before { display: none !important; }
+
+  /* ============ SADHANA USERS: single flat row ============
+     Only 4 columns exist here (no hidden details to expand into), same
+     reasoning as My Outward Stock/Contributions above. */
+  /* Reset the table-agnostic S.No/Name width cap (see Donations Dashboard
+     above). */
+  #sadhana-users-table td[data-label="S.No"],
+  #sadhana-users-table td[data-label="Name"] {
+    max-width: none !important;
+  }
+  #sadhana-users-table td[data-label="S.No"] { order: 1; width: 10% !important; font-weight: 700; }
+  #sadhana-users-table td[data-label="Name"] { order: 2; width: 50% !important; }
+  #sadhana-users-table td[data-label="Role"] { order: 3; width: 20% !important; }
+  #sadhana-users-table td[data-label="Track"] {
+    order: 4; width: 20% !important;
+    flex-direction: row !important; align-items: center !important; justify-content: flex-end !important;
+    gap: 6px;
+  }
+  #sadhana-users-table td[data-label]::before { display: none !important; }
+
+  /* ============ SADHANA ANALYTICS LEADERBOARD: single row, tap to expand ===
+     S.No, Name, Consistency and the View action are what an admin scans
+     for; Entries, Total/Avg Rounds and the daily averages reveal on tap,
+     same gesture as Donations Analytics/Book Analytics Segments above. */
+  #sa-leaderboard-table tbody tr {
+    position: relative;
+    cursor: pointer;
+    padding-right: 26px;
+  }
+  #sa-leaderboard-table tbody tr::after {
+    content: "▾";
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tulsi-dark);
+    opacity: 0.55;
+    transition: transform 0.15s ease;
+  }
+  #sa-leaderboard-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #sa-leaderboard-table td[data-label="Entries"],
+  #sa-leaderboard-table td[data-label="Total Rounds"],
+  #sa-leaderboard-table td[data-label="Avg Rounds"],
+  #sa-leaderboard-table td[data-label="Avg Book Reading"],
+  #sa-leaderboard-table td[data-label="Avg Screen Time"],
+  #sa-leaderboard-table td[data-label="Avg Detox Time"],
+  #sa-leaderboard-table td[data-label="Last Entry"] {
+    display: none !important;
+  }
+  #sa-leaderboard-table tr.expanded td[data-label="Entries"],
+  #sa-leaderboard-table tr.expanded td[data-label="Total Rounds"],
+  #sa-leaderboard-table tr.expanded td[data-label="Avg Rounds"],
+  #sa-leaderboard-table tr.expanded td[data-label="Avg Book Reading"],
+  #sa-leaderboard-table tr.expanded td[data-label="Avg Screen Time"],
+  #sa-leaderboard-table tr.expanded td[data-label="Avg Detox Time"],
+  #sa-leaderboard-table tr.expanded td[data-label="Last Entry"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+
+  /* Reset the table-agnostic S.No/Name width cap (see Donations Dashboard
+     above). */
+  #sa-leaderboard-table td[data-label="S.No"],
+  #sa-leaderboard-table td[data-label="Name"] {
+    max-width: none !important;
+  }
+  #sa-leaderboard-table td[data-label="S.No"] { order: 1; width: 10% !important; font-weight: 700; }
+  #sa-leaderboard-table td[data-label="Name"] { order: 2; width: 42% !important; }
+  #sa-leaderboard-table td[data-label="Consistency"] { order: 3; width: 26% !important; }
+  #sa-leaderboard-table td[data-label=""] { order: 4; width: 22% !important; }
+  #sa-leaderboard-table td[data-label="Entries"] { order: 5; }
+  #sa-leaderboard-table td[data-label="Total Rounds"] { order: 6; }
+  #sa-leaderboard-table td[data-label="Avg Rounds"] { order: 7; }
+  #sa-leaderboard-table td[data-label="Avg Book Reading"] { order: 8; }
+  #sa-leaderboard-table td[data-label="Avg Screen Time"] { order: 9; }
+  #sa-leaderboard-table td[data-label="Avg Detox Time"] { order: 10; }
+  #sa-leaderboard-table td[data-label="Last Entry"] { order: 11; }
+
+  #sa-leaderboard-table td[data-label="S.No"]::before,
+  #sa-leaderboard-table td[data-label="Name"]::before,
+  #sa-leaderboard-table td[data-label="Consistency"]::before {
+    display: none !important;
+  }
+
+  /* ============ USERS & ASSIGNMENT: flat reflow, no hiding ============
+     Nearly every cell is an editable checkbox/input (Commander, Call Limit,
+     Auto Assign, Fulfilled) — same edit-heavy reasoning as Book Inward/
+     Outward/Sadhana above, so nothing is hidden, just reordered with User ID
+     leading full-width and short fields paired below it. */
+  #users-table td[data-label="User ID"] { order: 1; width: 100% !important; font-weight: 700; }
+  /* Reset the table-agnostic S.No width cap (see Donations Dashboard
+     above). */
+  #users-table td[data-label="S.No"] { max-width: none !important; }
+  #users-table td[data-label="S.No"] { order: 2; width: 16% !important; font-weight: 700; }
+  #users-table td[data-label="Role"] { order: 3; width: 82% !important; }
+  #users-table td[data-label="Password"] { order: 4; width: 49% !important; }
+  #users-table td[data-label="Call Limit"] { order: 5; width: 49% !important; }
+  #users-table td[data-label="Commander"] { order: 6; width: 49% !important; flex-direction: row !important; align-items: center !important; gap: 6px; }
+  #users-table td[data-label="Auto Assign"] { order: 7; width: 49% !important; flex-direction: row !important; align-items: center !important; gap: 6px; }
+  #users-table td[data-label="Count"] { order: 8; width: 33% !important; }
+  #users-table td[data-label="Completed Calls"] { order: 9; width: 33% !important; }
+  #users-table td[data-label="Completed %"] { order: 10; width: 34% !important; }
+  #users-table td[data-label="Fulfilled"] { order: 11; width: 49% !important; flex-direction: row !important; align-items: center !important; gap: 6px; }
+  #users-table td[data-label=""] { order: 12; width: 51% !important; }
+  #users-table td[data-label="User ID"]::before,
+  #users-table td[data-label="S.No"]::before {
+    display: none !important;
+  }
+
+  /* ============ ANALYTICS: CURRENTLY ASSIGNED, tap to expand ============
+     The follow-up checkbox, S.No, Name and Status are what an admin scans/
+     acts on; Caller, Phone, Called?, Admin Tag, Sessions, Calls and
+     Follow-up reveal on tap. Rows have no stable id, only need the class
+     flip — same as Book Analytics Segments above. */
+  #analytics-assigned-table tbody tr {
+    position: relative;
+    cursor: pointer;
+    padding-right: 26px;
+  }
+  #analytics-assigned-table tbody tr::after {
+    content: "▾";
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tulsi-dark);
+    opacity: 0.55;
+    transition: transform 0.15s ease;
+  }
+  #analytics-assigned-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #analytics-assigned-table td[data-label="Caller"],
+  #analytics-assigned-table td[data-label="Phone"],
+  #analytics-assigned-table td[data-label="Called?"],
+  #analytics-assigned-table td[data-label="Admin Tag to Users"],
+  #analytics-assigned-table td[data-label="Sessions"],
+  #analytics-assigned-table td[data-label="Calls"],
+  #analytics-assigned-table td[data-label="Follow-up"] {
+    display: none !important;
+  }
+  #analytics-assigned-table tr.expanded td[data-label="Caller"],
+  #analytics-assigned-table tr.expanded td[data-label="Phone"],
+  #analytics-assigned-table tr.expanded td[data-label="Called?"],
+  #analytics-assigned-table tr.expanded td[data-label="Admin Tag to Users"],
+  #analytics-assigned-table tr.expanded td[data-label="Sessions"],
+  #analytics-assigned-table tr.expanded td[data-label="Calls"],
+  #analytics-assigned-table tr.expanded td[data-label="Follow-up"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+
+  /* Reset the table-agnostic S.No/Name/Phone width caps (see Donations
+     Dashboard above). */
+  #analytics-assigned-table td[data-label="S.No"],
+  #analytics-assigned-table td[data-label="Name"],
+  #analytics-assigned-table td[data-label="Phone"] {
+    max-width: none !important;
+  }
+  #analytics-assigned-table td[data-label=""] { order: 1; width: 10% !important; }
+  #analytics-assigned-table td[data-label="S.No"] { order: 2; width: 10% !important; font-weight: 700; }
+  #analytics-assigned-table td[data-label="Name"] { order: 3; width: 45% !important; }
+  #analytics-assigned-table td[data-label="Status"] { order: 4; width: 35% !important; }
+  #analytics-assigned-table td[data-label="Caller"] { order: 5; }
+  #analytics-assigned-table td[data-label="Phone"] { order: 6; }
+  #analytics-assigned-table td[data-label="Called?"] { order: 7; }
+  #analytics-assigned-table td[data-label="Admin Tag to Users"] { order: 8; }
+  #analytics-assigned-table td[data-label="Sessions"] { order: 9; }
+  #analytics-assigned-table td[data-label="Calls"] { order: 10; }
+  #analytics-assigned-table td[data-label="Follow-up"] { order: 11; }
+
+  #analytics-assigned-table td[data-label="S.No"]::before,
+  #analytics-assigned-table td[data-label="Name"]::before,
+  #analytics-assigned-table td[data-label="Status"]::before {
+    display: none !important;
+  }
+
+  /* ============ ANALYTICS: CORE CULTIVATION HEALTH, tap to expand ========
+     S.No, Cultivator and Name are what an admin scans for — the stale-
+     cultivation highlight (.row-cc-stale) already flags attention rows by
+     background color, so Last Called doesn't need to stay visible too.
+     Phone, Total Calls, Last Called, Admin Tag, Sessions, Calls reveal on
+     tap. Rows have no stable id, only need the class flip. */
+  #analytics-cultivation-table tbody tr {
+    position: relative;
+    cursor: pointer;
+    padding-right: 26px;
+  }
+  #analytics-cultivation-table tbody tr::after {
+    content: "▾";
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tulsi-dark);
+    opacity: 0.55;
+    transition: transform 0.15s ease;
+  }
+  #analytics-cultivation-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #analytics-cultivation-table td[data-label="Phone"],
+  #analytics-cultivation-table td[data-label="Total Calls"],
+  #analytics-cultivation-table td[data-label="Last Called"],
+  #analytics-cultivation-table td[data-label="Admin Tag to Users"],
+  #analytics-cultivation-table td[data-label="Sessions"],
+  #analytics-cultivation-table td[data-label="Calls"] {
+    display: none !important;
+  }
+  #analytics-cultivation-table tr.expanded td[data-label="Phone"],
+  #analytics-cultivation-table tr.expanded td[data-label="Total Calls"],
+  #analytics-cultivation-table tr.expanded td[data-label="Last Called"],
+  #analytics-cultivation-table tr.expanded td[data-label="Admin Tag to Users"],
+  #analytics-cultivation-table tr.expanded td[data-label="Sessions"],
+  #analytics-cultivation-table tr.expanded td[data-label="Calls"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+
+  /* Reset the table-agnostic S.No/Name/Phone width caps (see Donations
+     Dashboard above). */
+  #analytics-cultivation-table td[data-label="S.No"],
+  #analytics-cultivation-table td[data-label="Name"],
+  #analytics-cultivation-table td[data-label="Phone"] {
+    max-width: none !important;
+  }
+  #analytics-cultivation-table td[data-label="S.No"] { order: 1; width: 10% !important; font-weight: 700; }
+  #analytics-cultivation-table td[data-label="Cultivator"] { order: 2; width: 42% !important; }
+  #analytics-cultivation-table td[data-label="Name"] { order: 3; width: 48% !important; }
+  #analytics-cultivation-table td[data-label="Phone"] { order: 4; }
+  #analytics-cultivation-table td[data-label="Total Calls"] { order: 5; }
+  #analytics-cultivation-table td[data-label="Last Called"] { order: 6; }
+  #analytics-cultivation-table td[data-label="Admin Tag to Users"] { order: 7; }
+  #analytics-cultivation-table td[data-label="Sessions"] { order: 8; }
+  #analytics-cultivation-table td[data-label="Calls"] { order: 9; }
+
+  #analytics-cultivation-table td[data-label="S.No"]::before,
+  #analytics-cultivation-table td[data-label="Cultivator"]::before,
+  #analytics-cultivation-table td[data-label="Name"]::before {
+    display: none !important;
+  }
+
+  /* ============ RECEPTION ANALYTICS ATTENDANCE: tap to expand ============
+     S.No, Name and Phone are what an admin scans for; Time, Event, Admin
+     Tag, Sessions, Calls, Marked By and Actions reveal on tap. */
+  #reception-analytics-attendance-table tbody tr {
+    position: relative;
+    cursor: pointer;
+    padding-right: 26px;
+  }
+  #reception-analytics-attendance-table tbody tr::after {
+    content: "▾";
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tulsi-dark);
+    opacity: 0.55;
+    transition: transform 0.15s ease;
+  }
+  #reception-analytics-attendance-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #reception-analytics-attendance-table td[data-label="Time"],
+  #reception-analytics-attendance-table td[data-label="Event"],
+  #reception-analytics-attendance-table td[data-label="Admin Tag to Users"],
+  #reception-analytics-attendance-table td[data-label="Sessions"],
+  #reception-analytics-attendance-table td[data-label="Calls"],
+  #reception-analytics-attendance-table td[data-label="Marked By"],
+  #reception-analytics-attendance-table td[data-label="Actions"] {
+    display: none !important;
+  }
+  #reception-analytics-attendance-table tr.expanded td[data-label="Time"],
+  #reception-analytics-attendance-table tr.expanded td[data-label="Event"],
+  #reception-analytics-attendance-table tr.expanded td[data-label="Admin Tag to Users"],
+  #reception-analytics-attendance-table tr.expanded td[data-label="Sessions"],
+  #reception-analytics-attendance-table tr.expanded td[data-label="Calls"],
+  #reception-analytics-attendance-table tr.expanded td[data-label="Marked By"],
+  #reception-analytics-attendance-table tr.expanded td[data-label="Actions"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+
+  /* Reset the table-agnostic S.No/Name/Phone width caps (see Donations
+     Dashboard above). */
+  #reception-analytics-attendance-table td[data-label="S.No"],
+  #reception-analytics-attendance-table td[data-label="Name"],
+  #reception-analytics-attendance-table td[data-label="Phone"] {
+    max-width: none !important;
+  }
+  #reception-analytics-attendance-table td[data-label="S.No"] { order: 1; width: 10% !important; font-weight: 700; }
+  #reception-analytics-attendance-table td[data-label="Name"] { order: 2; width: 45% !important; }
+  #reception-analytics-attendance-table td[data-label="Phone"] { order: 3; width: 45% !important; }
+  #reception-analytics-attendance-table td[data-label="Time"] { order: 4; }
+  #reception-analytics-attendance-table td[data-label="Event"] { order: 5; }
+  #reception-analytics-attendance-table td[data-label="Admin Tag to Users"] { order: 6; }
+  #reception-analytics-attendance-table td[data-label="Sessions"] { order: 7; }
+  #reception-analytics-attendance-table td[data-label="Calls"] { order: 8; }
+  #reception-analytics-attendance-table td[data-label="Marked By"] { order: 9; }
+  #reception-analytics-attendance-table td[data-label="Actions"] { order: 10; width: 100% !important; }
+
+  #reception-analytics-attendance-table td[data-label="S.No"]::before,
+  #reception-analytics-attendance-table td[data-label="Name"]::before,
+  #reception-analytics-attendance-table td[data-label="Phone"]::before {
+    display: none !important;
+  }
+
+  /* ============ ONE TO ONE: tap to expand ============
+     S.No, Name and Phone are what an admin scans for; W/S, Help Asked by
+     the Boy, Remarks by SNKD and the Add/Delete action reveal on tap. Rows
+     have no stable id, only need the class flip. */
+  #one-to-one-table tbody tr {
+    position: relative;
+    cursor: pointer;
+    padding-right: 26px;
+  }
+  #one-to-one-table tbody tr::after {
+    content: "▾";
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tulsi-dark);
+    opacity: 0.55;
+    transition: transform 0.15s ease;
+  }
+  #one-to-one-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #one-to-one-table td[data-label="W/S"],
+  #one-to-one-table td[data-label="Help Asked by the Boy"],
+  #one-to-one-table td[data-label="Remarks by SNKD"] {
+    display: none !important;
+  }
+  #one-to-one-table tr.expanded td[data-label="W/S"],
+  #one-to-one-table tr.expanded td[data-label="Help Asked by the Boy"],
+  #one-to-one-table tr.expanded td[data-label="Remarks by SNKD"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+  #one-to-one-table td[data-label=""] { display: none !important; }
+  #one-to-one-table tr.expanded td[data-label=""] { display: flex !important; width: 100% !important; }
+
+  /* Reset the table-agnostic S.No/Name/Phone width caps (see Donations
+     Dashboard above). */
+  #one-to-one-table td[data-label="S.No"],
+  #one-to-one-table td[data-label="Name"],
+  #one-to-one-table td[data-label="Phone"] {
+    max-width: none !important;
+  }
+  #one-to-one-table td[data-label="S.No"] { order: 1; width: 10% !important; font-weight: 700; }
+  #one-to-one-table td[data-label="Name"] { order: 2; width: 45% !important; }
+  #one-to-one-table td[data-label="Phone"] { order: 3; width: 45% !important; }
+  #one-to-one-table td[data-label="W/S"] { order: 4; }
+  #one-to-one-table td[data-label="Help Asked by the Boy"] { order: 5; }
+  #one-to-one-table td[data-label="Remarks by SNKD"] { order: 6; }
+  #one-to-one-table td[data-label=""] { order: 7; }
+
+  #one-to-one-table td[data-label="S.No"]::before,
+  #one-to-one-table td[data-label="Name"]::before,
+  #one-to-one-table td[data-label="Phone"]::before {
+    display: none !important;
+  }
 
   /* Full width for long columns */
   .data-table td[data-label="Name"],

@@ -6,6 +6,7 @@ import { setSession } from "./auth.js";
 
 let adminName = "";
 let remarksContext = null; // { mob, name }
+let oneToOneExpandWired = false;
 
 export async function initAdminOneToOne(currentUser) {
   adminName = currentUser?.user_name || "";
@@ -14,6 +15,20 @@ export async function initAdminOneToOne(currentUser) {
   wireRemarksModal();
   initColumnDragReorder("one-to-one-table");
   initHorizontalScroll("one-to-one-table-wrap");
+
+  // Mobile: tapping a row (not one of its buttons) expands it in place to
+  // reveal W/S, Help Asked, Remarks and the Add/Delete action — same
+  // pattern as Commander/Book Dashboard in Book Distribution.
+  if (!oneToOneExpandWired) {
+    oneToOneExpandWired = true;
+    document.getElementById("one-to-one-table-body").addEventListener("click", (e) => {
+      if (window.innerWidth > 640) return;
+      if (e.target.closest("button")) return;
+      const row = e.target.closest("tbody tr");
+      if (row) row.classList.toggle("expanded");
+    });
+  }
+
   await renderOneToOneTable();
 }
 

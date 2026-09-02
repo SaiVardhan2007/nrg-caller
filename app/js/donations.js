@@ -161,6 +161,15 @@ function wireDonationsDashboard() {
   document.getElementById("donations-dashboard-sort").addEventListener("change", applyDonationsDashboardFilters);
   initHorizontalScroll("donations-dashboard-table-wrap");
 
+  // Mobile: tapping a row (not one of its buttons) expands it in place to
+  // reveal Number and Remove — same pattern as Commander/Book Dashboard.
+  document.getElementById("donations-dashboard-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("input, button, select, a")) return;
+    const row = e.target.closest("tr[data-id]");
+    if (row) row.classList.toggle("expanded");
+  });
+
   const detailModal = document.getElementById("donation-donor-detail-modal");
   document.getElementById("donation-donor-detail-close-btn").addEventListener("click", () => detailModal.classList.remove("active"));
   detailModal.addEventListener("click", (e) => { if (e.target === detailModal) detailModal.classList.remove("active"); });
@@ -671,6 +680,16 @@ async function wireDonationAnalyticsFilters() {
   document.getElementById("da-sort").addEventListener("change", refreshDonationLeaderboardView);
   document.getElementById("da-export-btn").addEventListener("click", () => {
     exportTableToExcel(document.getElementById("da-leaderboard-table"), "FNRG_Donations_Analytics.xlsx");
+  });
+
+  // Mobile: tapping a row (not the View button) expands it in place to
+  // reveal Number/Transactions/Last Donation — same pattern as Book
+  // Analytics Segments above. Rows have no stable id, only need the class flip.
+  document.getElementById("da-leaderboard-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("button")) return;
+    const row = e.target.closest("tbody tr");
+    if (row) row.classList.toggle("expanded");
   });
 
   const detailModal = document.getElementById("donation-analytics-detail-modal");

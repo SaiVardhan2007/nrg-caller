@@ -694,6 +694,17 @@ async function wireSadhanaAnalyticsFilters() {
     exportTableToExcel(document.getElementById("sa-leaderboard-table"), "FNRG_Sadhana_Analytics.xlsx");
   });
 
+  // Mobile: tapping a row (not the View button) expands it in place to
+  // reveal Entries/Total Rounds/averages — same pattern as Donations
+  // Analytics/Book Analytics Segments. Rows have no stable id, only need
+  // the class flip.
+  document.getElementById("sa-leaderboard-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("button")) return;
+    const row = e.target.closest("tbody tr");
+    if (row) row.classList.toggle("expanded");
+  });
+
   const detailModal = document.getElementById("sadhana-analytics-detail-modal");
   document.getElementById("sadhana-analytics-detail-close").onclick = () => detailModal.classList.remove("active");
   detailModal.addEventListener("click", (e) => { if (e.target === detailModal) detailModal.classList.remove("active"); });

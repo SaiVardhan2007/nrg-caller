@@ -2160,6 +2160,16 @@ function wireContactsSearch() {
     const filterInput = document.getElementById(inputId);
     if (filterInput) filterInput.addEventListener("input", handleSearch);
   }
+
+  // Mobile: tapping a row (not an input/select/button) expands it in place
+  // to reveal the fields hidden from the compact scan view — same pattern
+  // as Commander/Book Dashboard in Book Distribution.
+  document.getElementById("contacts-table-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("input, button, select, a")) return;
+    const row = e.target.closest("tr[data-id]");
+    if (row) row.classList.toggle("expanded");
+  });
 }
 
 const CONTACT_CSV_HEADERS = [
@@ -2463,6 +2473,23 @@ export async function initAnalytics() {
     document.getElementById("card-calls-made").addEventListener("click", () => openAnalyticsStatModal("calls"));
     document.getElementById("card-positive").addEventListener("click", () => openAnalyticsStatModal("positive"));
     document.getElementById("card-pending").addEventListener("click", () => openAnalyticsStatModal("pending"));
+
+    // Mobile: tapping a row (not an input/select/button) expands it in
+    // place to reveal the fields hidden from the compact scan view — same
+    // pattern as Book Analytics Segments. Rows have no stable id.
+    document.getElementById("analytics-assigned-body").addEventListener("click", (e) => {
+      if (window.innerWidth > 640) return;
+      if (e.target.closest("input, button, select, a")) return;
+      const row = e.target.closest("tbody tr");
+      if (row) row.classList.toggle("expanded");
+    });
+    document.getElementById("analytics-cultivation-body").addEventListener("click", (e) => {
+      if (window.innerWidth > 640) return;
+      if (e.target.closest("input, button, select, a")) return;
+      const row = e.target.closest("tbody tr");
+      if (row) row.classList.toggle("expanded");
+    });
+
     document.getElementById("analytics-export-btn").addEventListener("click", () => {
       const readTable = (tableEl) => {
         const headCells = Array.from(tableEl.querySelectorAll("thead th"));
@@ -3486,6 +3513,15 @@ export async function initReceptionAnalytics() {
       exportTableToExcel(table, `nrg-reception-analytics-${todayStamp()}.xlsx`);
     });
     initHorizontalScroll("reception-analytics-attendance-table-wrap");
+
+    // Mobile: tapping a row (not an input/select/button) expands it in
+    // place to reveal the fields hidden from the compact scan view.
+    document.getElementById("reception-analytics-attendance-body").addEventListener("click", (e) => {
+      if (window.innerWidth > 640) return;
+      if (e.target.closest("input, button, select, a")) return;
+      const row = e.target.closest("tr[data-id]");
+      if (row) row.classList.toggle("expanded");
+    });
   }
   run();
 }
@@ -3903,6 +3939,16 @@ export async function initNewContacts() {
 
     initColumnDragReorder("collection-submissions-admin-table");
     initHorizontalScroll("new-contacts-table-wrap");
+
+    // Mobile: tapping a row (not an input/select/button) expands it in
+    // place to reveal the fields hidden from the compact scan view — same
+    // pattern as Master Contact above.
+    document.getElementById("new-contacts-table-body").addEventListener("click", (e) => {
+      if (window.innerWidth > 640) return;
+      if (e.target.closest("input, button, select, a")) return;
+      const row = e.target.closest("tr[data-index]");
+      if (row) row.classList.toggle("expanded");
+    });
   }
 
   // Independent of the Sheets bridge below — always load regardless of
