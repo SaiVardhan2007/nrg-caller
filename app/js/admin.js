@@ -2554,9 +2554,13 @@ function renderAssignedContactsTable() {
         const key = `${a.contact_id}|${a.event_code}`;
         const eligible = FOLLOWUP_ELIGIBLE_STATUSES.includes((a.status || "").toLowerCase());
         const followUpUser = lastFollowUpMap.get(key);
+        // A row that already has a follow-up hand-off stays selectable (for
+        // Disassign) even if its original status later moved off the
+        // Need to Call Again / Available on Weekend eligibility list.
+        const selectable = eligible || !!followUpUser;
         return `
         <tr>
-          <td class="followup-select-col" data-label=""><input type="checkbox" class="followup-select" data-key="${key}" ${eligible ? "" : "disabled"} ${selectedFollowUpKeys.has(key) ? "checked" : ""} title="${eligible ? "Select for follow-up hand-off" : "Only Need to Call Again / Available on Weekend rows can be handed off"}" /></td>
+          <td class="followup-select-col" data-label=""><input type="checkbox" class="followup-select" data-key="${key}" ${selectable ? "" : "disabled"} ${selectedFollowUpKeys.has(key) ? "checked" : ""} title="${selectable ? "Select to assign for follow-up, or to disassign an existing one" : "Only Need to Call Again / Available on Weekend rows can be handed off"}" /></td>
           <td data-label="S.No">${idx + 1}</td>
           <td data-label="Caller">${escapeHtml(a.user_name)}</td>
           <td data-label="Name">${escapeHtml(a.contacts?.name || "—")}</td>
@@ -2634,6 +2638,7 @@ function wireFollowUpAssign() {
   followUpAssignWired = true;
 
   document.getElementById("analytics-followup-assign-btn").addEventListener("click", openFollowUpAssignModal);
+  document.getElementById("analytics-followup-unassign-btn").addEventListener("click", runFollowUpUnassign);
 
   const modal = document.getElementById("followup-assign-modal");
   document.getElementById("followup-assign-cancel").onclick = () => modal.classList.remove("active");
@@ -2738,6 +2743,43 @@ async function runFollowUpAssign() {
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = "Assign";
+  }
+}
+
+// Reverses a follow-up hand-off — removes the selected rows from
+// follow_up_assignments so the contact no longer shows as handed off to
+// anyone. Only acts on ticked rows that currently have a follow-up (rows
+// ticked only to be newly assigned are left alone).
+async function runFollowUpUnassign() {
+  const keys = [...selectedFollowUpKeys].filter((key) => lastFollowUpMap.has(key));
+  if (!keys.length) {
+    showToast("Tick at least one contact that currently has a follow-up assigned.", "error");
+    return;
+  }
+  if (!confirm(`Disassign the follow-up from ${keys.length} contact(s)? They'll no longer show as handed off to anyone.`)) return;
+
+  const btn = document.getElementById("analytics-followup-unassign-btn");
+  btn.disabled = true;
+  btn.textContent = "Disassigning…";
+  try {
+    const results = await Promise.all(keys.map((key) => {
+      const [contact_id, event_code] = key.split("|");
+      return supabase.from("follow_up_assignments").delete().eq("contact_id", contact_id).eq("event_code", event_code);
+    }));
+    const failed = results.filter((r) => r.error);
+    if (failed.length) throw new Error(failed[0].error.message);
+
+    keys.forEach((key) => {
+      lastFollowUpMap.delete(key);
+      selectedFollowUpKeys.delete(key);
+    });
+    renderAssignedContactsTable();
+    showToast(`Disassigned ${keys.length} follow-up(s)`, "success");
+  } catch (err) {
+    showToast("Disassign failed: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "↩ Disassign Follow-up";
   }
 }
 

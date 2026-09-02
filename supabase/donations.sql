@@ -20,15 +20,26 @@ create table if not exists donation_events (
 );
 
 create table if not exists donations (
-  id         uuid primary key default gen_random_uuid(),
-  mob_no     text not null references donation_donors(mob_no) on delete cascade,
-  name       text not null,
-  amount     numeric not null check (amount > 0),
-  event      text,
-  added_by   text,
-  created_at timestamptz not null default now()
+  id            uuid primary key default gen_random_uuid(),
+  mob_no        text not null references donation_donors(mob_no) on delete cascade,
+  name          text not null,
+  amount        numeric not null check (amount > 0),
+  event         text,
+  added_by      text,
+  donation_date date not null default current_date,
+  created_at    timestamptz not null default now()
 );
 create index if not exists idx_donations_mob_no on donations(mob_no);
+
+-- donation_date (the actual date the donation was made, editable — distinct
+-- from created_at/"Time Stamp", which is when the row was entered into the
+-- system) was added after the table already existed live, so backfill it
+-- from each row's created_at date rather than trusting the column default
+-- (which would otherwise stamp every pre-existing row with today's date).
+alter table donations add column if not exists donation_date date;
+update donations set donation_date = created_at::date where donation_date is null;
+alter table donations alter column donation_date set default current_date;
+alter table donations alter column donation_date set not null;
 
 alter table donation_donors enable row level security;
 alter table donation_events enable row level security;

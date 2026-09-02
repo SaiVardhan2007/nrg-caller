@@ -537,6 +537,7 @@
         <div class="caller-title-row">
           <h3 class="section-title">Currently Assigned Contacts</h3>
           <button id="analytics-followup-assign-btn" class="btn btn-secondary toolbar-btn">↪ Assign for Follow-up</button>
+          <button id="analytics-followup-unassign-btn" class="btn btn-secondary toolbar-btn btn-danger">↩ Disassign Follow-up</button>
         </div>
         <div class="table-wrap" id="analytics-assigned-table-wrap">
           <table class="data-table" id="analytics-assigned-table">
@@ -1696,8 +1697,10 @@
             <label class="field inline">
               <span>Sort By</span>
               <select id="donations-tx-sort" class="inline-edit">
-                <option value="created_at-desc">Date (Newest)</option>
-                <option value="created_at-asc">Date (Oldest)</option>
+                <option value="created_at-desc">Time Stamp (Newest)</option>
+                <option value="created_at-asc">Time Stamp (Oldest)</option>
+                <option value="donation_date-desc">Date (Newest)</option>
+                <option value="donation_date-asc">Date (Oldest)</option>
                 <option value="amount-desc">Amount (High-Low)</option>
                 <option value="amount-asc">Amount (Low-High)</option>
                 <option value="name-asc">Name (A-Z)</option>
@@ -1715,9 +1718,11 @@
               <thead>
                 <tr>
                   <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Time Stamp">Time Stamp</th>
                   <th draggable="true" data-label="Name">Name</th>
                   <th draggable="true" data-label="Number">Number</th>
                   <th draggable="true" data-label="Amount">Amount</th>
+                  <th draggable="true" data-label="Date">Date</th>
                   <th draggable="true" data-label="Event">
                     <div class="th-label">Event</div>
                     <select id="donations-tx-th-filter-event" class="th-filter">
@@ -1729,7 +1734,7 @@
                 </tr>
               </thead>
               <tbody id="donations-tx-body">
-                <tr><td colspan="6" class="loading-row">Loading…</td></tr>
+                <tr><td colspan="8" class="loading-row">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -2997,6 +3002,7 @@
     <h3>Add Transaction</h3>
     <label class="field"><span>Donor (Name / Number)</span><input id="donation-tx-donor" type="text" placeholder="Type name or number…" autocomplete="off" /></label>
     <label class="field"><span>Amount</span><input id="donation-tx-amount" type="number" min="0" step="any" /></label>
+    <label class="field"><span>Date</span><input id="donation-tx-date" type="date" /></label>
     <label class="field"><span>Event</span><select id="donation-tx-event"><option value="">—</option></select></label>
     <div id="donation-tx-error" class="field-error hidden"></div>
     <div class="modal-actions">

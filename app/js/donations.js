@@ -77,11 +77,11 @@ function openDonorDetail(mobNo) {
   const donor = donorsCache.find((d) => d.mob_no === mobNo);
   const rows = dashboardTxCache
     .filter((t) => t.mob_no === mobNo)
-    .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    .sort((a, b) => (b.donation_date || "").localeCompare(a.donation_date || ""));
   document.getElementById("donation-donor-detail-title").textContent = `${donor?.name || ""} — Transactions`;
   document.getElementById("donation-donor-detail-body").innerHTML = rows.length ? rows.map((t) => `
     <tr>
-      <td>${t.created_at ? new Date(t.created_at).toLocaleDateString() : "—"}</td>
+      <td>${t.donation_date || "—"}</td>
       <td>${fmtMoney(t.amount)}</td>
       <td>${escapeHtml(t.event || "—")}</td>
     </tr>
@@ -172,7 +172,7 @@ async function loadDonationsDashboard() {
 
   const [{ data: donors, error: donorsErr }, { data: tx, error: txErr }] = await Promise.all([
     supabase.from("donation_donors").select("id,mob_no,name").order("name"),
-    supabase.from("donations").select("mob_no,amount,event,created_at"),
+    supabase.from("donations").select("mob_no,amount,event,donation_date"),
   ]);
 
   if (donorsErr || txErr) {
@@ -196,7 +196,7 @@ export async function initDonationsDashboard() {
    to the curated donor list, not the full Master Contact roster. */
 
 const DONATIONS_COLUMNS_KEY = "nrg-donations-column-order";
-const DEFAULT_DONATIONS_COLUMNS = ["S.No", "Name", "Number", "Amount", "Event", ""];
+const DEFAULT_DONATIONS_COLUMNS = ["S.No", "Time Stamp", "Name", "Number", "Amount", "Date", "Event", ""];
 
 let transactionsCache = [];
 let txFiltersWired = false;
@@ -215,15 +215,17 @@ function matchesTxSearch(row, term) {
 function renderDonationsTxRows(rows) {
   const tbody = document.getElementById("donations-tx-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">${transactionsCache.length ? "No transactions match your filters." : "No transactions yet — add one to get started."}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="muted-text">${transactionsCache.length ? "No transactions match your filters." : "No transactions yet — add one to get started."}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => `
     <tr data-id="${r.id}">
       <td data-label="S.No">${idx + 1}</td>
+      <td data-label="Time Stamp">${r.created_at ? new Date(r.created_at).toLocaleString() : ""}</td>
       <td data-label="Name"><input class="inline-edit" type="text" data-field="name" value="${escapeHtml(r.name)}" /></td>
       <td data-label="Number"><input class="inline-edit" type="tel" inputmode="numeric" data-field="mob_no" value="${escapeHtml(r.mob_no)}" /></td>
       <td data-label="Amount"><input class="inline-edit" type="number" min="0" step="any" data-field="amount" value="${r.amount ?? ""}" /></td>
+      <td data-label="Date"><input class="inline-edit" type="date" data-field="donation_date" value="${r.donation_date || ""}" /></td>
       <td data-label="Event"><select class="inline-edit" data-field="event">${eventOptionsHtml(r.event || "")}</select></td>
       <td data-label="">
         <button type="button" class="cell-chip danger donation-tx-delete-btn" title="Delete">🗑 Delete</button>
@@ -269,6 +271,11 @@ function wireDonationsTxInlineEdit(tbody) {
           return;
         }
         raw = amount;
+      }
+      if (field === "donation_date" && !raw) {
+        showToast("Date cannot be empty.", "error");
+        e.target.value = record.donation_date ?? "";
+        return;
       }
 
       const value = field === "event" ? (raw || null) : raw;
@@ -325,6 +332,7 @@ function eventOptionsHtml(selected = "") {
 function openDonationTxModal() {
   document.getElementById("donation-tx-donor").value = "";
   document.getElementById("donation-tx-amount").value = "";
+  document.getElementById("donation-tx-date").value = todayLocalDate();
   document.getElementById("donation-tx-event").innerHTML = eventOptionsHtml();
   document.getElementById("donation-tx-error").classList.add("hidden");
   document.getElementById("donation-transaction-modal").classList.add("active");
@@ -347,6 +355,7 @@ function wireDonationTxModal(currentUser) {
     const donorText = donorInput.value.trim().toLowerCase();
     const donor = donorsCache.find((d) => donorLabel(d).toLowerCase() === donorText);
     const amountRaw = document.getElementById("donation-tx-amount").value;
+    const donationDate = document.getElementById("donation-tx-date").value;
     const event = document.getElementById("donation-tx-event").value;
 
     if (!donor) {
@@ -360,11 +369,17 @@ function wireDonationTxModal(currentUser) {
       errorEl.classList.remove("hidden");
       return;
     }
+    if (!donationDate) {
+      errorEl.textContent = "Please pick a date.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
 
     const { error } = await supabase.from("donations").insert({
       mob_no: donor.mob_no,
       name: donor.name,
       amount,
+      donation_date: donationDate,
       event: event || null,
       added_by: currentUser?.user_name || null,
     });
@@ -382,16 +397,16 @@ function wireDonationTxModal(currentUser) {
 
 async function loadDonationsTransactions() {
   const tbody = document.getElementById("donations-tx-body");
-  tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Loading…</td></tr>`;
 
   const [{ data: tx, error: txErr }, { data: donors, error: donorsErr }, { data: events }] = await Promise.all([
-    supabase.from("donations").select("id,mob_no,name,amount,event,created_at").order("created_at", { ascending: false }),
+    supabase.from("donations").select("id,mob_no,name,amount,event,donation_date,created_at").order("created_at", { ascending: false }),
     supabase.from("donation_donors").select("id,mob_no,name").order("name"),
     supabase.from("donation_events").select("id,name").order("name"),
   ]);
 
   if (txErr || donorsErr) {
-    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Could not load transactions.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Could not load transactions.</td></tr>`;
     return;
   }
   transactionsCache = tx || [];
@@ -543,7 +558,7 @@ function buildDonationLeaderboard(rows) {
     const e = map.get(r.mob_no);
     e.count++;
     e.total += Number(r.amount || 0);
-    if (!e.lastDate || r.created_at > e.lastDate) e.lastDate = r.created_at;
+    if (!e.lastDate || r.donation_date > e.lastDate) e.lastDate = r.donation_date;
   });
   return Array.from(map.values());
 }
@@ -584,7 +599,7 @@ function renderDonationLeaderboard(rows) {
       <td data-label="Number">${formatPhone(r.mob_no)}</td>
       <td data-label="Transactions">${r.count}</td>
       <td data-label="Total Amount">${fmtMoney(r.total)}</td>
-      <td data-label="Last Donation">${r.lastDate ? new Date(r.lastDate).toLocaleDateString() : "—"}</td>
+      <td data-label="Last Donation">${r.lastDate || "—"}</td>
       <td data-label="" class="no-export"><button type="button" class="cell-chip da-view-btn" data-mob="${r.mob_no}">👁 View</button></td>
     </tr>`).join("");
   tbody.querySelectorAll(".da-view-btn").forEach((btn) => {
@@ -593,11 +608,11 @@ function renderDonationLeaderboard(rows) {
 }
 
 function openDonationAnalyticsDetail(mobNo) {
-  const rows = analyticsRows.filter((r) => r.mob_no === mobNo).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+  const rows = analyticsRows.filter((r) => r.mob_no === mobNo).sort((a, b) => (b.donation_date || "").localeCompare(a.donation_date || ""));
   document.getElementById("donation-analytics-detail-title").textContent = `${rows[0]?.name || ""} — Transactions`;
   document.getElementById("donation-analytics-detail-body").innerHTML = rows.length ? rows.map((r) => `
     <tr>
-      <td data-label="Date">${r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}</td>
+      <td data-label="Date">${r.donation_date || "—"}</td>
       <td data-label="Amount">${fmtMoney(r.amount)}</td>
       <td data-label="Event">${escapeHtml(r.event || "—")}</td>
     </tr>
@@ -620,9 +635,9 @@ async function runDonationAnalytics() {
   const donorSel = document.getElementById("da-filter-donor-select").value;
   const eventSel = document.getElementById("da-filter-event-select").value;
 
-  let query = supabase.from("donations").select("mob_no,name,amount,event,created_at");
-  if (from) query = query.gte("created_at", `${from}T00:00:00`);
-  if (to) query = query.lte("created_at", `${to}T23:59:59`);
+  let query = supabase.from("donations").select("mob_no,name,amount,event,donation_date");
+  if (from) query = query.gte("donation_date", from);
+  if (to) query = query.lte("donation_date", to);
   if (donorSel && donorSel !== "__ALL__") query = query.eq("mob_no", donorSel);
   if (eventSel && eventSel !== "__ALL__") query = query.eq("event", eventSel);
 
