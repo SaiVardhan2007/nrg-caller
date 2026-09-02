@@ -524,6 +524,14 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    width invisibly — the sibling cell's opaque background paints over it, so
    it just looks silently cut off with no "…" cue. Clip it visibly instead. */
 .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--sandstone); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Editable cells (an <input>/<select class="inline-edit">) already truncate
+   their own text with an ellipsis (see .inline-edit below), so the td's own
+   overflow:hidden above is redundant for them — worse, since the box's
+   border-box (with its 1.5px border + border-radius) can render a hair
+   taller than the td's computed content height, that overflow:hidden clips
+   the box's own border/corners, making it look visually cut off. Let those
+   cells' overflow stay visible so the box always renders in full. */
+.data-table td:has(> .inline-edit) { overflow: visible; }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tbody tr { transition: background 0.12s ease; }
 /* Faint zebra striping so a dense, many-column row can be scanned across
