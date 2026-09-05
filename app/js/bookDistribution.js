@@ -3344,7 +3344,7 @@ function wireBsTapasyaModal() {
           <tr data-id="${u.id}">
             <td data-label="S.No">${idx + 1}</td>
             <td data-label="Name">${escapeHtml(u.user_name)}</td>
-            <td data-label="Percent">
+            <td data-label="% to be allocated">
               <input type="number" min="0" max="100" step="1" class="tapasya-percent-input inline-edit"
                 value="${u.tirtha_nidhi_percent ?? 65}" />
             </td>
