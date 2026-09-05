@@ -2615,11 +2615,17 @@ async function runAnalytics() {
   const fromISO = from ? new Date(`${from}T00:00:00`).toISOString() : null;
   const toISO = to ? new Date(`${to}T23:59:59.999`).toISOString() : null;
 
+  // Cost basis (avgPurchasePrice) must come from each book's full purchase
+  // history, not just what was bought inside the selected date range — a book
+  // sold today may have been bought weeks ago. Only outward (sales) rows are
+  // scoped to the date range; inward stays unfiltered by date (like
+  // fetchStockStats/Dashboard) so profit doesn't swing based on whether a
+  // purchase happened to fall inside the window.
   let inwardQuery = supabase.from("book_inward_stock").select("name,language,purchase_price,quantity,purchased_from,created_at");
   let outwardQuery = supabase.from("book_outward_stock").select("name,language,sold_price,quantity,sold_area,event,sold_by,created_at");
   let expensesQuery = supabase.from("book_expenses").select("cost,expense_date,to_users");
-  if (fromISO) { inwardQuery = inwardQuery.gte("created_at", fromISO); outwardQuery = outwardQuery.gte("created_at", fromISO); }
-  if (toISO) { inwardQuery = inwardQuery.lte("created_at", toISO); outwardQuery = outwardQuery.lte("created_at", toISO); }
+  if (fromISO) { outwardQuery = outwardQuery.gte("created_at", fromISO); }
+  if (toISO) { outwardQuery = outwardQuery.lte("created_at", toISO); }
   if (from) expensesQuery = expensesQuery.gte("expense_date", from);
   if (to) expensesQuery = expensesQuery.lte("expense_date", to);
   if (userSel && userSel !== "__ALL__") outwardQuery = outwardQuery.eq("sold_by", userSel);
@@ -2990,14 +2996,27 @@ function isShastraDana(bookName) {
   return (bookName || "").trim().toLowerCase() === "shastra dana";
 }
 
-// A profitable sale owes 65% of its margin as Tirtha Nidhi. A sale at a loss
-// owes the full loss (not scaled down) so it still drags the total down —
-// expenses never factor in here, only in Analytics. Shastra Dana is always
-// excluded either way since it's a straight donation, not a sale.
+// A profitable sale owes its distributor's Tapasya % of the margin as Tirtha
+// Nidhi (65% unless overridden per-user in the Tapasya table). A sale at a
+// loss owes the full loss (not scaled down) so it still drags the total
+// down — expenses never factor in here, only in Analytics. Shastra Dana is
+// always excluded either way since it's a straight donation, not a sale.
 const TIRTHA_NIDHI_RATE = 0.65;
-function tirthaNidhiContribution(bookName, profit) {
+function tirthaNidhiContribution(bookName, profit, rate = TIRTHA_NIDHI_RATE) {
   if (isShastraDana(bookName)) return 0;
-  return profit > 0 ? profit * TIRTHA_NIDHI_RATE : profit;
+  return profit > 0 ? profit * rate : profit;
+}
+
+// Per-user override of the Tirtha Nidhi rate, set via the Tapasya table
+// (falls back to the default 65% for anyone left unset).
+async function fetchTirthaNidhiRates() {
+  const { data } = await supabase.from("users").select("user_name, tirtha_nidhi_percent");
+  const rates = new Map();
+  (data || []).forEach((u) => {
+    const pct = u.tirtha_nidhi_percent;
+    rates.set(u.user_name, (pct === null || pct === undefined ? 65 : pct) / 100);
+  });
+  return rates;
 }
 
 async function renderSavingsPanel() {
@@ -3023,11 +3042,13 @@ async function renderSavingsPanel() {
   const [
     { data: outwardData, error: outError },
     { data: inwardData },
-    { data: contributionsData }
+    { data: contributionsData },
+    tirthaNidhiRates
   ] = await Promise.all([
     outwardQuery,
     supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
-    contributionsQuery
+    contributionsQuery,
+    fetchTirthaNidhiRates()
   ]);
 
   if (outError) {
@@ -3057,14 +3078,17 @@ async function renderSavingsPanel() {
   // figure the user already saw, which reads as demotivating even though
   // nothing was actually wrong. This display is for user motivation only —
   // admins still see the real expense-netted profit everywhere else.
+  // Rounded per row, same as the book-wise breakdown modal, so the two
+  // views always add up to the exact same total instead of drifting by a
+  // rupee or two from rounding the aggregate once at the end.
   let netProfit = 0;
   (outwardData || []).forEach((r) => {
     const qty = r.quantity || 0;
     const revenue = (r.sold_price || 0) * qty;
     const cost = getUnitCost(r.name, r.language) * qty;
-    netProfit += tirthaNidhiContribution(r.name, revenue - cost);
+    const rate = tirthaNidhiRates.get(r.sold_by) ?? 0.65;
+    netProfit += Math.round(tirthaNidhiContribution(r.name, revenue - cost, rate));
   });
-  netProfit = Math.round(netProfit);
   const totalMyContribution = (contributionsData || []).reduce((sum, r) => sum + (r.amount || 0), 0);
 
   const netEl = document.getElementById("bs-total-net");
@@ -3113,13 +3137,14 @@ async function openBsUserContributionModal(isAdmin, currentUser) {
   const tbody = document.getElementById("bs-user-contribution-body");
   tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
 
-  let outwardQuery = supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_area, created_at");
+  let outwardQuery = supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_area, sold_by, created_at");
   if (!isOrgWide) outwardQuery = outwardQuery.eq("sold_by", scopeUser);
 
-  const [{ data: outwardData, error }, { data: inwardData }, { data: expensesData }] = await Promise.all([
+  const [{ data: outwardData, error }, { data: inwardData }, { data: expensesData }, tirthaNidhiRates] = await Promise.all([
     outwardQuery.order("created_at", { ascending: true }),
     supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
     supabase.from("book_expenses").select("cost, to_users"),
+    fetchTirthaNidhiRates(),
   ]);
 
   if (error) {
@@ -3145,7 +3170,8 @@ async function openBsUserContributionModal(isAdmin, currentUser) {
     const revenue = (r.sold_price || 0) * qty;
     const cost = getUnitCost(r.name, r.language) * qty;
     const actualProfit = revenue - cost;
-    const shown = Math.round(tirthaNidhiContribution(r.name, actualProfit));
+    const rate = tirthaNidhiRates.get(r.sold_by) ?? 0.65;
+    const shown = Math.round(tirthaNidhiContribution(r.name, actualProfit, rate));
     return { name: r.name, language: r.language, soldAt: r.sold_area, actualProfit, shown };
   });
 
@@ -3218,10 +3244,11 @@ function wireBsGeneralDataModal() {
     const tbody = document.getElementById("bs-general-data-body");
     tbody.innerHTML = `<tr><td colspan="3" class="loading-row">Loading…</td></tr>`;
 
-    const [{ data: coordinators }, { data: inwardData }, { data: outwardData }] = await Promise.all([
+    const [{ data: coordinators }, { data: inwardData }, { data: outwardData }, tirthaNidhiRates] = await Promise.all([
       supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
       supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
       supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by"),
+      fetchTirthaNidhiRates(),
     ]);
 
     const bookCostMap = new Map();
@@ -3243,11 +3270,12 @@ function wireBsGeneralDataModal() {
       const revenue = (r.sold_price || 0) * qty;
       const cost = getUnitCost(r.name, r.language) * qty;
       const prev = profitBySeller.get(r.sold_by) || 0;
-      profitBySeller.set(r.sold_by, prev + tirthaNidhiContribution(r.name, revenue - cost));
+      const rate = tirthaNidhiRates.get(r.sold_by) ?? 0.65;
+      profitBySeller.set(r.sold_by, prev + Math.round(tirthaNidhiContribution(r.name, revenue - cost, rate)));
     });
 
     const rows = (coordinators || [])
-      .map((u) => ({ name: u.user_name, netProfit: Math.round(profitBySeller.get(u.user_name) || 0) }))
+      .map((u) => ({ name: u.user_name, netProfit: profitBySeller.get(u.user_name) || 0 }))
       .filter((r) => r.netProfit !== 0)
       .sort((a, b) => b.netProfit - a.netProfit);
     const grandTotal = rows.reduce((s, r) => s + r.netProfit, 0);
@@ -3265,6 +3293,78 @@ function wireBsGeneralDataModal() {
         </tr>`
       : `<tr><td colspan="3" class="loading-row">No distributors found.</td></tr>`;
     reapplyColumnOrder("bs-general-data-table");
+  };
+}
+
+/* ---- Tirtha Nidhi: Tapasya (admin) ----
+   Per-distributor override of the Tirtha Nidhi rate (defaults to 65%), fed
+   into tirthaNidhiContribution() everywhere it's used. */
+let bsTapasyaModalWired = false;
+function wireBsTapasyaModal() {
+  if (bsTapasyaModalWired) return;
+  bsTapasyaModalWired = true;
+  const modal = document.getElementById("bs-tapasya-modal");
+  document.getElementById("bs-tapasya-close").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  let bsTapasyaZoom = 100;
+  const zoomBox = document.getElementById("bs-tapasya-modal-box");
+  const zoomLevel = document.getElementById("bs-tapasya-zoom-level");
+  const applyBsTapasyaZoom = () => {
+    zoomBox.style.transform = `scale(${bsTapasyaZoom / 100})`;
+    zoomLevel.textContent = bsTapasyaZoom + "%";
+  };
+  document.getElementById("bs-tapasya-zoom-in").onclick = () => {
+    bsTapasyaZoom = Math.min(200, bsTapasyaZoom + 10);
+    applyBsTapasyaZoom();
+  };
+  document.getElementById("bs-tapasya-zoom-out").onclick = () => {
+    bsTapasyaZoom = Math.max(40, bsTapasyaZoom - 10);
+    applyBsTapasyaZoom();
+  };
+
+  document.getElementById("bs-tapasya-btn").onclick = async () => {
+    modal.classList.add("active");
+    const tbody = document.getElementById("bs-tapasya-body");
+    tbody.innerHTML = `<tr><td colspan="3" class="loading-row">Loading…</td></tr>`;
+
+    const { data: coordinators, error } = await supabase
+      .from("users")
+      .select("id, user_name, tirtha_nidhi_percent")
+      .eq("role", "Coordinator")
+      .order("user_name");
+
+    if (error) {
+      tbody.innerHTML = `<tr><td colspan="3" class="loading-row">Could not load data.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = (coordinators || []).length
+      ? coordinators.map((u, idx) => `
+          <tr data-id="${u.id}">
+            <td data-label="S.No">${idx + 1}</td>
+            <td data-label="Name">${escapeHtml(u.user_name)}</td>
+            <td data-label="Percent">
+              <input type="number" min="0" max="100" step="1" class="tapasya-percent-input inline-edit"
+                value="${u.tirtha_nidhi_percent ?? 65}" />
+            </td>
+          </tr>`).join("")
+      : `<tr><td colspan="3" class="loading-row">No distributors found.</td></tr>`;
+
+    tbody.querySelectorAll(".tapasya-percent-input").forEach((input) => {
+      // Number inputs bump their value on mouse-wheel scroll while focused —
+      // blur on wheel so scrolling the page/table never silently edits a %.
+      input.addEventListener("wheel", (e) => e.target.blur());
+      input.addEventListener("change", async (e) => {
+        const id = e.target.closest("tr").dataset.id;
+        let val = e.target.value === "" ? 65 : parseFloat(e.target.value);
+        if (Number.isNaN(val)) val = 65;
+        val = Math.min(100, Math.max(0, val));
+        e.target.value = val;
+        await supabase.from("users").update({ tirtha_nidhi_percent: val }).eq("id", id);
+        showToast("Tapasya percent updated", "success");
+      });
+    });
   };
 }
 
@@ -3546,6 +3646,7 @@ export async function initSavingsPanel(currentUser) {
 
   wireDashboardDetailModal();
   if (isAdmin) wireBsGeneralDataModal();
+  if (isAdmin) wireBsTapasyaModal();
   wireBsUserContributionModal();
   wireContributionModal(currentUser, async () => {
     await renderSavingsPanel();

@@ -1947,6 +1947,7 @@
             <button id="bsc-view-btn" class="btn btn-primary toolbar-btn">View</button>
             <button id="bsc-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
             <button id="bs-general-data-btn" class="btn btn-secondary toolbar-btn">📊 General Data</button>
+            <button id="bs-tapasya-btn" class="btn btn-secondary toolbar-btn">🙏 Tapasya</button>
             <button id="bsc-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
           </div>
         </div>
@@ -3437,6 +3438,29 @@
     </div>
     <div class="modal-actions">
       <button id="bs-general-data-close" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="bs-tapasya-modal" class="modal">
+  <div class="modal-box modal-large" id="bs-tapasya-modal-box">
+    <div class="modal-title-row">
+      <h3>Tīrtha Nidhi — Tapasya</h3>
+      <div class="zoom-controls">
+        <button id="bs-tapasya-zoom-out" class="btn btn-secondary" type="button" title="Zoom out">−</button>
+        <span id="bs-tapasya-zoom-level">100%</span>
+        <button id="bs-tapasya-zoom-in" class="btn btn-secondary" type="button" title="Zoom in">+</button>
+      </div>
+    </div>
+    <p class="muted-text">Per distributor: what % of their book-sale profit counts as Tirtha Nidhi. Defaults to 65%.</p>
+    <div id="bs-tapasya-table-wrap" class="table-wrap">
+      <table class="data-table" id="bs-tapasya-table">
+        <thead><tr><th>S.No</th><th>Name</th><th>Percent</th></tr></thead>
+        <tbody id="bs-tapasya-body"><tr><td colspan="3" class="loading-row">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="bs-tapasya-close" class="btn btn-secondary">Close</button>
     </div>
   </div>
 </div>

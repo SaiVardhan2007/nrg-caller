@@ -25,6 +25,7 @@ alter table users add column if not exists assigned_count int not null default 0
 alter table users add column if not exists commander boolean not null default false;
 alter table users add column if not exists sadhana_track boolean not null default false;
 alter table users add column if not exists fulfilled boolean not null default false;
+alter table users add column if not exists tirtha_nidhi_percent numeric not null default 65; -- Tapasya: per-user Tirtha Nidhi rate override
 
 -- Sheet: Master Contact
 create table if not exists contacts (
