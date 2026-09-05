@@ -2982,6 +2982,24 @@ export async function initExpenses(currentUser) {
 /* ======================= SAVINGS (user & admin) ======================= */
 let currentSavingsUser = null;
 
+// Shastra Dana is recorded as a book_outward_stock row (so it shows up in
+// Analytics profit like any other sale), but it's a straight donation the
+// distributor never keeps a cut of — so it owes 0% Tirtha Nidhi contribution
+// instead of the usual 65% of profit.
+function isShastraDana(bookName) {
+  return (bookName || "").trim().toLowerCase() === "shastra dana";
+}
+
+// A profitable sale owes 65% of its margin as Tirtha Nidhi. A sale at a loss
+// owes the full loss (not scaled down) so it still drags the total down —
+// expenses never factor in here, only in Analytics. Shastra Dana is always
+// excluded either way since it's a straight donation, not a sale.
+const TIRTHA_NIDHI_RATE = 0.65;
+function tirthaNidhiContribution(bookName, profit) {
+  if (isShastraDana(bookName)) return 0;
+  return profit > 0 ? profit * TIRTHA_NIDHI_RATE : profit;
+}
+
 async function renderSavingsPanel() {
   const targetUser = currentSavingsUser?.user_name || "";
   if (!targetUser) return;
@@ -3032,23 +3050,21 @@ async function renderSavingsPanel() {
     return (b && b.qty > 0) ? b.val / b.qty : 0;
   };
 
-  let salesRevenue = 0;
-  let bookCost = 0;
+  // Tirtha Nidhi intentionally shows a different number than Dashboard/
+  // Analytics/Expenses: per book sale, 65% of the margin if it sold at a
+  // profit, or the full loss if it sold at a loss — ignoring expenses
+  // entirely. Expenses are billed later and would otherwise claw back a
+  // figure the user already saw, which reads as demotivating even though
+  // nothing was actually wrong. This display is for user motivation only —
+  // admins still see the real expense-netted profit everywhere else.
+  let netProfit = 0;
   (outwardData || []).forEach((r) => {
     const qty = r.quantity || 0;
-    salesRevenue += (r.sold_price || 0) * qty;
-    bookCost += getUnitCost(r.name, r.language) * qty;
+    const revenue = (r.sold_price || 0) * qty;
+    const cost = getUnitCost(r.name, r.language) * qty;
+    netProfit += tirthaNidhiContribution(r.name, revenue - cost);
   });
-
-  // Tirtha Nidhi intentionally shows a different number than Dashboard/
-  // Analytics/Expenses: a fixed 70% of realised (gross) profit, ignoring
-  // expenses entirely, floored at 0. Expenses are billed later and would
-  // otherwise claw back a figure the user already saw, which reads as
-  // demotivating even though nothing was actually wrong. This display is
-  // for user motivation only — admins still see the real expense-netted
-  // profit everywhere else.
-  const grossProfit = salesRevenue - bookCost;
-  const netProfit = grossProfit > 0 ? Math.round(grossProfit * 0.7) : 0;
+  netProfit = Math.round(netProfit);
   const totalMyContribution = (contributionsData || []).reduce((sum, r) => sum + (r.amount || 0), 0);
 
   const netEl = document.getElementById("bs-total-net");
@@ -3129,11 +3145,12 @@ async function openBsUserContributionModal(isAdmin, currentUser) {
     const revenue = (r.sold_price || 0) * qty;
     const cost = getUnitCost(r.name, r.language) * qty;
     const actualProfit = revenue - cost;
-    return { name: r.name, language: r.language, soldAt: r.sold_area, actualProfit, shown: Math.round(actualProfit * 0.7) };
+    const shown = Math.round(tirthaNidhiContribution(r.name, actualProfit));
+    return { name: r.name, language: r.language, soldAt: r.sold_area, actualProfit, shown };
   });
 
   const grossProfit = rows.reduce((s, r) => s + r.actualProfit, 0);
-  const totalShown = grossProfit > 0 ? Math.round(grossProfit * 0.7) : 0;
+  const totalShown = rows.reduce((s, r) => s + r.shown, 0);
 
   // Same per-user expense split as Analytics: an expense only counts against
   // a specific distributor if they're one of its to_users, split evenly.
@@ -3226,17 +3243,14 @@ function wireBsGeneralDataModal() {
       const revenue = (r.sold_price || 0) * qty;
       const cost = getUnitCost(r.name, r.language) * qty;
       const prev = profitBySeller.get(r.sold_by) || 0;
-      profitBySeller.set(r.sold_by, prev + (revenue - cost));
+      profitBySeller.set(r.sold_by, prev + tirthaNidhiContribution(r.name, revenue - cost));
     });
 
     const rows = (coordinators || [])
-      .map((u) => {
-        const grossProfit = profitBySeller.get(u.user_name) || 0;
-        const netProfit = grossProfit > 0 ? Math.round(grossProfit * 0.7) : 0;
-        return { name: u.user_name, netProfit };
-      })
-      .filter((r) => r.netProfit > 0)
+      .map((u) => ({ name: u.user_name, netProfit: Math.round(profitBySeller.get(u.user_name) || 0) }))
+      .filter((r) => r.netProfit !== 0)
       .sort((a, b) => b.netProfit - a.netProfit);
+    const grandTotal = rows.reduce((s, r) => s + r.netProfit, 0);
 
     tbody.innerHTML = rows.length
       ? rows.map((r, idx) => `
@@ -3244,7 +3258,11 @@ function wireBsGeneralDataModal() {
             <td data-label="S.No">${idx + 1}</td>
             <td data-label="Name">${escapeHtml(r.name)}</td>
             <td data-label="Prabhupada Contribution">${fmtMoney(r.netProfit)}</td>
-          </tr>`).join("")
+          </tr>`).join("") +
+        `<tr class="total-row">
+          <td colspan="2">Total</td>
+          <td data-label="Prabhupada Contribution">${fmtMoney(grandTotal)}</td>
+        </tr>`
       : `<tr><td colspan="3" class="loading-row">No distributors found.</td></tr>`;
     reapplyColumnOrder("bs-general-data-table");
   };
