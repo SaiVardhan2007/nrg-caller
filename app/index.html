@@ -2137,7 +2137,10 @@
                 <option value="">—</option>
               </select>
             </label>
-            <label class="field checkbox"><input type="checkbox" id="cmd-filter-unrealised" /><span>Not Realised Only</span></label>
+            <div class="field inline tag-check-group" id="cmd-realised-toggle-group">
+              <label class="tag-check"><input type="checkbox" id="cmd-toggle-realised" checked /> Realised</label>
+              <label class="tag-check"><input type="checkbox" id="cmd-toggle-unrealised" checked /> Unrealised</label>
+            </div>
           </div>
           <p id="cmd-summary" class="muted-text"></p>
           <p id="cmd-total-unrealised" class="cmd-total-unrealised"></p>

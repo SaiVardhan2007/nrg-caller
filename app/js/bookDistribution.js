@@ -1838,15 +1838,33 @@ function matchesDateRange(row, fromVal, toVal) {
 }
 
 function updateCommanderSummary(rows) {
+  const realisedOn = document.getElementById("cmd-toggle-realised")?.checked ?? true;
+  const unrealisedOn = document.getElementById("cmd-toggle-unrealised")?.checked ?? true;
   const total = rows.length;
-  const unrealisedRows = rows.filter((r) => !r.realised);
-  const unrealisedTotal = unrealisedRows.reduce((sum, r) => sum + (r.sold_price || 0) * (r.quantity || 0), 0);
-  document.getElementById("cmd-summary").textContent = total
-    ? `${total} entr${total === 1 ? "y" : "ies"} shown, ${unrealisedRows.length} not realised`
-    : "";
-  document.getElementById("cmd-total-unrealised").textContent = total
-    ? `Total Not Realised (shown above): ${fmtMoney(unrealisedTotal)}`
-    : "";
+  const summaryEl = document.getElementById("cmd-summary");
+  const totalEl = document.getElementById("cmd-total-unrealised");
+
+  if (!total) {
+    summaryEl.textContent = "";
+    totalEl.textContent = "";
+    return;
+  }
+
+  if (realisedOn && unrealisedOn) {
+    const unrealisedRows = rows.filter((r) => !r.realised);
+    const unrealisedTotal = unrealisedRows.reduce((sum, r) => sum + (r.sold_price || 0) * (r.quantity || 0), 0);
+    summaryEl.textContent = `${total} entr${total === 1 ? "y" : "ies"} shown, ${unrealisedRows.length} not realised`;
+    totalEl.className = "cmd-total-unrealised";
+    totalEl.textContent = `Total Not Realised (shown above): ${fmtMoney(unrealisedTotal)}`;
+  } else {
+    // Only one of the two toggles is on, so `rows` is already narrowed to
+    // just that bucket (see matchesCommanderFilters) — total it directly.
+    const label = unrealisedOn ? "Not Realised" : "Realised";
+    const rowsTotal = rows.reduce((sum, r) => sum + (r.sold_price || 0) * (r.quantity || 0), 0);
+    summaryEl.textContent = `${total} entr${total === 1 ? "y" : "ies"} shown (${label.toLowerCase()} only)`;
+    totalEl.className = unrealisedOn ? "cmd-total-unrealised" : "cmd-total-realised";
+    totalEl.textContent = `Total ${label} (shown above): ${fmtMoney(rowsTotal)}`;
+  }
 }
 
 function renderCommanderRows(rows, emptyMessage) {
@@ -1873,7 +1891,9 @@ function renderCommanderRows(rows, emptyMessage) {
   tbody.querySelectorAll(".commander-realised-input").forEach((input) => {
     input.addEventListener("change", async (e) => {
       await toggleOutwardRealised(e.target, commanderCache);
-      if (document.getElementById("cmd-filter-unrealised").checked) applyCommanderFilters();
+      const realisedOn = document.getElementById("cmd-toggle-realised").checked;
+      const unrealisedOn = document.getElementById("cmd-toggle-unrealised").checked;
+      if (!(realisedOn && unrealisedOn)) applyCommanderFilters();
       else updateCommanderSummary(commanderCache.filter((r) => matchesCommanderFilters(r)));
     });
   });
@@ -1883,12 +1903,13 @@ function matchesCommanderFilters(r) {
   const search = document.getElementById("cmd-search")?.value.trim().toLowerCase() || "";
   const from = document.getElementById("cmd-filter-from")?.value || "";
   const to = document.getElementById("cmd-filter-to")?.value || "";
-  const unrealisedOnly = document.getElementById("cmd-filter-unrealised")?.checked;
+  const realisedOn = document.getElementById("cmd-toggle-realised")?.checked ?? true;
+  const unrealisedOn = document.getElementById("cmd-toggle-unrealised")?.checked ?? true;
   return matchesSearch(r, search, ["name", "sold_area", "event", "sold_by"]) &&
     matchesSelectFilters(r, COMMANDER_SELECT_FILTERS) &&
     matchesNumberFilters(r, COMMANDER_NUMBER_FILTERS) &&
     matchesDateRange(r, from, to) &&
-    (!unrealisedOnly || !r.realised);
+    ((realisedOn && r.realised) || (unrealisedOn && !r.realised));
 }
 
 function applyCommanderFilters() {
@@ -1896,6 +1917,22 @@ function applyCommanderFilters() {
   rows = sortRows(rows, document.getElementById("cmd-sort")?.value, "created_at-desc");
   updateCommanderSummary(rows);
   renderCommanderRows(rows, commanderCache.length ? "No records match your filters." : "No outward stock entries yet.");
+}
+
+// Both toggles are allowed to be on (shows everything) but not both off —
+// unchecking the last one just re-checks it so there's always a valid state.
+function wireCommanderRealisedToggle() {
+  const realisedCb = document.getElementById("cmd-toggle-realised");
+  const unrealisedCb = document.getElementById("cmd-toggle-unrealised");
+  [realisedCb, unrealisedCb].forEach((cb) => {
+    cb.addEventListener("change", () => {
+      if (!realisedCb.checked && !unrealisedCb.checked) {
+        cb.checked = true;
+        showToast("At least one of Realised / Unrealised must stay enabled.", "error");
+      }
+      applyCommanderFilters();
+    });
+  });
 }
 
 function wireCommanderFilters() {
@@ -1911,7 +1948,7 @@ function wireCommanderFilters() {
   pairFilterControls("cmd-filter-qty", "cmd-th-filter-qty", applyCommanderFilters);
   document.getElementById("cmd-filter-from").addEventListener("change", applyCommanderFilters);
   document.getElementById("cmd-filter-to").addEventListener("change", applyCommanderFilters);
-  document.getElementById("cmd-filter-unrealised").addEventListener("change", applyCommanderFilters);
+  wireCommanderRealisedToggle();
   initHorizontalScroll("commander-table-wrap");
 
   // Mobile: tapping a row (not its Realised checkbox) expands it in place to
