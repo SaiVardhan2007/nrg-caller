@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/css/tabulator.min.css" />
 <link rel="stylesheet" href="css/theme.css" />
 </head>
 <body>
@@ -45,7 +46,6 @@
     <button id="back-btn" class="icon-btn hidden" aria-label="Back">←</button>
     <div class="header-titles">
       <div id="header-title" class="header-title">FNRG Preaching</div>
-      <div id="sync-status" class="sync-status"></div>
     </div>
     <div class="header-right">
       <span id="user-name" class="user-chip"></span>
@@ -106,7 +106,7 @@
   <div id="admin-module-dashboard" class="dashboard hidden">
     <div class="dashboard-cards">
       <button class="dashboard-card" data-target="preaching">
-        <span class="card-icon-badge badge-tulsi"><span class="card-emoji">📖</span></span>
+        <span class="card-icon-badge badge-tulsi"><img src="icons/preaching-icon.png" alt="" class="card-icon-img" /></span>
         <span class="card-label">Preaching</span>
         <span class="card-arrow">→</span>
       </button>
@@ -132,7 +132,7 @@
   <div id="home-dashboard" class="dashboard hidden">
     <div class="dashboard-cards">
       <button class="dashboard-card" data-target="preaching">
-        <span class="card-icon-badge badge-tulsi"><span class="card-emoji">📖</span></span>
+        <span class="card-icon-badge badge-tulsi"><img src="icons/preaching-icon.png" alt="" class="card-icon-img" /></span>
         <span class="card-label">Preaching</span>
         <span class="card-arrow">→</span>
       </button>
@@ -194,11 +194,14 @@
         <span class="card-label">Book Requests</span>
         <span class="card-arrow">→</span>
       </button>
+      <!-- Tīrtha Nidhi: hidden for regular users; still accessible to admins via the Book Distribution admin tabs
       <button class="dashboard-card" data-target="book-savings-user-section">
         <span class="card-icon-badge badge-saffron"><span class="card-emoji">💰</span></span>
         <span class="card-label">Tīrtha Nidhi</span>
         <span class="card-arrow">→</span>
       </button>
+      -->
+
       <button class="dashboard-card" data-target="book-places-user-section">
         <span class="card-icon-badge badge-indigo"><span class="card-emoji">📍</span></span>
         <span class="card-label">Add Places</span>
@@ -1231,6 +1234,10 @@
                 <option value="yes">Fulfilled</option>
               </select>
             </label>
+            <label class="field inline">
+              <span>Quantity</span>
+              <input id="br-filter-qty" type="number" min="0" placeholder="All" style="width:80px;" />
+            </label>
             <button id="add-book-request-admin-btn" class="btn btn-primary toolbar-btn open-book-request-btn">+ Add Request</button>
             <button id="br-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
             <button id="br-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
@@ -1238,61 +1245,7 @@
         </div>
 
         <div class="users-content">
-          <div class="table-wrap" id="book-requests-table-wrap">
-            <table class="data-table" id="book-requests-table">
-              <thead>
-                <tr>
-                  <th draggable="true" data-label="S.No">S.No</th>
-                  <th draggable="true" data-label="Time">Time</th>
-                  <th draggable="true" data-label="Name">Name</th>
-                  <th draggable="true" data-label="Quantity">
-                    <div class="th-label">Quantity</div>
-                    <input type="number" min="0" id="br-th-filter-qty" class="th-filter" placeholder="All" />
-                  </th>
-                  <th draggable="true" data-label="Place">
-                    <div class="th-label">Place</div>
-                    <select id="br-th-filter-place" class="th-filter">
-                      <option value="__ALL__">All</option>
-                      <option value="">—</option>
-                    </select>
-                  </th>
-                  <th draggable="true" data-label="Event">
-                    <div class="th-label">Event</div>
-                    <select id="br-th-filter-event" class="th-filter">
-                      <option value="__ALL__">All</option>
-                      <option value="">—</option>
-                    </select>
-                  </th>
-                  <th draggable="true" data-label="Priority">
-                    <div class="th-label">Priority</div>
-                    <select id="br-th-filter-priority" class="th-filter">
-                      <option value="__ALL__">All</option>
-                      <option value="">—</option>
-                    </select>
-                  </th>
-                  <th draggable="true" data-label="Requested By">
-                    <div class="th-label">Requested By</div>
-                    <select id="br-th-filter-by" class="th-filter">
-                      <option value="__ALL__">All</option>
-                      <option value="">—</option>
-                    </select>
-                  </th>
-                  <th draggable="true" data-label="Fulfilled">
-                    <div class="th-label">Fulfilled</div>
-                    <select id="br-th-filter-fulfilled" class="th-filter">
-                      <option value="__ALL__">All</option>
-                      <option value="no">Pending</option>
-                      <option value="yes">Fulfilled</option>
-                    </select>
-                  </th>
-                  <th data-label=""></th>
-                </tr>
-              </thead>
-              <tbody id="book-requests-body">
-                <tr><td colspan="10" class="loading-row">Loading…</td></tr>
-              </tbody>
-            </table>
-          </div>
+          <div class="tabulator-table" id="book-requests-table"></div>
         </div>
       </div>
     </section>
@@ -3500,6 +3453,7 @@
 </div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
 <script type="module" src="js/main.js"></script>
 </body>
 </html>

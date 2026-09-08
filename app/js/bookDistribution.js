@@ -1616,61 +1616,138 @@ function wireRequestModal(currentUser, onSaved) {
   };
 }
 
-const REQUESTS_COLUMNS_KEY = "nrg-book-requests-column-order";
-const DEFAULT_REQUESTS_COLUMNS = ["S.No", "Time", "Name", "Quantity", "Place", "Event", "Priority", "Requested By", "Fulfilled", ""];
+/* Book Requests: first table converted to Tabulator.js (github.com/olifolkerd/tabulator,
+   loaded globally via CDN in index.html) instead of the hand-rolled <table>+CSS
+   responsive approach — its responsive-collapse module hides low-priority
+   columns behind a "+" on narrow screens natively, and its list/number/tickCross
+   editors + built-in xlsx export (via the already-loaded SheetJS global) replace
+   most of the custom inline-edit/export/reorder plumbing below for this table only. */
+const REQUESTS_COLUMNS_KEY = "nrg-book-requests-tabulator-columns";
+const REQUESTS_COLUMN_FIELDS = ["_rownum", "created_at", "name", "quantity", "place", "event", "priority", "requested_by", "fulfilled", "_actions"];
 const REQUESTS_SELECT_FILTERS = [["br-filter-priority", "priority"], ["br-filter-place", "place"], ["br-filter-event", "event"], ["br-filter-by", "requested_by"]];
-const REQUESTS_NUMBER_FILTERS = [["br-th-filter-qty", "quantity"]];
+const REQUESTS_NUMBER_FILTERS = [["br-filter-qty", "quantity"]];
 let requestsCache = [];
 let requestsFiltersWired = false;
+let requestsTable = null;
 
-function renderRequestsRows(rows, emptyMessage) {
-  const tbody = document.getElementById("book-requests-body");
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="muted-text">${emptyMessage}</td></tr>`;
-    return;
+function requestsListValues(field) {
+  const values = { "": "— Select —" };
+  distinctValues(requestsCache, field).forEach((v) => { values[v] = v; });
+  return values;
+}
+
+function getRequestsColumnOrder() {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(REQUESTS_COLUMNS_KEY)); } catch { saved = null; }
+  if (Array.isArray(saved) && saved.length === REQUESTS_COLUMN_FIELDS.length && REQUESTS_COLUMN_FIELDS.every((f) => saved.includes(f))) {
+    return saved;
   }
-  tbody.innerHTML = rows.map((r, idx) => `
-    <tr data-id="${r.id}" class="${r.priority === "Immediately" && !r.fulfilled ? "row-low-stock" : ""}">
-      <td data-label="S.No">${idx + 1}</td>
-      <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
-      <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
-      <td data-label="Quantity"><input class="inline-edit" type="number" min="1" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
-      <td data-label="Place">${editSelectHtml("place", distinctValues(requestsCache, "place"), r.place || "")}</td>
-      <td data-label="Event">${editSelectHtml("event", distinctValues(requestsCache, "event"), r.event || "")}</td>
-      <td data-label="Priority">
-        <select class="inline-edit" data-field="priority">
-          ${["Immediately", "Important", "Can Wait"].map((p) => `<option value="${p}" ${r.priority === p ? "selected" : ""}>${p}</option>`).join("")}
-        </select>
-      </td>
-      <td data-label="Requested By">${escapeHtml(r.requested_by || "—")}</td>
-      <td data-label="Fulfilled"><input type="checkbox" class="inline-edit request-fulfilled-input" data-field="fulfilled" ${r.fulfilled ? "checked" : ""} /></td>
-      <td data-label="">
-        <button type="button" class="cell-chip danger request-delete-btn" title="Delete">🗑 Delete</button>
-      </td>
-    </tr>
-  `).join("");
+  return REQUESTS_COLUMN_FIELDS;
+}
 
-  tbody.querySelectorAll(".request-delete-btn").forEach((btn) => {
-    btn.addEventListener("click", () => deleteRequest(btn.closest("tr").dataset.id));
+function saveRequestsColumnOrder() {
+  localStorage.setItem(REQUESTS_COLUMNS_KEY, JSON.stringify(requestsTable.getColumns().map((c) => c.getField())));
+}
+
+function buildRequestsColumnDefs() {
+  const priorityPill = (cell) => {
+    const p = cell.getValue() || "";
+    if (!p) return "";
+    return `<span class="tab-priority-pill tab-priority-${p.toLowerCase().replace(/\s+/g, "-")}">${escapeHtml(p)}</span>`;
+  };
+  // headerSort is off on every column — sorting stays driven by the "Sort
+  // By" dropdown (applyRequestsFilters/sortRows) like the rest of Book
+  // Distribution, instead of also letting header clicks re-sort the
+  // currently-loaded page and drift out of sync with the dropdown's value.
+  const defs = {
+    _rownum: { title: "S.No", field: "_rownum", formatter: "rownum", hozAlign: "center", width: 56, headerSort: false, responsive: 0, resizable: false, download: false },
+    created_at: {
+      title: "Time", field: "created_at", width: 175, headerSort: false, responsive: 3,
+      formatter: (cell) => { const v = cell.getValue(); return v ? escapeHtml(new Date(v).toLocaleString()) : ""; },
+    },
+    name: { title: "Name", field: "name", editor: "input", validator: "required", widthGrow: 2, minWidth: 140, headerSort: false, responsive: 0 },
+    quantity: { title: "Quantity", field: "quantity", editor: "number", editorParams: { min: 1, step: 1 }, hozAlign: "right", width: 100, headerSort: false, responsive: 1 },
+    place: {
+      title: "Place", field: "place", editor: "list", editorParams: () => ({ values: requestsListValues("place") }),
+      width: 130, headerSort: false, responsive: 4, formatter: (cell) => escapeHtml(cell.getValue() || "—"),
+    },
+    event: {
+      title: "Event", field: "event", editor: "list", editorParams: () => ({ values: requestsListValues("event") }),
+      width: 130, headerSort: false, responsive: 4, formatter: (cell) => escapeHtml(cell.getValue() || "—"),
+    },
+    priority: {
+      title: "Priority", field: "priority", editor: "list",
+      editorParams: { values: { Immediately: "Immediately", Important: "Important", "Can Wait": "Can Wait" } },
+      width: 125, headerSort: false, responsive: 2, formatter: priorityPill,
+    },
+    requested_by: { title: "Requested By", field: "requested_by", width: 140, headerSort: false, responsive: 3, formatter: (cell) => escapeHtml(cell.getValue() || "—") },
+    fulfilled: {
+      // Not an `editor` on purpose — Tabulator's tickCross editor needs a
+      // click to enter edit mode and a second click on the checkbox it
+      // renders to actually toggle. cellClick + setValue gets back to the
+      // single-click checkbox toggle this column had before Tabulator.
+      title: "Fulfilled", field: "fulfilled", formatter: "tickCross", hozAlign: "center", width: 90, headerSort: false, responsive: 1,
+      cellClick: (e, cell) => cell.setValue(!cell.getValue()),
+    },
+    _actions: {
+      title: "", field: "_actions", hozAlign: "center", width: 54, headerSort: false, responsive: 0, resizable: false, download: false,
+      formatter: () => `<button type="button" class="cell-chip danger request-delete-btn" title="Delete">🗑</button>`,
+      cellClick: (e, cell) => { if (e.target.closest(".request-delete-btn")) deleteRequest(cell.getRow().getData().id); },
+    },
+  };
+  return getRequestsColumnOrder().map((key) => defs[key]).filter(Boolean);
+}
+
+function ensureRequestsTable() {
+  if (requestsTable) return requestsTable;
+  requestsTable = new Tabulator("#book-requests-table", {
+    data: [],
+    layout: "fitDataFill",
+    columns: buildRequestsColumnDefs(),
+    movableColumns: true,
+    responsiveLayout: "collapse",
+    responsiveLayoutCollapseStartOpen: false,
+    // Tab-to-commit-and-edit-the-next-cell throws inside Tabulator 6.3's
+    // minified navigateNext when the next column isn't itself editable
+    // (e.g. Time, Requested By) — and it's not a flow this table asks for
+    // anyway, so the whole nav-by-keyboard chain is off, not just the crash.
+    keybindings: { navNext: false, navPrev: false, navUp: false, navDown: false },
+    // The "+" toggle for collapsed columns isn't automatic in Tabulator 6.x —
+    // it only appears if you opt in via a dedicated rowHeader column.
+    rowHeader: { formatter: "responsiveCollapse", width: 30, minWidth: 30, hozAlign: "center", resizable: false, headerSort: false, frozen: true },
+    placeholder: "No book requests yet.",
+    rowFormatter: (row) => {
+      const d = row.getData();
+      row.getElement()?.classList.toggle("row-low-stock", d.priority === "Immediately" && !d.fulfilled);
+    },
   });
-  tbody.querySelectorAll(".request-fulfilled-input").forEach((input) => {
-    input.addEventListener("change", async (e) => {
-      const id = e.target.closest("tr").dataset.id;
-      const record = requestsCache.find((x) => x.id === id);
-      const checked = e.target.checked;
-      const { error } = await supabase.from("book_requests").update({ fulfilled: checked }).eq("id", id);
-      if (error) {
-        showToast("Update failed: " + error.message, "error");
-        e.target.checked = !checked;
-        return;
-      }
-      if (record) record.fulfilled = checked;
-      e.target.closest("tr").classList.toggle("row-low-stock", record.priority === "Immediately" && !checked);
-      showToast(checked ? "Marked as fulfilled" : "Marked as not fulfilled", "success");
-    });
+  requestsTable.on("columnMoved", saveRequestsColumnOrder);
+  requestsTable.on("cellEdited", async (cell) => {
+    const field = cell.getField();
+    const row = cell.getRow();
+    const data = row.getData();
+    const record = requestsCache.find((x) => x.id === data.id);
+    if (!record) return;
+    const oldValue = cell.getOldValue();
+    let value = cell.getValue();
+    if (field === "name" && !String(value || "").trim()) {
+      showToast("Name cannot be empty.", "error");
+      cell.setValue(oldValue, true);
+      return;
+    }
+    value = field === "quantity" ? (value === "" || value == null ? null : Number(value)) : value;
+    if (typeof value === "string") value = value.trim() || null;
+    const { error } = await supabase.from("book_requests").update({ [field]: value }).eq("id", data.id);
+    if (error) {
+      showToast("Update failed: " + error.message, "error");
+      cell.setValue(oldValue, true);
+      return;
+    }
+    record[field] = value;
+    row.reformat();
+    if (field === "fulfilled") showToast(value ? "Marked as fulfilled" : "Marked as not fulfilled", "success");
   });
-  wireInlineEditCells(tbody, "book_requests", requestsCache, { numberFields: ["quantity"], requiredFields: ["name"] }, applyRequestsFilters);
-  reapplyColumnOrder("book-requests-table");
+  return requestsTable;
 }
 
 function applyRequestsFilters() {
@@ -1683,7 +1760,16 @@ function applyRequestsFilters() {
     (fulfilledFilter === "__ALL__" || (fulfilledFilter === "yes" ? r.fulfilled : !r.fulfilled))
   );
   rows = sortRows(rows, document.getElementById("br-sort")?.value, "created_at-desc");
-  renderRequestsRows(rows, requestsCache.length ? "No requests match your filters." : "No book requests yet.");
+  // Tabulator's own build (headers, DOM, layout modules) finishes async right
+  // after `new Tabulator(...)` returns — calling replaceData() before that
+  // completes silently drops the data. Its `initialized` flag is the
+  // documented way to check, falling back to the `tableBuilt` event once.
+  const table = ensureRequestsTable();
+  if (table.initialized) {
+    table.replaceData(rows);
+  } else {
+    table.on("tableBuilt", () => table.replaceData(rows));
+  }
 }
 
 function wireRequestsFilters() {
@@ -1691,15 +1777,20 @@ function wireRequestsFilters() {
   requestsFiltersWired = true;
   document.getElementById("br-search").addEventListener("input", debounce(applyRequestsFilters, 200));
   document.getElementById("br-sort").addEventListener("change", applyRequestsFilters);
-  pairFilterControls("br-filter-priority", "br-th-filter-priority", applyRequestsFilters);
-  pairFilterControls("br-filter-place", "br-th-filter-place", applyRequestsFilters);
-  pairFilterControls("br-filter-event", "br-th-filter-event", applyRequestsFilters);
-  pairFilterControls("br-filter-by", "br-th-filter-by", applyRequestsFilters);
-  pairFilterControls("br-filter-fulfilled", "br-th-filter-fulfilled", applyRequestsFilters);
-  document.getElementById("br-th-filter-qty")?.addEventListener("input", debounce(applyRequestsFilters, 200));
-  wireExportBtn("br-export-btn", "book-requests-table", "Book_Requests");
-  initColumnDragReorder("book-requests-table", { storageKey: REQUESTS_COLUMNS_KEY, columns: DEFAULT_REQUESTS_COLUMNS, resetBtnId: "br-reset-columns-btn" });
-  initHorizontalScroll("book-requests-table-wrap");
+  document.getElementById("br-filter-priority").addEventListener("change", applyRequestsFilters);
+  document.getElementById("br-filter-place").addEventListener("change", applyRequestsFilters);
+  document.getElementById("br-filter-event").addEventListener("change", applyRequestsFilters);
+  document.getElementById("br-filter-by").addEventListener("change", applyRequestsFilters);
+  document.getElementById("br-filter-fulfilled").addEventListener("change", applyRequestsFilters);
+  document.getElementById("br-filter-qty")?.addEventListener("input", debounce(applyRequestsFilters, 200));
+  document.getElementById("br-reset-columns-btn")?.addEventListener("click", () => {
+    localStorage.removeItem(REQUESTS_COLUMNS_KEY);
+    ensureRequestsTable().setColumns(buildRequestsColumnDefs());
+    showToast("Column order reset", "success");
+  });
+  document.getElementById("br-export-btn")?.addEventListener("click", () => {
+    ensureRequestsTable().download("xlsx", `Book_Requests_${new Date().toISOString().slice(0, 10)}.xlsx`, { sheetName: "Book Requests" });
+  });
 }
 
 async function deleteRequest(id) {
@@ -1717,8 +1808,7 @@ async function deleteRequest(id) {
 export async function initBookRequests(currentUser) {
   wireRequestsFilters();
   wireRequestModal(currentUser, () => initBookRequests(currentUser));
-  const tbody = document.getElementById("book-requests-body");
-  tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Loading…</td></tr>`;
+  ensureRequestsTable();
 
   const { data, error } = await supabase
     .from("book_requests")
@@ -1726,14 +1816,16 @@ export async function initBookRequests(currentUser) {
     .order("created_at", { ascending: false });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Could not load book requests.</td></tr>`;
+    showToast("Could not load book requests.", "error");
+    requestsCache = [];
+    applyRequestsFilters();
     return;
   }
   requestsCache = (data || []).map((r) => ({ ...r, priorityRank: priorityRank(r.priority) }));
-  populatePairedSelect("br-filter-priority", "br-th-filter-priority", distinctValues(requestsCache, "priority"));
-  populatePairedSelect("br-filter-place", "br-th-filter-place", distinctValues(requestsCache, "place"));
-  populatePairedSelect("br-filter-event", "br-th-filter-event", distinctValues(requestsCache, "event"));
-  populatePairedSelect("br-filter-by", "br-th-filter-by", distinctValues(requestsCache, "requested_by"));
+  populateFilterSelect(document.getElementById("br-filter-priority"), distinctValues(requestsCache, "priority"));
+  populateFilterSelect(document.getElementById("br-filter-place"), distinctValues(requestsCache, "place"));
+  populateFilterSelect(document.getElementById("br-filter-event"), distinctValues(requestsCache, "event"));
+  populateFilterSelect(document.getElementById("br-filter-by"), distinctValues(requestsCache, "requested_by"));
   applyRequestsFilters();
 }
 
