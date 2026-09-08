@@ -228,6 +228,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .icon-btn:active { transform: scale(0.92); }
 .header-titles { flex: 1; min-width: 0; }
 .header-title { font-weight: 800; font-size: 17px; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sync-status { font-size: 11px; opacity: 0.85; min-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .user-chip { font-size: 13px; font-weight: 700; background: rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 20px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .role-badge { font-size: 11px; background: var(--saffron-light); color: #4a2c05; padding: 3px 9px; border-radius: 20px; font-weight: 800; white-space: nowrap; }
@@ -336,7 +337,6 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .badge-indigo { background: linear-gradient(135deg, #e0e7ff, #c7d2fe); }
 .badge-cultivation { background: linear-gradient(135deg, #ecfccb, #bef264); }
 .card-emoji { font-size: 22px; line-height: 1; }
-.card-icon-img { width: 30px; height: 30px; object-fit: contain; }
 .card-emoji.duo { font-size: 15px; letter-spacing: -3px; }
 .card-label { grid-row: 1; grid-column: 2; font-weight: 800; color: var(--tulsi-dark); font-size: 15px; }
 .card-sub { grid-row: 2; grid-column: 2; font-size: 12px; color: var(--text-muted); font-weight: 500; }
@@ -3191,117 +3191,4 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 #general-data-modal.active {
   overflow-y: auto;
-}
-
-/* ============ TABULATOR.JS RESPONSIVE TABLES ============
-   Book Requests is the first table moved to Tabulator (loaded globally via
-   CDN in index.html) instead of the hand-rolled <table>+CSS responsive
-   pattern used everywhere else — its responsive-collapse module natively
-   hides low-priority columns behind a "+" on narrow screens. Its own default
-   theme is overridden here to match this app's cream/tulsi look; every rule
-   below is scoped to .tabulator-table so it's a no-op on tables not yet
-   converted, and can be reused as-is if more tables move to Tabulator later. */
-.tabulator-table.tabulator {
-  background: var(--surface);
-  border: none;
-  border-radius: var(--card-radius);
-  box-shadow: var(--shadow-sm);
-  font-family: inherit;
-  font-size: 13px;
-  color: var(--text-main);
-}
-.tabulator-table .tabulator-header {
-  background: var(--cream);
-  border-bottom: 1.5px solid var(--sandstone);
-}
-.tabulator-table .tabulator-col {
-  background: transparent;
-  border-right: none;
-}
-.tabulator-table .tabulator-col-title {
-  font-weight: 700;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: var(--tulsi-dark);
-}
-.tabulator-table .tabulator-row {
-  background: var(--surface);
-  border-bottom: 1px solid var(--sandstone);
-  min-height: 40px;
-}
-.tabulator-table .tabulator-row.tabulator-row-even {
-  background: rgba(6, 95, 70, 0.025);
-}
-.tabulator-table .tabulator-row:hover {
-  background: rgba(5, 150, 105, 0.06);
-}
-.tabulator-table .tabulator-row.row-low-stock {
-  background: rgba(220, 38, 38, 0.12) !important;
-}
-.tabulator-table .tabulator-row.row-low-stock:hover {
-  background: rgba(220, 38, 38, 0.2) !important;
-}
-.tabulator-table .tabulator-cell {
-  padding: 8px 10px;
-  border-right: none;
-}
-.tabulator-table .tabulator-cell.tabulator-editing {
-  border: 1.5px solid var(--tulsi);
-  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
-}
-.tabulator-table .tabulator-cell.tabulator-editing input,
-.tabulator-table .tabulator-cell.tabulator-editing select {
-  font-family: inherit;
-  font-size: 13px;
-}
-
-/* Priority pill — Book Requests' Priority column formatter. */
-.tab-priority-pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
-.tab-priority-immediately { background: rgba(220, 38, 38, 0.14); color: var(--danger); }
-.tab-priority-important { background: rgba(217, 119, 6, 0.14); color: var(--saffron); }
-.tab-priority-can-wait { background: rgba(5, 150, 105, 0.12); color: var(--tulsi-dark); }
-
-.tabulator-table .request-delete-btn { font-size: 13px; padding: 4px 8px; }
-
-/* Responsive-collapse "+"/"-" toggle cell and its expanded field list. */
-.tabulator-table .tabulator-responsive-collapse-toggle {
-  color: var(--tulsi);
-  width: 20px;
-  height: 20px;
-}
-.tabulator-table .tabulator-responsive-collapse {
-  background: var(--cream);
-  border-top: 1px dashed var(--sandstone);
-  padding: 8px 12px;
-  font-size: 12.5px;
-}
-.tabulator-table .tabulator-responsive-collapse table td { padding: 3px 6px; vertical-align: top; }
-.tabulator-table .tabulator-responsive-collapse table td:first-child {
-  font-weight: 700;
-  color: var(--text-muted);
-  white-space: nowrap;
-  padding-right: 10px;
-}
-
-/* The list/editor popups Tabulator renders (e.g. the Place/Event dropdowns)
-   are portalled onto <body>, outside .tabulator-table, so they're restyled
-   globally here — safe since only Tabulator uses these class names. */
-.tabulator-edit-list {
-  font-family: inherit;
-  font-size: 13px;
-  border-radius: var(--radius-sm);
-  border: 1.5px solid var(--sandstone);
-  box-shadow: var(--shadow);
-}
-.tabulator-edit-list-item.active,
-.tabulator-edit-list-item:hover {
-  background: var(--tulsi);
-  color: #fff;
-}
-
-@media (max-width: 640px) {
-  .tabulator-table.tabulator { font-size: 12.5px; }
-  .tabulator-table .tabulator-cell { padding: 7px 8px; }
-  .tabulator-table .tabulator-col-title { font-size: 10.5px; }
 }
