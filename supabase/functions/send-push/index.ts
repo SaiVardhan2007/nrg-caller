@@ -32,80 +32,145 @@ function json(body: unknown, status = 200) {
   });
 }
 
-// Decide who should be notified and what the notification says, given the
-// table + row that triggered this call. Returns null if this table/record
-// isn't one we notify on (defensive — the trigger only fires for these two
-// tables today, but new triggers may be added later without updating this).
-async function resolveNotification(
+type Notification = { userNames: string[]; title: string; body: string; url: string };
+
+// Decide who should be notified and what each notification says, given the
+// table + payload that triggered this call. Returns one entry per distinct
+// message — e.g. a bulk assignment produces one entry per affected caller
+// (each with their own count), not one per row.
+async function resolveNotifications(
   supabase: ReturnType<typeof createClient>,
   table: string,
-  record: Record<string, unknown>,
-): Promise<{ userNames: string[]; title: string; body: string; url: string } | null> {
+  payload: Record<string, unknown>,
+): Promise<Notification[]> {
   if (table === "assignments") {
-    return {
-      userNames: [record.user_name as string],
-      title: "New contact assigned",
-      body: "You've been assigned a new contact to call.",
+    const groups = (payload.groups as { user_name: string; count: number }[]) ?? [];
+    return groups.map((g) => ({
+      userNames: [g.user_name],
+      title: g.count === 1 ? "New contact assigned" : "New contacts assigned",
+      body: g.count === 1
+        ? "You've been assigned a new contact to call."
+        : `You've been assigned ${g.count} new contacts to call.`,
       url: "/",
-    };
+    }));
   }
 
   if (table === "help_requests") {
+    const record = payload.record as Record<string, unknown>;
     const { data: admins } = await supabase.from("users").select("user_name").eq("role", "Admin");
     const message = String(record.message ?? "");
-    return {
+    return [{
       userNames: (admins ?? []).map((a) => a.user_name as string),
       title: "New One to One message",
       body: message.length > 120 ? message.slice(0, 117) + "..." : message,
       url: "/",
-    };
+    }];
   }
 
-  return null;
+  return [];
+}
+
+const PENDING_STATUSES = new Set(["not done", "yet to call", ""]);
+
+// Mirrors app/js/caller.js's refreshDashboardBadge (assignments pending) and
+// app/js/coreCultivation.js's refreshDashboardBadge (contacts this cultivator
+// hasn't logged a call for yet) — kept in sync with those so the OS app-icon
+// badge always matches what the in-app dashboard dots show.
+async function computeBadgeCount(supabase: ReturnType<typeof createClient>, userName: string): Promise<number> {
+  const [{ data: assignments }, { data: ccContacts }] = await Promise.all([
+    supabase.from("assignments").select("status").eq("user_name", userName),
+    supabase.from("contacts").select("mob_no").eq("core_cultivation", userName),
+  ]);
+
+  const myCallsPending = (assignments ?? []).filter((a) =>
+    PENDING_STATUSES.has(String(a.status ?? "").toLowerCase())
+  ).length;
+
+  let ccPending = 0;
+  if (ccContacts && ccContacts.length) {
+    const mobNos = ccContacts.map((c) => c.mob_no);
+    const { data: history } = await supabase
+      .from("call_responses")
+      .select("mob_no, remarks, ts")
+      .eq("caller_name", userName)
+      .in("mob_no", mobNos)
+      .order("ts", { ascending: false });
+
+    const lastStatusByMob: Record<string, string> = {};
+    (history ?? []).forEach((r) => {
+      if (!(r.mob_no in lastStatusByMob)) lastStatusByMob[r.mob_no as string] = r.remarks as string;
+    });
+
+    ccPending = ccContacts.filter((c) =>
+      PENDING_STATUSES.has(String(lastStatusByMob[c.mob_no as string] ?? "").toLowerCase())
+    ).length;
+  }
+
+  return myCallsPending + ccPending;
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { table, record } = await req.json();
-    if (!table || !record) return json({ error: "missing table/record" }, 400);
+    const body = await req.json();
+    const { table } = body;
+    if (!table) return json({ error: "missing table" }, 400);
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-    const notification = await resolveNotification(supabase, table, record);
-    if (!notification || !notification.userNames.length) {
-      return json({ sent: 0, reason: "no recipients" });
-    }
-
-    const { data: subs, error } = await supabase
-      .from("push_subscriptions")
-      .select("id, endpoint, p256dh, auth")
-      .in("user_name", notification.userNames);
-    if (error) throw error;
-    if (!subs || !subs.length) return json({ sent: 0, reason: "no subscriptions for recipients" });
-
-    const payload = JSON.stringify({ title: notification.title, body: notification.body, url: notification.url });
+    const notifications = await resolveNotifications(supabase, table, body);
+    if (!notifications.length) return json({ sent: 0, reason: "no recipients" });
 
     let sent = 0;
-    const staleIds: string[] = [];
-    await Promise.all(subs.map(async (sub) => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          payload,
-        );
-        sent++;
-      } catch (err) {
-        const status = (err as { statusCode?: number }).statusCode;
-        if (status === 404 || status === 410) staleIds.push(sub.id as string);
-        else console.error("push send failed:", sub.endpoint, err);
-      }
-    }));
+    const staleIds = new Set<string>();
 
-    if (staleIds.length) await supabase.from("push_subscriptions").delete().in("id", staleIds);
+    for (const notification of notifications) {
+      if (!notification.userNames.length) continue;
 
-    return json({ sent, stale: staleIds.length });
+      const { data: subs, error } = await supabase
+        .from("push_subscriptions")
+        .select("id, user_name, endpoint, p256dh, auth")
+        .in("user_name", notification.userNames);
+      if (error) throw error;
+      if (!subs || !subs.length) continue;
+
+      // Each recipient sees their own badge total, not the count of this one
+      // event — compute it once per distinct user in this batch.
+      const badgeCountByUser = new Map<string, number>();
+      await Promise.all([...new Set(subs.map((s) => s.user_name as string))].map(async (userName) => {
+        badgeCountByUser.set(userName, await computeBadgeCount(supabase, userName));
+      }));
+
+      await Promise.all(subs.map(async (sub) => {
+        const payload = JSON.stringify({
+          title: notification.title,
+          body: notification.body,
+          url: notification.url,
+          badgeCount: badgeCountByUser.get(sub.user_name as string) ?? 0,
+        });
+        try {
+          // urgency: "high" + a short TTL tells Android's push service (FCM)
+          // to wake the device immediately instead of batching delivery for
+          // the next time it's idle/awake (the default behavior otherwise,
+          // which shows the notification only once the phone/app is opened).
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            payload,
+            { urgency: "high", TTL: 60 },
+          );
+          sent++;
+        } catch (err) {
+          const status = (err as { statusCode?: number }).statusCode;
+          if (status === 404 || status === 410) staleIds.add(sub.id as string);
+          else console.error("push send failed:", sub.endpoint, err);
+        }
+      }));
+    }
+
+    if (staleIds.size) await supabase.from("push_subscriptions").delete().in("id", [...staleIds]);
+
+    return json({ sent, stale: staleIds.size });
   } catch (err) {
     console.error("send-push error:", err);
     return json({ error: String((err as Error)?.message ?? err) }, 500);

@@ -43,9 +43,43 @@ begin
 end $$;
 
 -- Condition: user assigned a contact -> push that caller.
+-- STATEMENT-level (not ROW-level): admin.js always assigns as one bulk
+-- multi-row INSERT (e.g. 204 contacts to one caller in a single "Assign"
+-- click), so a ROW trigger fired once per row -> one push per contact.
+-- This groups every row from that one INSERT by user_name via the
+-- transition table, so a 204-row bulk assign sends exactly one push per
+-- affected caller (with a count), not one per row.
+create or replace function notify_push_assignments_batch() returns trigger language plpgsql as $$
+declare
+  push_url text;
+  groups   jsonb;
+begin
+  select value into push_url from settings where key = 'push_function_url';
+  if push_url is null or push_url = '' then
+    return null;
+  end if;
+
+  select jsonb_agg(jsonb_build_object('user_name', user_name, 'count', cnt))
+    into groups
+  from (select user_name, count(*) as cnt from inserted group by user_name) g;
+
+  if groups is null then
+    return null;
+  end if;
+
+  perform net.http_post(
+    url := push_url,
+    body := jsonb_build_object('table', 'assignments', 'groups', groups),
+    headers := jsonb_build_object('Content-Type', 'application/json'),
+    timeout_milliseconds := 15000
+  );
+  return null;
+end $$;
+
 drop trigger if exists trg_push_assignments on assignments;
 create trigger trg_push_assignments after insert on assignments
-  for each row execute function notify_push_bridge();
+  referencing new table as inserted
+  for each statement execute function notify_push_assignments_batch();
 
 -- Condition: contact submits a One to One question -> push the admin(s).
 drop trigger if exists trg_push_help_requests on help_requests;

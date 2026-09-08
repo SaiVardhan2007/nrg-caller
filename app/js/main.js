@@ -1,6 +1,7 @@
 import { getSession, login, logout, refreshSession } from "./auth.js";
 import { initActivityLog, logEvent } from "./activityLog.js";
 import { subscribeToPush } from "./push.js";
+import { refreshAllBadges } from "./badges.js";
 import * as Admin from "./admin.js";
 import * as Caller from "./caller.js";
 import * as Reception from "./reception.js";
@@ -180,7 +181,7 @@ function enterPreachingDashboard() {
   preachingDashboard.classList.remove("hidden");
   headerTitle.textContent = "Preaching";
   backBtn.classList.remove("hidden");
-  Caller.refreshDashboardBadge(currentUser);
+  refreshAllBadges(currentUser);
 }
 
 function enterBookDistUserDashboard() {
@@ -413,6 +414,7 @@ async function boot() {
     initActivityLog(currentUser);
     renderForRole(currentUser);
     subscribeToPush(currentUser);
+    refreshAllBadges(currentUser);
   }
 
   // Global click-to-copy handler for phone numbers
@@ -454,6 +456,7 @@ async function boot() {
     initActivityLog(currentUser);
     renderForRole(currentUser);
     subscribeToPush(currentUser);
+    refreshAllBadges(currentUser);
   });
 
   document.getElementById("logout-btn").addEventListener("click", logout);
@@ -463,7 +466,7 @@ async function boot() {
   document.getElementById("refresh-btn").addEventListener("click", () => {
     const visiblePage = document.querySelector(".page:not(.hidden)");
     if (visiblePage) showScreen(visiblePage.id, { forceRefresh: true });
-    else if (!preachingDashboard.classList.contains("hidden")) Caller.refreshDashboardBadge(currentUser);
+    else if (!preachingDashboard.classList.contains("hidden")) refreshAllBadges(currentUser);
   });
 }
 

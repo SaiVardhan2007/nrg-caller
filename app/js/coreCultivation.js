@@ -15,7 +15,7 @@ const STATUS_OPTIONS = [
   { value: "Others", label: "Others" },
 ];
 const POSITIVE = ["joining the session"];
-const PENDING = ["not done", "yet to call", ""];
+export const PENDING = ["not done", "yet to call", ""];
 // "yet to call again" kept for older rows already saved under the previous label
 const NEGATIVE = ["out of station", "wrong number", "shifted to home town", "yet to call again", "need to call again", "available on weekend", "next week will join", "will try to attend"];
 const WS_OPTIONS = ["NA", "W", "S"];
@@ -86,6 +86,38 @@ function wireRefreshButton() {
     btn.disabled = false;
     btn.textContent = original;
   });
+}
+
+// Lightweight dashboard-only refresh — mirrors updateStatsBar's "pending"
+// definition (no call ever recorded by this cultivator yet) without loading
+// full contact rows or rendering any cards.
+export async function refreshDashboardBadge(user) {
+  const { data: contacts } = await supabase
+    .from("contacts")
+    .select("mob_no")
+    .eq("core_cultivation", user.user_name);
+
+  let pending = 0;
+  if (contacts && contacts.length) {
+    const mobNos = contacts.map((c) => c.mob_no);
+    const { data: history } = await supabase
+      .from("call_responses")
+      .select("mob_no,remarks,ts")
+      .eq("caller_name", user.user_name)
+      .in("mob_no", mobNos)
+      .order("ts", { ascending: false });
+
+    const lastStatusByMob = {};
+    (history || []).forEach((r) => { if (!(r.mob_no in lastStatusByMob)) lastStatusByMob[r.mob_no] = r.remarks; });
+
+    pending = contacts.filter((c) => PENDING.includes((lastStatusByMob[c.mob_no] || "").toLowerCase())).length;
+  }
+
+  const dot = document.getElementById("dash-cc-badge");
+  dot.textContent = pending;
+  dot.classList.toggle("hidden", pending === 0);
+
+  return pending;
 }
 
 // Core cultivation is a permanent 1:1 link on the contact itself, not tied to

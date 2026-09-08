@@ -274,6 +274,17 @@ function wirePlacesFilters() {
   wireExportBtn("bp-export-btn", "book-places-table", "Distribution_Places");
   initColumnDragReorder("book-places-table", { storageKey: PLACES_COLUMNS_KEY, columns: DEFAULT_PLACES_COLUMNS, resetBtnId: "bp-reset-columns-btn" });
   initHorizontalScroll("book-places-table-wrap");
+  initMobileFilterDrawer("book-places-section");
+
+  // Mobile: tapping a row (not one of its inline-edit fields) expands it in
+  // place to reveal Description/Map Link/Delete — see #book-places-table's
+  // tap-to-expand rules in theme.css.
+  document.getElementById("book-places-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("input, button, select, a")) return;
+    const row = e.target.closest("tr[data-id]");
+    if (row) row.classList.toggle("expanded");
+  });
 }
 
 async function deletePlace(id) {
@@ -468,6 +479,17 @@ function wireEventsFilters() {
   wireExportBtn("bev-export-btn", "book-events-table", "Book_Events");
   initColumnDragReorder("book-events-table", { storageKey: EVENTS_COLUMNS_KEY, columns: DEFAULT_EVENTS_COLUMNS, resetBtnId: "bev-reset-columns-btn" });
   initHorizontalScroll("book-events-table-wrap");
+  initMobileFilterDrawer("book-events-section");
+
+  // Mobile: tapping a row (not one of its inline-edit fields) expands it in
+  // place to reveal Description/Map Link/Delete — see #book-events-table's
+  // tap-to-expand rules in theme.css.
+  document.getElementById("book-events-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("input, button, select, a")) return;
+    const row = e.target.closest("tr[data-id]");
+    if (row) row.classList.toggle("expanded");
+  });
 }
 
 async function deleteBookEvent(id) {
@@ -703,6 +725,17 @@ function wireInwardFilters() {
   wireExportBtn("bi-export-btn", "book-inward-table", "Inward_Stock");
   initColumnDragReorder("book-inward-table", { storageKey: INWARD_COLUMNS_KEY, columns: DEFAULT_INWARD_COLUMNS, resetBtnId: "bi-reset-columns-btn" });
   initHorizontalScroll("book-inward-table-wrap");
+  initMobileFilterDrawer("book-inward-section");
+
+  // Mobile: tapping a row (not one of its inline-edit fields) expands it in
+  // place to reveal Time/Language/Purchased From/Delete — see
+  // #book-inward-table's tap-to-expand rules in theme.css.
+  document.getElementById("book-inward-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("input, button, select, a")) return;
+    const row = e.target.closest("tr[data-id]");
+    if (row) row.classList.toggle("expanded");
+  });
 }
 
 async function deleteInwardRow(id) {
@@ -841,6 +874,17 @@ function wireOutwardFilters() {
   wireExportBtn("bo-export-btn", "book-outward-table", "Outward_Stock");
   initColumnDragReorder("book-outward-table", { storageKey: OUTWARD_COLUMNS_KEY, columns: DEFAULT_OUTWARD_COLUMNS, resetBtnId: "bo-reset-columns-btn" });
   initHorizontalScroll("book-outward-table-wrap");
+  initMobileFilterDrawer("book-outward-section");
+
+  // Mobile: tapping a row (not one of its inline-edit fields) expands it in
+  // place to reveal Time/Language/Sold Area/Event/Sold By/Realised/Delete —
+  // see #book-outward-table's tap-to-expand rules in theme.css.
+  document.getElementById("book-outward-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("input, button, select, a")) return;
+    const row = e.target.closest("tr[data-id]");
+    if (row) row.classList.toggle("expanded");
+  });
 }
 
 async function deleteOutwardRow(id) {
@@ -1962,6 +2006,7 @@ function wireCommanderFilters() {
   document.getElementById("cmd-filter-to").addEventListener("change", applyCommanderFilters);
   wireCommanderRealisedToggle();
   initHorizontalScroll("commander-table-wrap");
+  initMobileFilterDrawer("commander-section");
 
   // Mobile: tapping a row (not its Realised checkbox) expands it in place to
   // reveal the rest of the entry's details. Delegated on the tbody so it
@@ -2147,6 +2192,7 @@ function wireDashboardFilters() {
   });
   initColumnDragReorder("book-dashboard-table", { storageKey: DASHBOARD_COLUMNS_KEY, columns: DEFAULT_DASHBOARD_COLUMNS, resetBtnId: "bd-reset-columns-btn" });
   initHorizontalScroll("book-dashboard-table-wrap");
+  initMobileFilterDrawer("book-dashboard-section");
 
   // Mobile: tapping a row (not one of its inputs/buttons) expands it in
   // place to reveal the rest of the book's stats — see Commander's identical
@@ -2732,6 +2778,7 @@ async function wireAnalyticsFilters() {
 
   document.getElementById("ba-run-btn").addEventListener("click", runAnalytics);
   wireExportBtn("ba-export-btn", "ba-segments-table", "Book_Analytics");
+  initMobileFilterDrawer("book-analytics-section");
 
   // Mobile: tapping a row (not one of its detail buttons) expands it in
   // place to reveal Area/Start Time/End Time/Qty — same pattern as
@@ -2847,6 +2894,17 @@ function wireExpensesFilters() {
   wireExportBtn("be-export-btn", "book-expenses-table", "Book_Expenses");
   initColumnDragReorder("book-expenses-table", { storageKey: EXPENSES_COLUMNS_KEY, columns: DEFAULT_EXPENSES_COLUMNS, resetBtnId: "be-reset-columns-btn" });
   initHorizontalScroll("book-expenses-table-wrap");
+  initMobileFilterDrawer("book-expenses-section");
+
+  // Mobile: tapping a row (not one of its inline-edit fields/buttons) expands
+  // it in place to reveal Place/Event/To/Delete — see #book-expenses-table's
+  // tap-to-expand rules in theme.css.
+  document.getElementById("book-expenses-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("input, button, select, a")) return;
+    const row = e.target.closest("tr[data-id]");
+    if (row) row.classList.toggle("expanded");
+  });
 }
 
 async function deleteExpense(id) {
@@ -3635,6 +3693,17 @@ function wireContributionsAdminFilters() {
   wireExportBtn("bsc-export-btn", "bsc-all-table", "Tirtha_Nidhi");
   initColumnDragReorder("bsc-all-table", { storageKey: CONTRIBUTIONS_ADMIN_COLUMNS_KEY, columns: DEFAULT_CONTRIBUTIONS_ADMIN_COLUMNS, resetBtnId: "bsc-reset-columns-btn" });
   initHorizontalScroll("bsc-all-table-wrap");
+  initMobileFilterDrawer("book-savings-user-section");
+
+  // Mobile: tapping a row (not its Realised checkbox or Delete) expands it
+  // in place to reveal Paid To/Realised/Delete — see #bsc-all-table's
+  // tap-to-expand rules in theme.css.
+  document.getElementById("bsc-all-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("input, button, select, a")) return;
+    const row = e.target.closest("tr[data-id]");
+    if (row) row.classList.toggle("expanded");
+  });
 }
 
 async function deleteContribution(id) {

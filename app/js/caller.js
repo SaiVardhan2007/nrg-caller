@@ -477,6 +477,12 @@ export async function refreshDashboardBadge(user) {
   const pending = (assignments || []).filter((a) => PENDING.includes((a.status || STATUS_DEFAULT).toLowerCase())).length;
   const pct = total > 0 ? Math.round(((total - pending) / total) * 100) : 0;
   document.getElementById("dash-completion-badge").textContent = `${pct}%`;
+
+  const dot = document.getElementById("dash-mycalls-badge");
+  dot.textContent = pending;
+  dot.classList.toggle("hidden", pending === 0);
+
+  return pending;
 }
 
 function updateCompletionBadges(total, pending) {

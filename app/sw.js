@@ -1,4 +1,4 @@
-const CACHE_NAME = "fnrg-preaching-v186";
+const CACHE_NAME = "fnrg-preaching-v191";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -49,19 +49,32 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// Web Push: the send-push Edge Function's payload is JSON { title, body, url }.
+// Web Push: the send-push Edge Function's payload is JSON
+// { title, body, url, badgeCount }. badgeCount is that recipient's current
+// total pending (My Calls + Core Cultivation) at send time, so the OS
+// app-icon badge stays right even when the notification arrives while the
+// app/phone is closed — it's not just a "1 per push" counter.
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
 
-  event.waitUntil(
-    self.registration.showNotification(data.title || "NRG Caller", {
+  event.waitUntil((async () => {
+    await self.registration.showNotification(data.title || "NRG Caller", {
       body: data.body || "",
       icon: "./icons/icon-192.png",
-      badge: "./icons/icon-192.png",
+      // Android renders this as a solid-color silhouette from its alpha
+      // channel — icon-192.png has none (opaque square), which showed as a
+      // blank box. notification-badge.png is a transparent-background
+      // silhouette derived from icon-512.png just for this purpose.
+      badge: "./icons/notification-badge.png",
       data: { url: data.url || "./" },
-    })
-  );
+    });
+
+    if ("setAppBadge" in self.navigator && typeof data.badgeCount === "number") {
+      if (data.badgeCount > 0) self.navigator.setAppBadge(data.badgeCount).catch(() => {});
+      else self.navigator.clearAppBadge?.().catch(() => {});
+    }
+  })());
 });
 
 self.addEventListener("notificationclick", (event) => {
