@@ -6,14 +6,6 @@ function todayStamp() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// accepts legacy full words too, so old CSV exports / Sheet rows still import cleanly
-function normalizeGender(raw) {
-  const v = String(raw || "").trim().toLowerCase();
-  if (v === "m" || v === "male") return "M";
-  if (v === "f" || v === "female") return "F";
-  return null;
-}
-
 let eventsCache = [];
 let usersCache = [];
 let eventsLoaded = false;
@@ -4671,43 +4663,10 @@ async function fetchAllRows(table) {
   return rows;
 }
 
-// Called once per admin page load. First asks the weekly-db-export Edge
-// Function whether 7 days have actually passed since the last run (via the
-// `settings` table) — if not, this is a no-op. If it's due, the .xlsx is
-// built right here in the browser (same code path as the "Download All DB
-// Data" button, buildFullDbWorkbook() below) and POSTed to the Edge
-// Function to email out. Building it client-side — rather than inside the
-// Edge Function itself — avoids Supabase's per-invocation CPU/memory limit
-// (WORKER_RESOURCE_LIMIT), which the workbook-building was blowing past
-// when it ran as Deno isolate code.
-export async function maybeRunWeeklyDbExport() {
-  try {
-    const checkRes = await fetch(`${SUPABASE_URL}/functions/v1/weekly-db-export`, {
-      headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, apikey: SUPABASE_ANON_KEY },
-    });
-    const check = await checkRes.json();
-    if (!check.shouldRun) return;
-
-    const { wb, tableCount, rowCount } = await buildFullDbWorkbook();
-    const base64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
-
-    await fetch(`${SUPABASE_URL}/functions/v1/weekly-db-export`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        apikey: SUPABASE_ANON_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ base64, tables: tableCount, rows: rowCount }),
-    });
-  } catch (err) {
-    console.warn("weekly-db-export failed:", err.message);
-  }
-}
-
-// Same fire-and-forget-ping pattern as maybeRunWeeklyDbExport above, for the
-// weekly-activity-report Edge Function — see supabase/activity-log.sql and
-// app/js/activityLog.js for what this is reviewing.
+// Fire-and-forget ping for the weekly-activity-report Edge Function — see
+// supabase/activity-log.sql and app/js/activityLog.js for what this is
+// reviewing. (The equivalent weekly-db-export ping was replaced by a Vercel
+// cron — see app/api/cron/db-export.js.)
 export function maybeRunWeeklyActivityReport() {
   fetch(`${SUPABASE_URL}/functions/v1/weekly-activity-report`, {
     headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, apikey: SUPABASE_ANON_KEY },
@@ -4715,8 +4674,7 @@ export function maybeRunWeeklyActivityReport() {
 }
 
 // Fetches every table and builds an in-memory XLSX workbook, one sheet per
-// table. Shared by the "Download All DB Data" button and the weekly emailed
-// backup (maybeRunWeeklyDbExport) so both stay on the exact same export.
+// table. Used by the "Download All DB Data" button.
 async function buildFullDbWorkbook() {
   // list_app_tables() (schema.sql) reads information_schema live, so any
   // table added later shows up here automatically with no code change.

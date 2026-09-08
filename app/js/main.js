@@ -1,7 +1,6 @@
-import { supabase } from "./supabaseClient.js";
-import { getSession, setSession, login, logout, refreshSession } from "./auth.js";
-import { showToast } from "./utils.js";
+import { getSession, login, logout, refreshSession } from "./auth.js";
 import { initActivityLog, logEvent } from "./activityLog.js";
+import { subscribeToPush } from "./push.js";
 import * as Admin from "./admin.js";
 import * as Caller from "./caller.js";
 import * as Reception from "./reception.js";
@@ -377,7 +376,6 @@ function renderForRole(user) {
       adminActionsWired = true;
       document.getElementById("download-all-db-btn").addEventListener("click", () => Admin.downloadAllDbData());
       document.getElementById("bulk-delete-btn").addEventListener("click", () => Admin.openBulkDeleteModal(currentUser));
-      Admin.maybeRunWeeklyDbExport();
       Admin.maybeRunWeeklyActivityReport();
     }
     goAdminModules();
@@ -414,6 +412,7 @@ async function boot() {
     currentUser = await refreshSession(existing);
     initActivityLog(currentUser);
     renderForRole(currentUser);
+    subscribeToPush(currentUser);
   }
 
   // Global click-to-copy handler for phone numbers
@@ -454,6 +453,7 @@ async function boot() {
     appView.classList.remove("hidden");
     initActivityLog(currentUser);
     renderForRole(currentUser);
+    subscribeToPush(currentUser);
   });
 
   document.getElementById("logout-btn").addEventListener("click", logout);

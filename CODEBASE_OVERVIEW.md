@@ -27,7 +27,6 @@ NRG_Caller/
 │   ├── index.html                      # PWA single HTML page structure & modals
 │   ├── manifest.json                   # Web app manifest for mobile installation
 │   └── sw.js                           # PWA Service Worker caching shell files
-├── bridge/                             # Empty directory (reserved for auxiliary bridge tooling)
 ├── docs/                               # Developer and user guides
 │   ├── FEATURES.md                     # Product requirements document (PRD) and feature log
 │   ├── JBS_RY_2026_DATA.MD             # Operational execution parameters for campaigns
@@ -73,7 +72,7 @@ graph TD
     GAS --"Inbound HTTP POST (Upsert/Patch)"--> Supa
 
     %% Flow: Self-Healing Sync
-    GAS --"Full Resync (1 min Cron/Trigger)"--> Supa
+    GAS --"Full Resync (30 min Cron/Trigger)"--> Supa
     Supa --"Retrieves all data"--> GAS
 ```
 
@@ -173,7 +172,7 @@ The synchronization bridge coordinates changes between the Google Sheet and Supa
 - `doPost(e)` parses the changes and executes locking commands (`LockService`) to prevent concurrent spreadsheet writing conflicts. It updates/appends rows on sheets `Admin Page`, `Master Contact`, `Body Text`, `Calling Responce`, `Session Att`, or `Contact collection` accordingly.
 
 ### Self-Healing Backup Sync
-- A time-based Apps Script trigger (`fullResyncAll`) runs every 1 minute as a backup in case any webhook requests are dropped. It fetches the database states of `contacts`, `call_responses`, `session_attendance`, and `contact_collection` from Supabase and overwrites their respective Sheet tabs.
+- A time-based Apps Script trigger (`fullResyncAll`) runs every 30 minutes as a backup in case any webhook requests are dropped (an earlier every-1-minute version was replaced after it drove ~1GB/day of Supabase egress via full-table `select=*` resyncs). It fetches the database states of `contacts`, `call_responses`, `session_attendance`, and `contact_collection` from Supabase and overwrites their respective Sheet tabs.
 - Includes a custom spreadsheet menu option: **NRG Caller** > **Full Resync All Sheets (now)**.
 
 ---
@@ -222,6 +221,12 @@ To ensure callers contact people and send updates:
 
 ## 7. Operational Guidelines for Future Development
 
-- **Soft-Launch Gating**: Currently, the dashboard card navigation for regular Users (`caller-section`) is disabled in [main.js:L114-115](file:///Users/saivardhanpolampalli/Downloads/NRG_Caller/app/js/main.js#L114-L115) to focus testing on the Reception panel. Comment out or delete these lines to restore full access.
+> **Note:** Sections 1–6 above predate several modules that now ship in this
+> app — Donations, Sadhana, Book Distribution, One to One with Prabhu, Core
+> Cultivation, and the weekly Activity Log — and the "Soft-Launch Gating"
+> item below no longer applies (full caller navigation is live). Treat this
+> document as a historical architecture reference for the original
+> Caller/Reception/Admin core, not a complete current feature list.
+
 - **Database Changes**: Always update [schema.sql](file:///Users/saivardhanpolampalli/Downloads/NRG_Caller/supabase/schema.sql) and re-synchronize column names with the bridge mappings in [Code.gs](file:///Users/saivardhanpolampalli/Downloads/NRG_Caller/sheets-bridge/Code.gs) if new fields are added.
 - **Realtime Channel**: PWA real-time subscriptions depend on the `assignments-live` channel, which listens to public assignments changes. Real-time updates must be enabled for target tables in the Supabase replication console.

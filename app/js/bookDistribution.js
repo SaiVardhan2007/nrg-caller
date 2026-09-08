@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, escapeHtml, debounce, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, downloadExcel, exportTableToExcel } from "./utils.js";
+import { showToast, escapeHtml, debounce, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, downloadExcel, exportTableToExcel, initMobileFilterDrawer } from "./utils.js";
 
 // Wires a page's "⬇ Export Excel" button to dump its current (filtered/sorted) table as-is.
 function wireExportBtn(btnId, tableId, filenamePrefix) {
@@ -1700,6 +1700,18 @@ function wireRequestsFilters() {
   wireExportBtn("br-export-btn", "book-requests-table", "Book_Requests");
   initColumnDragReorder("book-requests-table", { storageKey: REQUESTS_COLUMNS_KEY, columns: DEFAULT_REQUESTS_COLUMNS, resetBtnId: "br-reset-columns-btn" });
   initHorizontalScroll("book-requests-table-wrap");
+  initMobileFilterDrawer("book-requests-section");
+
+  // Mobile: tapping a row (not one of its inline-edit fields) expands it in
+  // place to reveal Time/Place/Event/Requested By/Fulfilled/Delete — see
+  // #book-requests-table's tap-to-expand rules in theme.css. Delegated on
+  // the tbody so it keeps working across every re-render.
+  document.getElementById("book-requests-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("input, button, select, a")) return;
+    const row = e.target.closest("tr[data-id]");
+    if (row) row.classList.toggle("expanded");
+  });
 }
 
 async function deleteRequest(id) {

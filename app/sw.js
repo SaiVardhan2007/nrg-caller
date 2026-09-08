@@ -1,4 +1,4 @@
-const CACHE_NAME = "fnrg-preaching-v183";
+const CACHE_NAME = "fnrg-preaching-v186";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -46,6 +46,34 @@ self.addEventListener("fetch", (event) => {
       caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResp.clone()));
       return networkResp;
     }).catch(() => caches.match(event.request))
+  );
+});
+
+// Web Push: the send-push Edge Function's payload is JSON { title, body, url }.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || "NRG Caller", {
+      body: data.body || "",
+      icon: "./icons/icon-192.png",
+      badge: "./icons/icon-192.png",
+      data: { url: data.url || "./" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "./";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ("focus" in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    })
   );
 });
 

@@ -603,3 +603,60 @@ export function copyToClipboard(text, element) {
     console.error("Clipboard copy failed: ", err);
   });
 }
+
+/* ============ Mobile filter drawer ============
+   Every admin table page shares the same "panel users-sidebar" (search/sort/
+   filters/buttons) + "users-content" (the table) layout. On phones that
+   sidebar's contents used to just wrap onto extra rows above the table,
+   which is what was pushing pages wider than the screen. This turns the
+   sidebar into a slide-in drawer on phones instead — desktop is untouched
+   (the CSS only applies under the shared mobile breakpoint, scoped to
+   ".mobile-drawer-enabled", which nothing carries until this runs). One
+   shared backdrop is reused across every page that opts in, since only one
+   "page" is ever visible at a time. Call once per section id to opt in;
+   call it again on later visits and it's a no-op (dataset guard). */
+function getMobileDrawerBackdrop() {
+  let backdrop = document.getElementById("mobile-sidebar-backdrop");
+  if (!backdrop) {
+    backdrop = document.createElement("div");
+    backdrop.id = "mobile-sidebar-backdrop";
+    backdrop.className = "mobile-sidebar-backdrop";
+    document.body.appendChild(backdrop);
+    backdrop.addEventListener("click", closeMobileFilterDrawers);
+  }
+  return backdrop;
+}
+
+function closeMobileFilterDrawers() {
+  document.querySelectorAll(".users-sidebar.open").forEach((el) => el.classList.remove("open"));
+  getMobileDrawerBackdrop().classList.remove("open");
+}
+
+export function initMobileFilterDrawer(sectionId) {
+  const section = document.getElementById(sectionId);
+  const layout = section?.querySelector(".users-page-layout");
+  const sidebar = layout?.querySelector(".users-sidebar");
+  const content = layout?.querySelector(".users-content");
+  if (!layout || !sidebar || !content || layout.dataset.mobileDrawerWired) return;
+  layout.dataset.mobileDrawerWired = "1";
+  layout.classList.add("mobile-drawer-enabled");
+
+  const toggleBtn = document.createElement("button");
+  toggleBtn.type = "button";
+  toggleBtn.className = "mobile-filter-toggle";
+  toggleBtn.innerHTML = `<span class="mobile-filter-toggle-icon">☰</span> Filters &amp; Actions`;
+  content.insertBefore(toggleBtn, content.firstChild);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "mobile-sidebar-close";
+  closeBtn.setAttribute("aria-label", "Close filters");
+  closeBtn.textContent = "✕";
+  sidebar.insertBefore(closeBtn, sidebar.firstChild);
+
+  const backdrop = getMobileDrawerBackdrop();
+  const open = () => { closeMobileFilterDrawers(); sidebar.classList.add("open"); backdrop.classList.add("open"); };
+  toggleBtn.addEventListener("click", open);
+  closeBtn.addEventListener("click", closeMobileFilterDrawers);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMobileFilterDrawers(); });
+}

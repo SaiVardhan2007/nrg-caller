@@ -1992,16 +1992,61 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #book-requests-table td[data-label="S.No"] {
     max-width: none !important;
   }
+
+  /* Single row, tap to expand: Name + S.No/Quantity/Priority are what an
+     admin scans a request list for at a glance — Time, Place, Event,
+     Requested By and Fulfilled (plus Delete) reveal on tap instead of
+     every request always eating ~8 fields' worth of vertical space. */
+  #book-requests-table tbody tr {
+    position: relative;
+    cursor: pointer;
+    padding-right: 26px;
+  }
+  #book-requests-table tbody tr::after {
+    content: "▾";
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tulsi-dark);
+    opacity: 0.55;
+    transition: transform 0.15s ease;
+  }
+  #book-requests-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #book-requests-table td[data-label="Time"],
+  #book-requests-table td[data-label="Place"],
+  #book-requests-table td[data-label="Event"],
+  #book-requests-table td[data-label="Fulfilled"],
+  #book-requests-table td[data-label="Requested By"],
+  #book-requests-table td[data-label=""] {
+    display: none !important;
+  }
+  #book-requests-table tr.expanded td[data-label="Time"],
+  #book-requests-table tr.expanded td[data-label="Place"],
+  #book-requests-table tr.expanded td[data-label="Event"],
+  #book-requests-table tr.expanded td[data-label="Fulfilled"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+  #book-requests-table tr.expanded td[data-label="Requested By"],
+  #book-requests-table tr.expanded td[data-label=""] {
+    display: flex !important;
+    width: 100% !important;
+  }
+
   #book-requests-table td[data-label="Name"] { order: 1; width: 100% !important; }
-  #book-requests-table td[data-label="S.No"] { order: 2; width: 21% !important; font-weight: 700; }
-  #book-requests-table td[data-label="Time"] { order: 3; width: 77% !important; }
-  #book-requests-table td[data-label="Quantity"] { order: 4; width: 49% !important; }
-  #book-requests-table td[data-label="Priority"] { order: 5; width: 49% !important; }
-  #book-requests-table td[data-label="Place"] { order: 6; width: 49% !important; }
-  #book-requests-table td[data-label="Event"] { order: 7; width: 49% !important; }
-  #book-requests-table td[data-label="Requested By"] { order: 8; width: 60% !important; }
-  #book-requests-table td[data-label="Fulfilled"] { order: 9; width: 40% !important; flex-direction: row !important; align-items: center !important; gap: 6px; }
-  #book-requests-table td[data-label=""] { order: 10; width: 100% !important; }
+  #book-requests-table td[data-label="S.No"] { order: 2; width: 20% !important; font-weight: 700; }
+  #book-requests-table td[data-label="Quantity"] { order: 3; width: 38% !important; }
+  #book-requests-table td[data-label="Priority"] { order: 4; width: 38% !important; }
+  #book-requests-table td[data-label="Time"] { order: 5; }
+  #book-requests-table td[data-label="Place"] { order: 6; }
+  #book-requests-table td[data-label="Event"] { order: 7; }
+  #book-requests-table td[data-label="Fulfilled"] { order: 8; flex-direction: row !important; align-items: center !important; gap: 6px; }
+  #book-requests-table td[data-label="Requested By"] { order: 9; }
+  #book-requests-table td[data-label=""] { order: 10; }
+
   #book-requests-table td[data-label="S.No"]::before { display: none !important; }
 
   /* Reset the table-agnostic S.No/Name width cap (see Book Requests
@@ -3076,6 +3121,112 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 #commander-section .users-toolbar > * {
   width: 100% !important;
+}
+
+/* ============ MOBILE FILTER DRAWER ============
+   Component: turns a page's ".users-sidebar" (search/sort/filters/buttons)
+   into a slide-in drawer on phones instead of letting it wrap onto extra
+   rows above the table — that wrapping was what pushed pages wider than
+   the screen. Opt-in only: nothing changes until a page calls
+   initMobileFilterDrawer() (utils.js), which stamps "mobile-drawer-enabled"
+   onto that page's .users-page-layout. Desktop is completely untouched —
+   every rule here either targets that opt-in class, or is scoped to the
+   640px breakpoint (well under the sidebar's own 900px stacking point). */
+.mobile-filter-toggle,
+.mobile-sidebar-close,
+.mobile-sidebar-backdrop {
+  display: none;
+}
+@media (max-width: 640px) {
+  .mobile-drawer-enabled .mobile-filter-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 14px;
+    padding: 12px 16px;
+    border: 1.5px solid var(--sandstone);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--tulsi-dark);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+  }
+  .mobile-filter-toggle-icon { font-size: 16px; line-height: 1; }
+  .mobile-drawer-enabled .mobile-filter-toggle:active { background: rgba(5,150,105,0.06); }
+
+  .mobile-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 22, 18, 0.45);
+    z-index: 180;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .mobile-sidebar-backdrop.open { opacity: 1; pointer-events: auto; }
+
+  .mobile-drawer-enabled .users-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 190;
+    width: 82%;
+    max-width: 300px;
+    max-height: none;
+    border-radius: 0 var(--card-radius) var(--card-radius) 0;
+    box-shadow: var(--shadow-lg);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    transform: translateX(-105%);
+    transition: transform 0.25s ease;
+  }
+  .mobile-drawer-enabled .users-sidebar.open { transform: translateX(0); }
+
+  .mobile-sidebar-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    margin: 0 0 10px auto;
+    border: none;
+    border-radius: 50%;
+    background: var(--cream);
+    color: var(--text-main);
+    font-size: 15px;
+    cursor: pointer;
+  }
+
+  /* A narrow fixed drawer reads better as one full-width field per row —
+     the >900px wrap-into-a-row treatment above is meant for a page's full
+     width, not an 82%-wide panel. */
+  .mobile-drawer-enabled .users-toolbar {
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+  .mobile-drawer-enabled .users-toolbar .field.inline,
+  .mobile-drawer-enabled .users-toolbar .btn.toolbar-btn,
+  .mobile-drawer-enabled .users-toolbar .filter-dropdown,
+  .mobile-drawer-enabled .users-toolbar .filter-toggle-btn {
+    width: 100%;
+  }
+
+  /* The drawer is fixed/out-of-flow, so .users-content is free to use the
+     page's full width on its own. */
+  .mobile-drawer-enabled .users-content { width: 100%; }
+}
+
+/* Defensive catch-all: nothing on a phone should ever be able to push the
+   page itself wider than the viewport — inner scroll containers (.table-wrap
+   etc.) keep their own overflow-x:auto and still scroll normally. */
+@media (max-width: 640px) {
+  html, body { overflow-x: hidden; }
 }
 
 .filter-dropdown { position: relative; }

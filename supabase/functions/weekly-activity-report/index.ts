@@ -24,7 +24,7 @@ const SMTP_HOST = Deno.env.get("SMTP_HOST") ?? "smtp.gmail.com";
 const SMTP_PORT = Number(Deno.env.get("SMTP_PORT") ?? "465");
 const SMTP_USER = Deno.env.get("SMTP_USER") ?? "";
 const SMTP_PASS = Deno.env.get("SMTP_PASS") ?? "";
-const REPORT_TO = Deno.env.get("DB_EXPORT_TO") ?? "polampallisaivardhan@gmail.com";
+const REPORT_TO = Deno.env.get("DB_EXPORT_TO") ?? "snkdasa@gmail.com";
 
 const LAST_RUN_KEY = "weekly_activity_report_last_run";
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;

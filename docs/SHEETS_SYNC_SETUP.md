@@ -75,12 +75,13 @@ Contact rows for contacts deleted in Supabase. Fix — do this once:
 2. In the function dropdown, select **`setupResyncTrigger`** and click **Run**
    (authorize again if asked). This installs a trigger that rewrites Master
    Contact, Calling Responce, Session Att, and Contact collection from
-   Supabase every minute (the fastest Apps Script's trigger service allows —
-   there's no seconds-level option), so all four are always eventually
-   correct even if a webhook call gets dropped. Real-time edits still land
-   within seconds via the webhook; this is just the backup.
+   Supabase every 30 minutes (the coarsest `everyMinutes()` allows, and
+   deliberately so — an earlier every-1-minute version caused ~1GB/day of
+   Supabase egress from the full-table `select=*` resync), so all four are
+   always eventually correct even if a webhook call gets dropped. Real-time
+   edits still land within seconds via the webhook; this is just the backup.
 3. **Deploy → Manage deployments → edit (pencil) → New version → Deploy.**
    Existing deployments stay pinned to old code until you do this.
 4. Reload the Sheet — a new **NRG Caller** menu appears with **Full Resync
    All Sheets (now)**, for whenever you want it to happen immediately (e.g.
-   right after a bulk import) instead of waiting up to a minute.
+   right after a bulk import) instead of waiting up to 30 minutes.
