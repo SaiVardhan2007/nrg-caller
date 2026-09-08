@@ -628,7 +628,7 @@ function getMobileDrawerBackdrop() {
 }
 
 function closeMobileFilterDrawers() {
-  document.querySelectorAll(".users-sidebar.open").forEach((el) => el.classList.remove("open"));
+  document.querySelectorAll(".users-sidebar.open, .mobile-filter-bar.open").forEach((el) => el.classList.remove("open"));
   getMobileDrawerBackdrop().classList.remove("open");
 }
 
@@ -656,6 +656,42 @@ export function initMobileFilterDrawer(sectionId) {
 
   const backdrop = getMobileDrawerBackdrop();
   const open = () => { closeMobileFilterDrawers(); sidebar.classList.add("open"); backdrop.classList.add("open"); };
+  toggleBtn.addEventListener("click", open);
+  closeBtn.addEventListener("click", closeMobileFilterDrawers);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMobileFilterDrawers(); });
+}
+
+/* Same off-canvas drawer as initMobileFilterDrawer above, but for pages
+   that filter through a plain top ".panel-row" (Master Contact/New
+   Contacts's search+sort+action-button bar) instead of the
+   ".users-page-layout > .users-sidebar" structure — those pages' column
+   filters live in the table's own <thead>, which the mobile card layout
+   already hides, so the panel-row is the only thing worth tucking away.
+   Reuses the same shared backdrop/close styling so it looks identical to
+   the sidebar version. Call once per section id; safe to call again. */
+export function initMobileFilterBar(sectionId, panelSelector, anchorSelector) {
+  const section = document.getElementById(sectionId);
+  const panel = section?.querySelector(panelSelector);
+  const anchor = section?.querySelector(anchorSelector);
+  if (!panel || !anchor || panel.dataset.mobileDrawerWired) return;
+  panel.dataset.mobileDrawerWired = "1";
+  panel.classList.add("mobile-filter-bar");
+
+  const toggleBtn = document.createElement("button");
+  toggleBtn.type = "button";
+  toggleBtn.className = "mobile-filter-toggle mobile-filter-bar-toggle";
+  toggleBtn.innerHTML = `<span class="mobile-filter-toggle-icon">☰</span> Filters &amp; Actions`;
+  anchor.parentNode.insertBefore(toggleBtn, anchor);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "mobile-sidebar-close";
+  closeBtn.setAttribute("aria-label", "Close filters");
+  closeBtn.textContent = "✕";
+  panel.insertBefore(closeBtn, panel.firstChild);
+
+  const backdrop = getMobileDrawerBackdrop();
+  const open = () => { closeMobileFilterDrawers(); panel.classList.add("open"); backdrop.classList.add("open"); };
   toggleBtn.addEventListener("click", open);
   closeBtn.addEventListener("click", closeMobileFilterDrawers);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMobileFilterDrawers(); });

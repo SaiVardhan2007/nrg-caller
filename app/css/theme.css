@@ -521,7 +521,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    don't get crushed — the wrapper's overflow-x:auto turns that into a
    horizontal scroll instead. */
 #sadhana-table { width: 100%; table-layout: fixed; }
-@media (max-width: 900px) {
+@media (min-width: 641px) and (max-width: 900px) {
   #sadhana-table { min-width: 900px; }
 }
 .data-table th {
@@ -1714,8 +1714,8 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     width: 49% !important;
   }
 
-  #book-dashboard-table td[data-label="S.No"] { order: 1; width: 12% !important; font-weight: 700; }
-  #book-dashboard-table td[data-label="Name"] { order: 2; width: 46% !important; }
+  #book-dashboard-table td[data-label="S.No"] { order: 1; flex: 0 0 30px !important; width: 30px !important; max-width: 30px !important; font-weight: 700; text-align: center !important; align-items: center !important; }
+  #book-dashboard-table td[data-label="Name"] { order: 2; flex: 1 1 auto !important; width: auto !important; max-width: none !important; min-width: 0 !important; }
   #book-dashboard-table td[data-label="Current Stock"] { order: 3; width: 21% !important; text-align: center; }
   #book-dashboard-table td[data-label="Profit"] { order: 4; width: 21% !important; }
   #book-dashboard-table td[data-label="Selling Price"] { order: 5; }
@@ -2084,36 +2084,46 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #book-events-table td[data-label=""] { order: 5; }
   #book-events-table td[data-label="S.No"]::before { display: none !important; }
 
-  /* Reset the table-agnostic S.No/Name/Time Stamp width caps (see
-     Donations Dashboard above) — critical here since Name is meant to
-     force its own full-width row; left capped at 140px it leaves enough
-     slack for the next field to wrongly join that row. */
-  #donations-tx-table td[data-label="Name"],
-  #donations-tx-table td[data-label="S.No"],
-  #donations-tx-table td[data-label="Time Stamp"] {
-    max-width: none !important;
+  /* Two rows, tap to expand: S.No sits right next to Name (tight gap), then
+     Date + Amount as the second scan row — Time Stamp, Number, Event and
+     Delete reveal on tap. */
+  #donations-tx-table tbody tr { position: relative; cursor: pointer; padding-right: 26px; }
+  #donations-tx-table tbody tr::after {
+    content: "▾"; position: absolute; top: 12px; right: 8px; font-size: 12px; font-weight: 700;
+    color: var(--tulsi-dark); opacity: 0.55; transition: transform 0.15s ease;
   }
-  #donations-tx-table td[data-label="Name"] { order: 1; width: 100% !important; }
-  /* 21/77 rather than 22/78 — the tr's 2% column-gap needs headroom, or
-     these two never actually pair onto one line despite summing to 100%
-     (same fix as Book Inward above). */
-  #donations-tx-table td[data-label="S.No"] { order: 2; width: 21% !important; font-weight: 700; }
-  #donations-tx-table td[data-label="Time Stamp"] { order: 3; width: 77% !important; }
-  #donations-tx-table td[data-label="Number"] { order: 4; width: 49% !important; }
-  #donations-tx-table td[data-label="Amount"] { order: 5; width: 49% !important; }
-  #donations-tx-table td[data-label="Date"] { order: 6; width: 49% !important; }
-  #donations-tx-table td[data-label="Event"] { order: 7; width: 49% !important; }
-  #donations-tx-table td[data-label=""] { order: 8; width: 100% !important; }
+  #donations-tx-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #donations-tx-table td[data-label="Time Stamp"],
+  #donations-tx-table td[data-label="Number"],
+  #donations-tx-table td[data-label="Event"],
+  #donations-tx-table td[data-label=""] {
+    display: none !important;
+  }
+  #donations-tx-table tr.expanded td[data-label="Time Stamp"],
+  #donations-tx-table tr.expanded td[data-label="Number"],
+  #donations-tx-table tr.expanded td[data-label="Event"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+  #donations-tx-table tr.expanded td[data-label=""] {
+    display: flex !important;
+    width: 100% !important;
+  }
+
+  #donations-tx-table td[data-label="S.No"] { order: 1; flex: 0 0 30px !important; width: 30px !important; max-width: 30px !important; font-weight: 700; text-align: center !important; align-items: center !important; }
+  #donations-tx-table td[data-label="Name"] { order: 2; flex: 1 1 auto !important; width: auto !important; max-width: none !important; }
+  #donations-tx-table td[data-label="Name"] input { width: 100% !important; max-width: none !important; }
+  #donations-tx-table td[data-label="Date"] { order: 3; width: 49% !important; }
+  #donations-tx-table td[data-label="Amount"] { order: 4; width: 49% !important; }
+  #donations-tx-table td[data-label="Time Stamp"] { order: 5; }
+  #donations-tx-table td[data-label="Number"] { order: 6; }
+  #donations-tx-table td[data-label="Event"] { order: 7; }
+  #donations-tx-table td[data-label=""] { order: 8; }
   #donations-tx-table td[data-label="S.No"]::before { display: none !important; }
 
-  /* Reset the table-agnostic S.No/Name width cap (see Donations Dashboard
-     above). */
-  #donations-ev-table td[data-label="S.No"],
-  #donations-ev-table td[data-label="Name"] {
-    max-width: none !important;
-  }
-  #donations-ev-table td[data-label="S.No"] { order: 1; width: 21% !important; font-weight: 700; }
-  #donations-ev-table td[data-label="Name"] { order: 2; width: 77% !important; }
+  #donations-ev-table td[data-label="S.No"] { order: 1; flex: 0 0 30px !important; width: 30px !important; max-width: 30px !important; font-weight: 700; text-align: center !important; align-items: center !important; }
+  #donations-ev-table td[data-label="Name"] { order: 2; flex: 1 1 auto !important; width: auto !important; max-width: none !important; }
   #donations-ev-table td[data-label=""] { order: 3; width: 100% !important; }
   #donations-ev-table td[data-label="S.No"]::before { display: none !important; }
 
@@ -2121,16 +2131,47 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #book-places-user-table td[data-label="Description"], #book-events-user-table td[data-label="Description"] { order: 2; width: 100% !important; }
   #book-places-user-table td[data-label="Map Link"], #book-events-user-table td[data-label="Map Link"] { order: 3; width: 100% !important; }
 
-  #sadhana-table td[data-label="Name"] { order: 1; width: 100% !important; }
-  #sadhana-table td[data-label="S.No"] { order: 2; width: 19% !important; font-weight: 700; }
-  #sadhana-table td[data-label="Date"] { order: 3; width: 79% !important; }
-  #sadhana-table td[data-label="Rounds"] { order: 4; width: 33% !important; }
-  #sadhana-table td[data-label="Book Reading"] { order: 5; width: 33% !important; }
-  #sadhana-table td[data-label="Screen Time"] { order: 6; width: 34% !important; }
-  #sadhana-table td[data-label="Detox Time"] { order: 7; width: 49% !important; }
-  #sadhana-table td[data-label="Service"] { order: 8; width: 49% !important; }
-  #sadhana-table td[data-label="Swadhyaya"] { order: 9; width: 49% !important; }
-  #sadhana-table td[data-label=""] { order: 10; width: 51% !important; }
+  /* Two rows, tap to expand: S.No sits right next to Name (tight gap), then
+     Date + Rounds as the second scan row — Book Reading, Screen Time, Detox
+     Time, Service, Swadhyaya and Delete reveal on tap. */
+  #sadhana-table tbody tr { position: relative; cursor: pointer; padding-right: 26px; }
+  #sadhana-table tbody tr::after {
+    content: "▾"; position: absolute; top: 12px; right: 8px; font-size: 12px; font-weight: 700;
+    color: var(--tulsi-dark); opacity: 0.55; transition: transform 0.15s ease;
+  }
+  #sadhana-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #sadhana-table td[data-label="Book Reading"],
+  #sadhana-table td[data-label="Screen Time"],
+  #sadhana-table td[data-label="Detox Time"],
+  #sadhana-table td[data-label="Service"],
+  #sadhana-table td[data-label="Swadhyaya"],
+  #sadhana-table td[data-label=""] {
+    display: none !important;
+  }
+  #sadhana-table tr.expanded td[data-label="Book Reading"],
+  #sadhana-table tr.expanded td[data-label="Screen Time"],
+  #sadhana-table tr.expanded td[data-label="Detox Time"],
+  #sadhana-table tr.expanded td[data-label="Service"],
+  #sadhana-table tr.expanded td[data-label="Swadhyaya"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+  #sadhana-table tr.expanded td[data-label=""] {
+    display: flex !important;
+    width: 100% !important;
+  }
+
+  #sadhana-table td[data-label="S.No"] { order: 1; flex: 0 0 30px !important; width: 30px !important; max-width: 30px !important; font-weight: 700; text-align: center !important; align-items: center !important; }
+  #sadhana-table td[data-label="Name"] { order: 2; flex: 1 1 auto !important; width: auto !important; max-width: none !important; }
+  #sadhana-table td[data-label="Date"] { order: 3; width: 49% !important; }
+  #sadhana-table td[data-label="Rounds"] { order: 4; width: 49% !important; }
+  #sadhana-table td[data-label="Book Reading"] { order: 5; }
+  #sadhana-table td[data-label="Screen Time"] { order: 6; }
+  #sadhana-table td[data-label="Detox Time"] { order: 7; }
+  #sadhana-table td[data-label="Service"] { order: 8; }
+  #sadhana-table td[data-label="Swadhyaya"] { order: 9; }
+  #sadhana-table td[data-label=""] { order: 10; }
   #sadhana-table td[data-label="S.No"]::before { display: none !important; }
 
   /* Reset the table-agnostic S.No/Name width cap (see Donations Dashboard
@@ -2187,6 +2228,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 
   #book-requests-table td[data-label="S.No"] { order: 1; flex: 0 0 30px !important; width: 30px !important; max-width: 30px !important; font-weight: 700; text-align: center !important; align-items: center !important; }
   #book-requests-table td[data-label="Name"] { order: 2; flex: 1 1 auto !important; width: auto !important; max-width: none !important; }
+  #book-requests-table td[data-label="Name"] input { width: 100% !important; max-width: none !important; }
   #book-requests-table td[data-label="Quantity"] { order: 3; width: 48% !important; }
   #book-requests-table td[data-label="Requested By"] { order: 4; width: 48% !important; }
   #book-requests-table td[data-label="Time"] { order: 5; }
@@ -2228,6 +2270,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   }
   #book-expenses-table td[data-label="S.No"] { order: 1; flex: 0 0 30px !important; width: 30px !important; max-width: 30px !important; font-weight: 700; text-align: center !important; align-items: center !important; }
   #book-expenses-table td[data-label="Name"] { order: 2; flex: 1 1 auto !important; width: auto !important; max-width: none !important; }
+  #book-expenses-table td[data-label="Name"] input { width: 100% !important; max-width: none !important; }
   #book-expenses-table td[data-label="Date"] { order: 3; width: 48% !important; }
   #book-expenses-table td[data-label="Cost"] { order: 4; width: 48% !important; }
   #book-expenses-table td[data-label="Place"] { order: 5; }
@@ -2280,12 +2323,8 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
      reasoning as My Outward Stock/Contributions above. */
   /* Reset the table-agnostic S.No/Name width cap (see Donations Dashboard
      above). */
-  #sadhana-users-table td[data-label="S.No"],
-  #sadhana-users-table td[data-label="Name"] {
-    max-width: none !important;
-  }
-  #sadhana-users-table td[data-label="S.No"] { order: 1; width: 10% !important; font-weight: 700; }
-  #sadhana-users-table td[data-label="Name"] { order: 2; width: 50% !important; }
+  #sadhana-users-table td[data-label="S.No"] { order: 1; flex: 0 0 30px !important; width: 30px !important; max-width: 30px !important; font-weight: 700; text-align: center !important; align-items: center !important; }
+  #sadhana-users-table td[data-label="Name"] { order: 2; flex: 1 1 auto !important; width: auto !important; max-width: none !important; min-width: 0 !important; }
   #sadhana-users-table td[data-label="Role"] { order: 3; width: 20% !important; }
   #sadhana-users-table td[data-label="Track"] {
     order: 4; width: 20% !important;
@@ -2360,27 +2399,66 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
     display: none !important;
   }
 
-  /* ============ USERS & ASSIGNMENT: flat reflow, no hiding ============
-     Nearly every cell is an editable checkbox/input (Commander, Call Limit,
-     Auto Assign, Fulfilled) — same edit-heavy reasoning as Book Inward/
-     Outward/Sadhana above, so nothing is hidden, just reordered with User ID
-     leading full-width and short fields paired below it. */
-  #users-table td[data-label="User ID"] { order: 1; width: 100% !important; font-weight: 700; }
-  /* Reset the table-agnostic S.No width cap (see Donations Dashboard
-     above). */
-  #users-table td[data-label="S.No"] { max-width: none !important; }
-  #users-table td[data-label="S.No"] { order: 2; width: 16% !important; font-weight: 700; }
-  #users-table td[data-label="Role"] { order: 3; width: 82% !important; }
-  #users-table td[data-label="Password"] { order: 4; width: 49% !important; }
-  #users-table td[data-label="Call Limit"] { order: 5; width: 49% !important; }
-  #users-table td[data-label="Commander"] { order: 6; width: 49% !important; flex-direction: row !important; align-items: center !important; gap: 6px; }
-  #users-table td[data-label="Auto Assign"] { order: 7; width: 49% !important; flex-direction: row !important; align-items: center !important; gap: 6px; }
-  #users-table td[data-label="Count"] { order: 8; width: 33% !important; }
-  #users-table td[data-label="Completed Calls"] { order: 9; width: 33% !important; }
-  #users-table td[data-label="Completed %"] { order: 10; width: 34% !important; }
-  #users-table td[data-label="Fulfilled"] { order: 11; width: 49% !important; flex-direction: row !important; align-items: center !important; gap: 6px; }
-  #users-table td[data-label=""] { order: 12; width: 51% !important; }
-  #users-table td[data-label="User ID"]::before,
+  /* ============ USERS & ASSIGNMENT: two rows, tap to expand ============
+     S.No + User ID scan row 1 (S.No hugs tight, same treatment as Book
+     Distribution); Role + Call Limit are the two most-scanned fields for
+     row 2. Everything else (Password, Commander, Auto Assign, Count,
+     Completed Calls, Completed %, Fulfilled, Delete) reveals on tap. */
+  #users-table td[data-label="User ID"],
+  #users-table td[data-label="S.No"] {
+    max-width: none !important;
+  }
+  #users-table tbody tr { position: relative; cursor: pointer; padding-right: 26px; }
+  #users-table tbody tr::after {
+    content: "▾"; position: absolute; top: 12px; right: 8px; font-size: 12px; font-weight: 700;
+    color: var(--tulsi-dark); opacity: 0.55; transition: transform 0.15s ease;
+  }
+  #users-table tbody tr.expanded::after { transform: rotate(180deg); }
+
+  #users-table td[data-label="Password"],
+  #users-table td[data-label="Commander"],
+  #users-table td[data-label="Auto Assign"],
+  #users-table td[data-label="Count"],
+  #users-table td[data-label="Completed Calls"],
+  #users-table td[data-label="Completed %"],
+  #users-table td[data-label="Fulfilled"],
+  #users-table td[data-label=""] {
+    display: none !important;
+  }
+  #users-table tr.expanded td[data-label="Password"],
+  #users-table tr.expanded td[data-label="Commander"],
+  #users-table tr.expanded td[data-label="Auto Assign"],
+  #users-table tr.expanded td[data-label="Count"],
+  #users-table tr.expanded td[data-label="Completed Calls"],
+  #users-table tr.expanded td[data-label="Completed %"],
+  #users-table tr.expanded td[data-label="Fulfilled"] {
+    display: flex !important;
+    width: 49% !important;
+  }
+  #users-table tr.expanded td[data-label="Commander"],
+  #users-table tr.expanded td[data-label="Auto Assign"],
+  #users-table tr.expanded td[data-label="Fulfilled"] {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 6px;
+  }
+  #users-table tr.expanded td[data-label=""] {
+    display: flex !important;
+    width: 100% !important;
+  }
+
+  #users-table td[data-label="S.No"] { order: 1; flex: 0 0 30px !important; width: 30px !important; max-width: 30px !important; font-weight: 700; text-align: center !important; align-items: center !important; }
+  #users-table td[data-label="User ID"] { order: 2; flex: 1 1 auto !important; width: auto !important; max-width: none !important; }
+  #users-table td[data-label="Role"] { order: 3; width: 49% !important; }
+  #users-table td[data-label="Call Limit"] { order: 4; width: 49% !important; }
+  #users-table td[data-label="Password"] { order: 5; }
+  #users-table td[data-label="Commander"] { order: 6; }
+  #users-table td[data-label="Auto Assign"] { order: 7; }
+  #users-table td[data-label="Count"] { order: 8; }
+  #users-table td[data-label="Completed Calls"] { order: 9; }
+  #users-table td[data-label="Completed %"] { order: 10; }
+  #users-table td[data-label="Fulfilled"] { order: 11; }
+  #users-table td[data-label=""] { order: 12; }
   #users-table td[data-label="S.No"]::before {
     display: none !important;
   }
@@ -2626,9 +2704,9 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #one-to-one-table td[data-label="Phone"] {
     max-width: none !important;
   }
-  #one-to-one-table td[data-label="S.No"] { order: 1; width: 10% !important; font-weight: 700; }
-  #one-to-one-table td[data-label="Name"] { order: 2; width: 45% !important; }
-  #one-to-one-table td[data-label="Phone"] { order: 3; width: 45% !important; }
+  #one-to-one-table td[data-label="S.No"] { order: 1; flex: 0 0 30px !important; width: 30px !important; max-width: 30px !important; font-weight: 700; text-align: center !important; align-items: center !important; }
+  #one-to-one-table td[data-label="Name"] { order: 2; flex: 1 1 auto !important; width: auto !important; max-width: none !important; }
+  #one-to-one-table td[data-label="Phone"] { order: 3; width: 100% !important; }
   #one-to-one-table td[data-label="W/S"] { order: 4; }
   #one-to-one-table td[data-label="Help Asked by the Boy"] { order: 5; }
   #one-to-one-table td[data-label="Remarks by SNKD"] { order: 6; }
@@ -2660,7 +2738,9 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
      or reply down to one truncated line. Let it wrap in full instead. */
   .data-table td[data-label="Question"],
   .data-table td[data-label="Response"],
-  .data-table td[data-label="Remark"] {
+  .data-table td[data-label="Remark"],
+  #one-to-one-table td[data-label="Help Asked by the Boy"],
+  #one-to-one-table td[data-label="Remarks by SNKD"] {
     white-space: normal !important;
     overflow: visible !important;
     text-overflow: clip !important;
@@ -3430,6 +3510,67 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   /* The drawer is fixed/out-of-flow, so .users-content is free to use the
      page's full width on its own. */
   .mobile-drawer-enabled .users-content { width: 100%; }
+
+  /* Same drawer, for pages whose filters/actions live in a plain top
+     ".panel-row" instead of a ".users-sidebar" (Master Contact/New
+     Contacts) — see initMobileFilterBar() in utils.js. The toggle button
+     is only ever inserted by that function, so its presence alone is the
+     opt-in; no wrapping "-enabled" class needed here. */
+  .mobile-filter-bar-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 14px;
+    padding: 12px 16px;
+    border: 1.5px solid var(--sandstone);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--tulsi-dark);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+  }
+  .mobile-filter-bar-toggle:active { background: rgba(5,150,105,0.06); }
+
+  .mobile-filter-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 190;
+    width: 82%;
+    max-width: 300px;
+    max-height: none;
+    margin: 0 !important;
+    border-radius: 0 var(--card-radius) var(--card-radius) 0;
+    box-shadow: var(--shadow-lg);
+    background: var(--surface);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    transform: translateX(-105%);
+    transition: transform 0.25s ease;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    padding: 16px;
+  }
+  .mobile-filter-bar.open { transform: translateX(0); }
+  /* flex:0 0 auto guards against any child's own row-layout-tuned
+     flex-grow (like #contacts-search below) blowing up to fill the
+     column's full height once flex-direction flips to column here. */
+  .mobile-filter-bar > *:not(.mobile-sidebar-close) { width: 100%; flex: 0 0 auto; }
+
+  /* Master Contact's desktop-only fixed-lane search width (see
+     "#admin-contacts-section > .panel-row #contacts-search" further down)
+     would otherwise fight the drawer's full-width column layout above. */
+  #admin-contacts-section > .panel-row.mobile-filter-bar #contacts-search {
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+  }
 }
 
 /* Defensive catch-all: nothing on a phone should ever be able to push the

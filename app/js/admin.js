@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
-import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, daysAgo, CORE_CULTIVATION_STALE_DAYS } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, daysAgo, CORE_CULTIVATION_STALE_DAYS, initMobileFilterDrawer, initMobileFilterBar } from "./utils.js";
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
@@ -351,6 +351,7 @@ const FILTER_DROPDOWN_IDS = [
   ["attendance-filter-dropdown", "attendance-filter-toggle"],
 ];
 let filterDropdownsWired = false;
+let usersMobileWired = false;
 function wireFilterDropdowns() {
   FILTER_DROPDOWN_IDS.forEach(([dropdownId, toggleId]) => {
     const dropdown = document.getElementById(dropdownId);
@@ -467,6 +468,16 @@ export async function initUsers() {
   wireUsersImportExport();
   initColumnDragReorder("users-table");
   initHorizontalScroll("users-table-wrap", { leftBtnId: "users-scroll-left", rightBtnId: "users-scroll-right" });
+  initMobileFilterDrawer("admin-users-section");
+  if (!usersMobileWired) {
+    usersMobileWired = true;
+    document.getElementById("users-table-body").addEventListener("click", (e) => {
+      if (window.innerWidth > 640) return;
+      if (e.target.closest("input, button, select, a")) return;
+      const row = e.target.closest("tr[data-id]");
+      if (row) row.classList.toggle("expanded");
+    });
+  }
 }
 
 async function refreshEventsEverywhere(selectedCode) {
@@ -1604,35 +1615,6 @@ async function renderContactsTable(searchTerm = "") {
     });
   });
 
-  // Mobile Click Details modal listener
-  tbody.querySelectorAll("tr").forEach((row) => {
-    row.addEventListener("click", (e) => {
-      if (window.innerWidth <= 640) {
-        const target = e.target;
-        if (target.tagName === "INPUT" || target.tagName === "SELECT" || target.closest("button") || target.closest(".info-link") || target.closest(".admin-review-link") || target.closest("td[data-label='Phone']")) {
-          return;
-        }
-        // On a phone the rows stack as cards and the tick box is easy to miss,
-        // so while selecting, tapping the card is the tick.
-        if (contactsSelectMode) {
-          const cb = row.querySelector(".contact-select");
-          if (cb) {
-            cb.checked = !cb.checked;
-            cb.dispatchEvent(new Event("change"));
-          }
-          return;
-        }
-        const inputMob = row.querySelector("input[data-field='mob_no']") || row.querySelector("td[data-label='Phone'] input");
-        const inputName = row.querySelector("input[data-field='name']") || row.querySelector("td[data-label='Name'] input");
-        const mob = inputMob ? inputMob.value : "";
-        const name = inputName ? inputName.value : "";
-        if (mob) {
-          openContactInfoModal("details", mob, name, false);
-        }
-      }
-    });
-  });
-
   lastContactsData = data;
 }
 
@@ -2126,6 +2108,7 @@ function wireDeleteContactModal() {
 function wireContactsSearch() {
   if (contactsSearchWired) return;
   contactsSearchWired = true;
+  initMobileFilterBar("admin-contacts-section", ".panel-row", "#contacts-table-wrap");
   const input = document.getElementById("contacts-search");
   let t;
   const handleSearch = () => {
@@ -2155,12 +2138,24 @@ function wireContactsSearch() {
 
   // Mobile: tapping a row (not an input/select/button) expands it in place
   // to reveal the fields hidden from the compact scan view — same pattern
-  // as Commander/Book Dashboard in Book Distribution.
+  // as Commander/Book Dashboard in Book Distribution. While in Select mode,
+  // the tick box is easy to miss on a stacked card, so tapping the card
+  // ticks it instead of expanding (this used to also pop open a contact
+  // details modal — that's gone now that the card itself expands in place).
   document.getElementById("contacts-table-body").addEventListener("click", (e) => {
     if (window.innerWidth > 640) return;
     if (e.target.closest("input, button, select, a")) return;
     const row = e.target.closest("tr[data-id]");
-    if (row) row.classList.toggle("expanded");
+    if (!row) return;
+    if (contactsSelectMode) {
+      const cb = row.querySelector(".contact-select");
+      if (cb) {
+        cb.checked = !cb.checked;
+        cb.dispatchEvent(new Event("change"));
+      }
+      return;
+    }
+    row.classList.toggle("expanded");
   });
 }
 
@@ -2460,6 +2455,7 @@ export async function initAnalytics() {
   const run = () => runAnalytics(userSelect.value, fromInput.value, toInput.value, eventSelect.value);
   if (!analyticsWired) {
     analyticsWired = true;
+    initMobileFilterDrawer("admin-analytics-section");
     document.getElementById("analytics-run-btn").addEventListener("click", run);
     document.getElementById("card-assigned").addEventListener("click", () => openAnalyticsStatModal("assigned"));
     document.getElementById("card-calls-made").addEventListener("click", () => openAnalyticsStatModal("calls"));
@@ -3499,6 +3495,7 @@ export async function initReceptionAnalytics() {
   const run = () => runReceptionAnalytics(eventSelect.value, fromInput.value, toInput.value);
   if (!receptionAnalyticsWired) {
     receptionAnalyticsWired = true;
+    initMobileFilterDrawer("admin-reception-analytics-section");
     document.getElementById("reception-analytics-run-btn").addEventListener("click", run);
     document.getElementById("reception-analytics-export-btn").addEventListener("click", () => {
       const table = document.getElementById("reception-analytics-attendance-body").closest("table");
@@ -3913,6 +3910,7 @@ export async function initNewContacts() {
 
   if (!newContactsWired) {
     newContactsWired = true;
+    initMobileFilterBar("admin-new-contacts-section", ".panel-row", "#new-contacts-table-wrap");
     refreshBtn.addEventListener("click", () => {
       loadNewContacts(true);
     });
@@ -3939,6 +3937,12 @@ export async function initNewContacts() {
       if (window.innerWidth > 640) return;
       if (e.target.closest("input, button, select, a")) return;
       const row = e.target.closest("tr[data-index]");
+      if (row) row.classList.toggle("expanded");
+    });
+    document.getElementById("collection-submissions-admin-body").addEventListener("click", (e) => {
+      if (window.innerWidth > 640) return;
+      if (e.target.closest("input, button, select, a")) return;
+      const row = e.target.closest("tr[data-id]");
       if (row) row.classList.toggle("expanded");
     });
   }
@@ -4217,22 +4221,6 @@ function renderNewContactsTable() {
     });
   });
 
-  // Mobile Click Details modal listener for New Contacts
-  tbody.querySelectorAll("tr").forEach((row) => {
-    row.addEventListener("click", (e) => {
-      if (window.innerWidth <= 640) {
-        const target = e.target;
-        if (target.tagName === "INPUT" || target.tagName === "SELECT" || target.closest("button") || target.closest(".new-contact-review-btn") || target.closest("td[data-label='Phone']")) {
-          return;
-        }
-        const idx = parseInt(row.dataset.index, 10);
-        const contact = newContactsCache[idx];
-        if (contact) {
-          openContactInfoModal("details", contact.mob_no, contact.name, true);
-        }
-      }
-    });
-  });
 }
 
 async function deleteContactsFromSheetsCall(mobNos) {

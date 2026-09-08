@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, escapeHtml, debounce, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, downloadExcel, populateFilterSelect, exportTableToExcel } from "./utils.js";
+import { showToast, escapeHtml, debounce, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, downloadExcel, populateFilterSelect, exportTableToExcel, initMobileFilterDrawer } from "./utils.js";
 
 const SADHANA_COLUMNS_KEY = "nrg-sadhana-column-order";
 const DEFAULT_SADHANA_COLUMNS = ["S.No", "Name", "Date", "Rounds", "Book Reading", "Screen Time", "Detox Time", "Service", "Swadhyaya", ""];
@@ -203,6 +203,13 @@ function wireSadhanaFilters() {
   });
   initColumnDragReorder("sadhana-table", { storageKey: SADHANA_COLUMNS_KEY, columns: DEFAULT_SADHANA_COLUMNS, resetBtnId: "sadhana-reset-columns-btn" });
   initHorizontalScroll("sadhana-table-wrap");
+  initMobileFilterDrawer("admin-sadhana-section");
+  document.getElementById("sadhana-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("input, button, select, a")) return;
+    const row = e.target.closest("tr[data-id]");
+    if (row) row.classList.toggle("expanded");
+  });
 }
 
 async function deleteSadhanaRow(id) {
@@ -505,6 +512,7 @@ export async function initSadhanaUsers() {
   if (!sadhanaUsersWired) {
     sadhanaUsersWired = true;
     document.getElementById("sadhana-users-search").addEventListener("input", debounce(applySadhanaUsersSearch, 150));
+    initMobileFilterDrawer("sadhana-users-section");
   }
   await loadSadhanaUsers();
 }
@@ -687,6 +695,7 @@ async function wireSadhanaAnalyticsFilters() {
   const uniqueNames = Array.from(new Set((names || []).map((r) => r.name))).sort((a, b) => a.localeCompare(b));
   populateFilterSelect(document.getElementById("sa-filter-name-select"), uniqueNames);
 
+  initMobileFilterDrawer("sadhana-analytics-section");
   document.getElementById("sa-run-btn").addEventListener("click", runSadhanaAnalytics);
   document.getElementById("sa-sort").addEventListener("change", refreshLeaderboardView);
   document.getElementById("sa-filter-min-entries").addEventListener("input", debounce(refreshLeaderboardView, 200));

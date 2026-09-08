@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, escapeHtml, debounce, normalizePhoneInput, formatPhone, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, exportTableToExcel } from "./utils.js";
+import { showToast, escapeHtml, debounce, normalizePhoneInput, formatPhone, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, exportTableToExcel, initMobileFilterDrawer } from "./utils.js";
 import { wireSearchableCombo, fmtMoney } from "./bookDistribution.js";
 import { localDateInput, todayLocalDate } from "./sadhana.js";
 
@@ -160,6 +160,7 @@ function wireDonationsDashboard() {
   document.getElementById("donations-dashboard-search").addEventListener("input", debounce(applyDonationsDashboardFilters, 200));
   document.getElementById("donations-dashboard-sort").addEventListener("change", applyDonationsDashboardFilters);
   initHorizontalScroll("donations-dashboard-table-wrap");
+  initMobileFilterDrawer("donations-dashboard-section");
 
   // Mobile: tapping a row (not one of its buttons) expands it in place to
   // reveal Number and Remove — same pattern as Commander/Book Dashboard.
@@ -320,6 +321,13 @@ function wireDonationsTxFilters() {
   document.getElementById("donations-tx-th-filter-event").addEventListener("change", applyDonationsTxFilters);
   initColumnDragReorder("donations-tx-table", { storageKey: DONATIONS_COLUMNS_KEY, columns: DEFAULT_DONATIONS_COLUMNS, resetBtnId: "donations-tx-reset-columns-btn" });
   initHorizontalScroll("donations-tx-table-wrap");
+  initMobileFilterDrawer("donations-transactions-section");
+  document.getElementById("donations-tx-body").addEventListener("click", (e) => {
+    if (window.innerWidth > 640) return;
+    if (e.target.closest("input, button, select, a")) return;
+    const row = e.target.closest("tr[data-id]");
+    if (row) row.classList.toggle("expanded");
+  });
 }
 
 async function deleteDonationTx(id) {
@@ -481,6 +489,7 @@ function wireDonationEventsFilters() {
   document.getElementById("donations-ev-search").addEventListener("input", debounce(applyDonationEventsFilters, 200));
   document.getElementById("donations-ev-sort").addEventListener("change", applyDonationEventsFilters);
   initHorizontalScroll("donations-ev-table-wrap");
+  initMobileFilterDrawer("donations-events-section");
 }
 
 async function deleteDonationEvent(id) {
@@ -676,6 +685,7 @@ async function wireDonationAnalyticsFilters() {
   const { data: events } = await supabase.from("donation_events").select("name").order("name");
   populateFilterSelect(document.getElementById("da-filter-event-select"), (events || []).map((e) => e.name));
 
+  initMobileFilterDrawer("donations-analytics-section");
   document.getElementById("da-run-btn").addEventListener("click", runDonationAnalytics);
   document.getElementById("da-sort").addEventListener("change", refreshDonationLeaderboardView);
   document.getElementById("da-export-btn").addEventListener("click", () => {
