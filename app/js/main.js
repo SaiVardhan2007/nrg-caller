@@ -11,6 +11,8 @@ import * as Collection from "./collection.js";
 import * as BookDistribution from "./bookDistribution.js";
 import * as Sadhana from "./sadhana.js";
 import * as Donations from "./donations.js";
+import * as Expenses from "./expenses.js";
+import * as LimitedAccess from "./limitedAccess.js";
 
 const loginView = document.getElementById("login-view");
 const appView = document.getElementById("app-view");
@@ -25,6 +27,8 @@ const adminTabs = document.getElementById("admin-tabs");
 const bookTabs = document.getElementById("book-tabs");
 const sadhanaTabs = document.getElementById("sadhana-tabs");
 const donationsTabs = document.getElementById("donations-tabs");
+const expensesTabs = document.getElementById("expenses-tabs");
+const limitedUserTabs = document.getElementById("limited-user-tabs");
 const backBtn = document.getElementById("back-btn");
 const headerTitle = document.getElementById("header-title");
 const userNameEl = document.getElementById("user-name");
@@ -53,6 +57,10 @@ const PAGE_TITLES = {
   "donations-transactions-section": "Donations",
   "donations-events-section": "Donations",
   "donations-analytics-section": "Donations",
+  "expenses-trip-section": "Expenses",
+  "expenses-preaching-section": "Expenses",
+  "expenses-residency-section": "Expenses",
+  "admin-limited-access-section": "Limited Access",
   "caller-section": "My Calls",
   "reception-section": "Reception",
   "one-to-one-user-section": "One to One with Prabhu",
@@ -94,6 +102,9 @@ const CACHEABLE_SECTIONS = new Set([
   "donations-transactions-section",
   "donations-events-section",
   "donations-analytics-section",
+  "expenses-trip-section",
+  "expenses-preaching-section",
+  "expenses-residency-section",
   "book-dashboard-section",
   "book-inward-section",
   "book-outward-section",
@@ -159,6 +170,10 @@ function showScreen(id, { forceRefresh = false } = {}) {
     if (id === "donations-transactions-section") Donations.initDonationsTransactions(currentUser);
     if (id === "donations-events-section") Donations.initDonationsEvents(currentUser);
     if (id === "donations-analytics-section") Donations.initDonationsAnalytics();
+    if (id === "expenses-trip-section") Expenses.initExpensesTrip(currentUser);
+    if (id === "expenses-preaching-section") Expenses.initExpensesPreaching(currentUser);
+    if (id === "expenses-residency-section") Expenses.initExpensesResidency(currentUser);
+    if (id === "admin-limited-access-section") LimitedAccess.initLimitedAccess();
   }
 
   if (id !== "admin-new-contacts-section") Admin.stopNewContactsPolling();
@@ -226,6 +241,7 @@ function goAdminModules() {
   bookTabs.classList.add("hidden");
   sadhanaTabs.classList.add("hidden");
   donationsTabs.classList.add("hidden");
+  expensesTabs.classList.add("hidden");
   document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
   adminModuleDashboard.classList.remove("hidden");
   backBtn.classList.add("hidden");
@@ -240,6 +256,7 @@ function enterAdminModule(module) {
     adminTabs.classList.add("hidden");
     sadhanaTabs.classList.add("hidden");
     donationsTabs.classList.add("hidden");
+    expensesTabs.classList.add("hidden");
     bookTabs.classList.remove("hidden");
     bookTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
     bookTabs.querySelector(".admin-tab").classList.add("active");
@@ -250,6 +267,7 @@ function enterAdminModule(module) {
     adminTabs.classList.add("hidden");
     bookTabs.classList.add("hidden");
     donationsTabs.classList.add("hidden");
+    expensesTabs.classList.add("hidden");
     sadhanaTabs.classList.remove("hidden");
     sadhanaTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
     sadhanaTabs.querySelector(".admin-tab").classList.add("active");
@@ -260,16 +278,37 @@ function enterAdminModule(module) {
     adminTabs.classList.add("hidden");
     bookTabs.classList.add("hidden");
     sadhanaTabs.classList.add("hidden");
+    expensesTabs.classList.add("hidden");
     donationsTabs.classList.remove("hidden");
     donationsTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
     donationsTabs.querySelector(".admin-tab").classList.add("active");
     document.getElementById("download-all-db-btn").classList.add("hidden");
     document.getElementById("bulk-delete-btn").classList.remove("hidden");
     showScreen("donations-dashboard-section");
+  } else if (module === "expenses") {
+    adminTabs.classList.add("hidden");
+    bookTabs.classList.add("hidden");
+    sadhanaTabs.classList.add("hidden");
+    donationsTabs.classList.add("hidden");
+    expensesTabs.classList.remove("hidden");
+    expensesTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
+    expensesTabs.querySelector(".admin-tab").classList.add("active");
+    document.getElementById("download-all-db-btn").classList.add("hidden");
+    document.getElementById("bulk-delete-btn").classList.remove("hidden");
+    showScreen("expenses-trip-section");
+  } else if (module === "limited-access") {
+    adminTabs.classList.add("hidden");
+    bookTabs.classList.add("hidden");
+    sadhanaTabs.classList.add("hidden");
+    donationsTabs.classList.add("hidden");
+    expensesTabs.classList.add("hidden");
+    setAdminWideActionsVisible(false);
+    showScreen("admin-limited-access-section");
   } else {
     bookTabs.classList.add("hidden");
     sadhanaTabs.classList.add("hidden");
     donationsTabs.classList.add("hidden");
+    expensesTabs.classList.add("hidden");
     adminTabs.classList.remove("hidden");
     adminTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
     adminTabs.querySelector(".admin-tab").classList.add("active");
@@ -304,7 +343,7 @@ function wireNav() {
       goAdminModules();
       return;
     }
-    if (currentUser.role === "Reception") return;
+    if (currentUser.role === "Reception" || currentUser.role === "Limited Admin") return;
     const onPreachingDashboard = !preachingDashboard.classList.contains("hidden");
     const onBookDistDashboard = !bookDistUserDashboard.classList.contains("hidden");
     if (onPreachingDashboard || onBookDistDashboard) {
@@ -349,6 +388,27 @@ function wireNav() {
       showScreen(tab.dataset.target);
     });
   });
+
+  expensesTabs.querySelectorAll(".admin-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      expensesTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      showScreen(tab.dataset.target);
+    });
+  });
+}
+
+function renderLimitedUserTabs(pages) {
+  limitedUserTabs.innerHTML = pages.map((id, i) =>
+    `<button class="admin-tab${i === 0 ? " active" : ""}" data-target="${id}">${LimitedAccess.tabLabelFor(id)}</button>`
+  ).join("");
+  limitedUserTabs.querySelectorAll(".admin-tab").forEach((tab) => {
+    tab.onclick = () => {
+      limitedUserTabs.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      showScreen(tab.dataset.target);
+    };
+  });
 }
 
 function renderForRole(user) {
@@ -366,6 +426,7 @@ function renderForRole(user) {
     bookTabs.classList.add("hidden");
     sadhanaTabs.classList.add("hidden");
     donationsTabs.classList.add("hidden");
+    expensesTabs.classList.add("hidden");
     homeDashboard.classList.add("hidden");
     preachingDashboard.classList.add("hidden");
     bookDistUserDashboard.classList.add("hidden");
@@ -385,16 +446,43 @@ function renderForRole(user) {
     bookTabs.classList.add("hidden");
     sadhanaTabs.classList.add("hidden");
     donationsTabs.classList.add("hidden");
+    expensesTabs.classList.add("hidden");
     homeDashboard.classList.add("hidden");
     preachingDashboard.classList.add("hidden");
     bookDistUserDashboard.classList.add("hidden");
     backBtn.classList.add("hidden");
     showScreen("reception-section");
+  } else if (user.role === "Limited Admin") {
+    adminTabs.classList.add("hidden");
+    bookTabs.classList.add("hidden");
+    sadhanaTabs.classList.add("hidden");
+    donationsTabs.classList.add("hidden");
+    expensesTabs.classList.add("hidden");
+    homeDashboard.classList.add("hidden");
+    preachingDashboard.classList.add("hidden");
+    bookDistUserDashboard.classList.add("hidden");
+    backBtn.classList.add("hidden");
+    setAdminWideActionsVisible(false);
+    const pages = Array.isArray(user.allowed_pages) ? user.allowed_pages : [];
+    if (!pages.length) {
+      limitedUserTabs.classList.add("hidden");
+      document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
+      headerTitle.textContent = "No pages assigned — contact an Admin.";
+      return;
+    }
+    if (pages.length > 1) {
+      renderLimitedUserTabs(pages);
+      limitedUserTabs.classList.remove("hidden");
+    } else {
+      limitedUserTabs.classList.add("hidden");
+    }
+    showScreen(pages[0]);
   } else {
     adminTabs.classList.add("hidden");
     bookTabs.classList.add("hidden");
     sadhanaTabs.classList.add("hidden");
     donationsTabs.classList.add("hidden");
+    expensesTabs.classList.add("hidden");
     goHome();
   }
 }

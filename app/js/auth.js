@@ -1,28 +1,32 @@
-import { supabase } from "./supabaseClient.js";
+import { supabase, setAuditUser } from "./supabaseClient.js";
 
 const SESSION_KEY = "nrg_session";
 
 export function getSession() {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
-    return raw ? JSON.parse(raw) : null;
+    const user = raw ? JSON.parse(raw) : null;
+    if (user) setAuditUser(user.id);
+    return user;
   } catch {
     return null;
   }
 }
 
 export function setSession(user) {
+  setAuditUser(user.id);
   localStorage.setItem(SESSION_KEY, JSON.stringify(user));
 }
 
 export function clearSession() {
+  setAuditUser(null);
   localStorage.removeItem(SESSION_KEY);
 }
 
 export async function login(userName, password) {
   const { data, error } = await supabase
     .from("users")
-    .select("id,user_name,login_pw,role,call_limit,auto_assign,commander")
+    .select("id,user_name,login_pw,role,call_limit,auto_assign,commander,allowed_pages")
     .ilike("user_name", userName.trim())
     .limit(1);
 
@@ -31,7 +35,7 @@ export async function login(userName, password) {
   if (!row) return { ok: false, message: "User not found." };
   if (row.login_pw !== password.trim()) return { ok: false, message: "Incorrect password." };
 
-  const user = { id: row.id, user_name: row.user_name, role: row.role, call_limit: row.call_limit, auto_assign: row.auto_assign, commander: row.commander, login_pw: row.login_pw };
+  const user = { id: row.id, user_name: row.user_name, role: row.role, call_limit: row.call_limit, auto_assign: row.auto_assign, commander: row.commander, login_pw: row.login_pw, allowed_pages: row.allowed_pages };
   setSession(user);
   return { ok: true, user };
 }
@@ -42,13 +46,13 @@ export async function login(userName, password) {
 export async function refreshSession(existing) {
   const { data, error } = await supabase
     .from("users")
-    .select("id,user_name,role,call_limit,auto_assign,commander")
+    .select("id,user_name,role,call_limit,auto_assign,commander,allowed_pages")
     .eq("id", existing.id)
     .limit(1);
   const row = data && data[0];
   if (error || !row) return existing;
 
-  const user = { ...existing, role: row.role, call_limit: row.call_limit, auto_assign: row.auto_assign, commander: row.commander };
+  const user = { ...existing, role: row.role, call_limit: row.call_limit, auto_assign: row.auto_assign, commander: row.commander, allowed_pages: row.allowed_pages };
   setSession(user);
   return user;
 }

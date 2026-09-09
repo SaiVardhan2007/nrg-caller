@@ -102,6 +102,16 @@
     <button class="admin-tab" data-target="donations-analytics-section">Analytics</button>
   </nav>
 
+  <!-- ---- Expenses tabs ---- -->
+  <nav id="expenses-tabs" class="admin-tabs hidden">
+    <button class="admin-tab active" data-target="expenses-trip-section">Trip Expenses</button>
+    <button class="admin-tab" data-target="expenses-preaching-section">Preaching</button>
+    <button class="admin-tab" data-target="expenses-residency-section">Residency Expenses</button>
+  </nav>
+
+  <!-- ---- Limited-access login tabs (built at runtime from that login's allowed_pages) ---- -->
+  <nav id="limited-user-tabs" class="admin-tabs hidden"></nav>
+
   <!-- ---- Admin module chooser ---- -->
   <div id="admin-module-dashboard" class="dashboard hidden">
     <div class="dashboard-cards">
@@ -123,6 +133,16 @@
       <button class="dashboard-card" data-target="donations">
         <span class="card-icon-badge badge-saffron"><span class="card-emoji">💰</span></span>
         <span class="card-label">Donations</span>
+        <span class="card-arrow">→</span>
+      </button>
+      <button class="dashboard-card" data-target="expenses">
+        <span class="card-icon-badge badge-indigo"><span class="card-emoji">💸</span></span>
+        <span class="card-label">Expenses</span>
+        <span class="card-arrow">→</span>
+      </button>
+      <button class="dashboard-card" data-target="limited-access">
+        <span class="card-icon-badge badge-indigo"><span class="card-emoji">🔒</span></span>
+        <span class="card-label">Limited Access</span>
         <span class="card-arrow">→</span>
       </button>
     </div>
@@ -750,6 +770,26 @@
           </thead>
           <tbody id="one-to-one-table-body">
             <tr><td colspan="7" class="loading-row">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== ADMIN: Limited Access ===== -->
+    <section id="admin-limited-access-section" class="page hidden">
+      <div class="panel">
+        <p class="muted-text">Create a login that can only see the page(s) you check below — everything else in the admin panel stays hidden for it.</p>
+        <div class="panel-row">
+          <button id="limited-access-add-btn" class="btn btn-secondary">+ Add Limited Access Login</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="limited-access-table">
+          <thead>
+            <tr><th>S.No</th><th>User ID</th><th>Password</th><th>Pages</th><th></th></tr>
+          </thead>
+          <tbody id="limited-access-table-body">
+            <tr><td colspan="5" class="loading-row">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -1842,6 +1882,211 @@
       </div>
     </section>
 
+    <!-- ===== EXPENSES (admin only) ===== -->
+    <section id="expenses-trip-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="et-search" type="search" placeholder="Search description / place…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="et-sort" class="inline-edit">
+                <option value="expense_date-desc">Date (Newest)</option>
+                <option value="expense_date-asc">Date (Oldest)</option>
+                <option value="amount-desc">Amount (High-Low)</option>
+                <option value="amount-asc">Amount (Low-High)</option>
+                <option value="description-asc">Description (A-Z)</option>
+                <option value="description-desc">Description (Z-A)</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Place</span>
+              <select id="et-filter-place">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <button id="add-et-expense-btn" class="btn btn-primary toolbar-btn">+ Add Trip Expense</button>
+            <button id="add-et-budget-btn" class="btn btn-secondary toolbar-btn">+ Add Budget</button>
+            <button id="et-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
+            <button id="et-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="stats-bar">
+            <div class="stat"><span id="et-stat-budget" class="stat-num">₹0</span><span class="stat-label">Total Budget</span></div>
+            <div class="stat"><span id="et-stat-expenses" class="stat-num">₹0</span><span class="stat-label">Expenses</span></div>
+            <div class="stat"><span id="et-stat-available" class="stat-num">₹0</span><span class="stat-label">Available</span></div>
+          </div>
+
+          <div class="table-wrap" id="expenses-trip-table-wrap">
+            <table class="data-table" id="expenses-trip-table">
+              <thead>
+                <tr>
+                  <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Date">Date</th>
+                  <th draggable="true" data-label="Description">Description</th>
+                  <th draggable="true" data-label="Amount">
+                    <div class="th-label">Amount</div>
+                    <input type="number" id="et-th-filter-amount" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Place">
+                    <div class="th-label">Place</div>
+                    <select id="et-th-filter-place" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="Added By">Added By</th>
+                  <th data-label=""></th>
+                </tr>
+              </thead>
+              <tbody id="expenses-trip-body">
+                <tr><td colspan="7" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="expenses-preaching-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="ep-search" type="search" placeholder="Search description / place…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="ep-sort" class="inline-edit">
+                <option value="expense_date-desc">Date (Newest)</option>
+                <option value="expense_date-asc">Date (Oldest)</option>
+                <option value="amount-desc">Amount (High-Low)</option>
+                <option value="amount-asc">Amount (Low-High)</option>
+                <option value="description-asc">Description (A-Z)</option>
+                <option value="description-desc">Description (Z-A)</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Place</span>
+              <select id="ep-filter-place">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <button id="add-ep-expense-btn" class="btn btn-primary toolbar-btn">+ Add Preaching Expense</button>
+            <button id="add-ep-budget-btn" class="btn btn-secondary toolbar-btn">+ Add Budget</button>
+            <button id="ep-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
+            <button id="ep-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="stats-bar">
+            <div class="stat"><span id="ep-stat-budget" class="stat-num">₹0</span><span class="stat-label">Total Budget</span></div>
+            <div class="stat"><span id="ep-stat-expenses" class="stat-num">₹0</span><span class="stat-label">Expenses</span></div>
+            <div class="stat"><span id="ep-stat-available" class="stat-num">₹0</span><span class="stat-label">Available</span></div>
+          </div>
+
+          <div class="table-wrap" id="expenses-preaching-table-wrap">
+            <table class="data-table" id="expenses-preaching-table">
+              <thead>
+                <tr>
+                  <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Date">Date</th>
+                  <th draggable="true" data-label="Description">Description</th>
+                  <th draggable="true" data-label="Amount">
+                    <div class="th-label">Amount</div>
+                    <input type="number" id="ep-th-filter-amount" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Place">
+                    <div class="th-label">Place</div>
+                    <select id="ep-th-filter-place" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="Added By">Added By</th>
+                  <th data-label=""></th>
+                </tr>
+              </thead>
+              <tbody id="expenses-preaching-body">
+                <tr><td colspan="7" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="expenses-residency-section" class="page hidden">
+      <div class="users-page-layout">
+        <div class="panel users-sidebar">
+          <div class="users-toolbar">
+            <input id="er-search" type="search" placeholder="Search description / place…" class="search-input" />
+            <label class="field inline">
+              <span>Sort By</span>
+              <select id="er-sort" class="inline-edit">
+                <option value="expense_date-desc">Date (Newest)</option>
+                <option value="expense_date-asc">Date (Oldest)</option>
+                <option value="amount-desc">Amount (High-Low)</option>
+                <option value="amount-asc">Amount (Low-High)</option>
+                <option value="description-asc">Description (A-Z)</option>
+                <option value="description-desc">Description (Z-A)</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span>Place</span>
+              <select id="er-filter-place">
+                <option value="__ALL__">All</option>
+                <option value="">—</option>
+              </select>
+            </label>
+            <button id="add-er-expense-btn" class="btn btn-primary toolbar-btn">+ Add Residency Expense</button>
+            <button id="add-er-budget-btn" class="btn btn-secondary toolbar-btn">+ Add Budget</button>
+            <button id="er-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
+            <button id="er-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
+          </div>
+        </div>
+
+        <div class="users-content">
+          <div class="stats-bar">
+            <div class="stat"><span id="er-stat-budget" class="stat-num">₹0</span><span class="stat-label">Total Budget</span></div>
+            <div class="stat"><span id="er-stat-expenses" class="stat-num">₹0</span><span class="stat-label">Expenses</span></div>
+            <div class="stat"><span id="er-stat-available" class="stat-num">₹0</span><span class="stat-label">Available</span></div>
+          </div>
+
+          <div class="table-wrap" id="expenses-residency-table-wrap">
+            <table class="data-table" id="expenses-residency-table">
+              <thead>
+                <tr>
+                  <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Date">Date</th>
+                  <th draggable="true" data-label="Description">Description</th>
+                  <th draggable="true" data-label="Amount">
+                    <div class="th-label">Amount</div>
+                    <input type="number" id="er-th-filter-amount" class="th-filter" placeholder="All" />
+                  </th>
+                  <th draggable="true" data-label="Place">
+                    <div class="th-label">Place</div>
+                    <select id="er-th-filter-place" class="th-filter">
+                      <option value="__ALL__">All</option>
+                      <option value="">—</option>
+                    </select>
+                  </th>
+                  <th draggable="true" data-label="Added By">Added By</th>
+                  <th data-label=""></th>
+                </tr>
+              </thead>
+              <tbody id="expenses-residency-body">
+                <tr><td colspan="7" class="loading-row">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== USER: Book Distribution stock entry ===== -->
     <section id="book-stock-entry-section" class="page hidden">
       <div class="panel">
@@ -2831,6 +3076,21 @@
   </div>
 </div>
 
+<div id="limited-access-modal" class="modal">
+  <div class="modal-box">
+    <h3 id="limited-access-title">Add Limited Access Login</h3>
+    <label class="field"><span>User ID</span><input id="limited-access-name" type="text" autocomplete="off" /></label>
+    <label class="field"><span>Password</span><input id="limited-access-password" type="text" autocomplete="off" /></label>
+    <label class="field"><span>Pages this login can see</span></label>
+    <div id="limited-access-pages" class="tag-check-group limited-access-pages"></div>
+    <div id="limited-access-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="limited-access-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="limited-access-submit" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="contacts-assign-modal" class="modal">
   <div class="modal-box modal-large">
     <h3>Assign Selected Contacts</h3>
@@ -3110,6 +3370,87 @@
     <div class="modal-actions">
       <button id="book-event-cancel-btn" class="btn btn-secondary">Cancel</button>
       <button id="book-event-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="expense-trip-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add Trip Expense</h3>
+    <label class="field"><span>Date</span><input id="et-date" type="date" /></label>
+    <label class="field"><span>Description</span><input id="et-description" type="text" placeholder="What was this expense for?" /></label>
+    <label class="field"><span>Amount</span><input id="et-amount" type="number" min="0" step="0.01" /></label>
+    <label class="field"><span>Place</span><input id="et-place" type="text" placeholder="e.g. Vijayawada" /></label>
+    <div id="et-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="et-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="et-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="expense-trip-budget-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add to Trip Budget</h3>
+    <label class="field"><span>Amount to add</span><input id="et-budget-amount" type="number" min="0" step="0.01" /></label>
+    <div id="et-budget-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="et-budget-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="et-budget-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="expense-preaching-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add Preaching Expense</h3>
+    <label class="field"><span>Date</span><input id="ep-date" type="date" /></label>
+    <label class="field"><span>Description</span><input id="ep-description" type="text" placeholder="What was this expense for?" /></label>
+    <label class="field"><span>Amount</span><input id="ep-amount" type="number" min="0" step="0.01" /></label>
+    <label class="field"><span>Place</span><input id="ep-place" type="text" placeholder="e.g. Community Hall" /></label>
+    <div id="ep-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="ep-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="ep-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="expense-preaching-budget-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add to Preaching Budget</h3>
+    <label class="field"><span>Amount to add</span><input id="ep-budget-amount" type="number" min="0" step="0.01" /></label>
+    <div id="ep-budget-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="ep-budget-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="ep-budget-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="expense-residency-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add Residency Expense</h3>
+    <label class="field"><span>Date</span><input id="er-date" type="date" /></label>
+    <label class="field"><span>Description</span><input id="er-description" type="text" placeholder="What was this expense for?" /></label>
+    <label class="field"><span>Amount</span><input id="er-amount" type="number" min="0" step="0.01" /></label>
+    <label class="field"><span>Place</span><input id="er-place" type="text" placeholder="e.g. Main Residency" /></label>
+    <div id="er-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="er-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="er-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="expense-residency-budget-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add to Residency Budget</h3>
+    <label class="field"><span>Amount to add</span><input id="er-budget-amount" type="number" min="0" step="0.01" /></label>
+    <div id="er-budget-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="er-budget-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="er-budget-save-btn" class="btn btn-primary">Save</button>
     </div>
   </div>
 </div>

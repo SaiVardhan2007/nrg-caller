@@ -3134,7 +3134,7 @@ async function renderSavingsPanel() {
   // are always empty. Admin gets a "Show contribution for" picker: "All
   // Users" aggregates org-wide (same figures as the Expenses tab), or a
   // specific coordinator's name shows that person's own numbers.
-  const isAdmin = currentSavingsUser?.role === "Admin";
+  const isAdmin = currentSavingsUser?.role === "Admin" || currentSavingsUser?.role === "Limited Admin";
   const scopeSel = isAdmin ? (document.getElementById("bs-stats-user-select")?.value || "__ALL__") : targetUser;
   const isOrgWide = scopeSel === "__ALL__";
   const scopeUser = isOrgWide ? null : scopeSel;
@@ -3740,7 +3740,7 @@ async function initContributionsAdminTable() {
 
 export async function initSavingsPanel(currentUser) {
   currentSavingsUser = currentUser;
-  const isAdmin = currentUser?.role === "Admin";
+  const isAdmin = currentUser?.role === "Admin" || currentUser?.role === "Limited Admin";
 
   // Nobody ever pays a contribution to Admin, so Admin's "Confirm Receipt"
   // table would always be empty — swap it out for the wide, filterable
