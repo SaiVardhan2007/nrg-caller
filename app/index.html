@@ -1915,7 +1915,7 @@
 
         <div class="users-content">
           <div class="stats-bar">
-            <div class="stat"><span id="et-stat-budget" class="stat-num">₹0</span><span class="stat-label">Total Budget</span></div>
+            <div id="et-stat-budget-box" class="stat cursor-pointer" title="Tap to view budget history"><span id="et-stat-budget" class="stat-num">₹0</span><span class="stat-label">Total Budget</span></div>
             <div class="stat"><span id="et-stat-expenses" class="stat-num">₹0</span><span class="stat-label">Expenses</span></div>
             <div class="stat"><span id="et-stat-available" class="stat-num">₹0</span><span class="stat-label">Available</span></div>
           </div>
@@ -1983,7 +1983,7 @@
 
         <div class="users-content">
           <div class="stats-bar">
-            <div class="stat"><span id="ep-stat-budget" class="stat-num">₹0</span><span class="stat-label">Total Budget</span></div>
+            <div id="ep-stat-budget-box" class="stat cursor-pointer" title="Tap to view budget history"><span id="ep-stat-budget" class="stat-num">₹0</span><span class="stat-label">Total Budget</span></div>
             <div class="stat"><span id="ep-stat-expenses" class="stat-num">₹0</span><span class="stat-label">Expenses</span></div>
             <div class="stat"><span id="ep-stat-available" class="stat-num">₹0</span><span class="stat-label">Available</span></div>
           </div>
@@ -2051,7 +2051,7 @@
 
         <div class="users-content">
           <div class="stats-bar">
-            <div class="stat"><span id="er-stat-budget" class="stat-num">₹0</span><span class="stat-label">Total Budget</span></div>
+            <div id="er-stat-budget-box" class="stat cursor-pointer" title="Tap to view budget history"><span id="er-stat-budget" class="stat-num">₹0</span><span class="stat-label">Total Budget</span></div>
             <div class="stat"><span id="er-stat-expenses" class="stat-num">₹0</span><span class="stat-label">Expenses</span></div>
             <div class="stat"><span id="er-stat-available" class="stat-num">₹0</span><span class="stat-label">Available</span></div>
           </div>
@@ -3392,11 +3392,30 @@
 <div id="expense-trip-budget-modal" class="modal">
   <div class="modal-box">
     <h3>Add to Trip Budget</h3>
-    <label class="field"><span>Amount to add</span><input id="et-budget-amount" type="number" min="0" step="0.01" /></label>
+    <label class="field"><span>Date</span><input id="et-budget-date" type="date" /></label>
+    <label class="field"><span>Description</span><input id="et-budget-description" type="text" placeholder="What is this budget for?" /></label>
+    <label class="field"><span>Amount</span><input id="et-budget-amount" type="number" min="0" step="0.01" /></label>
     <div id="et-budget-error" class="field-error hidden"></div>
     <div class="modal-actions">
       <button id="et-budget-cancel-btn" class="btn btn-secondary">Cancel</button>
       <button id="et-budget-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="expense-trip-budget-history-modal" class="modal">
+  <div class="modal-box modal-large">
+    <div class="modal-title-row">
+      <h3>Trip Budget History</h3>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>S.No</th><th>Date</th><th>Description</th><th>Amount</th><th>Added By</th><th></th></tr></thead>
+        <tbody id="et-budget-history-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="et-budget-history-close-btn" class="btn btn-secondary">Close</button>
     </div>
   </div>
 </div>
@@ -3419,11 +3438,30 @@
 <div id="expense-preaching-budget-modal" class="modal">
   <div class="modal-box">
     <h3>Add to Preaching Budget</h3>
-    <label class="field"><span>Amount to add</span><input id="ep-budget-amount" type="number" min="0" step="0.01" /></label>
+    <label class="field"><span>Date</span><input id="ep-budget-date" type="date" /></label>
+    <label class="field"><span>Description</span><input id="ep-budget-description" type="text" placeholder="What is this budget for?" /></label>
+    <label class="field"><span>Amount</span><input id="ep-budget-amount" type="number" min="0" step="0.01" /></label>
     <div id="ep-budget-error" class="field-error hidden"></div>
     <div class="modal-actions">
       <button id="ep-budget-cancel-btn" class="btn btn-secondary">Cancel</button>
       <button id="ep-budget-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="expense-preaching-budget-history-modal" class="modal">
+  <div class="modal-box modal-large">
+    <div class="modal-title-row">
+      <h3>Preaching Budget History</h3>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>S.No</th><th>Date</th><th>Description</th><th>Amount</th><th>Added By</th><th></th></tr></thead>
+        <tbody id="ep-budget-history-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="ep-budget-history-close-btn" class="btn btn-secondary">Close</button>
     </div>
   </div>
 </div>
@@ -3446,11 +3484,30 @@
 <div id="expense-residency-budget-modal" class="modal">
   <div class="modal-box">
     <h3>Add to Residency Budget</h3>
-    <label class="field"><span>Amount to add</span><input id="er-budget-amount" type="number" min="0" step="0.01" /></label>
+    <label class="field"><span>Date</span><input id="er-budget-date" type="date" /></label>
+    <label class="field"><span>Description</span><input id="er-budget-description" type="text" placeholder="What is this budget for?" /></label>
+    <label class="field"><span>Amount</span><input id="er-budget-amount" type="number" min="0" step="0.01" /></label>
     <div id="er-budget-error" class="field-error hidden"></div>
     <div class="modal-actions">
       <button id="er-budget-cancel-btn" class="btn btn-secondary">Cancel</button>
       <button id="er-budget-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="expense-residency-budget-history-modal" class="modal">
+  <div class="modal-box modal-large">
+    <div class="modal-title-row">
+      <h3>Residency Budget History</h3>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>S.No</th><th>Date</th><th>Description</th><th>Amount</th><th>Added By</th><th></th></tr></thead>
+        <tbody id="er-budget-history-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="er-budget-history-close-btn" class="btn btn-secondary">Close</button>
     </div>
   </div>
 </div>

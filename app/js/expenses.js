@@ -116,13 +116,14 @@ function wireInlineEditCells(tbody, tableName, cache, { numberFields = [], requi
   });
 }
 
-function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, modalId, columnsKey, addLabel, budgetCategory, budgetModalId }) {
+function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, modalId, columnsKey, addLabel, budgetCategory, budgetModalId, budgetHistoryModalId }) {
   const DEFAULT_COLUMNS = ["S.No", "Date", "Description", "Amount", "Place", "Added By", ""];
   const SELECT_FILTERS = [[`${prefix}-filter-place`, "place"]];
   const NUMBER_FILTERS = [[`${prefix}-th-filter-amount`, "amount"]];
 
   let cache = [];
   let budget = 0;
+  let budgetCache = [];
   let filtersWired = false;
   let modalWired = false;
 
@@ -263,14 +264,13 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
   function wireBudgetModal(currentUser) {
     const modal = document.getElementById(budgetModalId);
     const errorEl = document.getElementById(`${prefix}-budget-error`);
+    const dateInput = document.getElementById(`${prefix}-budget-date`);
+    const descInput = document.getElementById(`${prefix}-budget-description`);
     const amountInput = document.getElementById(`${prefix}-budget-amount`);
 
-    // Limited Access logins only ever get here when specifically granted this
-    // page, but the budget itself is org-wide config — keep changing it to
-    // real Admins only.
-    document.getElementById(`add-${prefix}-budget-btn`).classList.toggle("hidden", currentUser?.role !== "Admin");
-
     document.getElementById(`add-${prefix}-budget-btn`).onclick = () => {
+      dateInput.value = new Date().toISOString().slice(0, 10);
+      descInput.value = "";
       amountInput.value = "";
       errorEl.classList.add("hidden");
       modal.classList.add("active");
@@ -279,27 +279,94 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
     modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
     document.getElementById(`${prefix}-budget-save-btn`).onclick = async () => {
+      const date = dateInput.value;
+      const description = descInput.value.trim();
       const amount = Number(amountInput.value);
+
+      if (!date) {
+        errorEl.textContent = "Please choose a date.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+      if (!description) {
+        errorEl.textContent = "Please enter what this budget is for.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
       if (!amountInput.value || amount <= 0) {
         errorEl.textContent = "Please enter an amount greater than 0.";
         errorEl.classList.remove("hidden");
         return;
       }
-      const newBudget = budget + amount;
-      const { error } = await supabase
-        .from("expense_budgets")
-        .update({ total_budget: newBudget, updated_at: new Date().toISOString() })
-        .eq("category", budgetCategory);
+
+      const payload = {
+        category: budgetCategory,
+        transaction_date: date,
+        description,
+        amount,
+        added_by: currentUser?.user_name || null,
+      };
+      const { error } = await supabase.from("budget_transactions").insert(payload);
 
       if (error) {
         errorEl.textContent = error.message;
         errorEl.classList.remove("hidden");
         return;
       }
-      budget = newBudget;
       modal.classList.remove("active");
-      showToast("Budget updated", "success");
+      showToast("Budget added", "success");
+      await loadBudget();
       updateStats();
+      renderBudgetHistoryRows();
+    };
+  }
+
+  function renderBudgetHistoryRows() {
+    const tbody = document.getElementById(`${prefix}-budget-history-body`);
+    if (!tbody) return;
+    if (!budgetCache.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="muted-text">No budget added yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = budgetCache.map((r, idx) => `
+      <tr data-id="${r.id}">
+        <td data-label="S.No">${idx + 1}</td>
+        <td data-label="Date">${r.transaction_date || ""}</td>
+        <td data-label="Description">${escapeHtml(r.description || "")}</td>
+        <td data-label="Amount">${fmtMoney(r.amount)}</td>
+        <td data-label="Added By">${escapeHtml(r.added_by || "")}</td>
+        <td data-label="">
+          <button type="button" class="cell-chip danger budget-delete-btn" title="Delete">🗑 Delete</button>
+        </td>
+      </tr>
+    `).join("");
+
+    tbody.querySelectorAll(".budget-delete-btn").forEach((btn) => {
+      btn.addEventListener("click", () => deleteBudgetRow(btn.closest("tr").dataset.id));
+    });
+  }
+
+  async function deleteBudgetRow(id) {
+    const r = budgetCache.find((x) => x.id === id);
+    if (!confirm(`Delete budget entry "${r?.description || ""}"?`)) return;
+    const { error } = await supabase.from("budget_transactions").delete().eq("id", id);
+    if (error) {
+      showToast("Delete failed: " + error.message, "error");
+      return;
+    }
+    showToast("Budget entry deleted", "success");
+    await loadBudget();
+    updateStats();
+    renderBudgetHistoryRows();
+  }
+
+  function wireBudgetHistoryModal() {
+    const modal = document.getElementById(budgetHistoryModalId);
+    document.getElementById(`${prefix}-budget-history-close-btn`).onclick = () => modal.classList.remove("active");
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+    document.getElementById(`${prefix}-stat-budget-box`).onclick = () => {
+      modal.classList.add("active");
+      renderBudgetHistoryRows();
     };
   }
 
@@ -311,8 +378,13 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
   }
 
   async function loadBudget() {
-    const { data } = await supabase.from("expense_budgets").select("total_budget").eq("category", budgetCategory).maybeSingle();
-    budget = data?.total_budget || 0;
+    const { data } = await supabase
+      .from("budget_transactions")
+      .select("id,transaction_date,description,amount,added_by")
+      .eq("category", budgetCategory)
+      .order("transaction_date", { ascending: false });
+    budgetCache = data || [];
+    budget = budgetCache.reduce((s, r) => s + (r.amount || 0), 0);
   }
 
   async function load() {
@@ -341,6 +413,7 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
     init: async (currentUser) => {
       wireModal(currentUser);
       wireBudgetModal(currentUser);
+      wireBudgetHistoryModal();
       wireFilters();
       await load();
     },
@@ -358,6 +431,7 @@ const tripCategory = createExpenseCategory({
   addLabel: "Trip expense",
   budgetCategory: "trip",
   budgetModalId: "expense-trip-budget-modal",
+  budgetHistoryModalId: "expense-trip-budget-history-modal",
 });
 
 const preachingCategory = createExpenseCategory({
@@ -371,6 +445,7 @@ const preachingCategory = createExpenseCategory({
   addLabel: "Preaching expense",
   budgetCategory: "preaching",
   budgetModalId: "expense-preaching-budget-modal",
+  budgetHistoryModalId: "expense-preaching-budget-history-modal",
 });
 
 const residencyCategory = createExpenseCategory({
@@ -384,6 +459,7 @@ const residencyCategory = createExpenseCategory({
   addLabel: "Residency expense",
   budgetCategory: "residency",
   budgetModalId: "expense-residency-budget-modal",
+  budgetHistoryModalId: "expense-residency-budget-history-modal",
 });
 
 export const initExpensesTrip = (currentUser) => tripCategory.init(currentUser);
