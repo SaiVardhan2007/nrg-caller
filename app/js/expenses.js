@@ -324,11 +324,13 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
   function renderBudgetHistoryRows() {
     const tbody = document.getElementById(`${prefix}-budget-history-body`);
     if (!tbody) return;
-    if (!budgetCache.length) {
+    const sortVal = document.getElementById(`${prefix}-budget-history-sort`)?.value;
+    const rows = sortRows(budgetCache, sortVal, "transaction_date-desc");
+    if (!rows.length) {
       tbody.innerHTML = `<tr><td colspan="6" class="muted-text">No budget added yet.</td></tr>`;
       return;
     }
-    tbody.innerHTML = budgetCache.map((r, idx) => `
+    tbody.innerHTML = rows.map((r, idx) => `
       <tr data-id="${r.id}">
         <td data-label="S.No">${idx + 1}</td>
         <td data-label="Date">${r.transaction_date || ""}</td>
@@ -364,6 +366,7 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
     const modal = document.getElementById(budgetHistoryModalId);
     document.getElementById(`${prefix}-budget-history-close-btn`).onclick = () => modal.classList.remove("active");
     modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+    document.getElementById(`${prefix}-budget-history-sort`)?.addEventListener("change", renderBudgetHistoryRows);
     document.getElementById(`${prefix}-stat-budget-box`).onclick = () => {
       modal.classList.add("active");
       renderBudgetHistoryRows();
