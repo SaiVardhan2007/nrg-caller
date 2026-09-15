@@ -1356,6 +1356,7 @@
             <label class="field inline"><span>Book</span><select id="ba-filter-book-select" class="inline-edit"></select></label>
             <button id="ba-run-btn" class="btn btn-primary toolbar-btn">View</button>
             <button id="ba-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
+            <button id="ba-general-data-btn" class="btn btn-secondary toolbar-btn">📊 General Data</button>
           </div>
         </div>
 
@@ -3782,18 +3783,13 @@
 </div>
 
 <div id="general-data-modal" class="modal">
-  <div class="modal-box modal-large" id="general-data-modal-box">
+  <div class="modal-box modal-large gd-modal-box" id="general-data-modal-box">
     <div class="modal-title-row">
       <h3>General Data — All Users</h3>
-      <div class="zoom-controls">
-        <button id="general-data-zoom-out" class="btn btn-secondary" type="button" title="Zoom out">−</button>
-        <span id="general-data-zoom-level">100%</span>
-        <button id="general-data-zoom-in" class="btn btn-secondary" type="button" title="Zoom in">+</button>
-      </div>
     </div>
     <p class="muted-text">Live snapshot of every caller with contacts currently assigned to them.</p>
     <div id="general-data-table-wrap" class="table-wrap">
-      <table class="data-table" id="general-data-table">
+      <table class="data-table gd-table" id="general-data-table">
         <thead><tr><th>S.No</th><th>User</th><th>Assigned</th><th>Positive</th><th>Pending</th><th>Completed %</th></tr></thead>
         <tbody id="general-data-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
       </table>
@@ -3805,18 +3801,13 @@
 </div>
 
 <div id="followup-data-modal" class="modal">
-  <div class="modal-box modal-large" id="followup-data-modal-box">
+  <div class="modal-box modal-large gd-modal-box" id="followup-data-modal-box">
     <div class="modal-title-row">
       <h3>Follow-up Data — All Callers</h3>
-      <div class="zoom-controls">
-        <button id="followup-data-zoom-out" class="btn btn-secondary" type="button" title="Zoom out">−</button>
-        <span id="followup-data-zoom-level">100%</span>
-        <button id="followup-data-zoom-in" class="btn btn-secondary" type="button" title="Zoom in">+</button>
-      </div>
     </div>
     <p class="muted-text">Live snapshot of every caller currently holding a handed-off follow-up contact.</p>
     <div id="followup-data-table-wrap" class="table-wrap">
-      <table class="data-table" id="followup-data-table">
+      <table class="data-table gd-table" id="followup-data-table">
         <thead><tr><th>S.No</th><th>User</th><th>Assigned</th><th>Positive</th><th>Pending</th><th>Completed %</th></tr></thead>
         <tbody id="followup-data-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
       </table>
@@ -3828,18 +3819,13 @@
 </div>
 
 <div id="cc-general-data-modal" class="modal">
-  <div class="modal-box modal-large" id="cc-general-data-modal-box">
+  <div class="modal-box modal-large gd-modal-box" id="cc-general-data-modal-box">
     <div class="modal-title-row">
       <h3>Core Cultivation — General Data</h3>
-      <div class="zoom-controls">
-        <button id="cc-general-data-zoom-out" class="btn btn-secondary" type="button" title="Zoom out">−</button>
-        <span id="cc-general-data-zoom-level">100%</span>
-        <button id="cc-general-data-zoom-in" class="btn btn-secondary" type="button" title="Zoom in">+</button>
-      </div>
     </div>
     <p class="muted-text">Per cultivator: how many of their cultivated contacts got at least 2 calls in the last 10 days.</p>
     <div id="cc-general-data-table-wrap" class="table-wrap">
-      <table class="data-table" id="cc-general-data-table">
+      <table class="data-table gd-table" id="cc-general-data-table">
         <thead><tr><th>S.No</th><th>Cultivator</th><th>Total</th><th>Completed</th><th>Pending</th><th>Completed %</th></tr></thead>
         <tbody id="cc-general-data-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
       </table>
@@ -3851,18 +3837,13 @@
 </div>
 
 <div id="bs-general-data-modal" class="modal">
-  <div class="modal-box modal-large" id="bs-general-data-modal-box">
+  <div class="modal-box modal-large gd-modal-box" id="bs-general-data-modal-box">
     <div class="modal-title-row">
       <h3>Tīrtha Nidhi — General Data</h3>
-      <div class="zoom-controls">
-        <button id="bs-general-data-zoom-out" class="btn btn-secondary" type="button" title="Zoom out">−</button>
-        <span id="bs-general-data-zoom-level">100%</span>
-        <button id="bs-general-data-zoom-in" class="btn btn-secondary" type="button" title="Zoom in">+</button>
-      </div>
     </div>
     <p class="muted-text">Per distributor: Srila Prabhupada's share of their book sales — no personal contribution details.</p>
     <div id="bs-general-data-table-wrap" class="table-wrap">
-      <table class="data-table" id="bs-general-data-table">
+      <table class="data-table gd-table" id="bs-general-data-table">
         <thead><tr><th>S.No</th><th>Name</th><th>Prabhupada Contribution</th></tr></thead>
         <tbody id="bs-general-data-body"><tr><td colspan="3" class="loading-row">Loading…</td></tr></tbody>
       </table>
@@ -3873,18 +3854,32 @@
   </div>
 </div>
 
+<div id="ba-general-data-modal" class="modal">
+  <div class="modal-box modal-large gd-modal-box" id="ba-general-data-modal-box">
+    <div class="modal-title-row">
+      <h3>Book Distribution — General Data</h3>
+      <label class="field inline"><span>Date</span><input id="ba-general-data-date" type="date" /></label>
+    </div>
+    <p class="muted-text">Per distributor: books sold, sales value and profit on the selected date.</p>
+    <div id="ba-general-data-table-wrap" class="table-wrap">
+      <table class="data-table gd-table" id="ba-general-data-table">
+        <thead><tr><th>S.No</th><th>Distributor</th><th>Books Sold</th><th>Sales Value</th><th>Profit</th></tr></thead>
+        <tbody id="ba-general-data-body"><tr><td colspan="5" class="loading-row">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="ba-general-data-close" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="bs-tapasya-modal" class="modal">
-  <div class="modal-box modal-large" id="bs-tapasya-modal-box">
+  <div class="modal-box modal-large gd-modal-box" id="bs-tapasya-modal-box">
     <div class="modal-title-row">
       <h3>Tīrtha Nidhi — Tapasya</h3>
-      <div class="zoom-controls">
-        <button id="bs-tapasya-zoom-out" class="btn btn-secondary" type="button" title="Zoom out">−</button>
-        <span id="bs-tapasya-zoom-level">100%</span>
-        <button id="bs-tapasya-zoom-in" class="btn btn-secondary" type="button" title="Zoom in">+</button>
-      </div>
     </div>
     <div id="bs-tapasya-table-wrap" class="table-wrap">
-      <table class="data-table" id="bs-tapasya-table">
+      <table class="data-table gd-table" id="bs-tapasya-table">
         <thead><tr><th>S.No</th><th>Name</th><th>% to be allocated</th></tr></thead>
         <tbody id="bs-tapasya-body"><tr><td colspan="3" class="loading-row">Loading…</td></tr></tbody>
       </table>

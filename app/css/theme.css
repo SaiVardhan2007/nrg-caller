@@ -670,6 +670,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
      looking cut off with no truncation cue. */
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* Total is a computed, non-editable value — this gives it the same boxed
+   look as the Quantity/Sold Price inputs next to it so the row reads as one
+   consistent set of fields instead of one input and one bare number. */
+.outward-total-value {
+  display: block; width: 100%; box-sizing: border-box;
+  padding: 5px 6px; font-size: 13px; text-align: center;
+  border: 1.5px solid var(--text-main); border-radius: 8px;
+  color: var(--text-main);
+}
 
 /* Compact Table Cells & Headers */
 .data-table td[data-label="S.No"], .data-table th:nth-child(1) {
@@ -1246,9 +1255,59 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   .modal-title-row { flex-wrap: wrap; }
 }
 #contact-info-search { margin: 12px 0; }
-.zoom-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.zoom-controls .btn { padding: 4px 12px; font-size: 15px; font-weight: 700; line-height: 1; }
-.zoom-controls span { font-size: 13px; font-weight: 600; color: var(--tulsi-dark); min-width: 38px; text-align: center; }
+
+/* ============ GENERAL DATA: auto-fit modals ============
+   modal-box becomes a column flex box capped to the viewport; the table-wrap
+   is the only flexible child (flex:1, min-height:0 so it's actually allowed
+   to shrink) so its clientHeight is exactly the space left for the table.
+   utils.js' autoFitGeneralDataTable() then sizes the table's own font (and,
+   via .gd-table below, its em-based padding) to fill that space with zero
+   scrolling — see the comment there for why. */
+.gd-modal-box {
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+}
+.gd-modal-box .table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  /* auto, not hidden: the JS always sizes the table to fit both dimensions
+     with no scrollbar in practice (see autoFitGeneralDataTable in utils.js)
+     — this is only a quiet fallback for the floor it clamps to (9px), e.g. a
+     6-column table on a narrow phone, so that degrades to scrolling instead
+     of silently clipping rows or columns off the edge. */
+  overflow: auto;
+}
+.gd-table.data-table th, .gd-table.data-table td {
+  font-size: 1em;
+  padding: 0.55em 0.7em;
+}
+.gd-table.data-table th { font-size: 0.85em; }
+/* Tapasya's % input is the one editable field inside a gd-table — .inline-edit
+   elsewhere in the app is a fixed 13px, which wouldn't shrink/grow with the
+   table around it. */
+.gd-table.data-table .inline-edit { font-size: 1em; padding: 0.3em 0.4em; min-width: 2.5em; }
+@media (max-width: 640px) {
+  /* The card-per-row mobile layout (theme.css above, max-width:640px) has no
+     fixed row height to shrink against, so these small tables keep an
+     ordinary columnar table layout on phones too instead of falling back to
+     stacked cards — every property the card layout sets on table/tbody/tr/td
+     needs resetting here since .gd-table's higher specificity only wins
+     property-by-property, not rule-by-rule. */
+  .gd-table.data-table { display: table; width: 100%; }
+  .gd-table.data-table thead { display: table-header-group; }
+  .gd-table.data-table tbody { display: table-row-group; }
+  .gd-table.data-table tr {
+    display: table-row; border: none; border-radius: 0; margin-bottom: 0;
+    padding: 0; background: transparent; flex-wrap: nowrap; gap: 0;
+  }
+  .gd-table.data-table td {
+    display: table-cell; flex-direction: initial; align-items: initial;
+    width: auto; border-bottom: 1px solid var(--sandstone); box-sizing: border-box;
+    line-height: 1.3; text-align: left;
+  }
+}
 .duplicate-comparison-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1986,7 +2045,6 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #book-outward-table td[data-label=""] {
     display: none !important;
   }
-  #book-outward-table tr.expanded td[data-label="Time"],
   #book-outward-table tr.expanded td[data-label="Language"],
   #book-outward-table tr.expanded td[data-label="Sold Price"],
   #book-outward-table tr.expanded td[data-label="Sold Area"],
@@ -1994,6 +2052,12 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   #book-outward-table tr.expanded td[data-label="Sold By"] {
     display: flex !important;
     width: 49% !important;
+  }
+  /* Time shares its row with Quantity+Total instead of pairing with
+     Language — see the order/width rules below. */
+  #book-outward-table tr.expanded td[data-label="Time"] {
+    display: flex !important;
+    width: 38% !important;
   }
   #book-outward-table tr.expanded td[data-label="Realised"] {
     display: flex !important;
@@ -2008,8 +2072,8 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   }
   #book-outward-table td[data-label="S.No"] { order: 1; flex: 0 0 30px !important; width: 30px !important; max-width: 30px !important; font-weight: 700; text-align: center !important; align-items: center !important; }
   #book-outward-table td[data-label="Name"] { order: 2; flex: 1 1 auto !important; width: auto !important; max-width: none !important; }
-  #book-outward-table td[data-label="Quantity"] { order: 3; width: 48% !important; }
-  #book-outward-table td[data-label="Total"] { order: 4; width: 48% !important; }
+  #book-outward-table td[data-label="Quantity"] { order: 3; width: 27% !important; }
+  #book-outward-table td[data-label="Total"] { order: 4; width: 27% !important; }
   #book-outward-table td[data-label="Time"] { order: 5; }
   #book-outward-table td[data-label="Language"] { order: 6; }
   #book-outward-table td[data-label="Sold Price"] { order: 7; }

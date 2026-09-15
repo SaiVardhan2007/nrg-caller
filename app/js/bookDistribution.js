@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, escapeHtml, debounce, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, downloadExcel, exportTableToExcel, initMobileFilterDrawer } from "./utils.js";
+import { showToast, escapeHtml, debounce, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, downloadExcel, exportTableToExcel, initMobileFilterDrawer, autoFitGeneralDataTable, wireGeneralDataAutoFit } from "./utils.js";
 
 // Wires a page's "⬇ Export Excel" button to dump its current (filtered/sorted) table as-is.
 function wireExportBtn(btnId, tableId, filenamePrefix) {
@@ -794,7 +794,7 @@ function renderOutwardRows(rows, emptyMessage) {
       <td data-label="Language">${editSelectHtml("language", distinctValues(outwardCache, "language"), r.language || "")}</td>
       <td data-label="Sold Price"><input class="inline-edit outward-price-input" type="number" min="0" step="0.01" data-field="sold_price" value="${r.sold_price ?? ""}" /></td>
       <td data-label="Quantity"><input class="inline-edit outward-qty-input" type="number" min="0" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
-      <td data-label="Total" class="outward-total-cell">${fmtMoney((r.sold_price || 0) * (r.quantity || 0))}</td>
+      <td data-label="Total" class="outward-total-cell"><span class="outward-total-value">${fmtMoney((r.sold_price || 0) * (r.quantity || 0))}</span></td>
       <td data-label="Sold Area">${editSelectHtml("sold_area", distinctValues(outwardCache, "sold_area"), r.sold_area || "")}</td>
       <td data-label="Event">${editSelectHtml("event", distinctValues(outwardCache, "event"), r.event || "")}</td>
       <td data-label="Sold By">${editSelectHtml("sold_by", distinctValues(outwardCache, "sold_by"), r.sold_by || "")}</td>
@@ -816,9 +816,9 @@ function renderOutwardRows(rows, emptyMessage) {
   tbody.querySelectorAll("tr[data-id]").forEach((row) => {
     const priceInput = row.querySelector(".outward-price-input");
     const qtyInput = row.querySelector(".outward-qty-input");
-    const totalCell = row.querySelector(".outward-total-cell");
+    const totalValueEl = row.querySelector(".outward-total-value");
     const updateRowTotal = () => {
-      totalCell.textContent = fmtMoney((Number(priceInput.value) || 0) * (Number(qtyInput.value) || 0));
+      totalValueEl.textContent = fmtMoney((Number(priceInput.value) || 0) * (Number(qtyInput.value) || 0));
     };
     priceInput.addEventListener("input", updateRowTotal);
     qtyInput.addEventListener("input", updateRowTotal);
@@ -2792,9 +2792,103 @@ async function wireAnalyticsFilters() {
   });
 }
 
+/* ---- Analytics: General Data (date-scoped) ----
+   Same three headline numbers as the stat cards above (Qty/Sales Value/
+   Profit) — just sliced per distributor for one selected day instead of
+   summed across everyone over the date range filter. Cost basis is each
+   book's org-wide average purchase price (unfiltered by date), same as
+   runAnalytics/fetchStockStats above, so a book sold today priced against
+   stock bought weeks ago doesn't skew that day's profit. */
+let baGeneralDataModalWired = false;
+function wireBaGeneralDataModal() {
+  if (baGeneralDataModalWired) return;
+  baGeneralDataModalWired = true;
+  const modal = document.getElementById("ba-general-data-modal");
+  document.getElementById("ba-general-data-close").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  const dateInput = document.getElementById("ba-general-data-date");
+  wireGeneralDataAutoFit("ba-general-data-modal", "ba-general-data-table-wrap");
+
+  const load = async () => {
+    const tbody = document.getElementById("ba-general-data-body");
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
+
+    const day = dateInput.value || analyticsDateInput(new Date());
+    dateInput.value = day;
+    const fromISO = new Date(`${day}T00:00:00`).toISOString();
+    const toISO = new Date(`${day}T23:59:59.999`).toISOString();
+
+    const [{ data: coordinators }, { data: inward }, { data: outward }] = await Promise.all([
+      supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
+      supabase.from("book_inward_stock").select("name,language,purchase_price,quantity"),
+      supabase.from("book_outward_stock").select("name,language,sold_price,quantity,sold_by,created_at")
+        .gte("created_at", fromISO).lte("created_at", toISO),
+    ]);
+
+    const bookCostMap = new Map();
+    (inward || []).forEach((row) => {
+      const key = bookKey(row.name, row.language);
+      if (!bookCostMap.has(key)) bookCostMap.set(key, { qty: 0, val: 0 });
+      const b = bookCostMap.get(key);
+      b.qty += row.quantity || 0;
+      b.val += (row.purchase_price || 0) * (row.quantity || 0);
+    });
+    const unitCost = (name, lang) => {
+      const b = bookCostMap.get(bookKey(name, lang));
+      return b && b.qty > 0 ? b.val / b.qty : 0;
+    };
+
+    const byUser = new Map();
+    (outward || []).forEach((r) => {
+      const qty = r.quantity || 0;
+      const revenue = (r.sold_price || 0) * qty;
+      const cost = unitCost(r.name, r.language) * qty;
+      if (!byUser.has(r.sold_by)) byUser.set(r.sold_by, { qty: 0, value: 0, profit: 0 });
+      const u = byUser.get(r.sold_by);
+      u.qty += qty;
+      u.value += revenue;
+      u.profit += revenue - cost;
+    });
+
+    const rows = (coordinators || [])
+      .map((u) => ({ name: u.user_name, ...(byUser.get(u.user_name) || { qty: 0, value: 0, profit: 0 }) }))
+      .filter((r) => r.qty > 0)
+      .sort((a, b) => b.value - a.value);
+    const totals = rows.reduce((s, r) => ({ qty: s.qty + r.qty, value: s.value + r.value, profit: s.profit + r.profit }), { qty: 0, value: 0, profit: 0 });
+
+    tbody.innerHTML = rows.length
+      ? rows.map((r, idx) => `
+          <tr>
+            <td data-label="S.No">${idx + 1}</td>
+            <td data-label="Distributor">${escapeHtml(r.name)}</td>
+            <td data-label="Books Sold">${r.qty}</td>
+            <td data-label="Sales Value">${fmtMoney(r.value)}</td>
+            <td data-label="Profit">${fmtMoney(r.profit)}</td>
+          </tr>`).join("") +
+        `<tr class="total-row">
+          <td colspan="2">Total</td>
+          <td data-label="Books Sold">${totals.qty}</td>
+          <td data-label="Sales Value">${fmtMoney(totals.value)}</td>
+          <td data-label="Profit">${fmtMoney(totals.profit)}</td>
+        </tr>`
+      : `<tr><td colspan="5" class="loading-row">No sales on this date.</td></tr>`;
+
+    requestAnimationFrame(() => requestAnimationFrame(() => autoFitGeneralDataTable("ba-general-data-table-wrap")));
+  };
+
+  dateInput.addEventListener("change", load);
+  document.getElementById("ba-general-data-btn").onclick = () => {
+    if (!dateInput.value) dateInput.value = analyticsDateInput(new Date());
+    modal.classList.add("active");
+    load();
+  };
+}
+
 export async function initAnalytics() {
   wireDashboardDetailModal();
   await wireAnalyticsFilters();
+  wireBaGeneralDataModal();
   await runAnalytics();
 }
 
@@ -3328,23 +3422,8 @@ function wireBsGeneralDataModal() {
   document.getElementById("bs-general-data-close").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
-  let bsGeneralDataZoom = 100;
-  const zoomBox = document.getElementById("bs-general-data-modal-box");
-  const zoomLevel = document.getElementById("bs-general-data-zoom-level");
-  const applyBsGeneralDataZoom = () => {
-    zoomBox.style.transform = `scale(${bsGeneralDataZoom / 100})`;
-    zoomLevel.textContent = bsGeneralDataZoom + "%";
-  };
-  document.getElementById("bs-general-data-zoom-in").onclick = () => {
-    bsGeneralDataZoom = Math.min(200, bsGeneralDataZoom + 10);
-    applyBsGeneralDataZoom();
-  };
-  document.getElementById("bs-general-data-zoom-out").onclick = () => {
-    bsGeneralDataZoom = Math.max(40, bsGeneralDataZoom - 10);
-    applyBsGeneralDataZoom();
-  };
-
   initColumnDragReorder("bs-general-data-table");
+  wireGeneralDataAutoFit("bs-general-data-modal", "bs-general-data-table-wrap");
 
   document.getElementById("bs-general-data-btn").onclick = async () => {
     modal.classList.add("active");
@@ -3400,6 +3479,7 @@ function wireBsGeneralDataModal() {
         </tr>`
       : `<tr><td colspan="3" class="loading-row">No distributors found.</td></tr>`;
     reapplyColumnOrder("bs-general-data-table");
+    requestAnimationFrame(() => requestAnimationFrame(() => autoFitGeneralDataTable("bs-general-data-table-wrap")));
   };
 }
 
@@ -3414,21 +3494,7 @@ function wireBsTapasyaModal() {
   document.getElementById("bs-tapasya-close").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
-  let bsTapasyaZoom = 100;
-  const zoomBox = document.getElementById("bs-tapasya-modal-box");
-  const zoomLevel = document.getElementById("bs-tapasya-zoom-level");
-  const applyBsTapasyaZoom = () => {
-    zoomBox.style.transform = `scale(${bsTapasyaZoom / 100})`;
-    zoomLevel.textContent = bsTapasyaZoom + "%";
-  };
-  document.getElementById("bs-tapasya-zoom-in").onclick = () => {
-    bsTapasyaZoom = Math.min(200, bsTapasyaZoom + 10);
-    applyBsTapasyaZoom();
-  };
-  document.getElementById("bs-tapasya-zoom-out").onclick = () => {
-    bsTapasyaZoom = Math.max(40, bsTapasyaZoom - 10);
-    applyBsTapasyaZoom();
-  };
+  wireGeneralDataAutoFit("bs-tapasya-modal", "bs-tapasya-table-wrap");
 
   document.getElementById("bs-tapasya-btn").onclick = async () => {
     modal.classList.add("active");
@@ -3472,6 +3538,7 @@ function wireBsTapasyaModal() {
         showToast("Tapasya percent updated", "success");
       });
     });
+    requestAnimationFrame(() => requestAnimationFrame(() => autoFitGeneralDataTable("bs-tapasya-table-wrap")));
   };
 }
 
