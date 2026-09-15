@@ -3858,13 +3858,17 @@
   <div class="modal-box modal-large gd-modal-box" id="ba-general-data-modal-box">
     <div class="modal-title-row">
       <h3>Book Distribution — General Data</h3>
-      <label class="field inline"><span>Date</span><input id="ba-general-data-date" type="date" /></label>
+      <div class="date-range-inputs">
+        <input id="ba-general-data-from" type="date" />
+        <span class="date-range-sep">–</span>
+        <input id="ba-general-data-to" type="date" />
+      </div>
     </div>
-    <p class="muted-text">Per distributor: books sold, sales value and profit on the selected date.</p>
+    <p class="muted-text">Per distributor: score for the selected date range, highest first.</p>
     <div id="ba-general-data-table-wrap" class="table-wrap">
       <table class="data-table gd-table" id="ba-general-data-table">
-        <thead><tr><th>S.No</th><th>Distributor</th><th>Books Sold</th><th>Sales Value</th><th>Profit</th></tr></thead>
-        <tbody id="ba-general-data-body"><tr><td colspan="5" class="loading-row">Loading…</td></tr></tbody>
+        <thead><tr><th>S.No</th><th>Distributor</th><th>Score</th></tr></thead>
+        <tbody id="ba-general-data-body"><tr><td colspan="3" class="loading-row">Loading…</td></tr></tbody>
       </table>
     </div>
     <div class="modal-actions">

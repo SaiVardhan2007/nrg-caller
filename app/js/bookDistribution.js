@@ -2792,13 +2792,11 @@ async function wireAnalyticsFilters() {
   });
 }
 
-/* ---- Analytics: General Data (date-scoped) ----
-   Same three headline numbers as the stat cards above (Qty/Sales Value/
-   Profit) — just sliced per distributor for one selected day instead of
-   summed across everyone over the date range filter. Cost basis is each
-   book's org-wide average purchase price (unfiltered by date), same as
-   runAnalytics/fetchStockStats above, so a book sold today priced against
-   stock bought weeks ago doesn't skew that day's profit. */
+/* ---- Analytics: General Data (date-range-scoped) ----
+   Projector-friendly ranking, like the other General Data snapshots — each
+   distributor's Score (their sales value, same figure as the Sales Value
+   stat card above, just summed per person) over the selected date range,
+   highest first. */
 let baGeneralDataModalWired = false;
 function wireBaGeneralDataModal() {
   if (baGeneralDataModalWired) return;
@@ -2807,79 +2805,62 @@ function wireBaGeneralDataModal() {
   document.getElementById("ba-general-data-close").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
-  const dateInput = document.getElementById("ba-general-data-date");
+  const fromInput = document.getElementById("ba-general-data-from");
+  const toInput = document.getElementById("ba-general-data-to");
   wireGeneralDataAutoFit("ba-general-data-modal", "ba-general-data-table-wrap");
 
   const load = async () => {
     const tbody = document.getElementById("ba-general-data-body");
-    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="loading-row">Loading…</td></tr>`;
 
-    const day = dateInput.value || analyticsDateInput(new Date());
-    dateInput.value = day;
-    const fromISO = new Date(`${day}T00:00:00`).toISOString();
-    const toISO = new Date(`${day}T23:59:59.999`).toISOString();
+    const today = analyticsDateInput(new Date());
+    const from = fromInput.value || today;
+    const to = toInput.value || today;
+    fromInput.value = from;
+    toInput.value = to;
+    const fromISO = new Date(`${from}T00:00:00`).toISOString();
+    const toISO = new Date(`${to}T23:59:59.999`).toISOString();
 
-    const [{ data: coordinators }, { data: inward }, { data: outward }] = await Promise.all([
+    const [{ data: coordinators }, { data: outward }] = await Promise.all([
       supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
-      supabase.from("book_inward_stock").select("name,language,purchase_price,quantity"),
-      supabase.from("book_outward_stock").select("name,language,sold_price,quantity,sold_by,created_at")
+      supabase.from("book_outward_stock").select("sold_price,quantity,sold_by,created_at")
         .gte("created_at", fromISO).lte("created_at", toISO),
     ]);
 
-    const bookCostMap = new Map();
-    (inward || []).forEach((row) => {
-      const key = bookKey(row.name, row.language);
-      if (!bookCostMap.has(key)) bookCostMap.set(key, { qty: 0, val: 0 });
-      const b = bookCostMap.get(key);
-      b.qty += row.quantity || 0;
-      b.val += (row.purchase_price || 0) * (row.quantity || 0);
-    });
-    const unitCost = (name, lang) => {
-      const b = bookCostMap.get(bookKey(name, lang));
-      return b && b.qty > 0 ? b.val / b.qty : 0;
-    };
-
     const byUser = new Map();
     (outward || []).forEach((r) => {
-      const qty = r.quantity || 0;
-      const revenue = (r.sold_price || 0) * qty;
-      const cost = unitCost(r.name, r.language) * qty;
-      if (!byUser.has(r.sold_by)) byUser.set(r.sold_by, { qty: 0, value: 0, profit: 0 });
-      const u = byUser.get(r.sold_by);
-      u.qty += qty;
-      u.value += revenue;
-      u.profit += revenue - cost;
+      const score = (r.sold_price || 0) * (r.quantity || 0);
+      byUser.set(r.sold_by, (byUser.get(r.sold_by) || 0) + score);
     });
 
     const rows = (coordinators || [])
-      .map((u) => ({ name: u.user_name, ...(byUser.get(u.user_name) || { qty: 0, value: 0, profit: 0 }) }))
-      .filter((r) => r.qty > 0)
-      .sort((a, b) => b.value - a.value);
-    const totals = rows.reduce((s, r) => ({ qty: s.qty + r.qty, value: s.value + r.value, profit: s.profit + r.profit }), { qty: 0, value: 0, profit: 0 });
+      .map((u) => ({ name: u.user_name, score: byUser.get(u.user_name) || 0 }))
+      .filter((r) => r.score > 0)
+      .sort((a, b) => b.score - a.score);
+    const totalScore = rows.reduce((s, r) => s + r.score, 0);
 
     tbody.innerHTML = rows.length
       ? rows.map((r, idx) => `
           <tr>
             <td data-label="S.No">${idx + 1}</td>
             <td data-label="Distributor">${escapeHtml(r.name)}</td>
-            <td data-label="Books Sold">${r.qty}</td>
-            <td data-label="Sales Value">${fmtMoney(r.value)}</td>
-            <td data-label="Profit">${fmtMoney(r.profit)}</td>
+            <td data-label="Score">${fmtMoney(r.score)}</td>
           </tr>`).join("") +
         `<tr class="total-row">
           <td colspan="2">Total</td>
-          <td data-label="Books Sold">${totals.qty}</td>
-          <td data-label="Sales Value">${fmtMoney(totals.value)}</td>
-          <td data-label="Profit">${fmtMoney(totals.profit)}</td>
+          <td data-label="Score">${fmtMoney(totalScore)}</td>
         </tr>`
-      : `<tr><td colspan="5" class="loading-row">No sales on this date.</td></tr>`;
+      : `<tr><td colspan="3" class="loading-row">No sales in this range.</td></tr>`;
 
     requestAnimationFrame(() => requestAnimationFrame(() => autoFitGeneralDataTable("ba-general-data-table-wrap")));
   };
 
-  dateInput.addEventListener("change", load);
+  fromInput.addEventListener("change", load);
+  toInput.addEventListener("change", load);
   document.getElementById("ba-general-data-btn").onclick = () => {
-    if (!dateInput.value) dateInput.value = analyticsDateInput(new Date());
+    const today = analyticsDateInput(new Date());
+    if (!fromInput.value) fromInput.value = today;
+    if (!toInput.value) toInput.value = today;
     modal.classList.add("active");
     load();
   };
