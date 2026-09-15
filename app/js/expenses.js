@@ -382,7 +382,8 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
       .from("budget_transactions")
       .select("id,transaction_date,description,amount,added_by")
       .eq("category", budgetCategory)
-      .order("transaction_date", { ascending: false });
+      .order("transaction_date", { ascending: false })
+      .order("created_at", { ascending: false });
     budgetCache = data || [];
     budget = budgetCache.reduce((s, r) => s + (r.amount || 0), 0);
   }
@@ -395,7 +396,8 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
       supabase
         .from(table)
         .select("id,expense_date,description,amount,place,added_by")
-        .order("expense_date", { ascending: false }),
+        .order("expense_date", { ascending: false })
+        .order("created_at", { ascending: false }),
       loadBudget(),
     ]);
 
