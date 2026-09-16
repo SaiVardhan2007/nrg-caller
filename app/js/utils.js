@@ -669,67 +669,6 @@ export function initMobileFilterDrawer(sectionId) {
    already hides, so the panel-row is the only thing worth tucking away.
    Reuses the same shared backdrop/close styling so it looks identical to
    the sidebar version. Call once per section id; safe to call again. */
-/* ============ GENERAL DATA: auto-fit tables ============
-   "General Data"-style snapshot modals (Caller/Follow-up, Core Cultivation,
-   Tirtha Nidhi + Tapasya, Book Distribution Analytics) hold one small,
-   bounded table — one row per user. Instead of a fixed row height that
-   forces a scrollbar once there are more than a handful of rows (or wastes
-   space when there are only one or two), the table's own font-size drives
-   both text and cell padding (padding is set in em on .gd-table, see
-   theme.css) so the whole table always fills — and never overflows — its
-   modal-box without scrolling: fewer rows grow larger, more rows shrink. */
-export function autoFitGeneralDataTable(wrapId) {
-  const wrap = document.getElementById(wrapId);
-  const table = wrap?.querySelector("table");
-  if (!wrap || !table || !table.querySelector("tbody tr")) return;
-
-  const availH = wrap.clientHeight;
-  const availW = wrap.clientWidth;
-  if (!availH || !availW) return;
-
-  // Converges `size` so getNatural() (measured after applying each guess)
-  // lands on `avail` — used once for height, and again for width if needed.
-  const converge = (getNatural, avail, startSize) => {
-    let size = startSize;
-    let prev = null;
-    for (let i = 0; i < 6; i++) {
-      table.style.fontSize = size + "px";
-      const next = Math.max(9, Math.min(34, size * (avail / getNatural())));
-      if (prev !== null && Math.abs(next - prev) < 0.3) return next;
-      prev = size;
-      size = next;
-    }
-    return size;
-  };
-
-  let size = parseFloat(getComputedStyle(table).fontSize) || 13;
-  size = converge(() => table.scrollHeight, availH, size);
-
-  // .data-table is width:100%, but auto table-layout still sizes columns to
-  // each nowrap cell's unbroken content — so a size picked purely for height
-  // can still push the table wider than its wrap. Re-checking scrollWidth
-  // (not clientWidth, which width:100% always keeps equal to the wrap) only
-  // after fitting height means this never fires on the common case where
-  // height alone already produced a size with room to spare.
-  table.style.fontSize = size + "px";
-  if (table.scrollWidth > availW) {
-    size = converge(() => table.scrollWidth, availW, size);
-  }
-  table.style.fontSize = size + "px";
-}
-
-// Re-fits a general-data table when the viewport changes (resize, phone
-// rotation) while its modal is open. Safe to call more than once per wrapId.
-const gdAutoFitWired = new Set();
-export function wireGeneralDataAutoFit(modalId, wrapId) {
-  if (gdAutoFitWired.has(wrapId)) return;
-  gdAutoFitWired.add(wrapId);
-  const refit = debounce(() => {
-    if (document.getElementById(modalId)?.classList.contains("active")) autoFitGeneralDataTable(wrapId);
-  }, 150);
-  window.addEventListener("resize", refit);
-}
-
 export function initMobileFilterBar(sectionId, panelSelector, anchorSelector) {
   const section = document.getElementById(sectionId);
   const panel = section?.querySelector(panelSelector);

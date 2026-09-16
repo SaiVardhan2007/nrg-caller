@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
-import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, daysAgo, CORE_CULTIVATION_STALE_DAYS, initMobileFilterDrawer, initMobileFilterBar, autoFitGeneralDataTable, wireGeneralDataAutoFit } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, daysAgo, CORE_CULTIVATION_STALE_DAYS, initMobileFilterDrawer, initMobileFilterBar } from "./utils.js";
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
@@ -2809,8 +2809,23 @@ function wireGeneralDataModal() {
   document.getElementById("general-data-close").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
+  let generalDataZoom = 100;
+  const zoomBox = document.getElementById("general-data-modal-box");
+  const zoomLevel = document.getElementById("general-data-zoom-level");
+  const applyGeneralDataZoom = () => {
+    zoomBox.style.transform = `scale(${generalDataZoom / 100})`;
+    zoomLevel.textContent = generalDataZoom + "%";
+  };
+  document.getElementById("general-data-zoom-in").onclick = () => {
+    generalDataZoom = Math.min(200, generalDataZoom + 10);
+    applyGeneralDataZoom();
+  };
+  document.getElementById("general-data-zoom-out").onclick = () => {
+    generalDataZoom = Math.max(40, generalDataZoom - 10);
+    applyGeneralDataZoom();
+  };
+
   initColumnDragReorder("general-data-table");
-  wireGeneralDataAutoFit("general-data-modal", "general-data-table-wrap");
 
   document.getElementById("general-data-btn").onclick = async () => {
     modal.classList.add("active");
@@ -2848,7 +2863,6 @@ function wireGeneralDataModal() {
         }).join("")
       : `<tr><td colspan="6" class="loading-row">No contacts currently assigned to anyone.</td></tr>`;
     reapplyColumnOrder("general-data-table");
-    requestAnimationFrame(() => requestAnimationFrame(() => autoFitGeneralDataTable("general-data-table-wrap")));
   };
 }
 
@@ -2863,8 +2877,23 @@ function wireFollowUpDataModal() {
   document.getElementById("followup-data-close").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
+  let followUpDataZoom = 100;
+  const zoomBox = document.getElementById("followup-data-modal-box");
+  const zoomLevel = document.getElementById("followup-data-zoom-level");
+  const applyFollowUpDataZoom = () => {
+    zoomBox.style.transform = `scale(${followUpDataZoom / 100})`;
+    zoomLevel.textContent = followUpDataZoom + "%";
+  };
+  document.getElementById("followup-data-zoom-in").onclick = () => {
+    followUpDataZoom = Math.min(200, followUpDataZoom + 10);
+    applyFollowUpDataZoom();
+  };
+  document.getElementById("followup-data-zoom-out").onclick = () => {
+    followUpDataZoom = Math.max(40, followUpDataZoom - 10);
+    applyFollowUpDataZoom();
+  };
+
   initColumnDragReorder("followup-data-table");
-  wireGeneralDataAutoFit("followup-data-modal", "followup-data-table-wrap");
 
   document.getElementById("followup-data-btn").onclick = async () => {
     modal.classList.add("active");
@@ -2902,7 +2931,6 @@ function wireFollowUpDataModal() {
         }).join("")
       : `<tr><td colspan="6" class="loading-row">No follow-up contacts currently handed off to anyone.</td></tr>`;
     reapplyColumnOrder("followup-data-table");
-    requestAnimationFrame(() => requestAnimationFrame(() => autoFitGeneralDataTable("followup-data-table-wrap")));
   };
 }
 
@@ -2921,8 +2949,23 @@ function wireCcGeneralDataModal() {
   document.getElementById("cc-general-data-close").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
+  let ccGeneralDataZoom = 100;
+  const zoomBox = document.getElementById("cc-general-data-modal-box");
+  const zoomLevel = document.getElementById("cc-general-data-zoom-level");
+  const applyCcGeneralDataZoom = () => {
+    zoomBox.style.transform = `scale(${ccGeneralDataZoom / 100})`;
+    zoomLevel.textContent = ccGeneralDataZoom + "%";
+  };
+  document.getElementById("cc-general-data-zoom-in").onclick = () => {
+    ccGeneralDataZoom = Math.min(200, ccGeneralDataZoom + 10);
+    applyCcGeneralDataZoom();
+  };
+  document.getElementById("cc-general-data-zoom-out").onclick = () => {
+    ccGeneralDataZoom = Math.max(40, ccGeneralDataZoom - 10);
+    applyCcGeneralDataZoom();
+  };
+
   initColumnDragReorder("cc-general-data-table");
-  wireGeneralDataAutoFit("cc-general-data-modal", "cc-general-data-table-wrap");
 
   document.getElementById("cc-general-data-btn").onclick = async () => {
     modal.classList.add("active");
@@ -2974,7 +3017,6 @@ function wireCcGeneralDataModal() {
         }).join("")
       : `<tr><td colspan="6" class="loading-row">No contacts under core cultivation.</td></tr>`;
     reapplyColumnOrder("cc-general-data-table");
-    requestAnimationFrame(() => requestAnimationFrame(() => autoFitGeneralDataTable("cc-general-data-table-wrap")));
   };
 }
 

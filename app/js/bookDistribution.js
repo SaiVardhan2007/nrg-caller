@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, escapeHtml, debounce, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, downloadExcel, exportTableToExcel, initMobileFilterDrawer, autoFitGeneralDataTable, wireGeneralDataAutoFit } from "./utils.js";
+import { showToast, escapeHtml, debounce, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, downloadExcel, exportTableToExcel, initMobileFilterDrawer } from "./utils.js";
 
 // Wires a page's "⬇ Export Excel" button to dump its current (filtered/sorted) table as-is.
 function wireExportBtn(btnId, tableId, filenamePrefix) {
@@ -2807,7 +2807,22 @@ function wireBaGeneralDataModal() {
 
   const fromInput = document.getElementById("ba-general-data-from");
   const toInput = document.getElementById("ba-general-data-to");
-  wireGeneralDataAutoFit("ba-general-data-modal", "ba-general-data-table-wrap");
+
+  let baGeneralDataZoom = 100;
+  const zoomBox = document.getElementById("ba-general-data-modal-box");
+  const zoomLevel = document.getElementById("ba-general-data-zoom-level");
+  const applyBaGeneralDataZoom = () => {
+    zoomBox.style.transform = `scale(${baGeneralDataZoom / 100})`;
+    zoomLevel.textContent = baGeneralDataZoom + "%";
+  };
+  document.getElementById("ba-general-data-zoom-in").onclick = () => {
+    baGeneralDataZoom = Math.min(200, baGeneralDataZoom + 10);
+    applyBaGeneralDataZoom();
+  };
+  document.getElementById("ba-general-data-zoom-out").onclick = () => {
+    baGeneralDataZoom = Math.max(40, baGeneralDataZoom - 10);
+    applyBaGeneralDataZoom();
+  };
 
   const load = async () => {
     const tbody = document.getElementById("ba-general-data-body");
@@ -2851,8 +2866,6 @@ function wireBaGeneralDataModal() {
           <td data-label="Score">${fmtMoney(totalScore)}</td>
         </tr>`
       : `<tr><td colspan="3" class="loading-row">No sales in this range.</td></tr>`;
-
-    requestAnimationFrame(() => requestAnimationFrame(() => autoFitGeneralDataTable("ba-general-data-table-wrap")));
   };
 
   fromInput.addEventListener("change", load);
@@ -3201,6 +3214,15 @@ async function fetchTirthaNidhiRates() {
   return rates;
 }
 
+// Only approved redeem requests actually reduce what's left of a
+// distributor's Tirtha Nidhi contribution — pending/rejected ones don't.
+async function fetchApprovedRedeemedByUser() {
+  const { data } = await supabase.from("tirtha_nidhi_redeem_requests").select("user_name, amount").eq("status", "approved");
+  const byUser = new Map();
+  (data || []).forEach((r) => byUser.set(r.user_name, (byUser.get(r.user_name) || 0) + (r.amount || 0)));
+  return byUser;
+}
+
 async function renderSavingsPanel() {
   const targetUser = currentSavingsUser?.user_name || "";
   if (!targetUser) return;
@@ -3403,19 +3425,35 @@ function wireBsGeneralDataModal() {
   document.getElementById("bs-general-data-close").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
+  let bsGeneralDataZoom = 100;
+  const zoomBox = document.getElementById("bs-general-data-modal-box");
+  const zoomLevel = document.getElementById("bs-general-data-zoom-level");
+  const applyBsGeneralDataZoom = () => {
+    zoomBox.style.transform = `scale(${bsGeneralDataZoom / 100})`;
+    zoomLevel.textContent = bsGeneralDataZoom + "%";
+  };
+  document.getElementById("bs-general-data-zoom-in").onclick = () => {
+    bsGeneralDataZoom = Math.min(200, bsGeneralDataZoom + 10);
+    applyBsGeneralDataZoom();
+  };
+  document.getElementById("bs-general-data-zoom-out").onclick = () => {
+    bsGeneralDataZoom = Math.max(40, bsGeneralDataZoom - 10);
+    applyBsGeneralDataZoom();
+  };
+
   initColumnDragReorder("bs-general-data-table");
-  wireGeneralDataAutoFit("bs-general-data-modal", "bs-general-data-table-wrap");
 
   document.getElementById("bs-general-data-btn").onclick = async () => {
     modal.classList.add("active");
     const tbody = document.getElementById("bs-general-data-body");
-    tbody.innerHTML = `<tr><td colspan="3" class="loading-row">Loading…</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
 
-    const [{ data: coordinators }, { data: inwardData }, { data: outwardData }, tirthaNidhiRates] = await Promise.all([
+    const [{ data: coordinators }, { data: inwardData }, { data: outwardData }, tirthaNidhiRates, redeemedByUser] = await Promise.all([
       supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
       supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
       supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by"),
       fetchTirthaNidhiRates(),
+      fetchApprovedRedeemedByUser(),
     ]);
 
     const bookCostMap = new Map();
@@ -3442,10 +3480,16 @@ function wireBsGeneralDataModal() {
     });
 
     const rows = (coordinators || [])
-      .map((u) => ({ name: u.user_name, netProfit: profitBySeller.get(u.user_name) || 0 }))
+      .map((u) => {
+        const netProfit = profitBySeller.get(u.user_name) || 0;
+        const redeemed = redeemedByUser.get(u.user_name) || 0;
+        return { name: u.user_name, netProfit, redeemed, remaining: netProfit - redeemed };
+      })
       .filter((r) => r.netProfit !== 0)
       .sort((a, b) => b.netProfit - a.netProfit);
     const grandTotal = rows.reduce((s, r) => s + r.netProfit, 0);
+    const grandRedeemed = rows.reduce((s, r) => s + r.redeemed, 0);
+    const grandRemaining = rows.reduce((s, r) => s + r.remaining, 0);
 
     tbody.innerHTML = rows.length
       ? rows.map((r, idx) => `
@@ -3453,14 +3497,17 @@ function wireBsGeneralDataModal() {
             <td data-label="S.No">${idx + 1}</td>
             <td data-label="Name">${escapeHtml(r.name)}</td>
             <td data-label="Prabhupada Contribution">${fmtMoney(r.netProfit)}</td>
+            <td data-label="Redeemed">${fmtMoney(r.redeemed)}</td>
+            <td data-label="Remaining">${fmtMoney(r.remaining)}</td>
           </tr>`).join("") +
         `<tr class="total-row">
           <td colspan="2">Total</td>
           <td data-label="Prabhupada Contribution">${fmtMoney(grandTotal)}</td>
+          <td data-label="Redeemed">${fmtMoney(grandRedeemed)}</td>
+          <td data-label="Remaining">${fmtMoney(grandRemaining)}</td>
         </tr>`
-      : `<tr><td colspan="3" class="loading-row">No distributors found.</td></tr>`;
+      : `<tr><td colspan="5" class="loading-row">No distributors found.</td></tr>`;
     reapplyColumnOrder("bs-general-data-table");
-    requestAnimationFrame(() => requestAnimationFrame(() => autoFitGeneralDataTable("bs-general-data-table-wrap")));
   };
 }
 
@@ -3475,40 +3522,100 @@ function wireBsTapasyaModal() {
   document.getElementById("bs-tapasya-close").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
-  wireGeneralDataAutoFit("bs-tapasya-modal", "bs-tapasya-table-wrap");
+  let bsTapasyaZoom = 100;
+  const zoomBox = document.getElementById("bs-tapasya-modal-box");
+  const zoomLevel = document.getElementById("bs-tapasya-zoom-level");
+  const applyBsTapasyaZoom = () => {
+    zoomBox.style.transform = `scale(${bsTapasyaZoom / 100})`;
+    zoomLevel.textContent = bsTapasyaZoom + "%";
+  };
+  document.getElementById("bs-tapasya-zoom-in").onclick = () => {
+    bsTapasyaZoom = Math.min(200, bsTapasyaZoom + 10);
+    applyBsTapasyaZoom();
+  };
+  document.getElementById("bs-tapasya-zoom-out").onclick = () => {
+    bsTapasyaZoom = Math.max(40, bsTapasyaZoom - 10);
+    applyBsTapasyaZoom();
+  };
 
   document.getElementById("bs-tapasya-btn").onclick = async () => {
     modal.classList.add("active");
     const tbody = document.getElementById("bs-tapasya-body");
-    tbody.innerHTML = `<tr><td colspan="3" class="loading-row">Loading…</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Loading…</td></tr>`;
 
-    const { data: coordinators, error } = await supabase
-      .from("users")
-      .select("id, user_name, tirtha_nidhi_percent")
-      .eq("role", "Coordinator")
-      .order("user_name");
+    const [{ data: coordinators, error }, { data: inwardData }, { data: outwardData }, redeemedByUser] = await Promise.all([
+      supabase.from("users").select("id, user_name, tirtha_nidhi_percent").eq("role", "Coordinator").order("user_name"),
+      supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
+      supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by"),
+      fetchApprovedRedeemedByUser(),
+    ]);
 
     if (error) {
-      tbody.innerHTML = `<tr><td colspan="3" class="loading-row">Could not load data.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Could not load data.</td></tr>`;
       return;
     }
 
+    const bookCostMap = new Map();
+    (inwardData || []).forEach((row) => {
+      const key = bookKey(row.name, row.language);
+      if (!bookCostMap.has(key)) bookCostMap.set(key, { qty: 0, val: 0 });
+      const b = bookCostMap.get(key);
+      b.qty += (row.quantity || 0);
+      b.val += (row.purchase_price || 0) * (row.quantity || 0);
+    });
+    const getUnitCost = (name, lang) => {
+      const b = bookCostMap.get(bookKey(name, lang));
+      return (b && b.qty > 0) ? b.val / b.qty : 0;
+    };
+
+    // Per-user list of individual sale profits (not pre-aggregated) so the
+    // Remaining column can recompute the exact same per-row contribution
+    // math as everywhere else the instant the % input changes, with no
+    // extra round-trip to the server.
+    const salesByUser = new Map();
+    (outwardData || []).forEach((r) => {
+      const qty = r.quantity || 0;
+      const revenue = (r.sold_price || 0) * qty;
+      const cost = getUnitCost(r.name, r.language) * qty;
+      const arr = salesByUser.get(r.sold_by) || [];
+      arr.push({ name: r.name, profit: revenue - cost });
+      salesByUser.set(r.sold_by, arr);
+    });
+    const computeContribution = (userName, rate) =>
+      (salesByUser.get(userName) || []).reduce((s, r) => s + Math.round(tirthaNidhiContribution(r.name, r.profit, rate)), 0);
+
     tbody.innerHTML = (coordinators || []).length
-      ? coordinators.map((u, idx) => `
-          <tr data-id="${u.id}">
+      ? coordinators.map((u, idx) => {
+          const rate = (u.tirtha_nidhi_percent ?? 65) / 100;
+          const redeemed = redeemedByUser.get(u.user_name) || 0;
+          const remaining = computeContribution(u.user_name, rate) - redeemed;
+          return `
+          <tr data-id="${u.id}" data-user="${escapeHtml(u.user_name)}">
             <td data-label="S.No">${idx + 1}</td>
             <td data-label="Name">${escapeHtml(u.user_name)}</td>
             <td data-label="% to be allocated">
               <input type="number" min="0" max="100" step="1" class="tapasya-percent-input inline-edit"
                 value="${u.tirtha_nidhi_percent ?? 65}" />
             </td>
-          </tr>`).join("")
-      : `<tr><td colspan="3" class="loading-row">No distributors found.</td></tr>`;
+            <td data-label="Remaining" class="tapasya-remaining-cell">${fmtMoney(remaining)}</td>
+          </tr>`;
+        }).join("")
+      : `<tr><td colspan="4" class="loading-row">No distributors found.</td></tr>`;
 
     tbody.querySelectorAll(".tapasya-percent-input").forEach((input) => {
       // Number inputs bump their value on mouse-wheel scroll while focused —
       // blur on wheel so scrolling the page/table never silently edits a %.
       input.addEventListener("wheel", (e) => e.target.blur());
+      input.addEventListener("input", (e) => {
+        const row = e.target.closest("tr");
+        const userName = row.dataset.user;
+        let val = e.target.value === "" ? 65 : parseFloat(e.target.value);
+        if (Number.isNaN(val)) val = 65;
+        const rate = Math.min(100, Math.max(0, val)) / 100;
+        const redeemed = redeemedByUser.get(userName) || 0;
+        const remaining = computeContribution(userName, rate) - redeemed;
+        row.querySelector(".tapasya-remaining-cell").textContent = fmtMoney(remaining);
+      });
       input.addEventListener("change", async (e) => {
         const id = e.target.closest("tr").dataset.id;
         let val = e.target.value === "" ? 65 : parseFloat(e.target.value);
@@ -3519,7 +3626,208 @@ function wireBsTapasyaModal() {
         showToast("Tapasya percent updated", "success");
       });
     });
-    requestAnimationFrame(() => requestAnimationFrame(() => autoFitGeneralDataTable("bs-tapasya-table-wrap")));
+  };
+}
+
+/* ---- Tirtha Nidhi: redeem requests (user submits, admin approves) ---- */
+function redeemStatusLabel(status) {
+  if (status === "approved") return "✅ Approved";
+  if (status === "rejected") return "❌ Rejected";
+  return "⏳ Pending";
+}
+
+// A distributor's own Srila Prabhupada's Contribution (same math as the
+// stats bar) minus whatever of it has already been approved-redeemed or is
+// still awaiting a decision, so they can never request more than is really
+// left.
+async function computeUserRedeemAvailability(userName) {
+  const [{ data: outwardData }, { data: inwardData }, { data: redeemData }, tirthaNidhiRates] = await Promise.all([
+    supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by").eq("sold_by", userName),
+    supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
+    supabase.from("tirtha_nidhi_redeem_requests").select("amount, status").eq("user_name", userName),
+    fetchTirthaNidhiRates(),
+  ]);
+
+  const bookCostMap = new Map();
+  (inwardData || []).forEach((row) => {
+    const key = bookKey(row.name, row.language);
+    if (!bookCostMap.has(key)) bookCostMap.set(key, { qty: 0, val: 0 });
+    const b = bookCostMap.get(key);
+    b.qty += (row.quantity || 0);
+    b.val += (row.purchase_price || 0) * (row.quantity || 0);
+  });
+  const getUnitCost = (name, lang) => {
+    const b = bookCostMap.get(bookKey(name, lang));
+    return (b && b.qty > 0) ? b.val / b.qty : 0;
+  };
+
+  const rate = tirthaNidhiRates.get(userName) ?? 0.65;
+  const contribution = (outwardData || []).reduce((sum, r) => {
+    const qty = r.quantity || 0;
+    const revenue = (r.sold_price || 0) * qty;
+    const cost = getUnitCost(r.name, r.language) * qty;
+    return sum + Math.round(tirthaNidhiContribution(r.name, revenue - cost, rate));
+  }, 0);
+
+  const redeemedApproved = (redeemData || []).filter((r) => r.status === "approved").reduce((s, r) => s + (r.amount || 0), 0);
+  const redeemedPending = (redeemData || []).filter((r) => r.status === "pending").reduce((s, r) => s + (r.amount || 0), 0);
+
+  return { available: contribution - redeemedApproved - redeemedPending };
+}
+
+async function openRedeemModal(currentUser) {
+  const modal = document.getElementById("bs-redeem-modal");
+  const errorEl = document.getElementById("bs-redeem-error");
+  errorEl.classList.add("hidden");
+  document.getElementById("bs-redeem-amount").value = "";
+  document.getElementById("bs-redeem-available").textContent = "…";
+  const bodyEl = document.getElementById("bs-redeem-my-body");
+  bodyEl.innerHTML = `<tr><td colspan="4" class="loading-row">Loading…</td></tr>`;
+  modal.classList.add("active");
+
+  const [{ available }, { data: myRequests }] = await Promise.all([
+    computeUserRedeemAvailability(currentUser.user_name),
+    supabase.from("tirtha_nidhi_redeem_requests").select("requested_at, amount, status").eq("user_name", currentUser.user_name).order("requested_at", { ascending: false }),
+  ]);
+
+  document.getElementById("bs-redeem-available").textContent = fmtMoney(Math.max(0, available));
+
+  bodyEl.innerHTML = (myRequests || []).length
+    ? myRequests.map((r, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${escapeHtml((r.requested_at || "").slice(0, 10))}</td>
+          <td>${fmtMoney(r.amount)}</td>
+          <td>${redeemStatusLabel(r.status)}</td>
+        </tr>`).join("")
+    : `<tr><td colspan="4" class="muted-text">No redeem requests yet.</td></tr>`;
+}
+
+let redeemModalWired = false;
+function wireRedeemModal(currentUser, onSaved) {
+  if (redeemModalWired) return;
+  redeemModalWired = true;
+
+  const modal = document.getElementById("bs-redeem-modal");
+  const errorEl = document.getElementById("bs-redeem-error");
+
+  document.getElementById("bs-redeem-btn").onclick = () => openRedeemModal(currentUser);
+  document.getElementById("bs-redeem-cancel-btn").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  document.getElementById("bs-redeem-save-btn").onclick = async () => {
+    errorEl.classList.add("hidden");
+    const amount = Number(document.getElementById("bs-redeem-amount").value);
+    if (!amount || amount <= 0) {
+      errorEl.textContent = "Please enter an amount.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+
+    const { available } = await computeUserRedeemAvailability(currentUser.user_name);
+    if (amount > available) {
+      errorEl.textContent = `You can redeem up to ${fmtMoney(Math.max(0, available))}.`;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+
+    const { error } = await supabase.from("tirtha_nidhi_redeem_requests").insert({
+      user_name: currentUser.user_name,
+      amount,
+    });
+    if (error) {
+      errorEl.textContent = error.message;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    showToast("Redeem request submitted", "success");
+    if (onSaved) await onSaved();
+    await openRedeemModal(currentUser);
+  };
+}
+
+/* ---- Tirtha Nidhi: admin approval queue for redeem requests ---- */
+let redeemRequestsCache = [];
+let redeemRequestsModalWired = false;
+
+function renderRedeemRequestsRows(rows) {
+  const tbody = document.getElementById("bs-redeem-requests-body");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">No redeem requests found.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r, idx) => `
+    <tr data-id="${r.id}">
+      <td data-label="S.No">${idx + 1}</td>
+      <td data-label="Date">${escapeHtml((r.requested_at || "").slice(0, 10))}</td>
+      <td data-label="User">${escapeHtml(r.user_name || "—")}</td>
+      <td data-label="Amount">${fmtMoney(r.amount)}</td>
+      <td data-label="Status">${redeemStatusLabel(r.status)}</td>
+      <td data-label="">
+        ${r.status === "pending"
+          ? `<button type="button" class="cell-chip bs-redeem-approve-btn" title="Approve">✓ Approve</button>
+             <button type="button" class="cell-chip danger bs-redeem-reject-btn" title="Reject">✕ Reject</button>`
+          : ""}
+      </td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll(".bs-redeem-approve-btn").forEach((btn) => {
+    btn.addEventListener("click", () => reviewRedeemRequest(btn.closest("tr").dataset.id, "approved"));
+  });
+  tbody.querySelectorAll(".bs-redeem-reject-btn").forEach((btn) => {
+    btn.addEventListener("click", () => reviewRedeemRequest(btn.closest("tr").dataset.id, "rejected"));
+  });
+}
+
+async function reviewRedeemRequest(id, status) {
+  const r = redeemRequestsCache.find((x) => x.id === id);
+  const verb = status === "approved" ? "Approve" : "Reject";
+  if (!confirm(`${verb} ${fmtMoney(r?.amount || 0)} redeem request from "${r?.user_name || ""}"?`)) return;
+
+  const { error } = await supabase.from("tirtha_nidhi_redeem_requests")
+    .update({ status, reviewed_by: currentSavingsUser?.user_name || null, reviewed_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) {
+    showToast("Update failed: " + error.message, "error");
+    return;
+  }
+  showToast(status === "approved" ? "Redeem request approved" : "Redeem request rejected", "success");
+  await loadRedeemRequests();
+}
+
+function applyRedeemRequestsFilter() {
+  const filter = document.getElementById("bs-redeem-req-filter")?.value ?? "pending";
+  const rows = filter === "__ALL__" ? redeemRequestsCache : redeemRequestsCache.filter((r) => r.status === filter);
+  renderRedeemRequestsRows(rows);
+}
+
+async function loadRedeemRequests() {
+  const tbody = document.getElementById("bs-redeem-requests-body");
+  tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
+  const { data, error } = await supabase
+    .from("tirtha_nidhi_redeem_requests")
+    .select("id, requested_at, user_name, amount, status")
+    .order("requested_at", { ascending: false });
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Could not load redeem requests.</td></tr>`;
+    return;
+  }
+  redeemRequestsCache = data || [];
+  applyRedeemRequestsFilter();
+}
+
+function wireRedeemRequestsModal() {
+  if (redeemRequestsModalWired) return;
+  redeemRequestsModalWired = true;
+  const modal = document.getElementById("bs-redeem-requests-modal");
+  document.getElementById("bs-redeem-requests-close").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+  document.getElementById("bs-redeem-req-filter").addEventListener("change", applyRedeemRequestsFilter);
+
+  document.getElementById("bs-redeem-requests-btn").onclick = async () => {
+    modal.classList.add("active");
+    await loadRedeemRequests();
   };
 }
 
@@ -3813,11 +4121,18 @@ export async function initSavingsPanel(currentUser) {
   wireDashboardDetailModal();
   if (isAdmin) wireBsGeneralDataModal();
   if (isAdmin) wireBsTapasyaModal();
+  if (isAdmin) wireRedeemRequestsModal();
   wireBsUserContributionModal();
   wireContributionModal(currentUser, async () => {
     await renderSavingsPanel();
     if (isAdmin) await initContributionsAdminTable();
   });
+  document.getElementById("bs-redeem-btn")?.classList.toggle("hidden", isAdmin);
+  if (!isAdmin) {
+    wireRedeemModal(currentUser, async () => {
+      await renderSavingsPanel();
+    });
+  }
   document.getElementById("bs-my-contribution-card").onclick = () => {
     const scopeSel = isAdmin ? (document.getElementById("bs-stats-user-select")?.value || "__ALL__") : currentUser.user_name;
     openMyContributionsPopup(scopeSel === "__ALL__" ? null : scopeSel, scopeSel === "__ALL__");
