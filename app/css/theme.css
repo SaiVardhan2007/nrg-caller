@@ -3656,12 +3656,20 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   .filter-toggle-btn { width: 100%; justify-content: space-between; }
 }
 
-/* ============ ANALYTICS: GENERAL DATA MODAL ============
-   Six short columns — no reason this ever needs its own scrollbar, so the
-   inner wrap's overflow/height cap (meant for the wide Master Contact
-   tables) is turned off here and the S.No column is left to size itself
-   instead of inheriting the generic 32px cap that was clipping "S.No". */
-#general-data-table-wrap {
+/* ============ GENERAL DATA MODALS ============
+   Every "General Data"-style snapshot modal (Caller, Follow-up, Core
+   Cultivation, Tirtha Nidhi General Data + Tapasya, Book Distribution
+   Analytics) holds one small table — one row per user — so there's no
+   reason for it to carry its own inner scrollbar the way the wide Master
+   Contact tables do; the inner wrap's overflow/height cap is turned off so
+   every row renders in one flat table, with the modal box itself (below)
+   as the only scroll container. */
+#general-data-table-wrap,
+#followup-data-table-wrap,
+#cc-general-data-table-wrap,
+#bs-general-data-table-wrap,
+#bs-tapasya-table-wrap,
+#ba-general-data-table-wrap {
   overflow: visible;
   max-height: none;
 }
@@ -3706,12 +3714,29 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 /* Zoom +/- scales the whole modal box (not just the text), growing/shrinking
    around its top-center so it stays anchored under the title row. The modal
-   backdrop scrolls if a zoomed-in box grows taller than the viewport. */
-#general-data-modal-box {
+   backdrop scrolls if a zoomed-in box grows taller than the viewport. Sized
+   close to the full viewport (instead of shrink-wrapping to content) so
+   there's no dead space above/below and zooming out has real room to reveal
+   every row at once. */
+#general-data-modal-box,
+#followup-data-modal-box,
+#cc-general-data-modal-box,
+#bs-general-data-modal-box,
+#bs-tapasya-modal-box,
+#ba-general-data-modal-box {
   transform: scale(1);
   transform-origin: top center;
   transition: transform 0.15s ease;
+  width: 96%;
+  max-width: 1100px;
+  height: 95vh;
+  max-height: 95vh;
 }
-#general-data-modal.active {
+#general-data-modal.active,
+#followup-data-modal.active,
+#cc-general-data-modal.active,
+#bs-general-data-modal.active,
+#bs-tapasya-modal.active,
+#ba-general-data-modal.active {
   overflow-y: auto;
 }

@@ -3217,9 +3217,9 @@ async function fetchTirthaNidhiRates() {
 // Only approved redeem requests actually reduce what's left of a
 // distributor's Tirtha Nidhi contribution — pending/rejected ones don't.
 async function fetchApprovedRedeemedByUser() {
-  const { data } = await supabase.from("tirtha_nidhi_redeem_requests").select("user_name, amount").eq("status", "approved");
+  const { data } = await supabase.from("tirtha_nidhi_redeem_requests").select("user_name, approved_amount").eq("status", "approved");
   const byUser = new Map();
-  (data || []).forEach((r) => byUser.set(r.user_name, (byUser.get(r.user_name) || 0) + (r.amount || 0)));
+  (data || []).forEach((r) => byUser.set(r.user_name, (byUser.get(r.user_name) || 0) + (r.approved_amount || 0)));
   return byUser;
 }
 
@@ -3584,12 +3584,17 @@ function wireBsTapasyaModal() {
     const computeContribution = (userName, rate) =>
       (salesByUser.get(userName) || []).reduce((s, r) => s + Math.round(tirthaNidhiContribution(r.name, r.profit, rate)), 0);
 
-    tbody.innerHTML = (coordinators || []).length
-      ? coordinators.map((u, idx) => {
-          const rate = (u.tirtha_nidhi_percent ?? 65) / 100;
-          const redeemed = redeemedByUser.get(u.user_name) || 0;
-          const remaining = computeContribution(u.user_name, rate) - redeemed;
-          return `
+    const rows = (coordinators || [])
+      .map((u) => {
+        const rate = (u.tirtha_nidhi_percent ?? 65) / 100;
+        const redeemed = redeemedByUser.get(u.user_name) || 0;
+        const remaining = computeContribution(u.user_name, rate) - redeemed;
+        return { u, remaining };
+      })
+      .sort((a, b) => b.remaining - a.remaining);
+
+    tbody.innerHTML = rows.length
+      ? rows.map(({ u, remaining }, idx) => `
           <tr data-id="${u.id}" data-user="${escapeHtml(u.user_name)}">
             <td data-label="S.No">${idx + 1}</td>
             <td data-label="Name">${escapeHtml(u.user_name)}</td>
@@ -3598,8 +3603,7 @@ function wireBsTapasyaModal() {
                 value="${u.tirtha_nidhi_percent ?? 65}" />
             </td>
             <td data-label="Remaining" class="tapasya-remaining-cell">${fmtMoney(remaining)}</td>
-          </tr>`;
-        }).join("")
+          </tr>`).join("")
       : `<tr><td colspan="4" class="loading-row">No distributors found.</td></tr>`;
 
     tbody.querySelectorAll(".tapasya-percent-input").forEach((input) => {
@@ -3644,7 +3648,7 @@ async function computeUserRedeemAvailability(userName) {
   const [{ data: outwardData }, { data: inwardData }, { data: redeemData }, tirthaNidhiRates] = await Promise.all([
     supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by").eq("sold_by", userName),
     supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
-    supabase.from("tirtha_nidhi_redeem_requests").select("amount, status").eq("user_name", userName),
+    supabase.from("tirtha_nidhi_redeem_requests").select("requested_amount, approved_amount, status").eq("user_name", userName),
     fetchTirthaNidhiRates(),
   ]);
 
@@ -3669,8 +3673,8 @@ async function computeUserRedeemAvailability(userName) {
     return sum + Math.round(tirthaNidhiContribution(r.name, revenue - cost, rate));
   }, 0);
 
-  const redeemedApproved = (redeemData || []).filter((r) => r.status === "approved").reduce((s, r) => s + (r.amount || 0), 0);
-  const redeemedPending = (redeemData || []).filter((r) => r.status === "pending").reduce((s, r) => s + (r.amount || 0), 0);
+  const redeemedApproved = (redeemData || []).filter((r) => r.status === "approved").reduce((s, r) => s + (r.approved_amount || 0), 0);
+  const redeemedPending = (redeemData || []).filter((r) => r.status === "pending").reduce((s, r) => s + (r.requested_amount || 0), 0);
 
   return { available: contribution - redeemedApproved - redeemedPending };
 }
@@ -3682,12 +3686,12 @@ async function openRedeemModal(currentUser) {
   document.getElementById("bs-redeem-amount").value = "";
   document.getElementById("bs-redeem-available").textContent = "…";
   const bodyEl = document.getElementById("bs-redeem-my-body");
-  bodyEl.innerHTML = `<tr><td colspan="4" class="loading-row">Loading…</td></tr>`;
+  bodyEl.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
   modal.classList.add("active");
 
   const [{ available }, { data: myRequests }] = await Promise.all([
     computeUserRedeemAvailability(currentUser.user_name),
-    supabase.from("tirtha_nidhi_redeem_requests").select("requested_at, amount, status").eq("user_name", currentUser.user_name).order("requested_at", { ascending: false }),
+    supabase.from("tirtha_nidhi_redeem_requests").select("requested_at, requested_amount, approved_amount, status").eq("user_name", currentUser.user_name).order("requested_at", { ascending: false }),
   ]);
 
   document.getElementById("bs-redeem-available").textContent = fmtMoney(Math.max(0, available));
@@ -3697,10 +3701,11 @@ async function openRedeemModal(currentUser) {
         <tr>
           <td>${idx + 1}</td>
           <td>${escapeHtml((r.requested_at || "").slice(0, 10))}</td>
-          <td>${fmtMoney(r.amount)}</td>
+          <td>${fmtMoney(r.requested_amount)}</td>
+          <td>${r.status === "approved" ? fmtMoney(r.approved_amount) : "—"}</td>
           <td>${redeemStatusLabel(r.status)}</td>
         </tr>`).join("")
-    : `<tr><td colspan="4" class="muted-text">No redeem requests yet.</td></tr>`;
+    : `<tr><td colspan="5" class="muted-text">No redeem requests yet.</td></tr>`;
 }
 
 let redeemModalWired = false;
@@ -3733,7 +3738,7 @@ function wireRedeemModal(currentUser, onSaved) {
 
     const { error } = await supabase.from("tirtha_nidhi_redeem_requests").insert({
       user_name: currentUser.user_name,
-      amount,
+      requested_amount: amount,
     });
     if (error) {
       errorEl.textContent = error.message;
@@ -3753,7 +3758,7 @@ let redeemRequestsModalWired = false;
 function renderRedeemRequestsRows(rows) {
   const tbody = document.getElementById("bs-redeem-requests-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">No redeem requests found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="muted-text">No redeem requests found.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => `
@@ -3761,7 +3766,8 @@ function renderRedeemRequestsRows(rows) {
       <td data-label="S.No">${idx + 1}</td>
       <td data-label="Date">${escapeHtml((r.requested_at || "").slice(0, 10))}</td>
       <td data-label="User">${escapeHtml(r.user_name || "—")}</td>
-      <td data-label="Amount">${fmtMoney(r.amount)}</td>
+      <td data-label="Requested Amount">${fmtMoney(r.requested_amount)}</td>
+      <td data-label="Approved Amount">${r.status === "approved" ? fmtMoney(r.approved_amount) : "—"}</td>
       <td data-label="Status">${redeemStatusLabel(r.status)}</td>
       <td data-label="">
         ${r.status === "pending"
@@ -3783,10 +3789,15 @@ function renderRedeemRequestsRows(rows) {
 async function reviewRedeemRequest(id, status) {
   const r = redeemRequestsCache.find((x) => x.id === id);
   const verb = status === "approved" ? "Approve" : "Reject";
-  if (!confirm(`${verb} ${fmtMoney(r?.amount || 0)} redeem request from "${r?.user_name || ""}"?`)) return;
+  if (!confirm(`${verb} ${fmtMoney(r?.requested_amount || 0)} redeem request from "${r?.user_name || ""}"?`)) return;
 
   const { error } = await supabase.from("tirtha_nidhi_redeem_requests")
-    .update({ status, reviewed_by: currentSavingsUser?.user_name || null, reviewed_at: new Date().toISOString() })
+    .update({
+      status,
+      approved_amount: status === "approved" ? r?.requested_amount || 0 : null,
+      reviewed_by: currentSavingsUser?.user_name || null,
+      reviewed_at: new Date().toISOString(),
+    })
     .eq("id", id);
   if (error) {
     showToast("Update failed: " + error.message, "error");
@@ -3804,13 +3815,13 @@ function applyRedeemRequestsFilter() {
 
 async function loadRedeemRequests() {
   const tbody = document.getElementById("bs-redeem-requests-body");
-  tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Loading…</td></tr>`;
   const { data, error } = await supabase
     .from("tirtha_nidhi_redeem_requests")
-    .select("id, requested_at, user_name, amount, status")
+    .select("id, requested_at, user_name, requested_amount, approved_amount, status")
     .order("requested_at", { ascending: false });
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Could not load redeem requests.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Could not load redeem requests.</td></tr>`;
     return;
   }
   redeemRequestsCache = data || [];

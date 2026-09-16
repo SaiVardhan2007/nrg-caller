@@ -4,15 +4,16 @@
 -- against the "Redeemed"/"Remaining" figures shown in General Data/Tapasya.
 
 create table if not exists tirtha_nidhi_redeem_requests (
-  id            uuid primary key default gen_random_uuid(),
-  user_name     text not null,
-  amount        numeric not null check (amount > 0),
-  status        text not null default 'pending' check (status in ('pending','approved','rejected')),
-  requested_at  timestamptz not null default now(),
-  reviewed_by   text,
-  reviewed_at   timestamptz,
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
+  id                uuid primary key default gen_random_uuid(),
+  user_name         text not null,
+  requested_amount  numeric not null check (requested_amount > 0),
+  approved_amount   numeric check (approved_amount >= 0),
+  status            text not null default 'pending' check (status in ('pending','approved','rejected')),
+  requested_at      timestamptz not null default now(),
+  reviewed_by       text,
+  reviewed_at       timestamptz,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
 );
 create index if not exists idx_tirtha_nidhi_redeem_requests_user_name on tirtha_nidhi_redeem_requests(user_name);
 
