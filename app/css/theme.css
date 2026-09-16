@@ -3740,3 +3740,17 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #ba-general-data-modal.active {
   overflow-y: auto;
 }
+
+/* Redeem Requests (admin): every field is directly editable, so this is
+   sized like the General Data modals above (no shrink-wrap margin) — no
+   zoom controls here though, so no transform. */
+#bs-redeem-requests-modal-box {
+  width: 96%;
+  max-width: 1100px;
+  height: 95vh;
+  max-height: 95vh;
+}
+#bs-redeem-requests-table-wrap {
+  overflow: visible;
+  max-height: none;
+}

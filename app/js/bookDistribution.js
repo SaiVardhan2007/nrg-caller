@@ -155,6 +155,11 @@ function populatePairedSelect(idA, idB, values) {
 // on change/blur.
 function wireInlineEditCells(tbody, tableName, cache, { numberFields = [], requiredFields = [] } = {}, afterSave) {
   tbody.querySelectorAll(".inline-edit").forEach((el) => {
+    // Cells with their own bespoke save handler (e.g. a status change that
+    // also needs to stamp reviewed_by/reviewed_at) reuse this class purely
+    // for its input/select styling and skip data-field on purpose — nothing
+    // for this generic path to save.
+    if (!el.dataset.field) return;
     el.addEventListener("change", async (e) => {
       const id = e.target.closest("tr").dataset.id;
       const field = e.target.dataset.field;
@@ -3720,7 +3725,9 @@ function wireRedeemModal(currentUser, onSaved) {
   document.getElementById("bs-redeem-cancel-btn").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
+  let redeemSaveInFlight = false;
   document.getElementById("bs-redeem-save-btn").onclick = async () => {
+    if (redeemSaveInFlight) return;
     errorEl.classList.add("hidden");
     const amount = Number(document.getElementById("bs-redeem-amount").value);
     if (!amount || amount <= 0) {
@@ -3729,10 +3736,16 @@ function wireRedeemModal(currentUser, onSaved) {
       return;
     }
 
+    // Close the modal the instant a valid amount is submitted, before either
+    // network call — leaving it open during the round trip let a second tap
+    // (or an impatient double-click) fire the same request again.
+    redeemSaveInFlight = true;
+    modal.classList.remove("active");
+
     const { available } = await computeUserRedeemAvailability(currentUser.user_name);
     if (amount > available) {
-      errorEl.textContent = `You can redeem up to ${fmtMoney(Math.max(0, available))}.`;
-      errorEl.classList.remove("hidden");
+      showToast(`You can redeem up to ${fmtMoney(Math.max(0, available))}.`, "error");
+      redeemSaveInFlight = false;
       return;
     }
 
@@ -3740,14 +3753,13 @@ function wireRedeemModal(currentUser, onSaved) {
       user_name: currentUser.user_name,
       requested_amount: amount,
     });
+    redeemSaveInFlight = false;
     if (error) {
-      errorEl.textContent = error.message;
-      errorEl.classList.remove("hidden");
+      showToast(error.message, "error");
       return;
     }
     showToast("Redeem request submitted", "success");
     if (onSaved) await onSaved();
-    await openRedeemModal(currentUser);
   };
 }
 
@@ -3755,55 +3767,82 @@ function wireRedeemModal(currentUser, onSaved) {
 let redeemRequestsCache = [];
 let redeemRequestsModalWired = false;
 
+// Every column here is directly editable by an admin (unlike the read-only
+// "My Redeem Requests" table users see) — Date/User/Requested/Approved use
+// the shared inline-edit wiring below, Status gets its own handler since
+// changing it also stamps reviewed_by/reviewed_at and defaults Approved
+// Amount to the requested amount the first time a request is approved.
 function renderRedeemRequestsRows(rows) {
   const tbody = document.getElementById("bs-redeem-requests-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="muted-text">No redeem requests found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">No redeem requests found.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => `
     <tr data-id="${r.id}">
       <td data-label="S.No">${idx + 1}</td>
-      <td data-label="Date">${escapeHtml((r.requested_at || "").slice(0, 10))}</td>
-      <td data-label="User">${escapeHtml(r.user_name || "—")}</td>
-      <td data-label="Requested Amount">${fmtMoney(r.requested_amount)}</td>
-      <td data-label="Approved Amount">${r.status === "approved" ? fmtMoney(r.approved_amount) : "—"}</td>
-      <td data-label="Status">${redeemStatusLabel(r.status)}</td>
-      <td data-label="">
-        ${r.status === "pending"
-          ? `<button type="button" class="cell-chip bs-redeem-approve-btn" title="Approve">✓ Approve</button>
-             <button type="button" class="cell-chip danger bs-redeem-reject-btn" title="Reject">✕ Reject</button>`
-          : ""}
+      <td data-label="Date"><input type="date" class="inline-edit redeem-date-input" value="${escapeHtml((r.requested_at || "").slice(0, 10))}" /></td>
+      <td data-label="User"><input class="inline-edit" data-field="user_name" value="${escapeHtml(r.user_name || "")}" /></td>
+      <td data-label="Requested Amount"><input type="number" min="0" step="0.01" class="inline-edit" data-field="requested_amount" value="${r.requested_amount ?? ""}" /></td>
+      <td data-label="Approved Amount"><input type="number" min="0" step="0.01" class="inline-edit redeem-approved-input" data-field="approved_amount" value="${r.approved_amount ?? ""}" /></td>
+      <td data-label="Status">
+        <select class="inline-edit redeem-status-select">
+          <option value="pending"${r.status === "pending" ? " selected" : ""}>⏳ Pending</option>
+          <option value="approved"${r.status === "approved" ? " selected" : ""}>✅ Approved</option>
+          <option value="rejected"${r.status === "rejected" ? " selected" : ""}>❌ Rejected</option>
+        </select>
       </td>
     </tr>
   `).join("");
 
-  tbody.querySelectorAll(".bs-redeem-approve-btn").forEach((btn) => {
-    btn.addEventListener("click", () => reviewRedeemRequest(btn.closest("tr").dataset.id, "approved"));
+  tbody.querySelectorAll(".redeem-date-input").forEach((input) => {
+    input.addEventListener("change", async (e) => {
+      const id = e.target.closest("tr").dataset.id;
+      const record = redeemRequestsCache.find((x) => x.id === id);
+      const raw = e.target.value;
+      if (!raw) {
+        e.target.value = (record?.requested_at || "").slice(0, 10);
+        return;
+      }
+      const { error } = await supabase.from("tirtha_nidhi_redeem_requests").update({ requested_at: raw }).eq("id", id);
+      if (error) {
+        showToast("Update failed: " + error.message, "error");
+        e.target.value = (record?.requested_at || "").slice(0, 10);
+        return;
+      }
+      if (record) record.requested_at = raw;
+    });
   });
-  tbody.querySelectorAll(".bs-redeem-reject-btn").forEach((btn) => {
-    btn.addEventListener("click", () => reviewRedeemRequest(btn.closest("tr").dataset.id, "rejected"));
+  tbody.querySelectorAll(".redeem-status-select").forEach((select) => {
+    select.addEventListener("change", (e) => updateRedeemStatus(e.target));
+  });
+  wireInlineEditCells(tbody, "tirtha_nidhi_redeem_requests", redeemRequestsCache, {
+    numberFields: ["requested_amount", "approved_amount"],
+    requiredFields: ["user_name", "requested_amount"],
   });
 }
 
-async function reviewRedeemRequest(id, status) {
-  const r = redeemRequestsCache.find((x) => x.id === id);
-  const verb = status === "approved" ? "Approve" : "Reject";
-  if (!confirm(`${verb} ${fmtMoney(r?.requested_amount || 0)} redeem request from "${r?.user_name || ""}"?`)) return;
+async function updateRedeemStatus(selectEl) {
+  const id = selectEl.closest("tr").dataset.id;
+  const record = redeemRequestsCache.find((x) => x.id === id);
+  const newStatus = selectEl.value;
 
-  const { error } = await supabase.from("tirtha_nidhi_redeem_requests")
-    .update({
-      status,
-      approved_amount: status === "approved" ? r?.requested_amount || 0 : null,
-      reviewed_by: currentSavingsUser?.user_name || null,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", id);
+  const patch = {
+    status: newStatus,
+    reviewed_by: currentSavingsUser?.user_name || null,
+    reviewed_at: new Date().toISOString(),
+  };
+  if (newStatus === "approved" && (record?.approved_amount == null)) {
+    patch.approved_amount = record?.requested_amount || 0;
+  }
+
+  const { error } = await supabase.from("tirtha_nidhi_redeem_requests").update(patch).eq("id", id);
   if (error) {
     showToast("Update failed: " + error.message, "error");
+    selectEl.value = record?.status || "pending";
     return;
   }
-  showToast(status === "approved" ? "Redeem request approved" : "Redeem request rejected", "success");
+  showToast(`Marked ${redeemStatusLabel(newStatus)}`, "success");
   await loadRedeemRequests();
 }
 
@@ -3815,13 +3854,13 @@ function applyRedeemRequestsFilter() {
 
 async function loadRedeemRequests() {
   const tbody = document.getElementById("bs-redeem-requests-body");
-  tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
   const { data, error } = await supabase
     .from("tirtha_nidhi_redeem_requests")
     .select("id, requested_at, user_name, requested_amount, approved_amount, status")
     .order("requested_at", { ascending: false });
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Could not load redeem requests.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Could not load redeem requests.</td></tr>`;
     return;
   }
   redeemRequestsCache = data || [];
