@@ -41,7 +41,13 @@ async function getOutwardModalData() {
 }
 
 export function fmtMoney(n) {
-  return "₹" + (Math.round((n || 0) * 100) / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  return "₹" + Math.round(n || 0).toLocaleString("en-IN");
+}
+
+// Raw price/quantity cells (no currency symbol) — same integer-only rule as
+// fmtMoney, but keeps the "—" placeholder for null/undefined.
+function fmtNum(n) {
+  return n === null || n === undefined || n === "" ? "—" : Math.round(n);
 }
 
 function bookKey(name, language) {
@@ -689,7 +695,7 @@ function renderInwardRows(rows, emptyMessage) {
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
       <td data-label="Language">${editSelectHtml("language", distinctValues(inwardCache, "language"), r.language || "")}</td>
-      <td data-label="Purchase Price"><input class="inline-edit" type="number" min="0" step="0.01" data-field="purchase_price" value="${r.purchase_price ?? ""}" /></td>
+      <td data-label="Purchase Price"><input class="inline-edit" type="number" min="0" step="1" data-field="purchase_price" value="${r.purchase_price ?? ""}" /></td>
       <td data-label="Quantity"><input class="inline-edit" type="number" min="0" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
       <td data-label="Purchased From"><input class="inline-edit" data-field="purchased_from" list="book-purchased-from-list" value="${escapeHtml(r.purchased_from || "")}" /></td>
       <td data-label="">
@@ -797,7 +803,7 @@ function renderOutwardRows(rows, emptyMessage) {
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
       <td data-label="Language">${editSelectHtml("language", distinctValues(outwardCache, "language"), r.language || "")}</td>
-      <td data-label="Sold Price"><input class="inline-edit outward-price-input" type="number" min="0" step="0.01" data-field="sold_price" value="${r.sold_price ?? ""}" /></td>
+      <td data-label="Sold Price"><input class="inline-edit outward-price-input" type="number" min="0" step="1" data-field="sold_price" value="${r.sold_price ?? ""}" /></td>
       <td data-label="Quantity"><input class="inline-edit outward-qty-input" type="number" min="0" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
       <td data-label="Total" class="outward-total-cell"><span class="outward-total-value">${fmtMoney((r.sold_price || 0) * (r.quantity || 0))}</span></td>
       <td data-label="Sold Area">${editSelectHtml("sold_area", distinctValues(outwardCache, "sold_area"), r.sold_area || "")}</td>
@@ -965,7 +971,7 @@ async function renderMyInward(userName) {
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name">${escapeHtml(r.name)}</td>
       <td data-label="Language">${escapeHtml(r.language || "—")}</td>
-      <td data-label="Purchase Price">${r.purchase_price ?? "—"}</td>
+      <td data-label="Purchase Price">${fmtNum(r.purchase_price)}</td>
       <td data-label="Quantity">${r.quantity ?? "—"}</td>
       <td data-label="Purchased From">${escapeHtml(r.purchased_from || "—")}</td>
     </tr>
@@ -990,7 +996,7 @@ async function renderMyOutward(userName) {
       <td data-label="S.No">${idx + 1}</td>
       <td data-label="Name">${escapeHtml(r.name)}</td>
       <td data-label="Count">${r.quantity ?? "—"}</td>
-      <td data-label="Price">${r.sold_price ?? "—"}</td>
+      <td data-label="Price">${fmtNum(r.sold_price)}</td>
       <td data-label="Total">${fmtMoney((r.sold_price || 0) * (r.quantity || 0))}</td>
       <td data-label="Realised"><span class="history-badge history-badge-${r.realised ? "positive" : "neutral"}">${r.realised ? "✓ Realised" : "Pending"}</span></td>
     </tr>
@@ -1236,7 +1242,7 @@ function buildOutwardRow(catalog, removable, standardPriceByKey, stockByKey, onC
   row.className = "stock-row";
   row.innerHTML = `
     <label class="field stock-cell-title"><span>Title</span><input type="text" class="stock-row-title" placeholder="Search a book title…" autocomplete="off" /></label>
-    <label class="field"><span>Price</span><input type="number" class="stock-row-price" min="0" step="0.01" /></label>
+    <label class="field"><span>Price</span><input type="number" class="stock-row-price" min="0" step="1" /></label>
     <label class="field"><span>Qty</span><input type="number" class="stock-row-qty" min="1" step="1" /></label>
     ${removable ? `<button type="button" class="stock-row-remove cell-chip danger" title="Remove">✕</button>` : ""}
     <div class="stock-row-reference-row">
@@ -1940,7 +1946,7 @@ function renderCommanderRows(rows, emptyMessage) {
       <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
       <td data-label="Name">${escapeHtml(r.name)}</td>
       <td data-label="Language">${escapeHtml(r.language || "—")}</td>
-      <td data-label="Sold Price">${r.sold_price ?? "—"}</td>
+      <td data-label="Sold Price">${fmtNum(r.sold_price)}</td>
       <td data-label="Quantity">${r.quantity ?? "—"}</td>
       <td data-label="Total">${fmtMoney((r.sold_price || 0) * (r.quantity || 0))}</td>
       <td data-label="Sold Area">${escapeHtml(r.sold_area || "—")}</td>
@@ -2290,7 +2296,7 @@ function renderDashboardRows(rows, emptyMessage) {
     <tr data-key="${escapeHtml(s.key)}" class="${isLowStock(s) ? "row-low-stock" : ""}">
       <td data-label="S.No">${idx + 1}</td>
       <td data-label="Name"><input class="inline-edit bd-name-edit" data-field="name" value="${escapeHtml(s.name)}" /></td>
-      <td data-label="Selling Price"><input class="inline-edit bd-standard-price" type="number" min="0" step="0.01" value="${s.standardSellingPrice ?? ""}" /></td>
+      <td data-label="Selling Price"><input class="inline-edit bd-standard-price" type="number" min="0" step="1" value="${s.standardSellingPrice ?? ""}" /></td>
       <td data-label="Language"><input class="inline-edit bd-language-edit" data-field="language" value="${escapeHtml(s.language || "")}" /></td>
       <td data-label="Total Inward">${s.totalInwardQty ? `<button type="button" class="cell-chip bd-detail-btn" data-kind="inward">${s.totalInwardQty}</button>` : "0"}</td>
       <td data-label="Avg Purchase Price">${s.totalInwardQty ? `<button type="button" class="cell-chip bd-detail-btn" data-kind="purchase-prices">${fmtMoney(s.avgPurchasePrice)}</button>` : "—"}</td>
@@ -2465,7 +2471,7 @@ function openDashboardDetail(book, kind) {
       <tr>
         <td>${idx + 1}</td>
         <td>${new Date(r.created_at).toLocaleString()}</td>
-        <td>${r.purchase_price ?? "—"}</td>
+        <td>${fmtNum(r.purchase_price)}</td>
         <td>${r.quantity ?? "—"}</td>
         <td>${escapeHtml(r.purchased_from || "—")}</td>
       </tr>
@@ -2490,7 +2496,7 @@ function openDashboardDetail(book, kind) {
       <tr>
         <td>${idx + 1}</td>
         <td>${new Date(r.created_at).toLocaleString()}</td>
-        <td>${r.sold_price ?? "—"}</td>
+        <td>${fmtNum(r.sold_price)}</td>
         <td>${r.quantity ?? "—"}</td>
         <td>${escapeHtml(r.sold_area || "—")}</td>
         <td>${escapeHtml(r.sold_by || "—")}</td>
@@ -2537,7 +2543,7 @@ function openSegmentDetail(rows) {
       <td>${new Date(r.created_at).toLocaleString()}</td>
       <td>${escapeHtml(r.name)}</td>
       <td>${escapeHtml(r.language || "—")}</td>
-      <td>${r.sold_price ?? "—"}</td>
+      <td>${fmtNum(r.sold_price)}</td>
       <td>${r.quantity ?? "—"}</td>
       <td>${escapeHtml(r.event || "—")}</td>
     </tr>
@@ -2764,10 +2770,9 @@ async function wireAnalyticsFilters() {
 
   const fromInput = document.getElementById("ba-from");
   const toInput = document.getElementById("ba-to");
-  const d = new Date();
-  d.setDate(d.getDate() - 30);
-  fromInput.value = analyticsDateInput(d);
-  toInput.value = analyticsDateInput(new Date());
+  const today = analyticsDateInput(new Date());
+  fromInput.value = today;
+  toInput.value = today;
 
   const [{ data: users }, placeNames, eventNames, bookNames] = await Promise.all([
     supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
@@ -2941,7 +2946,7 @@ function renderExpensesRows(rows, emptyMessage) {
       <td data-label="S.No">${idx + 1}</td>
       <td data-label="Date"><input class="inline-edit" type="date" data-field="expense_date" value="${r.expense_date || ""}" /></td>
       <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
-      <td data-label="Cost"><input class="inline-edit" type="number" min="0" step="0.01" data-field="cost" value="${r.cost ?? ""}" /></td>
+      <td data-label="Cost"><input class="inline-edit" type="number" min="0" step="1" data-field="cost" value="${r.cost ?? ""}" /></td>
       <td data-label="Place">${editSelectHtml("place", distinctValues(expensesCache, "place"), r.place || "")}</td>
       <td data-label="Event">${editSelectHtml("event", distinctValues(expensesCache, "event"), r.event || "")}</td>
       <td data-label="To">
@@ -3783,8 +3788,8 @@ function renderRedeemRequestsRows(rows) {
       <td data-label="S.No">${idx + 1}</td>
       <td data-label="Date"><input type="date" class="inline-edit redeem-date-input" value="${escapeHtml((r.requested_at || "").slice(0, 10))}" /></td>
       <td data-label="User"><input class="inline-edit" data-field="user_name" value="${escapeHtml(r.user_name || "")}" /></td>
-      <td data-label="Requested Amount"><input type="number" min="0" step="0.01" class="inline-edit" data-field="requested_amount" value="${r.requested_amount ?? ""}" /></td>
-      <td data-label="Approved Amount"><input type="number" min="0" step="0.01" class="inline-edit redeem-approved-input" data-field="approved_amount" value="${r.approved_amount ?? ""}" /></td>
+      <td data-label="Requested Amount"><input type="number" min="0" step="1" class="inline-edit" data-field="requested_amount" value="${r.requested_amount ?? ""}" /></td>
+      <td data-label="Approved Amount"><input type="number" min="0" step="1" class="inline-edit redeem-approved-input" data-field="approved_amount" value="${r.approved_amount ?? ""}" /></td>
       <td data-label="Status">
         <select class="inline-edit redeem-status-select">
           <option value="pending"${r.status === "pending" ? " selected" : ""}>⏳ Pending</option>
