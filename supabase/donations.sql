@@ -41,6 +41,12 @@ update donations set donation_date = created_at::date where donation_date is nul
 alter table donations alter column donation_date set default current_date;
 alter table donations alter column donation_date set not null;
 
+-- Utilised/remarks: how much of a donation has been spent so far, and an
+-- optional note on what for. Nullable-free (default 0) so existing rows and
+-- the dashboard/analytics net-total math (amount - utilised) never see nulls.
+alter table donations add column if not exists utilised numeric not null default 0;
+alter table donations add column if not exists remarks text;
+
 alter table donation_donors enable row level security;
 alter table donation_events enable row level security;
 alter table donations       enable row level security;
