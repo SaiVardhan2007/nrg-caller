@@ -19,7 +19,7 @@
 //   SMTP_PORT  (defaults to 465)
 //   SMTP_USER  — the Gmail address sending the backup
 //   SMTP_PASS  — a 16-char Gmail App Password (not the normal account password)
-//   DB_EXPORT_TO (defaults to polampallisaivardhan@gmail.com)
+//   DB_EXPORT_TO (defaults to snkdasa@gmail.com)
 // SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are auto-injected by Supabase.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -31,7 +31,7 @@ const SMTP_HOST = Deno.env.get("SMTP_HOST") ?? "smtp.gmail.com";
 const SMTP_PORT = Number(Deno.env.get("SMTP_PORT") ?? "465");
 const SMTP_USER = Deno.env.get("SMTP_USER") ?? "";
 const SMTP_PASS = Deno.env.get("SMTP_PASS") ?? "";
-const DB_EXPORT_TO = Deno.env.get("DB_EXPORT_TO") ?? "polampallisaivardhan@gmail.com";
+const DB_EXPORT_TO = Deno.env.get("DB_EXPORT_TO") ?? "snkdasa@gmail.com";
 
 const LAST_RUN_KEY = "weekly_db_export_last_run";
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
