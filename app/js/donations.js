@@ -237,7 +237,7 @@ function renderDonationsTxRows(rows) {
       <td data-label="Name"><input class="inline-edit" type="text" data-field="name" value="${escapeHtml(r.name)}" /></td>
       <td data-label="Number"><input class="inline-edit" type="tel" inputmode="numeric" data-field="mob_no" value="${escapeHtml(r.mob_no)}" /></td>
       <td data-label="Amount"><input class="inline-edit" type="number" min="0" step="any" data-field="amount" value="${r.amount ?? ""}" /></td>
-      <td data-label="Utilised"><input class="inline-edit" type="number" min="0" step="any" data-field="utilised" value="${r.utilised ?? 0}" /></td>
+      <td data-label="Utilised"><input class="inline-edit" type="number" min="0" step="any" data-field="utilised" value="${r.utilised || ""}" placeholder="0" /></td>
       <td data-label="Remarks"><input class="inline-edit" type="text" data-field="remarks" value="${escapeHtml(r.remarks || "")}" placeholder="Optional" /></td>
       <td data-label="Date"><input class="inline-edit" type="date" data-field="donation_date" value="${r.donation_date || ""}" /></td>
       <td data-label="Event"><select class="inline-edit" data-field="event">${eventOptionsHtml(r.event || "")}</select></td>
@@ -257,6 +257,26 @@ function renderDonationsTxRows(rows) {
 // wireInlineEditCells — saves straight to Supabase on change/blur.
 function wireDonationsTxInlineEdit(tbody) {
   tbody.querySelectorAll(".inline-edit").forEach((el) => {
+    // Scrolling the page while the cursor happens to sit over a focused
+    // number field silently bumps its value in Chrome/Firefox — blur it on
+    // wheel so a scroll always scrolls the page, never Amount/Utilised.
+    if (el.type === "number") {
+      el.addEventListener("wheel", () => el.blur(), { passive: true });
+    }
+    // Enter moves to the same field one row down (spreadsheet-style) instead
+    // of doing nothing useful or nudging a number field.
+    el.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      const nextRow = e.target.closest("tr")?.nextElementSibling;
+      const nextField = nextRow?.querySelector(`[data-field="${e.target.dataset.field}"]`);
+      if (nextField) {
+        nextField.focus();
+        nextField.select?.();
+      } else {
+        e.target.blur();
+      }
+    });
     el.addEventListener("change", async (e) => {
       const id = e.target.closest("tr").dataset.id;
       const field = e.target.dataset.field;
@@ -290,12 +310,12 @@ function wireDonationsTxInlineEdit(tbody) {
         const utilised = raw === "" ? 0 : Number(raw);
         if (Number.isNaN(utilised) || utilised < 0) {
           showToast("Please enter a valid utilised amount.", "error");
-          e.target.value = record.utilised ?? 0;
+          e.target.value = record.utilised || "";
           return;
         }
         if (utilised > Number(record.amount || 0)) {
           showToast("Utilised amount cannot exceed the donated amount.", "error");
-          e.target.value = record.utilised ?? 0;
+          e.target.value = record.utilised || "";
           return;
         }
         raw = utilised;

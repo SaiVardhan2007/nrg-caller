@@ -887,6 +887,40 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #my-outward-table th[data-label="Sold Area"], #my-outward-table td[data-label="Sold Area"] { width: 180px !important; max-width: 180px !important; padding: 8px 10px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
 #my-outward-table th[data-label="Realised"], #my-outward-table td[data-label="Realised"] { width: 110px !important; max-width: 110px !important; text-align: center; }
 
+/* Donations Transactions: drag-reorderable like Master Contact, so widths
+   are keyed by data-label (not nth-child) — otherwise they'd scramble
+   whenever a column is dragged, same reasoning as #contacts-table above.
+   Every column gets more room than the generic Master Contact-tuned
+   defaults so real values stop needing an ellipsis to fit. Time Stamp in
+   particular: the generic td[data-label="Time Stamp"] rule up top forces it
+   onto two lines at 110px — here it's wide enough to stay on one line. */
+#donations-tx-table th[data-label="S.No"], #donations-tx-table td[data-label="S.No"] { width: 40px !important; max-width: 40px !important; padding: 8px 2px !important; text-align: center; }
+#donations-tx-table th[data-label="Time Stamp"], #donations-tx-table td[data-label="Time Stamp"] { width: 175px !important; max-width: none !important; white-space: nowrap !important; overflow: visible !important; line-height: 1.3; }
+#donations-tx-table th[data-label="Name"], #donations-tx-table td[data-label="Name"], #donations-tx-table td[data-label="Name"] input { width: 195px !important; max-width: none !important; min-width: 195px !important; }
+/* Sized to the content, not a round px guess: Number holds a 10-digit phone
+   (11ch of headroom), Amount/Utilised are everyday rupee amounts (6 digits
+   fits anything up to 9,99,999) — `ch` tracks the "0" glyph width directly. */
+#donations-tx-table th[data-label="Number"], #donations-tx-table td[data-label="Number"], #donations-tx-table td[data-label="Number"] input { width: calc(11ch + 16px) !important; max-width: none !important; min-width: calc(11ch + 16px) !important; }
+#donations-tx-table th[data-label="Amount"], #donations-tx-table td[data-label="Amount"] input { width: calc(6ch + 16px) !important; max-width: none !important; min-width: calc(6ch + 16px) !important; }
+#donations-tx-table th[data-label="Utilised"], #donations-tx-table td[data-label="Utilised"] input { width: calc(6ch + 16px) !important; max-width: none !important; min-width: calc(6ch + 16px) !important; }
+#donations-tx-table th[data-label="Remarks"], #donations-tx-table td[data-label="Remarks"] input { width: 280px !important; max-width: none !important; min-width: 280px !important; }
+#donations-tx-table th[data-label="Date"], #donations-tx-table td[data-label="Date"] input { width: 155px !important; max-width: none !important; min-width: 155px !important; }
+#donations-tx-table th[data-label="Event"], #donations-tx-table td[data-label="Event"] select { width: 160px !important; max-width: none !important; min-width: 160px !important; }
+#donations-tx-table th[data-label=""], #donations-tx-table td[data-label=""] { width: 100px !important; max-width: 100px !important; min-width: 100px !important; text-align: center; }
+#donations-tx-table td .inline-edit { overflow: visible !important; text-overflow: clip !important; }
+
+/* Amount/Utilised are number inputs — the browser's up/down spinner is
+   clutter here, and scrolling the page while the cursor sits over a
+   focused number field silently changes its value in Chrome/Firefox.
+   Hide the spinner and blur the field on wheel (see wireDonationsTxInlineEdit
+   in donations.js) so scrolling always scrolls the page, never the number. */
+#donations-tx-table input[type="number"]::-webkit-outer-spin-button,
+#donations-tx-table input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+#donations-tx-table input[type="number"] { -moz-appearance: textfield; }
+
 /* Commander page: same shape as book-outward-table plus the Realised
    checkbox, but read-only besides that checkbox (no drag-reorder, no
    .inline-edit inputs) — see BookDistribution.initCommander in
@@ -3675,9 +3709,9 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 #general-data-table th:nth-child(1),
 #general-data-table td:first-child {
-  width: auto !important;
-  min-width: 28px !important;
-  max-width: none !important;
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
   white-space: nowrap;
   text-align: center;
 }
