@@ -680,63 +680,69 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   color: var(--text-main);
 }
 
-/* Compact Table Cells & Headers */
-.data-table td[data-label="S.No"], .data-table th:nth-child(1) {
+/* Compact Table Cells & Headers — Master Contact only. These used to be bare
+   .data-table rules with a `th:nth-child(N)` half riding along, which meant
+   every OTHER .data-table on the site (Expenses, Tirtha Nidhi redeem, Help
+   Requests, Remarks, Manage Events, general-data/leaderboard tables, …) also
+   inherited Master Contact's column widths by raw position — e.g. whatever
+   landed in column 6 got squeezed into Profession's 55px box regardless of
+   what it actually held. That's the single biggest source of "field shows
+   cut off / wrapped to two lines" across the app: scope every rule here to
+   #contacts-table so it only ever touches the table it was tuned for. */
+#contacts-table td[data-label="S.No"], #contacts-table th:nth-child(2) {
   width: 40px !important;
   max-width: 40px !important;
   padding: 8px 2px !important;
   text-align: center;
 }
-.data-table td[data-label="Time Stamp"], .data-table th:nth-child(2) {
-  width: 110px !important;
-  max-width: 110px !important;
-  line-height: 1.2;
+/* Time Stamp used to be capped at 110px and wrapped onto two lines
+   (white-space: normal) to keep the full value visible without an ellipsis.
+   Widened instead, matching the single-line treatment Donations Transactions
+   already uses successfully — full timestamp, one line, no cut/wrap. */
+#contacts-table td[data-label="Time Stamp"], #contacts-table th:nth-child(3) {
+  width: 175px !important;
+  max-width: none !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  line-height: 1.3;
 }
-/* The nowrap set on every .data-table td above makes a full timestamp string
-   wider than this column's 110px cap, so it visually spills into the Name
-   cell next to it — wrap it onto two lines instead, within its own box. */
-.data-table td[data-label="Time Stamp"] {
-  white-space: normal;
-  overflow: hidden;
-  word-break: break-word;
-}
-.data-table td[data-label="Name"], .data-table td[data-label="Name"] input, .data-table th:nth-child(3) {
+#contacts-table td[data-label="Name"], #contacts-table td[data-label="Name"] input, #contacts-table th:nth-child(4) {
   width: 140px !important;
   max-width: 140px !important;
 }
-.data-table td[data-label="Phone"], .data-table td[data-label="Phone"] input, .data-table th:nth-child(4) {
+#contacts-table td[data-label="Phone"], #contacts-table td[data-label="Phone"] input, #contacts-table th:nth-child(5) {
   min-width: 105px !important;
   width: 105px !important;
   max-width: 105px !important;
 }
-.data-table td[data-label="PG Name"], .data-table th:nth-child(5) {
+#contacts-table td[data-label="PG Name"], #contacts-table th:nth-child(6) {
   width: 130px !important;
   max-width: 130px !important;
 }
-.data-table td[data-label="Profession"] select, .data-table th:nth-child(6) {
+#contacts-table td[data-label="Profession"] select, #contacts-table th:nth-child(8) {
   min-width: 55px !important;
   width: 55px !important;
   padding: 4px 2px !important;
 }
-.data-table td[data-label="Gender"] select, .data-table th:nth-child(7) {
+#contacts-table td[data-label="Gender"] select, #contacts-table th:nth-child(9) {
   min-width: 75px !important;
   width: 75px !important;
   padding: 4px 2px !important;
 }
-.data-table td[data-label="Sessions"], .data-table th:nth-child(8),
-.data-table td[data-label="Calls"], .data-table th:nth-child(9) {
+#contacts-table td[data-label="Sessions"], #contacts-table th:nth-child(10),
+#contacts-table td[data-label="Calls"], #contacts-table th:nth-child(11) {
   width: 48px !important;
   text-align: center;
 }
-.data-table td[data-label="Sessions"] button, .data-table td[data-label="Calls"] button {
+#contacts-table td[data-label="Sessions"] button, #contacts-table td[data-label="Calls"] button {
   padding: 2px 6px !important;
   font-size: 12px !important;
 }
-.data-table td[data-label="Admin Tag to Users"] select, .data-table th:nth-child(10) {
+#contacts-table td[data-label="Admin Tag to Users"] select, #contacts-table th:nth-child(12) {
   min-width: 105px !important;
   width: 105px !important;
 }
-.data-table td[data-label="Core Cultivation"] select, .data-table th:nth-child(11) {
+#contacts-table td[data-label="Core Cultivation"] select, #contacts-table th:nth-child(13) {
   min-width: 100px !important;
   width: 100px !important;
 }
@@ -751,7 +757,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   padding-left: 4px !important;
   white-space: nowrap;
 }
-.data-table td[data-label="Calling Purpose"] select, .data-table th:nth-child(12) {
+#contacts-table td[data-label="Calling Purpose"] select, #contacts-table th:nth-child(14) {
   min-width: 100px !important;
   width: 100px !important;
 }
@@ -760,10 +766,10 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    data-label (which moves with the column) rather than nth-child position —
    these override the generic nth-child rules above via #id specificity. */
 #contacts-table th[data-label="S.No"], #contacts-table td[data-label="S.No"] { width: 40px !important; max-width: 40px !important; padding: 8px 2px !important; text-align: center; }
-#contacts-table th[data-label="Time Stamp"], #contacts-table td[data-label="Time Stamp"] { width: 110px !important; max-width: 110px !important; line-height: 1.2; }
-#contacts-table th[data-label="Name"], #contacts-table td[data-label="Name"], #contacts-table td[data-label="Name"] input { width: 140px !important; max-width: 140px !important; }
+#contacts-table th[data-label="Time Stamp"], #contacts-table td[data-label="Time Stamp"] { width: 175px !important; max-width: none !important; white-space: nowrap !important; overflow: visible !important; line-height: 1.3; }
+#contacts-table th[data-label="Name"], #contacts-table td[data-label="Name"], #contacts-table td[data-label="Name"] input { width: 190px !important; max-width: none !important; }
 #contacts-table th[data-label="Phone"], #contacts-table td[data-label="Phone"], #contacts-table td[data-label="Phone"] input { min-width: 105px !important; width: 105px !important; max-width: 105px !important; }
-#contacts-table th[data-label="PG Name"], #contacts-table td[data-label="PG Name"] { width: 130px !important; max-width: 130px !important; }
+#contacts-table th[data-label="PG Name"], #contacts-table td[data-label="PG Name"] { width: 170px !important; max-width: none !important; }
 #contacts-table th[data-label="Profession"], #contacts-table td[data-label="Profession"] select { min-width: 55px !important; width: 55px !important; padding: 4px 2px !important; }
 #contacts-table th[data-label="Gender"], #contacts-table td[data-label="Gender"] select { min-width: 75px !important; width: 75px !important; padding: 4px 2px !important; }
 #contacts-table th[data-label="Sessions"], #contacts-table td[data-label="Sessions"],
@@ -837,33 +843,34 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    descendant selector (.data-table td[data-label="Name"] input) to a hard
    140px !important, and a width on the outer td doesn't touch it — an
    ID-scoped selector on the input itself is what's needed to outrank it. */
-#book-inward-table th[data-label="Time"], #book-inward-table td[data-label="Time"] { width: 145px !important; max-width: 145px !important; line-height: 1.3; text-align: left !important; white-space: normal !important; }
-#book-inward-table th[data-label="Name"], #book-inward-table td[data-label="Name"] { width: 230px !important; max-width: 230px !important; }
+#book-inward-table th[data-label="Time"], #book-inward-table td[data-label="Time"] { width: 165px !important; max-width: none !important; line-height: 1.3; text-align: left !important; white-space: nowrap !important; overflow: visible !important; }
+#book-inward-table th[data-label="Name"], #book-inward-table td[data-label="Name"] { width: 230px !important; max-width: none !important; }
 #book-inward-table td[data-label="Name"] input { width: 100% !important; max-width: none !important; }
 
 /* Your Outward Stock Entries (user page): one book per row, S.No/Name/Count/Price
    only — Count and Price are short numbers so they get just enough room to
-   never clip, Name gets the rest and wraps instead of ellipsis-truncating so
-   every letter stays visible. */
+   never clip. Name's own width/white-space live further down, in the
+   #my-outward-table block shared with the (currently disabled) my-inward-table
+   panel — a rule here would just be shadowed by that later, more specific
+   one since both match the same #id + data-label selector. */
 #my-outward-table th[data-label="S.No"], #my-outward-table td[data-label="S.No"] { width: 36px !important; max-width: 36px !important; padding: 8px 4px !important; text-align: center; }
-#my-outward-table th[data-label="Name"], #my-outward-table td[data-label="Name"] { width: auto !important; max-width: none !important; white-space: normal !important; word-break: break-word; text-align: left !important; }
 #my-outward-table th[data-label="Count"], #my-outward-table td[data-label="Count"] { width: 56px !important; max-width: 56px !important; padding: 8px 6px !important; text-align: center; }
 #my-outward-table th[data-label="Price"], #my-outward-table td[data-label="Price"] { width: 90px !important; max-width: 90px !important; padding: 8px 8px !important; text-align: center; }
 #book-inward-table th[data-label="Language"], #book-inward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
 #book-inward-table th[data-label="Purchase Price"], #book-inward-table td[data-label="Purchase Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
 #book-inward-table th[data-label="Quantity"], #book-inward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
-#book-inward-table th[data-label="Purchased From"], #book-inward-table td[data-label="Purchased From"] { width: 190px !important; max-width: 190px !important; padding: 8px 10px !important; }
+#book-inward-table th[data-label="Purchased From"], #book-inward-table td[data-label="Purchased From"] { width: 190px !important; max-width: none !important; padding: 8px 10px !important; }
 #book-inward-table th[data-label=""], #book-inward-table td[data-label=""] { width: 80px !important; max-width: 80px !important; min-width: 80px !important; text-align: center; padding: 4px 2px !important; }
 
-#book-outward-table th[data-label="Time"], #book-outward-table td[data-label="Time"] { width: 145px !important; max-width: 145px !important; line-height: 1.3; text-align: left !important; white-space: normal !important; }
-#book-outward-table th[data-label="Name"], #book-outward-table td[data-label="Name"] { width: 230px !important; max-width: 230px !important; }
+#book-outward-table th[data-label="Time"], #book-outward-table td[data-label="Time"] { width: 165px !important; max-width: none !important; line-height: 1.3; text-align: left !important; white-space: nowrap !important; overflow: visible !important; }
+#book-outward-table th[data-label="Name"], #book-outward-table td[data-label="Name"] { width: 230px !important; max-width: none !important; }
 #book-outward-table td[data-label="Name"] input { width: 100% !important; max-width: none !important; }
 #book-outward-table th[data-label="Language"], #book-outward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
 #book-outward-table th[data-label="Sold Price"], #book-outward-table td[data-label="Sold Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
 #book-outward-table th[data-label="Quantity"], #book-outward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
-#book-outward-table th[data-label="Sold Area"], #book-outward-table td[data-label="Sold Area"] { width: 200px !important; max-width: 200px !important; padding: 8px 10px !important; }
+#book-outward-table th[data-label="Sold Area"], #book-outward-table td[data-label="Sold Area"] { width: 200px !important; max-width: none !important; padding: 8px 10px !important; }
 #book-outward-table th[data-label="Event"], #book-outward-table td[data-label="Event"] { width: 190px !important; max-width: 190px !important; padding: 8px 10px !important; }
-#book-outward-table th[data-label="Sold By"], #book-outward-table td[data-label="Sold By"] { width: 150px !important; max-width: 150px !important; padding: 8px 10px !important; }
+#book-outward-table th[data-label="Sold By"], #book-outward-table td[data-label="Sold By"] { width: 150px !important; max-width: none !important; padding: 8px 10px !important; }
 #book-outward-table th[data-label="Realised"], #book-outward-table td[data-label="Realised"] { width: 90px !important; max-width: 90px !important; text-align: center; }
 #book-outward-table th[data-label=""], #book-outward-table td[data-label=""] { width: 80px !important; max-width: 80px !important; min-width: 80px !important; text-align: center; padding: 4px 2px !important; }
 
@@ -872,19 +879,19 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    drag-reorderable, so they'd otherwise fall through to the generic
    Master Contact-tuned .data-table nth-child rules above and get truncated
    the same way the admin tables did. */
-#my-inward-table th[data-label="Time"], #my-inward-table td[data-label="Time"] { width: 145px !important; max-width: 145px !important; line-height: 1.3; text-align: left !important; white-space: normal !important; }
-#my-inward-table th[data-label="Name"], #my-inward-table td[data-label="Name"] { width: 220px !important; max-width: 220px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+#my-inward-table th[data-label="Time"], #my-inward-table td[data-label="Time"] { width: 165px !important; max-width: none !important; line-height: 1.3; text-align: left !important; white-space: nowrap !important; overflow: visible !important; }
+#my-inward-table th[data-label="Name"], #my-inward-table td[data-label="Name"] { width: 220px !important; max-width: none !important; white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; }
 #my-inward-table th[data-label="Language"], #my-inward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
 #my-inward-table th[data-label="Purchase Price"], #my-inward-table td[data-label="Purchase Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
 #my-inward-table th[data-label="Quantity"], #my-inward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
-#my-inward-table th[data-label="Purchased From"], #my-inward-table td[data-label="Purchased From"] { width: 180px !important; max-width: 180px !important; padding: 8px 10px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+#my-inward-table th[data-label="Purchased From"], #my-inward-table td[data-label="Purchased From"] { width: 180px !important; max-width: none !important; padding: 8px 10px !important; white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; }
 
-#my-outward-table th[data-label="Time"], #my-outward-table td[data-label="Time"] { width: 145px !important; max-width: 145px !important; line-height: 1.3; text-align: left !important; white-space: normal !important; }
-#my-outward-table th[data-label="Name"], #my-outward-table td[data-label="Name"] { width: 220px !important; max-width: 220px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+#my-outward-table th[data-label="Time"], #my-outward-table td[data-label="Time"] { width: 165px !important; max-width: none !important; line-height: 1.3; text-align: left !important; white-space: nowrap !important; overflow: visible !important; }
+#my-outward-table th[data-label="Name"], #my-outward-table td[data-label="Name"] { width: 220px !important; max-width: none !important; white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; }
 #my-outward-table th[data-label="Language"], #my-outward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
 #my-outward-table th[data-label="Sold Price"], #my-outward-table td[data-label="Sold Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
 #my-outward-table th[data-label="Quantity"], #my-outward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
-#my-outward-table th[data-label="Sold Area"], #my-outward-table td[data-label="Sold Area"] { width: 180px !important; max-width: 180px !important; padding: 8px 10px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+#my-outward-table th[data-label="Sold Area"], #my-outward-table td[data-label="Sold Area"] { width: 180px !important; max-width: none !important; padding: 8px 10px !important; white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; }
 #my-outward-table th[data-label="Realised"], #my-outward-table td[data-label="Realised"] { width: 110px !important; max-width: 110px !important; text-align: center; }
 
 /* Donations Transactions: drag-reorderable like Master Contact, so widths
@@ -927,13 +934,13 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    bookDistribution.js. Name/Sold Area/Sold By are plain <td> text here (not
    inputs), so unlike the tables above they can just wrap instead of needing
    a widened box to avoid the ellipsis. */
-#commander-table th[data-label="Time"], #commander-table td[data-label="Time"] { width: 145px !important; max-width: 145px !important; line-height: 1.3; text-align: left !important; white-space: normal !important; }
-#commander-table th[data-label="Name"], #commander-table td[data-label="Name"] { width: 230px !important; max-width: 230px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+#commander-table th[data-label="Time"], #commander-table td[data-label="Time"] { width: 165px !important; max-width: none !important; line-height: 1.3; text-align: left !important; white-space: nowrap !important; overflow: visible !important; }
+#commander-table th[data-label="Name"], #commander-table td[data-label="Name"] { width: 230px !important; max-width: none !important; white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; }
 #commander-table th[data-label="Language"], #commander-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
 #commander-table th[data-label="Sold Price"], #commander-table td[data-label="Sold Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
 #commander-table th[data-label="Quantity"], #commander-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
-#commander-table th[data-label="Sold Area"], #commander-table td[data-label="Sold Area"] { width: 200px !important; max-width: 200px !important; padding: 8px 10px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
-#commander-table th[data-label="Sold By"], #commander-table td[data-label="Sold By"] { width: 150px !important; max-width: 150px !important; padding: 8px 10px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+#commander-table th[data-label="Sold Area"], #commander-table td[data-label="Sold Area"] { width: 200px !important; max-width: none !important; padding: 8px 10px !important; white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; }
+#commander-table th[data-label="Sold By"], #commander-table td[data-label="Sold By"] { width: 150px !important; max-width: none !important; padding: 8px 10px !important; white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; }
 #commander-table th[data-label="Realised"], #commander-table td[data-label="Realised"] { width: 90px !important; max-width: 90px !important; text-align: center; }
 
 /* Book Distribution Places & Events (admin + user views): Name was capped at
@@ -991,21 +998,6 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #ba-segments-table th[data-label="Qty"], #ba-segments-table td[data-label="Qty"] { width: 90px !important; max-width: 90px !important; text-align: center; }
 #ba-segments-table th[data-label="Value"], #ba-segments-table td[data-label="Value"] { width: 110px !important; max-width: 110px !important; text-align: center; }
 
-/* User-facing "Your Inward/Outward Stock Entries" tables — same column set
-   as the admin inward/outward tables above minus filters, so same widths. */
-#my-inward-table th[data-label="Time"], #my-inward-table td[data-label="Time"] { width: 130px !important; max-width: 130px !important; line-height: 1.2; text-align: left !important; }
-#my-inward-table th[data-label="Name"], #my-inward-table td[data-label="Name"] { width: 150px !important; max-width: 150px !important; }
-#my-inward-table th[data-label="Language"], #my-inward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
-#my-inward-table th[data-label="Purchase Price"], #my-inward-table td[data-label="Purchase Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
-#my-inward-table th[data-label="Quantity"], #my-inward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
-#my-inward-table th[data-label="Purchased From"], #my-inward-table td[data-label="Purchased From"] { width: 130px !important; max-width: 130px !important; padding: 8px 10px !important; }
-
-#my-outward-table th[data-label="Time"], #my-outward-table td[data-label="Time"] { width: 130px !important; max-width: 130px !important; line-height: 1.2; text-align: left !important; }
-#my-outward-table th[data-label="Name"], #my-outward-table td[data-label="Name"] { width: 150px !important; max-width: 150px !important; }
-#my-outward-table th[data-label="Language"], #my-outward-table td[data-label="Language"] { width: 85px !important; max-width: 85px !important; }
-#my-outward-table th[data-label="Sold Price"], #my-outward-table td[data-label="Sold Price"] { width: 90px !important; max-width: 90px !important; min-width: 90px !important; text-align: center; }
-#my-outward-table th[data-label="Quantity"], #my-outward-table td[data-label="Quantity"] { width: 70px !important; max-width: 70px !important; text-align: center; }
-#my-outward-table th[data-label="Sold Area"], #my-outward-table td[data-label="Sold Area"] { width: 110px !important; max-width: 110px !important; padding: 8px 10px !important; }
 
 /* Any table wired via initColumnDragReorder() gets these column-drag cues. */
 .data-table th.col-draggable { cursor: grab; user-select: none; }
