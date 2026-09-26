@@ -542,6 +542,23 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    width invisibly — the sibling cell's opaque background paints over it, so
    it just looks silently cut off with no "…" cue. Clip it visibly instead. */
 .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--sandstone); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* S.No is a plain running number on every .data-table, so — unlike the
+   Master-Contact-only sizing below, which is scoped by #id because it's
+   keyed to column *position* — a single data-label match here is safe
+   everywhere: it only ever touches the real serial-number column, never an
+   unrelated one. Without this, S.No is often the one column left with no
+   explicit width, so on tables where every other column is capped, it's the
+   only one free to soak up the table's leftover horizontal space and blows
+   up to a fixed-layout table's parent width. table-layout is auto for every
+   .data-table, so setting the width just here still sizes the header cell
+   in the same column, since a column's rendered width is shared by every
+   cell in it — no separate th rule is needed alongside this td one. */
+.data-table td[data-label="S.No"] {
+  width: 40px !important;
+  max-width: 40px !important;
+  padding: 8px 2px !important;
+  text-align: center;
+}
 /* Editable cells (an <input>/<select class="inline-edit">) already truncate
    their own text with an ellipsis (see .inline-edit below), so the td's own
    overflow:hidden above is redundant for them — worse, since the box's
