@@ -167,6 +167,14 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .limited-access-module-group .tag-check { margin: 0 6px 6px 0; }
 .limited-access-module-title { width: 100%; }
 
+/* Nested "which trip events" sub-list under the Trip Expenses checkbox */
+.limited-access-trip-events-group {
+  width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin: 2px 0 8px 4px; padding: 8px 10px;
+  border-left: 3px solid var(--tulsi-light); background: rgba(5,150,105,0.04); border-radius: 8px;
+}
+.limited-access-trip-events-list { width: 100%; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; padding-left: 14px; }
+
 /* ============ BUTTONS ============ */
 .btn {
   border: none;
@@ -690,7 +698,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 /* Total is a computed, non-editable value — this gives it the same boxed
    look as the Quantity/Sold Price inputs next to it so the row reads as one
    consistent set of fields instead of one input and one bare number. */
-.outward-total-value {
+.outward-total-value, .inward-total-value {
   display: block; width: 100%; box-sizing: border-box;
   padding: 5px 6px; font-size: 13px; text-align: center;
   border: 1.5px solid var(--text-main); border-radius: 8px;
@@ -750,6 +758,8 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #contacts-table td[data-label="Calls"], #contacts-table th:nth-child(11) {
   width: 48px !important;
   text-align: center;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
 }
 #contacts-table td[data-label="Sessions"] button, #contacts-table td[data-label="Calls"] button {
   padding: 2px 6px !important;
@@ -790,7 +800,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #contacts-table th[data-label="Profession"], #contacts-table td[data-label="Profession"] select { min-width: 55px !important; width: 55px !important; padding: 4px 2px !important; }
 #contacts-table th[data-label="Gender"], #contacts-table td[data-label="Gender"] select { min-width: 75px !important; width: 75px !important; padding: 4px 2px !important; }
 #contacts-table th[data-label="Sessions"], #contacts-table td[data-label="Sessions"],
-#contacts-table th[data-label="Calls"], #contacts-table td[data-label="Calls"] { width: 48px !important; text-align: center; }
+#contacts-table th[data-label="Calls"], #contacts-table td[data-label="Calls"] { width: 48px !important; text-align: center; padding-left: 4px !important; padding-right: 4px !important; }
 #contacts-table th[data-label="Admin Tag to Users"], #contacts-table td[data-label="Admin Tag to Users"] select { min-width: 105px !important; width: 105px !important; }
 #contacts-table th[data-label="Core Cultivation"], #contacts-table td[data-label="Core Cultivation"] select { min-width: 100px !important; width: 100px !important; }
 #contacts-table th[data-label="Calling Purpose"], #contacts-table td[data-label="Calling Purpose"] select { min-width: 100px !important; width: 100px !important; }
@@ -924,7 +934,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 /* Sized to the content, not a round px guess: Number holds a 10-digit phone
    (11ch of headroom), Amount/Utilised are everyday rupee amounts (6 digits
    fits anything up to 9,99,999) — `ch` tracks the "0" glyph width directly. */
-#donations-tx-table th[data-label="Number"], #donations-tx-table td[data-label="Number"], #donations-tx-table td[data-label="Number"] input { width: calc(11ch + 16px) !important; max-width: none !important; min-width: calc(11ch + 16px) !important; }
+#donations-tx-table th[data-label="Number"], #donations-tx-table td[data-label="Number"], #donations-tx-table td[data-label="Number"] input { width: calc(11ch + 16px - 0.5cm) !important; max-width: none !important; min-width: calc(11ch + 16px - 0.5cm) !important; }
 #donations-tx-table th[data-label="Amount"], #donations-tx-table td[data-label="Amount"] input { width: calc(6ch + 16px) !important; max-width: none !important; min-width: calc(6ch + 16px) !important; }
 #donations-tx-table th[data-label="Utilised"], #donations-tx-table td[data-label="Utilised"] input { width: calc(6ch + 16px) !important; max-width: none !important; min-width: calc(6ch + 16px) !important; }
 #donations-tx-table th[data-label="Remarks"], #donations-tx-table td[data-label="Remarks"] input { width: 280px !important; max-width: none !important; min-width: 280px !important; }
@@ -1090,6 +1100,42 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .stat.stat-negative .stat-num { color: var(--danger); }
 .stat.stat-assigned { background: #eef2ff; border-color: #c7d2fe; }
 .stat.stat-assigned .stat-num { color: #4f46e5; }
+
+/* ============ TRIP EVENT CARDS (Trip Expenses > Events) ============ */
+.trip-event-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 300px)); gap: 16px;
+}
+.trip-event-card {
+  background: var(--surface); border: 1.5px solid var(--sandstone);
+  border-radius: var(--card-radius); padding: 18px 18px 16px; box-shadow: var(--shadow-sm); cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.16,1,0.3,1), box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.trip-event-card:hover { border-color: var(--tulsi-light); box-shadow: var(--shadow); transform: translateY(-2px); }
+.trip-event-card:active { transform: scale(0.98); }
+.trip-event-card-header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 16px;
+}
+.trip-event-card-name {
+  font-weight: 800; color: var(--tulsi-dark); font-size: 16.5px; line-height: 1.3; margin: 0; word-break: break-word;
+}
+.trip-event-delete-btn {
+  flex-shrink: 0; width: 30px; height: 30px; min-width: 0; padding: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+}
+.trip-event-card-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+  border-top: 1px solid var(--sandstone); padding-top: 12px;
+}
+.trip-event-card-stats .stat {
+  padding: 0 4px; text-align: center; background: none; border: none; box-shadow: none;
+  border-right: 1px solid var(--sandstone); border-radius: 0;
+}
+.trip-event-card-stats .stat:last-child { border-right: none; }
+.trip-event-card-stats .stat-num { font-size: 16px; }
+.trip-event-card-stats .stat-label { font-size: 10px; }
+.trip-event-card-stats .stat.stat-positive .stat-num,
+.trip-event-card-stats .stat.stat-negative .stat-num { font-weight: 800; }
+.trip-event-detail-title { font-size: 15px; color: var(--tulsi-dark); }
 
 /* small green "% completed" badge next to a page/card title */
 .completion-badge {
@@ -3512,6 +3558,16 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   .mobile-filter-toggle-icon { font-size: 16px; line-height: 1; }
   .mobile-drawer-enabled .mobile-filter-toggle:active { background: rgba(5,150,105,0.06); }
 
+  /* Grand total, right-aligned on the same row as the toggle — no extra
+     height so it's always visible without opening the drawer. */
+  .cmd-mobile-total {
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tulsi-dark);
+    white-space: nowrap;
+  }
+
   .mobile-sidebar-backdrop {
     display: block;
     position: fixed;
@@ -3697,6 +3753,28 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 @media (max-width: 640px) {
   .filter-dropdown-panel { left: 0; right: 0; width: 100%; max-width: none; }
   .filter-toggle-btn { width: 100%; justify-content: space-between; }
+}
+
+/* Book filter (Book Distribution Analytics): unlike every other
+   filter-dropdown-panel, this one holds a search box above the checkbox
+   list rather than checkboxes directly, so it needs to stack its two
+   children in a column instead of the generic wrap-row layout. */
+#ba-book-filter-dropdown.open .ba-book-filter-panel { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
+.filter-dropdown-search {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1.5px solid var(--sandstone);
+  border-radius: var(--radius-md, 8px);
+  font-size: 13px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+.filter-dropdown-search:focus { outline: none; border-color: var(--tulsi); }
+.ba-book-filter-list {
+  display: flex;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 /* ============ GENERAL DATA MODALS ============

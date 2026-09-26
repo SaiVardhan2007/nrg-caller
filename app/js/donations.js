@@ -213,7 +213,6 @@ const DEFAULT_DONATIONS_COLUMNS = ["S.No", "Time Stamp", "Name", "Number", "Amou
 let transactionsCache = [];
 let txFiltersWired = false;
 let txModalWired = false;
-let txDonorCombo = null;
 
 function donorLabel(d) {
   return `${d.name} — ${d.mob_no}`;
@@ -384,11 +383,63 @@ function eventOptionsHtml(selected = "") {
   return `<option value="">—</option>` + eventsCache.map((e) => `<option value="${escapeHtml(e.name)}" ${e.name === selected ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("");
 }
 
+// One row of the Add Transaction modal's repeatable list — same shape/
+// behavior as Book Distribution's stock-row rows (see buildOutwardRow in
+// bookDistribution.js), so bulk entry (e.g. donations collected at one
+// event) looks and behaves the same as bulk Outward Sales/Inward Stock/
+// Expenses entry. Each row gets its own donor combo instance since the
+// donor must match an existing record exactly, same validation as before.
+function buildDonationTxRow(removable, defaults, onChange) {
+  const row = document.createElement("div");
+  row.className = "stock-row";
+  row.innerHTML = `
+    <label class="field stock-cell-title"><span>Donor (Name / Number)</span><input type="text" class="tx-row-donor" placeholder="Type name or number…" autocomplete="off" /></label>
+    <label class="field"><span>Amount</span><input type="number" min="0" step="any" class="tx-row-amount" /></label>
+    <label class="field"><span>Date</span><input type="date" class="tx-row-date" /></label>
+    <label class="field"><span>Event</span><select class="tx-row-event">${eventOptionsHtml(defaults?.event || "")}</select></label>
+    ${removable ? `<button type="button" class="stock-row-remove cell-chip danger" title="Remove">✕</button>` : ""}
+  `;
+  row.querySelector(".tx-row-date").value = defaults?.date || todayLocalDate();
+  const donorInput = row.querySelector(".tx-row-donor");
+  const combo = wireSearchableCombo(donorInput, () => donorsCache.map(donorLabel));
+  row._destroyCombo = combo.destroy;
+  row.querySelector(".tx-row-amount").addEventListener("input", onChange);
+  if (removable) {
+    row.querySelector(".stock-row-remove").addEventListener("click", () => { combo.destroy(); row.remove(); onChange(); });
+  }
+  return row;
+}
+
+function updateDonationTxModalTotals() {
+  const rowsContainer = document.getElementById("donation-tx-rows");
+  let count = 0;
+  let total = 0;
+  rowsContainer.querySelectorAll(".stock-row").forEach((row) => {
+    const amt = Number(row.querySelector(".tx-row-amount").value) || 0;
+    if (amt) count++;
+    total += amt;
+  });
+  document.getElementById("donation-tx-total-count").textContent = count;
+  document.getElementById("donation-tx-total-amount").textContent = fmtMoney(total);
+}
+
+function addDonationTxModalRow(removable) {
+  const rowsContainer = document.getElementById("donation-tx-rows");
+  // New rows default to the last row's date/event — bulk entry is usually
+  // several donors at the same event on the same day.
+  const lastRow = rowsContainer.querySelector(".stock-row:last-child");
+  const defaults = lastRow
+    ? { date: lastRow.querySelector(".tx-row-date").value, event: lastRow.querySelector(".tx-row-event").value }
+    : null;
+  rowsContainer.appendChild(buildDonationTxRow(removable, defaults, updateDonationTxModalTotals));
+  updateDonationTxModalTotals();
+}
+
 function openDonationTxModal() {
-  document.getElementById("donation-tx-donor").value = "";
-  document.getElementById("donation-tx-amount").value = "";
-  document.getElementById("donation-tx-date").value = todayLocalDate();
-  document.getElementById("donation-tx-event").innerHTML = eventOptionsHtml();
+  const rowsContainer = document.getElementById("donation-tx-rows");
+  rowsContainer.querySelectorAll(".stock-row").forEach((row) => row._destroyCombo?.());
+  rowsContainer.innerHTML = "";
+  addDonationTxModalRow(false);
   document.getElementById("donation-tx-error").classList.add("hidden");
   document.getElementById("donation-transaction-modal").classList.add("active");
 }
@@ -399,45 +450,69 @@ function wireDonationTxModal(currentUser) {
 
   const modal = document.getElementById("donation-transaction-modal");
   const errorEl = document.getElementById("donation-tx-error");
-  const donorInput = document.getElementById("donation-tx-donor");
-  txDonorCombo = wireSearchableCombo(donorInput, () => donorsCache.map(donorLabel));
+  const rowsContainer = document.getElementById("donation-tx-rows");
 
   document.getElementById("add-donation-btn").onclick = () => openDonationTxModal();
+  document.getElementById("donation-tx-add-row-btn").onclick = () => addDonationTxModalRow(true);
   document.getElementById("donation-tx-cancel-btn").onclick = () => modal.classList.remove("active");
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
-  document.getElementById("donation-tx-save-btn").onclick = async () => {
-    const donorText = donorInput.value.trim().toLowerCase();
-    const donor = donorsCache.find((d) => donorLabel(d).toLowerCase() === donorText);
-    const amountRaw = document.getElementById("donation-tx-amount").value;
-    const donationDate = document.getElementById("donation-tx-date").value;
-    const event = document.getElementById("donation-tx-event").value;
+  const saveBtn = document.getElementById("donation-tx-save-btn");
+  const saveBtnLabel = saveBtn.textContent;
+  let saveInFlight = false;
 
-    if (!donor) {
-      errorEl.textContent = "Please pick a donor from the suggestions.";
-      errorEl.classList.remove("hidden");
-      return;
+  saveBtn.onclick = async () => {
+    if (saveInFlight) return;
+    const payload = [];
+    for (const row of rowsContainer.querySelectorAll(".stock-row")) {
+      const donorText = row.querySelector(".tx-row-donor").value.trim().toLowerCase();
+      const amountRaw = row.querySelector(".tx-row-amount").value;
+      const donationDate = row.querySelector(".tx-row-date").value;
+      const event = row.querySelector(".tx-row-event").value;
+      if (!donorText && !amountRaw && !donationDate) continue;
+
+      const donor = donorsCache.find((d) => donorLabel(d).toLowerCase() === donorText);
+      if (!donor) {
+        errorEl.textContent = "Every row needs a donor picked from the suggestions.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+      const amount = Number(amountRaw);
+      if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
+        errorEl.textContent = "Every row needs a valid amount.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+      if (!donationDate) {
+        errorEl.textContent = "Every row needs a date.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+      payload.push({
+        mob_no: donor.mob_no,
+        name: donor.name,
+        amount,
+        donation_date: donationDate,
+        event: event || null,
+        added_by: currentUser?.user_name || null,
+      });
     }
-    const amount = Number(amountRaw);
-    if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
-      errorEl.textContent = "Please enter a valid amount.";
-      errorEl.classList.remove("hidden");
-      return;
-    }
-    if (!donationDate) {
-      errorEl.textContent = "Please pick a date.";
+
+    if (!payload.length) {
+      errorEl.textContent = "Please add at least one donation.";
       errorEl.classList.remove("hidden");
       return;
     }
 
-    const { error } = await supabase.from("donations").insert({
-      mob_no: donor.mob_no,
-      name: donor.name,
-      amount,
-      donation_date: donationDate,
-      event: event || null,
-      added_by: currentUser?.user_name || null,
-    });
+    saveInFlight = true;
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving…";
+
+    const { error } = await supabase.from("donations").insert(payload);
+
+    saveInFlight = false;
+    saveBtn.disabled = false;
+    saveBtn.textContent = saveBtnLabel;
 
     if (error) {
       errorEl.textContent = error.message;
@@ -445,7 +520,7 @@ function wireDonationTxModal(currentUser) {
       return;
     }
     modal.classList.remove("active");
-    showToast("Donation added", "success");
+    showToast(payload.length > 1 ? `${payload.length} donations added` : "Donation added", "success");
     await loadDonationsTransactions();
   };
 }

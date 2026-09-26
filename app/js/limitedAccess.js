@@ -48,7 +48,31 @@ export function tabLabelFor(id) {
   return p ? `${p.module} · ${p.label}` : id;
 }
 
-function pagesCheckboxHtml(checkedIds) {
+// Trip Expenses' page checkbox gets a nested sub-list so a Limited Admin can
+// be scoped to specific trip_events instead of every trip (see
+// allowed_trip_events on the users row). "All trip events" checked (the
+// default, incl. for existing logins from before this existed) means no
+// restriction — allowed_trip_events is stored as null.
+function tripEventsSubHtml(tripEvents, allowedTripEvents) {
+  const allSelected = !Array.isArray(allowedTripEvents);
+  const checked = new Set(allowedTripEvents || []);
+  return `
+    <div class="limited-access-trip-events-group">
+      <label class="tag-check">
+        <input type="checkbox" id="limited-access-trip-events-all" class="trip-event-all-cb" ${allSelected ? "checked" : ""} /> All trip events
+      </label>
+      <div id="limited-access-trip-events-list" class="limited-access-trip-events-list ${allSelected ? "hidden" : ""}">
+        ${tripEvents.length ? tripEvents.map((e) => `
+          <label class="tag-check">
+            <input type="checkbox" class="trip-event-item-cb" value="${e.id}" ${checked.has(e.id) ? "checked" : ""} /> ${escapeHtml(e.name)}
+          </label>
+        `).join("") : `<span class="muted-text">No trip events yet.</span>`}
+      </div>
+    </div>
+  `;
+}
+
+function pagesCheckboxHtml(checkedIds, tripEvents, allowedTripEvents) {
   const checked = new Set(checkedIds || []);
   const byModule = new Map();
   RESTRICTABLE_PAGES.forEach((p) => {
@@ -60,8 +84,9 @@ function pagesCheckboxHtml(checkedIds) {
       <div class="limited-access-module-title">${escapeHtml(module)}</div>
       ${pages.map((p) => `
         <label class="tag-check">
-          <input type="checkbox" value="${p.id}" ${checked.has(p.id) ? "checked" : ""} /> ${escapeHtml(p.label)}
+          <input type="checkbox" class="page-permission-cb" value="${p.id}" ${checked.has(p.id) ? "checked" : ""} /> ${escapeHtml(p.label)}
         </label>
+        ${p.id === "expenses-trip-section" ? tripEventsSubHtml(tripEvents || [], allowedTripEvents) : ""}
       `).join("")}
     </div>
   `).join("");
@@ -69,12 +94,19 @@ function pagesCheckboxHtml(checkedIds) {
 
 let editingId = null;
 
-function openModal(existing) {
+async function openModal(existing) {
   editingId = existing?.id || null;
   document.getElementById("limited-access-title").textContent = existing ? "Edit Limited Access Login" : "Add Limited Access Login";
   document.getElementById("limited-access-name").value = existing?.user_name || "";
   document.getElementById("limited-access-password").value = existing?.login_pw || "";
-  document.getElementById("limited-access-pages").innerHTML = pagesCheckboxHtml(existing?.allowed_pages);
+
+  const { data: tripEvents } = await supabase.from("trip_events").select("id,name").order("created_at", { ascending: false });
+  document.getElementById("limited-access-pages").innerHTML = pagesCheckboxHtml(existing?.allowed_pages, tripEvents || [], existing?.allowed_trip_events);
+
+  const allCb = document.getElementById("limited-access-trip-events-all");
+  const listEl = document.getElementById("limited-access-trip-events-list");
+  allCb?.addEventListener("change", () => listEl.classList.toggle("hidden", allCb.checked));
+
   document.getElementById("limited-access-error").classList.add("hidden");
   document.getElementById("limited-access-modal").classList.add("active");
 }
@@ -89,7 +121,7 @@ async function renderLimitedAccessTable() {
 
   const { data, error } = await supabase
     .from("users")
-    .select("id,user_name,login_pw,allowed_pages")
+    .select("id,user_name,login_pw,allowed_pages,allowed_trip_events")
     .eq("role", "Limited Admin")
     .order("user_name");
 
@@ -107,7 +139,13 @@ async function renderLimitedAccessTable() {
       <td data-label="S.No">${i + 1}</td>
       <td data-label="User ID"><strong>${escapeHtml(u.user_name || "")}</strong></td>
       <td data-label="Password">${escapeHtml(u.login_pw || "")}</td>
-      <td data-label="Pages">${(u.allowed_pages || []).map((id) => escapeHtml(shortLabelFor(id))).join(", ") || "—"}</td>
+      <td data-label="Pages">${(u.allowed_pages || []).map((id) => {
+        const label = escapeHtml(shortLabelFor(id));
+        if (id === "expenses-trip-section" && Array.isArray(u.allowed_trip_events)) {
+          return `${label} (${u.allowed_trip_events.length} event${u.allowed_trip_events.length === 1 ? "" : "s"})`;
+        }
+        return label;
+      }).join(", ") || "—"}</td>
       <td data-label="">
         <button class="btn btn-link edit-limited-access-btn">Edit</button>
         <button class="btn btn-link delete-limited-access-btn">Delete</button>
@@ -148,7 +186,7 @@ function wireLimitedAccessModal() {
     const errorEl = document.getElementById("limited-access-error");
     const name = document.getElementById("limited-access-name").value.trim();
     const password = document.getElementById("limited-access-password").value.trim();
-    const allowedPages = [...document.querySelectorAll("#limited-access-pages input:checked")].map((cb) => cb.value);
+    const allowedPages = [...document.querySelectorAll("#limited-access-pages input.page-permission-cb:checked")].map((cb) => cb.value);
 
     if (!name || !password) {
       errorEl.textContent = "Please enter a User ID and Password.";
@@ -161,10 +199,25 @@ function wireLimitedAccessModal() {
       return;
     }
 
+    // null = no restriction (every trip event); an array scopes Trip
+    // Expenses down to just those event ids.
+    let allowedTripEvents = null;
+    if (allowedPages.includes("expenses-trip-section")) {
+      const allCb = document.getElementById("limited-access-trip-events-all");
+      if (allCb && !allCb.checked) {
+        allowedTripEvents = [...document.querySelectorAll(".trip-event-item-cb:checked")].map((cb) => cb.value);
+        if (!allowedTripEvents.length) {
+          errorEl.textContent = "Select at least one trip event, or check \"All trip events\".";
+          errorEl.classList.remove("hidden");
+          return;
+        }
+      }
+    }
+
     saving = true;
     const submitBtn = document.getElementById("limited-access-submit");
     submitBtn.textContent = "Saving…";
-    const payload = { user_name: name, login_pw: password, role: "Limited Admin", allowed_pages: allowedPages };
+    const payload = { user_name: name, login_pw: password, role: "Limited Admin", allowed_pages: allowedPages, allowed_trip_events: allowedTripEvents };
     const { error } = editingId
       ? await supabase.from("users").update(payload).eq("id", editingId)
       : await supabase.from("users").insert(payload);

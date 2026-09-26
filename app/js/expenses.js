@@ -19,6 +19,27 @@ function wireExportBtn(btnId, tableId, filenamePrefix) {
   });
 }
 
+// One row of the Add Expense modal's repeatable list — same shape/behavior
+// as Book Distribution's stock-row rows (see buildOutwardRow), reused here
+// (and by the donation transaction modal) so "add several at once" looks and
+// behaves the same everywhere in the app instead of three one-off UIs.
+function buildExpenseRow(removable, todayStr, onChange) {
+  const row = document.createElement("div");
+  row.className = "stock-row";
+  row.innerHTML = `
+    <label class="field"><span>Date</span><input type="date" class="exp-row-date" value="${todayStr}" /></label>
+    <label class="field stock-cell-title"><span>Description</span><input type="text" class="exp-row-description" placeholder="What was this expense for?" /></label>
+    <label class="field"><span>Amount</span><input type="number" min="0" step="0.01" class="exp-row-amount" /></label>
+    <label class="field"><span>Place</span><input type="text" class="exp-row-place" placeholder="e.g. Vijayawada" /></label>
+    ${removable ? `<button type="button" class="stock-row-remove cell-chip danger" title="Remove">✕</button>` : ""}
+  `;
+  row.querySelector(".exp-row-amount").addEventListener("input", onChange);
+  if (removable) {
+    row.querySelector(".stock-row-remove").addEventListener("click", () => { row.remove(); onChange(); });
+  }
+  return row;
+}
+
 function distinctValues(rows, field) {
   return Array.from(new Set(rows.map((r) => r[field]).filter(Boolean))).sort();
 }
@@ -116,7 +137,32 @@ function wireInlineEditCells(tbody, tableName, cache, { numberFields = [], requi
   });
 }
 
-function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, modalId, columnsKey, addLabel, budgetCategory, budgetModalId, budgetHistoryModalId }) {
+// Extra guard in front of deleting a trip event or an expense row: always
+// re-checks against a real Admin-role login's password (not just whoever is
+// currently signed in), so a Limited Admin session can never delete on its
+// own — an Admin has to be present to type it in.
+async function verifyAdminPassword() {
+  const pw = prompt("Enter an Admin password to confirm this deletion:");
+  if (pw === null) return false;
+  const trimmed = pw.trim();
+  if (!trimmed) {
+    showToast("Deletion cancelled.", "error");
+    return false;
+  }
+  const { data, error } = await supabase
+    .from("users")
+    .select("id")
+    .eq("role", "Admin")
+    .eq("login_pw", trimmed)
+    .limit(1);
+  if (error || !data || !data.length) {
+    showToast("Incorrect Admin password — deletion cancelled.", "error");
+    return false;
+  }
+  return true;
+}
+
+function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, modalId, columnsKey, addLabel, budgetCategory, budgetModalId, budgetHistoryModalId, eventsEnabled = false }) {
   const DEFAULT_COLUMNS = ["S.No", "Date", "Description", "Amount", "Place", "Added By", ""];
   const SELECT_FILTERS = [[`${prefix}-filter-place`, "place"]];
   const NUMBER_FILTERS = [[`${prefix}-th-filter-amount`, "amount"]];
@@ -126,6 +172,9 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
   let budgetCache = [];
   let filtersWired = false;
   let modalWired = false;
+  // Only meaningful when eventsEnabled (Trip Expenses): every table
+  // load/insert is scoped to whichever trip_event card the user opened.
+  let currentEventId = null;
 
   function renderRows(rows, emptyMessage) {
     const tbody = document.getElementById(tbodyId);
@@ -191,6 +240,7 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
   async function deleteRow(id) {
     const r = cache.find((x) => x.id === id);
     if (!confirm(`Delete expense "${r?.description || ""}"?`)) return;
+    if (!(await verifyAdminPassword())) return;
     const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) {
       showToast("Delete failed: " + error.message, "error");
@@ -200,11 +250,28 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
     await load();
   }
 
+  function updateModalTotals() {
+    const rowsContainer = document.getElementById(`${prefix}-rows`);
+    let count = 0;
+    let total = 0;
+    rowsContainer.querySelectorAll(".stock-row").forEach((row) => {
+      const amt = Number(row.querySelector(".exp-row-amount").value) || 0;
+      if (amt) count++;
+      total += amt;
+    });
+    document.getElementById(`${prefix}-total-count`).textContent = count;
+    document.getElementById(`${prefix}-total-amount`).textContent = fmtMoney(total);
+  }
+
+  function addModalRow(removable) {
+    const rowsContainer = document.getElementById(`${prefix}-rows`);
+    rowsContainer.appendChild(buildExpenseRow(removable, new Date().toISOString().slice(0, 10), updateModalTotals));
+    updateModalTotals();
+  }
+
   function openModal() {
-    document.getElementById(`${prefix}-date`).value = new Date().toISOString().slice(0, 10);
-    document.getElementById(`${prefix}-description`).value = "";
-    document.getElementById(`${prefix}-amount`).value = "";
-    document.getElementById(`${prefix}-place`).value = "";
+    document.getElementById(`${prefix}-rows`).innerHTML = "";
+    addModalRow(false);
     document.getElementById(`${prefix}-error`).classList.add("hidden");
     document.getElementById(modalId).classList.add("active");
   }
@@ -214,41 +281,67 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
     modalWired = true;
     const modal = document.getElementById(modalId);
     const errorEl = document.getElementById(`${prefix}-error`);
+    const rowsContainer = document.getElementById(`${prefix}-rows`);
 
     document.getElementById(`add-${prefix}-expense-btn`).onclick = () => openModal();
+    document.getElementById(`${prefix}-add-row-btn`).onclick = () => addModalRow(true);
     document.getElementById(`${prefix}-cancel-btn`).onclick = () => modal.classList.remove("active");
     modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
 
-    document.getElementById(`${prefix}-save-btn`).onclick = async () => {
-      const date = document.getElementById(`${prefix}-date`).value;
-      const description = document.getElementById(`${prefix}-description`).value.trim();
-      const amount = document.getElementById(`${prefix}-amount`).value;
-      const place = document.getElementById(`${prefix}-place`).value.trim();
+    const saveBtn = document.getElementById(`${prefix}-save-btn`);
+    const saveBtnLabel = saveBtn.textContent;
+    let saveInFlight = false;
 
-      if (!date) {
-        errorEl.textContent = "Please choose a date.";
-        errorEl.classList.remove("hidden");
-        return;
+    saveBtn.onclick = async () => {
+      if (saveInFlight) return;
+      const payload = [];
+      for (const row of rowsContainer.querySelectorAll(".stock-row")) {
+        const date = row.querySelector(".exp-row-date").value;
+        const description = row.querySelector(".exp-row-description").value.trim();
+        const amount = row.querySelector(".exp-row-amount").value;
+        const place = row.querySelector(".exp-row-place").value.trim();
+        if (!date && !description && !amount && !place) continue;
+
+        if (!date) {
+          errorEl.textContent = "Every row needs a date.";
+          errorEl.classList.remove("hidden");
+          return;
+        }
+        if (!description) {
+          errorEl.textContent = "Every row needs what the expense was for.";
+          errorEl.classList.remove("hidden");
+          return;
+        }
+        if (!amount || Number(amount) <= 0) {
+          errorEl.textContent = "Every row needs an amount greater than 0.";
+          errorEl.classList.remove("hidden");
+          return;
+        }
+        payload.push({
+          expense_date: date,
+          description,
+          amount: Number(amount),
+          place: place || null,
+          added_by: currentUser?.user_name || null,
+          ...(eventsEnabled ? { event_id: currentEventId } : {}),
+        });
       }
-      if (!description) {
-        errorEl.textContent = "Please enter what this expense was for.";
-        errorEl.classList.remove("hidden");
-        return;
-      }
-      if (!amount || Number(amount) <= 0) {
-        errorEl.textContent = "Please enter an amount greater than 0.";
+
+      if (!payload.length) {
+        errorEl.textContent = "Please add at least one expense.";
         errorEl.classList.remove("hidden");
         return;
       }
 
-      const payload = {
-        expense_date: date,
-        description,
-        amount: Number(amount),
-        place: place || null,
-        added_by: currentUser?.user_name || null,
-      };
+      saveInFlight = true;
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving…";
+
       const { error } = await supabase.from(table).insert(payload);
+
+      saveInFlight = false;
+      saveBtn.disabled = false;
+      saveBtn.textContent = saveBtnLabel;
 
       if (error) {
         errorEl.textContent = error.message;
@@ -256,7 +349,7 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
         return;
       }
       modal.classList.remove("active");
-      showToast(`${addLabel} added`, "success");
+      showToast(payload.length > 1 ? `${payload.length} ${addLabel.toLowerCase()}s added` : `${addLabel} added`, "success");
       await load();
     };
   }
@@ -305,6 +398,7 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
         description,
         amount,
         added_by: currentUser?.user_name || null,
+        ...(eventsEnabled ? { event_id: currentEventId } : {}),
       };
       const { error } = await supabase.from("budget_transactions").insert(payload);
 
@@ -381,10 +475,12 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
   }
 
   async function loadBudget() {
-    const { data } = await supabase
+    let query = supabase
       .from("budget_transactions")
       .select("id,transaction_date,description,amount,added_by")
-      .eq("category", budgetCategory)
+      .eq("category", budgetCategory);
+    if (eventsEnabled) query = query.eq("event_id", currentEventId);
+    const { data } = await query
       .order("transaction_date", { ascending: false })
       .order("created_at", { ascending: false });
     budgetCache = data || [];
@@ -392,13 +488,17 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
   }
 
   async function load() {
+    if (eventsEnabled && !currentEventId) return;
     const tbody = document.getElementById(tbodyId);
     tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Loading…</td></tr>`;
 
+    let query = supabase
+      .from(table)
+      .select("id,expense_date,description,amount,place,added_by");
+    if (eventsEnabled) query = query.eq("event_id", currentEventId);
+
     const [{ data, error }] = await Promise.all([
-      supabase
-        .from(table)
-        .select("id,expense_date,description,amount,place,added_by")
+      query
         .order("expense_date", { ascending: false })
         .order("created_at", { ascending: false }),
       loadBudget(),
@@ -415,13 +515,15 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
   }
 
   return {
-    init: async (currentUser) => {
+    init: async (currentUser, { skipLoad = false } = {}) => {
       wireModal(currentUser);
       wireBudgetModal(currentUser);
       wireBudgetHistoryModal();
       wireFilters();
-      await load();
+      if (!skipLoad) await load();
     },
+    setEventScope: (eventId) => { currentEventId = eventId; },
+    reload: load,
   };
 }
 
@@ -437,6 +539,7 @@ const tripCategory = createExpenseCategory({
   budgetCategory: "trip",
   budgetModalId: "expense-trip-budget-modal",
   budgetHistoryModalId: "expense-trip-budget-history-modal",
+  eventsEnabled: true,
 });
 
 const preachingCategory = createExpenseCategory({
@@ -467,6 +570,167 @@ const residencyCategory = createExpenseCategory({
   budgetHistoryModalId: "expense-residency-budget-history-modal",
 });
 
-export const initExpensesTrip = (currentUser) => tripCategory.init(currentUser);
+/* ======================= TRIP EXPENSE EVENTS =======================
+   Trip Expenses (only — Preaching/Residency stay flat) is grouped into
+   events: a card per trip showing Collected/Spent/Profit, which opens into
+   the flat-ledger UI above (built by createExpenseCategory) scoped to that
+   one event via tripCategory.setEventScope()/.reload(). */
+
+let tripEventsCache = [];
+let tripEventsCurrentUser = null;
+let tripEventShellWired = false;
+
+// A Limited Admin can be scoped to specific trip_events (allowed_trip_events
+// on their user row); everyone else (and a Limited Admin with no restriction
+// set, i.e. null) sees every event.
+function tripEventPermittedIds(currentUser) {
+  if (currentUser?.role === "Limited Admin" && Array.isArray(currentUser.allowed_trip_events)) {
+    return new Set(currentUser.allowed_trip_events);
+  }
+  return null;
+}
+
+async function loadTripEventCards(currentUser) {
+  const grid = document.getElementById("trip-events-grid");
+  grid.innerHTML = `<p class="loading-row">Loading…</p>`;
+
+  const [{ data: events, error }, { data: expenseRows }, { data: budgetRows }] = await Promise.all([
+    supabase.from("trip_events").select("id,name,created_at").order("created_at", { ascending: false }),
+    supabase.from("trip_expenses").select("event_id,amount"),
+    supabase.from("budget_transactions").select("event_id,amount").eq("category", "trip"),
+  ]);
+
+  if (error) {
+    grid.innerHTML = `<p class="loading-row">Could not load trip events.</p>`;
+    return;
+  }
+
+  const permitted = tripEventPermittedIds(currentUser);
+  tripEventsCache = (events || []).filter((e) => !permitted || permitted.has(e.id));
+
+  const spentByEvent = {};
+  (expenseRows || []).forEach((r) => { spentByEvent[r.event_id] = (spentByEvent[r.event_id] || 0) + (r.amount || 0); });
+  const collectedByEvent = {};
+  (budgetRows || []).forEach((r) => { collectedByEvent[r.event_id] = (collectedByEvent[r.event_id] || 0) + (r.amount || 0); });
+
+  if (!tripEventsCache.length) {
+    grid.innerHTML = `<p class="muted-text">No trip events yet — add one to get started.</p>`;
+    return;
+  }
+
+  grid.innerHTML = tripEventsCache.map((ev) => {
+    const collected = collectedByEvent[ev.id] || 0;
+    const spent = spentByEvent[ev.id] || 0;
+    const profit = collected - spent;
+    return `
+      <div class="trip-event-card" data-id="${ev.id}">
+        <div class="trip-event-card-header">
+          <p class="trip-event-card-name">${escapeHtml(ev.name)}</p>
+          <button type="button" class="cell-chip danger trip-event-delete-btn" title="Delete event">🗑</button>
+        </div>
+        <div class="trip-event-card-stats">
+          <div class="stat"><span class="stat-num">${fmtMoney(collected)}</span><span class="stat-label">Collected</span></div>
+          <div class="stat"><span class="stat-num">${fmtMoney(spent)}</span><span class="stat-label">Spent</span></div>
+          <div class="stat ${profit < 0 ? "stat-negative" : "stat-positive"}"><span class="stat-num">${fmtMoney(profit)}</span><span class="stat-label">Profit</span></div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  grid.querySelectorAll(".trip-event-card").forEach((card) => {
+    card.addEventListener("click", () => openTripEvent(card.dataset.id));
+  });
+  grid.querySelectorAll(".trip-event-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteTripEvent(btn.closest(".trip-event-card").dataset.id);
+    });
+  });
+}
+
+async function deleteTripEvent(id) {
+  const ev = tripEventsCache.find((x) => x.id === id);
+  const [{ count: expenseCount }, { count: budgetCount }] = await Promise.all([
+    supabase.from("trip_expenses").select("id", { count: "exact", head: true }).eq("event_id", id),
+    supabase.from("budget_transactions").select("id", { count: "exact", head: true }).eq("event_id", id),
+  ]);
+  const warn = (expenseCount || budgetCount)
+    ? ` This permanently deletes ${expenseCount || 0} expense record(s) and ${budgetCount || 0} budget entr${budgetCount === 1 ? "y" : "ies"} for this event.`
+    : "";
+  if (!confirm(`Delete event "${ev?.name || ""}"?${warn} This cannot be undone.`)) return;
+  if (!(await verifyAdminPassword())) return;
+
+  const { error } = await supabase.from("trip_events").delete().eq("id", id);
+  if (error) {
+    showToast("Delete failed: " + error.message, "error");
+    return;
+  }
+  showToast("Event deleted", "success");
+  await loadTripEventCards(tripEventsCurrentUser);
+}
+
+function showTripEventsView() {
+  document.getElementById("expenses-trip-events-view").classList.remove("hidden");
+  document.getElementById("expenses-trip-detail-view").classList.add("hidden");
+}
+
+async function openTripEvent(id) {
+  const ev = tripEventsCache.find((x) => x.id === id);
+  if (!ev) return;
+  document.getElementById("expenses-trip-events-view").classList.add("hidden");
+  document.getElementById("expenses-trip-detail-view").classList.remove("hidden");
+  document.getElementById("trip-event-detail-title").textContent = ev.name;
+  tripCategory.setEventScope(ev.id);
+  await tripCategory.reload();
+}
+
+function wireTripEventModal() {
+  const modal = document.getElementById("trip-event-modal");
+  const errorEl = document.getElementById("trip-event-error");
+  const nameInput = document.getElementById("trip-event-name");
+
+  document.getElementById("add-trip-event-btn").onclick = () => {
+    nameInput.value = "";
+    errorEl.classList.add("hidden");
+    modal.classList.add("active");
+  };
+  document.getElementById("trip-event-cancel-btn").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  document.getElementById("trip-event-save-btn").onclick = async () => {
+    const name = nameInput.value.trim();
+    if (!name) {
+      errorEl.textContent = "Please enter a name for this event.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    const { error } = await supabase.from("trip_events").insert({ name });
+    if (error) {
+      errorEl.textContent = error.message;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    modal.classList.remove("active");
+    showToast("Event added", "success");
+    await loadTripEventCards(tripEventsCurrentUser);
+  };
+}
+
+export const initExpensesTrip = async (currentUser) => {
+  tripEventsCurrentUser = currentUser;
+  await tripCategory.init(currentUser, { skipLoad: true });
+
+  if (!tripEventShellWired) {
+    tripEventShellWired = true;
+    wireTripEventModal();
+    document.getElementById("trip-event-back-btn").onclick = () => {
+      showTripEventsView();
+      loadTripEventCards(tripEventsCurrentUser);
+    };
+  }
+
+  showTripEventsView();
+  await loadTripEventCards(currentUser);
+};
 export const initExpensesPreaching = (currentUser) => preachingCategory.init(currentUser);
 export const initExpensesResidency = (currentUser) => residencyCategory.init(currentUser);

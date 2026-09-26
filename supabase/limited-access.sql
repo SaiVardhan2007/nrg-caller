@@ -13,3 +13,10 @@ alter table users add column if not exists allowed_pages jsonb;
 alter table users drop constraint if exists users_role_check;
 alter table users add constraint users_role_check
   check (role in ('Coordinator','Admin','Reception','Limited Admin'));
+
+-- allowed_trip_events narrows the "Trip Expenses" grant (expenses-trip-section
+-- in allowed_pages) down to specific trip_events.id values, so a Limited Admin
+-- can be handed one trip event without seeing every other one. null means
+-- "all trip events" (the default — matches pre-events behavior for anyone
+-- already granted the Trip Expenses page).
+alter table users add column if not exists allowed_trip_events jsonb;

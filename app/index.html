@@ -878,6 +878,10 @@
     <section id="book-inward-section" class="page hidden">
       <div class="users-page-layout">
         <div class="panel users-sidebar">
+          <div class="stock-modal-summary">
+            <div class="stock-modal-summary-item"><span id="book-inward-total-qty" class="stock-modal-summary-num">0</span><span class="stock-modal-summary-label">Books</span></div>
+            <div class="stock-modal-summary-item"><span id="book-inward-total-cost" class="stock-modal-summary-num">₹0</span><span class="stock-modal-summary-label">Total Cost</span></div>
+          </div>
           <div class="users-toolbar">
             <input id="bi-search" type="search" placeholder="Search name / purchased from…" class="search-input" />
             <label class="field inline">
@@ -893,6 +897,14 @@
                 <option value="quantity-asc">Quantity (Low-High)</option>
               </select>
             </label>
+            <div class="field inline">
+              <span>Date Range</span>
+              <div class="date-range-inputs">
+                <input type="date" id="bi-filter-from-date" />
+                <span class="date-range-sep">–</span>
+                <input type="date" id="bi-filter-to-date" />
+              </div>
+            </div>
             <label class="field inline">
               <span>Language</span>
               <select id="bi-filter-language">
@@ -936,6 +948,7 @@
                     <div class="th-label">Quantity</div>
                     <input type="number" min="0" id="bi-th-filter-qty" class="th-filter" placeholder="All" />
                   </th>
+                  <th draggable="true" data-label="Total Cost">Total Cost</th>
                   <th draggable="true" data-label="Purchased From">
                     <div class="th-label">Purchased From</div>
                     <select id="bi-th-filter-from" class="th-filter">
@@ -947,7 +960,7 @@
                 </tr>
               </thead>
               <tbody id="book-inward-body">
-                <tr><td colspan="8" class="loading-row">Loading…</td></tr>
+                <tr><td colspan="9" class="loading-row">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -1353,7 +1366,18 @@
             <label class="field inline"><span>User</span><select id="ba-filter-user-select" class="inline-edit"></select></label>
             <label class="field inline"><span>Place</span><select id="ba-filter-place-select" class="inline-edit"></select></label>
             <label class="field inline"><span>Event</span><select id="ba-filter-event-select" class="inline-edit"></select></label>
-            <label class="field inline"><span>Book</span><select id="ba-filter-book-select" class="inline-edit"></select></label>
+            <div class="filter-dropdown" id="ba-book-filter-dropdown">
+              <button type="button" class="filter-toggle-btn" id="ba-book-filter-toggle" aria-haspopup="true" aria-expanded="false">
+                <span class="filter-toggle-icon">📚</span>
+                <span>Book</span>
+                <span class="filter-toggle-badge hidden" id="ba-book-filter-badge">0</span>
+                <span class="filter-toggle-caret">▾</span>
+              </button>
+              <div class="filter-dropdown-panel ba-book-filter-panel" id="ba-book-filter-group">
+                <input type="text" id="ba-book-filter-search" class="filter-dropdown-search" placeholder="Search books…" autocomplete="off" />
+                <div class="tag-check-group ba-book-filter-list" id="ba-book-filter-list"></div>
+              </div>
+            </div>
             <button id="ba-run-btn" class="btn btn-primary toolbar-btn">View</button>
             <button id="ba-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
             <button id="ba-general-data-btn" class="btn btn-secondary toolbar-btn">📊 General Data</button>
@@ -1887,68 +1911,84 @@
 
     <!-- ===== EXPENSES (admin only) ===== -->
     <section id="expenses-trip-section" class="page hidden">
-      <div class="users-page-layout">
-        <div class="panel users-sidebar">
-          <div class="users-toolbar">
-            <input id="et-search" type="search" placeholder="Search description / place…" class="search-input" />
-            <label class="field inline">
-              <span>Sort By</span>
-              <select id="et-sort" class="inline-edit">
-                <option value="expense_date-desc">Date (Newest)</option>
-                <option value="expense_date-asc">Date (Oldest)</option>
-                <option value="amount-desc">Amount (High-Low)</option>
-                <option value="amount-asc">Amount (Low-High)</option>
-                <option value="description-asc">Description (A-Z)</option>
-                <option value="description-desc">Description (Z-A)</option>
-              </select>
-            </label>
-            <label class="field inline">
-              <span>Place</span>
-              <select id="et-filter-place">
-                <option value="__ALL__">All</option>
-                <option value="">—</option>
-              </select>
-            </label>
-            <button id="add-et-expense-btn" class="btn btn-primary toolbar-btn">+ Add Trip Expense</button>
-            <button id="add-et-budget-btn" class="btn btn-secondary toolbar-btn">+ Add Budget</button>
-            <button id="et-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
-            <button id="et-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
-          </div>
+      <div id="expenses-trip-events-view">
+        <div class="panel-row">
+          <p class="muted-text">Trip expenses are grouped by event — open an event to add expenses and budget for it.</p>
+          <button id="add-trip-event-btn" class="btn btn-primary toolbar-btn">+ Add Event</button>
         </div>
+        <div id="trip-events-grid" class="trip-event-grid">
+          <p class="loading-row">Loading…</p>
+        </div>
+      </div>
 
-        <div class="users-content">
-          <div class="stats-bar">
-            <div id="et-stat-budget-box" class="stat cursor-pointer" title="Tap to view budget history"><span id="et-stat-budget" class="stat-num">₹0</span><span class="stat-label">Total Budget</span></div>
-            <div class="stat"><span id="et-stat-expenses" class="stat-num">₹0</span><span class="stat-label">Expenses</span></div>
-            <div class="stat"><span id="et-stat-available" class="stat-num">₹0</span><span class="stat-label">Available</span></div>
+      <div id="expenses-trip-detail-view" class="hidden">
+        <div class="panel-row">
+          <button id="trip-event-back-btn" class="btn btn-secondary toolbar-btn">← Back to Events</button>
+          <strong id="trip-event-detail-title" class="trip-event-detail-title"></strong>
+        </div>
+        <div class="users-page-layout">
+          <div class="panel users-sidebar">
+            <div class="users-toolbar">
+              <input id="et-search" type="search" placeholder="Search description / place…" class="search-input" />
+              <label class="field inline">
+                <span>Sort By</span>
+                <select id="et-sort" class="inline-edit">
+                  <option value="expense_date-desc">Date (Newest)</option>
+                  <option value="expense_date-asc">Date (Oldest)</option>
+                  <option value="amount-desc">Amount (High-Low)</option>
+                  <option value="amount-asc">Amount (Low-High)</option>
+                  <option value="description-asc">Description (A-Z)</option>
+                  <option value="description-desc">Description (Z-A)</option>
+                </select>
+              </label>
+              <label class="field inline">
+                <span>Place</span>
+                <select id="et-filter-place">
+                  <option value="__ALL__">All</option>
+                  <option value="">—</option>
+                </select>
+              </label>
+              <button id="add-et-expense-btn" class="btn btn-primary toolbar-btn">+ Add Trip Expense</button>
+              <button id="add-et-budget-btn" class="btn btn-secondary toolbar-btn">+ Add Budget</button>
+              <button id="et-export-btn" class="btn btn-secondary toolbar-btn">⬇ Export Excel</button>
+              <button id="et-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
+            </div>
           </div>
 
-          <div class="table-wrap" id="expenses-trip-table-wrap">
-            <table class="data-table" id="expenses-trip-table">
-              <thead>
-                <tr>
-                  <th draggable="true" data-label="S.No">S.No</th>
-                  <th draggable="true" data-label="Date">Date</th>
-                  <th draggable="true" data-label="Description">Description</th>
-                  <th draggable="true" data-label="Amount">
-                    <div class="th-label">Amount</div>
-                    <input type="number" id="et-th-filter-amount" class="th-filter" placeholder="All" />
-                  </th>
-                  <th draggable="true" data-label="Place">
-                    <div class="th-label">Place</div>
-                    <select id="et-th-filter-place" class="th-filter">
-                      <option value="__ALL__">All</option>
-                      <option value="">—</option>
-                    </select>
-                  </th>
-                  <th draggable="true" data-label="Added By">Added By</th>
-                  <th data-label=""></th>
-                </tr>
-              </thead>
-              <tbody id="expenses-trip-body">
-                <tr><td colspan="7" class="loading-row">Loading…</td></tr>
-              </tbody>
-            </table>
+          <div class="users-content">
+            <div class="stats-bar">
+              <div id="et-stat-budget-box" class="stat cursor-pointer" title="Tap to view budget history"><span id="et-stat-budget" class="stat-num">₹0</span><span class="stat-label">Total Budget</span></div>
+              <div class="stat"><span id="et-stat-expenses" class="stat-num">₹0</span><span class="stat-label">Expenses</span></div>
+              <div class="stat"><span id="et-stat-available" class="stat-num">₹0</span><span class="stat-label">Available</span></div>
+            </div>
+
+            <div class="table-wrap" id="expenses-trip-table-wrap">
+              <table class="data-table" id="expenses-trip-table">
+                <thead>
+                  <tr>
+                    <th draggable="true" data-label="S.No">S.No</th>
+                    <th draggable="true" data-label="Date">Date</th>
+                    <th draggable="true" data-label="Description">Description</th>
+                    <th draggable="true" data-label="Amount">
+                      <div class="th-label">Amount</div>
+                      <input type="number" id="et-th-filter-amount" class="th-filter" placeholder="All" />
+                    </th>
+                    <th draggable="true" data-label="Place">
+                      <div class="th-label">Place</div>
+                      <select id="et-th-filter-place" class="th-filter">
+                        <option value="__ALL__">All</option>
+                        <option value="">—</option>
+                      </select>
+                    </th>
+                    <th draggable="true" data-label="Added By">Added By</th>
+                    <th data-label=""></th>
+                  </tr>
+                </thead>
+                <tbody id="expenses-trip-body">
+                  <tr><td colspan="7" class="loading-row">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -3219,13 +3259,16 @@
 </div>
 
 <div id="book-inward-modal" class="modal">
-  <div class="modal-box">
-    <h3 id="book-inward-modal-title">Add Inward Stock</h3>
-    <label class="field"><span>Name</span><input id="book-inward-name" type="text" placeholder="Book title" /></label>
-    <label class="field"><span>Language</span><input id="book-inward-language" type="text" /></label>
-    <label class="field"><span>Purchase Price</span><input id="book-inward-price" type="number" min="0" step="0.01" /></label>
-    <label class="field"><span>Quantity</span><input id="book-inward-quantity" type="number" min="0" step="1" /></label>
-    <label class="field"><span>Purchased From</span><input id="book-inward-from" type="text" list="book-purchased-from-list" /></label>
+  <div class="modal-box modal-large">
+    <div class="modal-title-row">
+      <h3 id="book-inward-modal-title">Add Inward Stock</h3>
+      <div class="stock-modal-summary">
+        <div class="stock-modal-summary-item"><span id="book-inward-modal-total-qty" class="stock-modal-summary-num">0</span><span class="stock-modal-summary-label">Books</span></div>
+        <div class="stock-modal-summary-item"><span id="book-inward-modal-total-cost" class="stock-modal-summary-num">₹0</span><span class="stock-modal-summary-label">Total Cost</span></div>
+      </div>
+    </div>
+    <div id="book-inward-rows" class="stock-rows"></div>
+    <button id="book-inward-add-row-btn" type="button" class="btn btn-secondary btn-sm">+ Add Another Book</button>
     <div id="book-inward-error" class="field-error hidden"></div>
     <div class="modal-actions">
       <button id="book-inward-cancel-btn" class="btn btn-secondary">Cancel</button>
@@ -3267,12 +3310,16 @@
 </div>
 
 <div id="donation-transaction-modal" class="modal">
-  <div class="modal-box">
-    <h3>Add Transaction</h3>
-    <label class="field"><span>Donor (Name / Number)</span><input id="donation-tx-donor" type="text" placeholder="Type name or number…" autocomplete="off" /></label>
-    <label class="field"><span>Amount</span><input id="donation-tx-amount" type="number" min="0" step="any" /></label>
-    <label class="field"><span>Date</span><input id="donation-tx-date" type="date" /></label>
-    <label class="field"><span>Event</span><select id="donation-tx-event"><option value="">—</option></select></label>
+  <div class="modal-box modal-large">
+    <div class="modal-title-row">
+      <h3>Add Transaction</h3>
+      <div class="stock-modal-summary">
+        <div class="stock-modal-summary-item"><span id="donation-tx-total-count" class="stock-modal-summary-num">0</span><span class="stock-modal-summary-label">Entries</span></div>
+        <div class="stock-modal-summary-item"><span id="donation-tx-total-amount" class="stock-modal-summary-num">₹0</span><span class="stock-modal-summary-label">Total</span></div>
+      </div>
+    </div>
+    <div id="donation-tx-rows" class="stock-rows"></div>
+    <button id="donation-tx-add-row-btn" type="button" class="btn btn-secondary btn-sm">+ Add Another Donor</button>
     <div id="donation-tx-error" class="field-error hidden"></div>
     <div class="modal-actions">
       <button id="donation-tx-cancel-btn" class="btn btn-secondary">Cancel</button>
@@ -3381,13 +3428,29 @@
   </div>
 </div>
 
-<div id="expense-trip-modal" class="modal">
+<div id="trip-event-modal" class="modal">
   <div class="modal-box">
-    <h3>Add Trip Expense</h3>
-    <label class="field"><span>Date</span><input id="et-date" type="date" /></label>
-    <label class="field"><span>Description</span><input id="et-description" type="text" placeholder="What was this expense for?" /></label>
-    <label class="field"><span>Amount</span><input id="et-amount" type="number" min="0" step="0.01" /></label>
-    <label class="field"><span>Place</span><input id="et-place" type="text" placeholder="e.g. Vijayawada" /></label>
+    <h3>Add Trip Event</h3>
+    <label class="field"><span>Name</span><input id="trip-event-name" type="text" placeholder="e.g. Mysore-Banglore Trip" /></label>
+    <div id="trip-event-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="trip-event-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="trip-event-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="expense-trip-modal" class="modal">
+  <div class="modal-box modal-large">
+    <div class="modal-title-row">
+      <h3>Add Trip Expense</h3>
+      <div class="stock-modal-summary">
+        <div class="stock-modal-summary-item"><span id="et-total-count" class="stock-modal-summary-num">0</span><span class="stock-modal-summary-label">Entries</span></div>
+        <div class="stock-modal-summary-item"><span id="et-total-amount" class="stock-modal-summary-num">₹0</span><span class="stock-modal-summary-label">Total</span></div>
+      </div>
+    </div>
+    <div id="et-rows" class="stock-rows"></div>
+    <button id="et-add-row-btn" type="button" class="btn btn-secondary btn-sm">+ Add Another Expense</button>
     <div id="et-error" class="field-error hidden"></div>
     <div class="modal-actions">
       <button id="et-cancel-btn" class="btn btn-secondary">Cancel</button>
@@ -3439,12 +3502,16 @@
 </div>
 
 <div id="expense-preaching-modal" class="modal">
-  <div class="modal-box">
-    <h3>Add Preaching Expense</h3>
-    <label class="field"><span>Date</span><input id="ep-date" type="date" /></label>
-    <label class="field"><span>Description</span><input id="ep-description" type="text" placeholder="What was this expense for?" /></label>
-    <label class="field"><span>Amount</span><input id="ep-amount" type="number" min="0" step="0.01" /></label>
-    <label class="field"><span>Place</span><input id="ep-place" type="text" placeholder="e.g. Community Hall" /></label>
+  <div class="modal-box modal-large">
+    <div class="modal-title-row">
+      <h3>Add Preaching Expense</h3>
+      <div class="stock-modal-summary">
+        <div class="stock-modal-summary-item"><span id="ep-total-count" class="stock-modal-summary-num">0</span><span class="stock-modal-summary-label">Entries</span></div>
+        <div class="stock-modal-summary-item"><span id="ep-total-amount" class="stock-modal-summary-num">₹0</span><span class="stock-modal-summary-label">Total</span></div>
+      </div>
+    </div>
+    <div id="ep-rows" class="stock-rows"></div>
+    <button id="ep-add-row-btn" type="button" class="btn btn-secondary btn-sm">+ Add Another Expense</button>
     <div id="ep-error" class="field-error hidden"></div>
     <div class="modal-actions">
       <button id="ep-cancel-btn" class="btn btn-secondary">Cancel</button>
@@ -3496,12 +3563,16 @@
 </div>
 
 <div id="expense-residency-modal" class="modal">
-  <div class="modal-box">
-    <h3>Add Residency Expense</h3>
-    <label class="field"><span>Date</span><input id="er-date" type="date" /></label>
-    <label class="field"><span>Description</span><input id="er-description" type="text" placeholder="What was this expense for?" /></label>
-    <label class="field"><span>Amount</span><input id="er-amount" type="number" min="0" step="0.01" /></label>
-    <label class="field"><span>Place</span><input id="er-place" type="text" placeholder="e.g. Main Residency" /></label>
+  <div class="modal-box modal-large">
+    <div class="modal-title-row">
+      <h3>Add Residency Expense</h3>
+      <div class="stock-modal-summary">
+        <div class="stock-modal-summary-item"><span id="er-total-count" class="stock-modal-summary-num">0</span><span class="stock-modal-summary-label">Entries</span></div>
+        <div class="stock-modal-summary-item"><span id="er-total-amount" class="stock-modal-summary-num">₹0</span><span class="stock-modal-summary-label">Total</span></div>
+      </div>
+    </div>
+    <div id="er-rows" class="stock-rows"></div>
+    <button id="er-add-row-btn" type="button" class="btn btn-secondary btn-sm">+ Add Another Expense</button>
     <div id="er-error" class="field-error hidden"></div>
     <div class="modal-actions">
       <button id="er-cancel-btn" class="btn btn-secondary">Cancel</button>
