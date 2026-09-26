@@ -3917,11 +3917,12 @@ export async function initNewContacts() {
 
     const modal = document.getElementById("duplicate-modal");
     modal.addEventListener("click", (e) => {
-      if (e.target === modal) {
-        closeDuplicateModal();
-        isResolvingDuplicates = false;
-        initNewContacts(); // resume
-      }
+      // Delegate to whichever Cancel handler is currently wired — Add
+      // Contact and Form Import both reuse this shared modal, and
+      // openDuplicateModal() reassigns dup-cancel-btn.onclick fresh each
+      // time it opens, so this stays flow-agnostic instead of hardcoding
+      // the New Contacts resume.
+      if (e.target === modal) document.getElementById("dup-cancel-btn").click();
     });
 
     initColumnDragReorder("collection-submissions-admin-table");
@@ -4591,6 +4592,708 @@ function runBulkDuplicateResolution() {
         currentDuplicateIndex++;
         runBulkDuplicateResolution();
       }
+    } catch (err) {
+      showToast("Error resolving duplicate: " + err.message, "error");
+      const keepBtn = document.getElementById("dup-keep-existing-btn");
+      const overwriteBtn = document.getElementById("dup-overwrite-new-btn");
+      keepBtn.disabled = false;
+      keepBtn.textContent = "Keep Existing";
+      overwriteBtn.disabled = false;
+      overwriteBtn.textContent = "Overwrite with New";
+    }
+  });
+}
+
+/* ======================= FORM IMPORT (Google Forms) ======================= */
+
+// Contact fields a Sheet column can be mapped to. "__timestamp__" is not
+// written to `contacts` — it's only used to power the optional from-date
+// filter on Check. "__ignore__" is the default for unmapped columns.
+const FORM_IMPORT_FIELD_OPTIONS = [
+  { value: "__ignore__", label: "Ignore" },
+  { value: "mob_no", label: "Phone Number (required)" },
+  { value: "name", label: "Name (required)" },
+  { value: "pg_name", label: "PG Name" },
+  { value: "profession", label: "Profession" },
+  { value: "company_name", label: "Org / Company" },
+  { value: "ws", label: "W/S" },
+  { value: "gender", label: "Gender" },
+  { value: "admin_tag_to_users", label: "Admin Tag to Users" },
+  { value: "core_cultivation", label: "Core Cultivation" },
+  { value: "calling_purpose", label: "Calling Purpose (event)" },
+  { value: "gyc_status", label: "GFY/AOMC" },
+  { value: "admin_remarks", label: "Admin Remarks" },
+  { value: "__timestamp__", label: "Timestamp (date filter only)" },
+];
+
+let formImportWired = false;
+let formImportWebhookUrl = "";
+let formImportSecret = "";
+let formImportSources = [];
+let formImportMappingHeaders = [];
+let formImportEntriesCache = [];
+let formImportActiveSource = null;
+
+// contacts.ws/gender/gyc_status all carry CHECK constraints — raw Form
+// answers ("Male", free text) would 400 on insert otherwise, so whitelist
+// them the same way sheets-bridge/Code.gs does for its own Sheet imports.
+function normalizeFormWs(raw) {
+  const v = String(raw || "").trim();
+  return ["W", "S", "NA"].includes(v) ? v : "NA";
+}
+
+function normalizeFormGender(raw) {
+  const v = String(raw || "").trim().toLowerCase();
+  if (v === "m" || v === "male") return "M";
+  if (v === "f" || v === "female") return "F";
+  return null;
+}
+
+function normalizeFormGycStatus(raw) {
+  const v = String(raw || "").trim();
+  return GYC_STATUS_OPTIONS.includes(v) ? v : null;
+}
+
+export async function initFormImport() {
+  const toggleBtn = document.getElementById("form-import-webhook-toggle-btn");
+  const webhookBox = document.getElementById("form-import-webhook-box");
+
+  if (!formImportWired) {
+    formImportWired = true;
+
+    toggleBtn.addEventListener("click", () => {
+      webhookBox.classList.toggle("hidden");
+    });
+
+    document.getElementById("form-import-webhook-save-btn").addEventListener("click", async () => {
+      const url = document.getElementById("form-import-webhook-url-input").value.trim();
+      const secret = document.getElementById("form-import-webhook-secret-input").value.trim();
+      const errEl = document.getElementById("form-import-webhook-error");
+      errEl.classList.add("hidden");
+      if (!url) {
+        errEl.textContent = "Webhook URL is required.";
+        errEl.classList.remove("hidden");
+        return;
+      }
+      await setSetting("form_import_webhook_url", url);
+      await setSetting("form_import_secret", secret);
+      formImportWebhookUrl = url;
+      formImportSecret = secret;
+      showToast("Webhook settings saved", "success");
+      webhookBox.classList.add("hidden");
+    });
+
+    document.getElementById("form-import-add-source-btn").addEventListener("click", () => openFormImportSourceModal());
+    document.getElementById("fi-source-cancel-btn").addEventListener("click", () => {
+      document.getElementById("form-import-source-modal").classList.remove("active");
+    });
+    document.getElementById("fi-source-save-btn").addEventListener("click", saveFormImportSource);
+
+    document.getElementById("fi-mapping-cancel-btn").addEventListener("click", () => {
+      document.getElementById("form-import-mapping-modal").classList.remove("active");
+    });
+    document.getElementById("fi-mapping-save-btn").addEventListener("click", saveFormImportMapping);
+
+    document.getElementById("form-import-back-btn").addEventListener("click", () => {
+      showFormImportListView();
+      loadFormImportSources();
+    });
+    document.getElementById("form-import-map-btn").addEventListener("click", () => {
+      if (formImportActiveSource) openFormImportMappingModal(formImportActiveSource);
+    });
+    document.getElementById("form-import-delete-source-btn").addEventListener("click", () => {
+      if (formImportActiveSource) deleteFormImportSource(formImportActiveSource);
+    });
+
+    document.getElementById("form-import-recheck-btn").addEventListener("click", () => {
+      if (formImportActiveSource) checkFormImportEntries(formImportActiveSource);
+    });
+    document.getElementById("form-import-add-all-btn").addEventListener("click", addAllFormImportEntries);
+  }
+
+  formImportWebhookUrl = await getSetting("form_import_webhook_url");
+  formImportSecret = await getSetting("form_import_secret");
+  document.getElementById("form-import-webhook-url-input").value = formImportWebhookUrl;
+  document.getElementById("form-import-webhook-secret-input").value = formImportSecret;
+  if (!formImportWebhookUrl) webhookBox.classList.remove("hidden");
+
+  showFormImportListView();
+  await loadEvents();
+  await loadFormImportSources();
+}
+
+function showFormImportListView() {
+  formImportActiveSource = null;
+  document.getElementById("form-import-list-view").classList.remove("hidden");
+  document.getElementById("form-import-detail-view").classList.add("hidden");
+}
+
+function showFormImportDetailView(source) {
+  formImportActiveSource = source;
+  document.getElementById("form-import-list-view").classList.add("hidden");
+  document.getElementById("form-import-detail-view").classList.remove("hidden");
+  document.getElementById("form-import-detail-title").textContent = source.name;
+  document.getElementById("form-import-entries-wrap").classList.add("hidden");
+  document.getElementById("form-import-entries-summary").textContent = "—";
+  document.getElementById("form-import-from-date").value = "";
+  formImportEntriesCache = [];
+}
+
+async function loadFormImportSources() {
+  const grid = document.getElementById("form-import-sources-grid");
+  const { data, error } = await supabase
+    .from("form_import_sources")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    grid.innerHTML = `<p class="loading-row">Could not load sources.</p>`;
+    return;
+  }
+
+  formImportSources = data || [];
+  renderFormImportSources();
+}
+
+function renderFormImportSources() {
+  const grid = document.getElementById("form-import-sources-grid");
+
+  if (!formImportSources.length) {
+    grid.innerHTML = `<p class="loading-row">No forms connected yet — click "+ Connect Form" to add one.</p>`;
+    return;
+  }
+
+  grid.innerHTML = formImportSources.map((s) => {
+    const mappedCount = Object.values(s.column_mapping || {}).filter((v) => v && v !== "__ignore__").length;
+    return `
+      <div class="fi-card" data-id="${s.id}">
+        <button class="fi-card-delete" data-id="${s.id}" title="Remove" aria-label="Remove">×</button>
+        <div class="fi-card-name">${escapeHtml(s.name)}</div>
+        <div class="fi-card-meta">${escapeHtml(s.tab_name || "First tab")}</div>
+        <div class="fi-card-badge ${mappedCount ? "fi-badge-ok" : ""}">${mappedCount ? mappedCount + " columns mapped" : "Not mapped yet"}</div>
+      </div>
+    `;
+  }).join("");
+
+  grid.querySelectorAll(".fi-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const source = formImportSources.find((s) => s.id === card.dataset.id);
+      if (source) showFormImportDetailView(source);
+    });
+  });
+
+  grid.querySelectorAll(".fi-card-delete").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const source = formImportSources.find((s) => s.id === btn.dataset.id);
+      if (source) deleteFormImportSource(source);
+    });
+  });
+}
+
+async function deleteFormImportSource(source) {
+  if (!confirm(`Remove "${source.name}" from Form Import? This doesn't touch the Google Sheet or Form.`)) return;
+  await supabase.from("form_import_sources").delete().eq("id", source.id);
+  if (formImportActiveSource && formImportActiveSource.id === source.id) {
+    showFormImportListView();
+  }
+  await loadFormImportSources();
+}
+
+function extractSheetId(input) {
+  const trimmed = String(input || "").trim();
+  const match = trimmed.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return match ? match[1] : trimmed;
+}
+
+function openFormImportSourceModal() {
+  document.getElementById("fi-source-name-input").value = "";
+  document.getElementById("fi-source-sheet-input").value = "";
+  document.getElementById("fi-source-tab-input").value = "";
+  document.getElementById("fi-source-error").classList.add("hidden");
+  document.getElementById("form-import-source-modal").classList.add("active");
+}
+
+async function saveFormImportSource() {
+  const name = document.getElementById("fi-source-name-input").value.trim();
+  const sheetInput = document.getElementById("fi-source-sheet-input").value.trim();
+  const tabName = document.getElementById("fi-source-tab-input").value.trim();
+  const errEl = document.getElementById("fi-source-error");
+  errEl.classList.add("hidden");
+
+  if (!name || !sheetInput) {
+    errEl.textContent = "Name and Sheet URL/ID are required.";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  const sheetId = extractSheetId(sheetInput);
+  const saveBtn = document.getElementById("fi-source-save-btn");
+  saveBtn.disabled = true;
+
+  const { data, error } = await supabase
+    .from("form_import_sources")
+    .insert({ name, sheet_id: sheetId, tab_name: tabName || null })
+    .select()
+    .single();
+
+  saveBtn.disabled = false;
+
+  if (error) {
+    errEl.textContent = "Save failed: " + error.message;
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  document.getElementById("form-import-source-modal").classList.remove("active");
+  await loadFormImportSources();
+  openFormImportMappingModal(data);
+}
+
+async function fetchFormImportRows(source) {
+  if (!formImportWebhookUrl) {
+    showToast("Configure the Webhook URL first (⚙ Webhook Setup).", "error");
+    return null;
+  }
+  const params = new URLSearchParams({
+    action: "get_rows",
+    sheet_id: source.sheet_id,
+    secret: formImportSecret,
+  });
+  if (source.tab_name) params.set("tab", source.tab_name);
+
+  try {
+    const response = await fetch(formImportWebhookUrl + "?" + params.toString());
+    if (!response.ok) throw new Error("HTTP error " + response.status);
+    const result = await response.json();
+    if (!result.ok) throw new Error(result.error || "Unknown Apps Script error");
+    return result;
+  } catch (err) {
+    showToast("Failed to fetch sheet data: " + err.message, "error");
+    return null;
+  }
+}
+
+async function openFormImportMappingModal(source) {
+  const rowsWrap = document.getElementById("fi-mapping-rows");
+  const subtitle = document.getElementById("fi-mapping-subtitle");
+  rowsWrap.innerHTML = `<p class="loading-row">Loading columns from Sheet…</p>`;
+  subtitle.textContent = source.name;
+  document.getElementById("fi-mapping-error").classList.add("hidden");
+  document.getElementById("form-import-mapping-modal").classList.add("active");
+
+  const result = await fetchFormImportRows(source);
+  if (!result) {
+    document.getElementById("form-import-mapping-modal").classList.remove("active");
+    return;
+  }
+
+  formImportMappingHeaders = result.headers || [];
+  const mapping = source.column_mapping || {};
+
+  rowsWrap.innerHTML = formImportMappingHeaders.map((header, i) => `
+    <label class="field" data-header-index="${i}">
+      <span>${escapeHtml(header) || `(column ${i + 1})`}</span>
+      <select class="fi-mapping-select">
+        ${FORM_IMPORT_FIELD_OPTIONS.map((o) => `<option value="${o.value}" ${(mapping[header] || "__ignore__") === o.value ? "selected" : ""}>${o.label}</option>`).join("")}
+      </select>
+    </label>
+  `).join("");
+
+  document.getElementById("fi-mapping-save-btn").dataset.sourceId = source.id;
+}
+
+async function saveFormImportMapping() {
+  const source = formImportSources.find((s) => s.id === document.getElementById("fi-mapping-save-btn").dataset.sourceId);
+  const errEl = document.getElementById("fi-mapping-error");
+  errEl.classList.add("hidden");
+  if (!source) return;
+
+  const mapping = {};
+  let timestampColumn = null;
+  document.querySelectorAll("#fi-mapping-rows label[data-header-index]").forEach((label) => {
+    const idx = parseInt(label.dataset.headerIndex, 10);
+    const header = formImportMappingHeaders[idx];
+    const value = label.querySelector("select").value;
+    if (value !== "__ignore__") mapping[header] = value;
+    if (value === "__timestamp__") timestampColumn = header;
+  });
+
+  const mappedValues = Object.values(mapping);
+  if (!mappedValues.includes("mob_no") || !mappedValues.includes("name")) {
+    errEl.textContent = "Map at least Phone Number and Name before saving.";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  const { error } = await supabase
+    .from("form_import_sources")
+    .update({ column_mapping: mapping, timestamp_column: timestampColumn, updated_at: new Date().toISOString() })
+    .eq("id", source.id);
+
+  if (error) {
+    errEl.textContent = "Save failed: " + error.message;
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  document.getElementById("form-import-mapping-modal").classList.remove("active");
+  showToast("Mapping saved", "success");
+  await loadFormImportSources();
+  const updated = formImportSources.find((s) => s.id === source.id);
+  if (updated) showFormImportDetailView(updated);
+}
+
+function applyFormImportMapping(source, headers, rows, fromDate) {
+  const mapping = source.column_mapping || {};
+  const headerIndex = {};
+  headers.forEach((h, i) => { headerIndex[h] = i; });
+
+  const fromDateMs = fromDate ? new Date(fromDate).getTime() : null;
+
+  return rows.map((row) => {
+    const entry = {};
+    let timestampMs = null;
+
+    Object.entries(mapping).forEach(([header, field]) => {
+      const idx = headerIndex[header];
+      if (idx === undefined) return;
+      const raw = row[idx];
+      if (field === "__timestamp__") {
+        const t = raw instanceof Date ? raw.getTime() : new Date(raw).getTime();
+        if (!isNaN(t)) timestampMs = t;
+        return;
+      }
+      entry[field] = raw === undefined || raw === null ? "" : String(raw).trim();
+    });
+
+    entry.mob_no = normalizePhoneInput(entry.mob_no || "");
+    entry.ws = normalizeFormWs(entry.ws);
+    entry.gender = normalizeFormGender(entry.gender);
+    entry.gyc_status = normalizeFormGycStatus(entry.gyc_status);
+    entry._timestampMs = timestampMs;
+
+    return entry;
+  }).filter((entry) => {
+    if (!entry.mob_no || entry.mob_no.length !== 10 || !entry.name) return false;
+    if (fromDateMs !== null && entry._timestampMs !== null && entry._timestampMs < fromDateMs) return false;
+    return true;
+  });
+}
+
+async function checkFormImportEntries(source) {
+  formImportActiveSource = source;
+
+  const mappedValues = Object.values(source.column_mapping || {});
+  if (!mappedValues.includes("mob_no") || !mappedValues.includes("name")) {
+    showToast(`Map columns for "${source.name}" first (needs at least Phone Number and Name).`, "warning");
+    openFormImportMappingModal(source);
+    return;
+  }
+
+  const entriesWrap = document.getElementById("form-import-entries-wrap");
+  const summaryEl = document.getElementById("form-import-entries-summary");
+
+  entriesWrap.classList.remove("hidden");
+  summaryEl.textContent = "Checking…";
+  document.getElementById("form-import-entries-body").innerHTML = "";
+
+  const result = await fetchFormImportRows(source);
+  if (!result) {
+    summaryEl.textContent = "Failed to check.";
+    return;
+  }
+
+  const fromDate = document.getElementById("form-import-from-date").value;
+  const candidates = applyFormImportMapping(source, result.headers || [], result.rows || [], fromDate);
+
+  if (!candidates.length) {
+    formImportEntriesCache = [];
+    renderFormImportEntriesTable();
+    summaryEl.textContent = "No valid rows found in the Sheet (check the column mapping and phone numbers).";
+    return;
+  }
+
+  const mobNos = candidates.map((c) => c.mob_no);
+  const [{ data: existingList, error }, { data: coordinators }] = await Promise.all([
+    supabase.from("contacts").select("mob_no").in("mob_no", mobNos),
+    supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
+  ]);
+  if (error) {
+    summaryEl.textContent = "Failed to check against Master Contact: " + error.message;
+    return;
+  }
+  if (coordinators) newContactsCoordinators = coordinators;
+
+  const existingSet = new Set((existingList || []).map((c) => c.mob_no));
+  // De-dupe the Sheet itself too — keep the first occurrence of a phone number.
+  const seen = new Set();
+  formImportEntriesCache = candidates.filter((c) => {
+    if (existingSet.has(c.mob_no) || seen.has(c.mob_no)) return false;
+    seen.add(c.mob_no);
+    return true;
+  });
+
+  renderFormImportEntriesTable();
+  summaryEl.textContent = `Found ${formImportEntriesCache.length} new entr${formImportEntriesCache.length === 1 ? "y" : "ies"} (of ${candidates.length} row(s) read).`;
+}
+
+// Every contact field is always shown as an editable cell — whatever the
+// Sheet mapping already filled in comes pre-populated, and anything the Form
+// doesn't collect (Admin Tag to Users, Core Cultivation, Calling Purpose,
+// GFY/AOMC, ...) is just an empty control ready for the admin to fill in or
+// assign before clicking Add, same pattern as the New Contacts table.
+function renderFormImportEntriesTable() {
+  const tbody = document.getElementById("form-import-entries-body");
+
+  if (!formImportEntriesCache.length) {
+    tbody.innerHTML = `<tr><td colspan="13" class="loading-row">Nothing to show.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = formImportEntriesCache.map((entry, idx) => `
+    <tr data-index="${idx}">
+      <td data-label="Phone"><input class="inline-edit fi-entry-field" data-field="mob_no" data-index="${idx}" value="${escapeHtml(entry.mob_no || "")}" /></td>
+      <td data-label="Name"><input class="inline-edit fi-entry-field" data-field="name" data-index="${idx}" value="${escapeHtml(entry.name || "")}" /></td>
+      <td data-label="PG Name"><input class="inline-edit fi-entry-field" data-field="pg_name" data-index="${idx}" value="${escapeHtml(entry.pg_name || "")}" /></td>
+      <td data-label="Profession"><input class="inline-edit fi-entry-field" data-field="profession" data-index="${idx}" value="${escapeHtml(entry.profession || "")}" /></td>
+      <td data-label="Org / Company"><input class="inline-edit fi-entry-field" data-field="company_name" data-index="${idx}" value="${escapeHtml(entry.company_name || "")}" /></td>
+      <td data-label="W/S">
+        <select class="inline-edit fi-entry-ws-select" data-index="${idx}">
+          ${WS_ADMIN_OPTIONS.map((o) => `<option value="${o}" ${o === (entry.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="Gender">
+        <select class="inline-edit fi-entry-gender-select" data-index="${idx}">
+          ${GENDER_ADMIN_OPTIONS.map((o) => `<option value="${o}" ${o === (entry.gender || "") ? "selected" : ""}>${o || "—"}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="Admin Tag to Users">
+        <select class="inline-edit fi-entry-tag-select" data-index="${idx}">
+          ${ADMIN_TAG_TO_USERS_OPTIONS.map((t) => `<option value="${t}" ${t === (entry.admin_tag_to_users || "") ? "selected" : ""}>${t || "—"}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="Core Cultivation">
+        <select class="inline-edit fi-entry-cult-select" data-index="${idx}">
+          <option value="">—</option>
+          ${newContactsCoordinators.map((u) => `<option value="${escapeHtml(u.user_name)}" ${u.user_name === (entry.core_cultivation || "") ? "selected" : ""}>${escapeHtml(u.user_name)}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="Calling Purpose">
+        <select class="inline-edit fi-entry-event-select" data-index="${idx}">
+          <option value="">— select —</option>
+          ${eventsCache.map((e) => `<option value="${e.code}" ${e.code === (entry.calling_purpose || "") ? "selected" : ""}>${e.code}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="GFY/AOMC">
+        <select class="inline-edit fi-entry-gyc-select" data-index="${idx}">
+          ${GYC_STATUS_OPTIONS.map((t) => `<option value="${escapeHtml(t)}" ${t === (entry.gyc_status || "") ? "selected" : ""}>${escapeHtml(t) || "—"}</option>`).join("")}
+        </select>
+      </td>
+      <td data-label="Admin Remarks"><input class="inline-edit fi-entry-field" data-field="admin_remarks" data-index="${idx}" value="${escapeHtml(entry.admin_remarks || "")}" /></td>
+      <td class="no-export">
+        <button class="btn btn-primary fi-entry-add-btn" data-index="${idx}" style="padding:4px 10px;font-size:12px;">Add</button>
+      </td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll(".fi-entry-field").forEach((input) => {
+    input.addEventListener("change", (e) => {
+      const idx = parseInt(e.target.dataset.index, 10);
+      const field = e.target.dataset.field;
+      let value = e.target.value.trim();
+      if (field === "mob_no") {
+        value = normalizePhoneInput(value);
+        e.target.value = value;
+      }
+      formImportEntriesCache[idx][field] = value || null;
+    });
+  });
+
+  tbody.querySelectorAll(".fi-entry-ws-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      formImportEntriesCache[parseInt(e.target.dataset.index, 10)].ws = e.target.value;
+    });
+  });
+
+  tbody.querySelectorAll(".fi-entry-gender-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      formImportEntriesCache[parseInt(e.target.dataset.index, 10)].gender = e.target.value || null;
+    });
+  });
+
+  tbody.querySelectorAll(".fi-entry-tag-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      formImportEntriesCache[parseInt(e.target.dataset.index, 10)].admin_tag_to_users = e.target.value || null;
+    });
+  });
+
+  tbody.querySelectorAll(".fi-entry-cult-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      formImportEntriesCache[parseInt(e.target.dataset.index, 10)].core_cultivation = e.target.value || null;
+    });
+  });
+
+  tbody.querySelectorAll(".fi-entry-event-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      formImportEntriesCache[parseInt(e.target.dataset.index, 10)].calling_purpose = e.target.value || null;
+    });
+  });
+
+  tbody.querySelectorAll(".fi-entry-gyc-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      formImportEntriesCache[parseInt(e.target.dataset.index, 10)].gyc_status = e.target.value || null;
+    });
+  });
+
+  tbody.querySelectorAll(".fi-entry-add-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.dataset.index, 10);
+      btn.disabled = true;
+      btn.textContent = "…";
+      await addFormImportEntry(idx);
+    });
+  });
+}
+
+function buildFormImportContactPayload(entry) {
+  return {
+    mob_no: entry.mob_no,
+    name: entry.name,
+    pg_name: entry.pg_name || null,
+    profession: entry.profession || null,
+    company_name: entry.company_name || null,
+    ws: entry.ws || "NA",
+    gender: entry.gender || null,
+    admin_tag_to_users: entry.admin_tag_to_users || null,
+    core_cultivation: entry.core_cultivation || null,
+    calling_purpose: entry.calling_purpose || null,
+    gyc_status: entry.gyc_status || null,
+    admin_remarks: entry.admin_remarks || null,
+  };
+}
+
+function updateFormImportSummaryCount() {
+  const summaryEl = document.getElementById("form-import-entries-summary");
+  summaryEl.textContent = `${formImportEntriesCache.length} new entr${formImportEntriesCache.length === 1 ? "y" : "ies"} remaining.`;
+}
+
+async function addFormImportEntry(idx) {
+  const entry = formImportEntriesCache[idx];
+  if (!entry) return;
+
+  try {
+    const { data: existing, error } = await supabase.from("contacts").select("*").eq("mob_no", entry.mob_no).maybeSingle();
+    if (error) throw error;
+
+    if (existing) {
+      isResolvingDuplicates = true;
+      openDuplicateModal(existing, entry, false, async (decision) => {
+        closeDuplicateModal();
+        isResolvingDuplicates = false;
+        if (decision === "overwrite") {
+          const { error: updErr } = await supabase.from("contacts").update(buildFormImportContactPayload(entry)).eq("mob_no", entry.mob_no);
+          if (updErr) {
+            showToast("Update failed: " + updErr.message, "error");
+            return;
+          }
+          showToast("Updated existing contact with new details", "success");
+        } else if (decision === "keep_existing") {
+          showToast("Kept existing contact — entry skipped.", "success");
+        }
+        formImportEntriesCache.splice(idx, 1);
+        renderFormImportEntriesTable();
+        updateFormImportSummaryCount();
+      });
+      return;
+    }
+
+    const { error: insErr } = await supabase.from("contacts").insert(buildFormImportContactPayload(entry));
+    if (insErr) throw insErr;
+
+    showToast(`${entry.name} added to Master Contacts!`, "success");
+    formImportEntriesCache.splice(idx, 1);
+    renderFormImportEntriesTable();
+    updateFormImportSummaryCount();
+  } catch (err) {
+    showToast("Failed to add contact: " + err.message, "error");
+    renderFormImportEntriesTable();
+  }
+}
+
+async function addAllFormImportEntries() {
+  if (!formImportEntriesCache.length) {
+    showToast("No new entries to add.", "warning");
+    return;
+  }
+
+  const addAllBtn = document.getElementById("form-import-add-all-btn");
+  addAllBtn.disabled = true;
+  addAllBtn.textContent = "Processing…";
+
+  try {
+    const mobNos = formImportEntriesCache.map((c) => c.mob_no);
+    const { data: existingList, error } = await supabase.from("contacts").select("*").in("mob_no", mobNos);
+    if (error) throw error;
+
+    const existingMap = new Map();
+    (existingList || []).forEach((c) => existingMap.set(c.mob_no, c));
+
+    const toInsert = [];
+    duplicateQueue = [];
+    formImportEntriesCache.forEach((entry) => {
+      if (existingMap.has(entry.mob_no)) {
+        duplicateQueue.push({ newContact: entry, existingContact: existingMap.get(entry.mob_no) });
+      } else {
+        toInsert.push(entry);
+      }
+    });
+
+    let insertedCount = 0;
+    if (toInsert.length) {
+      const { error: insErr } = await supabase.from("contacts").insert(toInsert.map(buildFormImportContactPayload));
+      if (insErr) throw insErr;
+      insertedCount = toInsert.length;
+    }
+
+    formImportEntriesCache = duplicateQueue.map((d) => d.newContact);
+    renderFormImportEntriesTable();
+
+    if (duplicateQueue.length) {
+      showToast(`Added ${insertedCount} contact(s). ${duplicateQueue.length} became duplicates in the meantime — resolve them below.`, "warning");
+      currentDuplicateIndex = 0;
+      isResolvingDuplicates = true;
+      runFormImportBulkDuplicateResolution();
+    } else {
+      showToast(`All ${insertedCount} contact(s) added to Master Contacts! 🎉`, "success");
+    }
+  } catch (err) {
+    showToast("Failed during bulk import: " + err.message, "error");
+  } finally {
+    addAllBtn.disabled = false;
+    addAllBtn.textContent = "Add All to Master";
+  }
+}
+
+function runFormImportBulkDuplicateResolution() {
+  if (currentDuplicateIndex >= duplicateQueue.length) {
+    closeDuplicateModal();
+    isResolvingDuplicates = false;
+    showToast("Finished duplicate resolution!", "success");
+    return;
+  }
+
+  const dupItem = duplicateQueue[currentDuplicateIndex];
+  openDuplicateModal(dupItem.existingContact, dupItem.newContact, true, async (decision) => {
+    try {
+      if (decision === "overwrite") {
+        const { error } = await supabase.from("contacts").update(buildFormImportContactPayload(dupItem.newContact)).eq("mob_no", dupItem.newContact.mob_no);
+        if (error) throw error;
+      }
+      formImportEntriesCache = formImportEntriesCache.filter((e) => e.mob_no !== dupItem.newContact.mob_no);
+      renderFormImportEntriesTable();
+      currentDuplicateIndex++;
+      runFormImportBulkDuplicateResolution();
     } catch (err) {
       showToast("Error resolving duplicate: " + err.message, "error");
       const keepBtn = document.getElementById("dup-keep-existing-btn");

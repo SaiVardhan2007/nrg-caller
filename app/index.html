@@ -64,6 +64,7 @@
     <button class="admin-tab active" data-target="admin-users-section">Users &amp; Assignment</button>
     <button class="admin-tab" data-target="admin-contacts-section">Master Contact</button>
     <button class="admin-tab" data-target="admin-new-contacts-section">New Contacts</button>
+    <button class="admin-tab" data-target="admin-form-import-section">Form Import</button>
     <button class="admin-tab" data-target="admin-message-section">Message</button>
     <button class="admin-tab" data-target="admin-analytics-section">Analytics</button>
     <button class="admin-tab" data-target="admin-reception-analytics-section">Reception</button>
@@ -2637,6 +2638,76 @@
       </div>
     </section>
 
+    <!-- ===== ADMIN: Form Import ===== -->
+    <section id="admin-form-import-section" class="page hidden">
+      <div class="panel">
+        <div class="panel-row no-wrap">
+          <h3 class="section-title m0 nowrap">Form Import</h3>
+          <button id="form-import-webhook-toggle-btn" class="btn btn-secondary nowrap">⚙ Webhook Setup</button>
+          <button id="form-import-add-source-btn" class="btn btn-primary nowrap ml-auto">+ Connect Form</button>
+        </div>
+      </div>
+
+      <div class="panel hidden" id="form-import-webhook-box">
+        <label class="field"><span>Webhook URL</span><input id="form-import-webhook-url-input" type="text" placeholder="https://script.google.com/macros/s/.../exec" /></label>
+        <label class="field"><span>Shared Secret</span><input id="form-import-webhook-secret-input" type="text" /></label>
+        <div id="form-import-webhook-error" class="field-error hidden"></div>
+        <div class="modal-actions">
+          <button id="form-import-webhook-save-btn" class="btn btn-primary">Save</button>
+        </div>
+        <p class="muted-text">One-time setup — see <code>docs/FORM_IMPORT_SETUP.md</code>. This is a separate Apps Script project from the main Sheets bridge.</p>
+      </div>
+
+      <div id="form-import-list-view">
+        <div class="fi-cards-grid" id="form-import-sources-grid">
+          <p class="loading-row">Loading…</p>
+        </div>
+      </div>
+
+      <div class="hidden" id="form-import-detail-view">
+        <div class="panel">
+          <div class="panel-row no-wrap">
+            <button id="form-import-back-btn" class="btn btn-secondary nowrap">← Back</button>
+            <h3 class="section-title m0 nowrap" id="form-import-detail-title">Form</h3>
+            <button id="form-import-map-btn" class="btn btn-secondary nowrap">Map Columns</button>
+            <button id="form-import-delete-source-btn" class="btn btn-secondary nowrap fi-danger-btn">Delete Form</button>
+          </div>
+        </div>
+
+        <div class="panel" id="form-import-entries-panel">
+          <div class="panel-row no-wrap">
+            <div class="field inline nowrap"><span>From date</span><input id="form-import-from-date" type="date" /></div>
+            <button id="form-import-recheck-btn" class="btn btn-primary nowrap">↻ Check for New Entries</button>
+            <p id="form-import-entries-summary" class="muted-text m0 nowrap">—</p>
+            <button id="form-import-add-all-btn" class="btn btn-primary nowrap ml-auto">Add All to Master</button>
+          </div>
+        </div>
+
+        <div class="table-wrap hidden" id="form-import-entries-wrap">
+          <table class="data-table" id="form-import-entries-table">
+            <thead>
+              <tr>
+                <th>Phone</th>
+                <th>Name</th>
+                <th>PG Name</th>
+                <th>Profession</th>
+                <th>Org / Company</th>
+                <th>W/S</th>
+                <th>Gender</th>
+                <th>Admin Tag to Users</th>
+                <th>Core Cultivation</th>
+                <th>Calling Purpose</th>
+                <th>GFY/AOMC</th>
+                <th>Admin Remarks</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="form-import-entries-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== ADMIN: Message ===== -->
     <section id="admin-message-section" class="page hidden">
       <div class="panel">
@@ -3229,6 +3300,33 @@
     <div class="modal-actions">
       <button id="add-contact-cancel" class="btn btn-secondary">Cancel</button>
       <button id="add-contact-submit" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="form-import-source-modal" class="modal">
+  <div class="modal-box">
+    <h3>Connect Form</h3>
+    <label class="field"><span>Friendly Name</span><input id="fi-source-name-input" type="text" placeholder="e.g. RY 2026 Registration" /></label>
+    <label class="field"><span>Sheet URL or ID</span><input id="fi-source-sheet-input" type="text" placeholder="Paste the Google Sheet link or ID" /></label>
+    <label class="field"><span>Tab Name (optional)</span><input id="fi-source-tab-input" type="text" placeholder="Leave blank for the first tab" /></label>
+    <div id="fi-source-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="fi-source-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="fi-source-save-btn" class="btn btn-primary">Save &amp; Map Columns</button>
+    </div>
+  </div>
+</div>
+
+<div id="form-import-mapping-modal" class="modal">
+  <div class="modal-box modal-large">
+    <h3>Map Columns</h3>
+    <p class="muted-text" id="fi-mapping-subtitle"></p>
+    <div id="fi-mapping-rows"></div>
+    <div id="fi-mapping-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="fi-mapping-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="fi-mapping-save-btn" class="btn btn-primary">Save Mapping</button>
     </div>
   </div>
 </div>

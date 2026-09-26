@@ -38,6 +38,7 @@ const PAGE_TITLES = {
   "admin-users-section": "Users & Assignment",
   "admin-contacts-section": "Master Contact",
   "admin-new-contacts-section": "New Contacts",
+  "admin-form-import-section": "Form Import",
   "admin-message-section": "Message",
   "admin-analytics-section": "Analytics",
   "admin-reception-analytics-section": "Reception Analytics",
@@ -141,6 +142,7 @@ function showScreen(id, { forceRefresh = false } = {}) {
     if (id === "admin-users-section") Admin.initUsers(currentUser);
     if (id === "admin-contacts-section") Admin.initContacts(currentUser);
     if (id === "admin-new-contacts-section") Admin.initNewContacts(currentUser);
+    if (id === "admin-form-import-section") Admin.initFormImport(currentUser);
     if (id === "admin-message-section") Admin.initMessage(currentUser);
     if (id === "admin-analytics-section") Admin.initAnalytics(currentUser);
     if (id === "admin-reception-analytics-section") Admin.initReceptionAnalytics();
