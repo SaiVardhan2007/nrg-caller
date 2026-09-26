@@ -10,6 +10,7 @@ import * as CoreCultivation from "./coreCultivation.js";
 import * as Collection from "./collection.js";
 import * as BookDistribution from "./bookDistribution.js";
 import * as Sadhana from "./sadhana.js";
+import * as SpClasses from "./spClasses.js";
 import * as Donations from "./donations.js";
 import * as Expenses from "./expenses.js";
 import * as LimitedAccess from "./limitedAccess.js";
@@ -54,6 +55,7 @@ const PAGE_TITLES = {
   "admin-sadhana-section": "FNRG Sadhana",
   "sadhana-users-section": "FNRG Sadhana",
   "sadhana-analytics-section": "FNRG Sadhana",
+  "spclasses-section": "FNRG Sadhana",
   "donations-dashboard-section": "Donations",
   "donations-transactions-section": "Donations",
   "donations-events-section": "Donations",
@@ -99,6 +101,7 @@ const CACHEABLE_SECTIONS = new Set([
   "admin-sadhana-section",
   "sadhana-users-section",
   "sadhana-analytics-section",
+  "spclasses-section",
   "donations-dashboard-section",
   "donations-transactions-section",
   "donations-events-section",
@@ -168,6 +171,8 @@ function showScreen(id, { forceRefresh = false } = {}) {
     if (id === "sadhana-users-section") Sadhana.initSadhanaUsers(currentUser);
     if (id === "sadhana-analytics-section") Sadhana.initSadhanaAnalytics();
     if (id === "fnrg-sadhana-user-section") Sadhana.initFnrgSadhanaUser(currentUser);
+    if (id === "fnrg-sadhana-user-section") SpClasses.initFsuSpClasses(currentUser);
+    if (id === "spclasses-section") SpClasses.initSpClasses(currentUser);
     if (id === "donations-dashboard-section") Donations.initDonationsDashboard(currentUser);
     if (id === "donations-transactions-section") Donations.initDonationsTransactions(currentUser);
     if (id === "donations-events-section") Donations.initDonationsEvents(currentUser);

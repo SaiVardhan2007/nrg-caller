@@ -1137,6 +1137,57 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .trip-event-card-stats .stat.stat-negative .stat-num { font-weight: 800; }
 .trip-event-detail-title { font-size: 15px; color: var(--tulsi-dark); }
 
+/* ============ SP CLASSES: PLAYLIST CARDS & VIDEO CARDS ============ */
+.spc-playlist-card-count { color: var(--text-muted); font-size: 12.5px; font-weight: 700; margin-top: 2px; }
+
+.spc-video-list { display: flex; flex-direction: column; gap: 10px; }
+.spc-video-card {
+  background: var(--surface); border: 1.5px solid var(--sandstone); border-radius: var(--card-radius);
+  padding: 14px 16px; box-shadow: var(--shadow-sm);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.spc-video-card-main { flex: 1; min-width: 0; }
+.spc-video-card-title { font-weight: 800; color: var(--text-main); font-size: 15px; line-height: 1.35; word-break: break-word; }
+.spc-video-card-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; font-size: 12px; color: var(--text-muted); }
+.spc-badge {
+  display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 2px 8px;
+  border-radius: 20px; white-space: nowrap; border: 1px solid var(--sandstone); background: var(--surface-alt, #f8f6f2);
+}
+.spc-badge.assigned { background: #eef2ff; border-color: #c7d2fe; color: #4f46e5; }
+.spc-badge.completed { background: #ecfdf5; border-color: #bbf7d0; color: var(--tulsi-dark); }
+.spc-badge.partially_completed { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+.spc-badge.not_started { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+
+.spc-video-card-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.spc-video-menu-wrap { position: relative; }
+.spc-video-menu-btn {
+  width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--sandstone); background: var(--surface);
+  cursor: pointer; font-size: 16px; font-weight: 800; color: var(--text-muted); line-height: 1;
+}
+.spc-video-menu-btn:hover { background: var(--sandstone); }
+.spc-video-menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 210px;
+  background: var(--surface); border: 1px solid var(--sandstone); border-radius: 10px;
+  box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+}
+.spc-video-menu.hidden { display: none; }
+.spc-video-menu-item {
+  display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 6px; border: none;
+  background: none; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--text-main); text-align: left;
+}
+.spc-video-menu-item:hover { background: var(--sandstone); }
+.spc-video-menu-item.danger { color: var(--danger); }
+.spc-video-menu-item.danger:hover { background: #fef2f2; }
+
+/* .tag-check-group only sets flex-wrap/row-gap, not display:flex — other
+   pages that use it (Limited Access, filter dropdowns) supply their own flex
+   context, e.g. .filter-dropdown.open .filter-dropdown-panel. Without one,
+   each .tag-check (itself display:flex, a block-level box) fills the full
+   container width and stacks — this class supplies that missing context so
+   a coordinator list renders as wrapping chips instead. */
+.tag-check-chips { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.spc-select-all { display: inline-flex; margin: 8px 0 6px; }
+
 /* small green "% completed" badge next to a page/card title */
 .completion-badge {
   display: inline-flex; align-items: center; justify-content: center;

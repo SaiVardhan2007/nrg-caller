@@ -54,7 +54,8 @@ let sadhanaCache = [];
 let filtersWired = false;
 let modalWired = false;
 let bulkImportWired = false;
-let trackedNamesCache = [];
+let trackedNamesSorted = [];
+let trackedNamesSet = new Set();
 
 // Names come from the tracked-user roster (same set as the "Enter Sadhana"
 // page) so admin entries can't drift into typo'd variants of a real name.
@@ -62,15 +63,21 @@ let trackedNamesCache = [];
 // fallen out of the tracked roster, so editing never silently blanks it.
 async function loadTrackedNames() {
   const { data } = await supabase.from("users").select("user_name").eq("sadhana_track", true).order("user_name");
-  trackedNamesCache = (data || []).map((u) => u.user_name);
+  // Sorted/deduped once here instead of inside nameOptionsHtml, which used to
+  // rebuild+sort this list on every single row — with the full sadhana
+  // history rendered at once, that made the render O(rows × names) and could
+  // freeze the tab for seconds (e.g. the SP Classes tab wouldn't respond to
+  // a click until the whole table finished rendering).
+  trackedNamesSorted = [...new Set((data || []).map((u) => u.user_name))].sort((a, b) => a.localeCompare(b));
+  trackedNamesSet = new Set(trackedNamesSorted);
 }
 
 function nameOptionsHtml(current) {
-  const opts = new Set(trackedNamesCache);
-  if (current) opts.add(current);
-  const sorted = Array.from(opts).sort((a, b) => a.localeCompare(b));
+  const names = current && !trackedNamesSet.has(current)
+    ? [...trackedNamesSorted, current].sort((a, b) => a.localeCompare(b))
+    : trackedNamesSorted;
   return `<option value="">— Select —</option>` +
-    sorted.map((v) => `<option value="${escapeHtml(v)}" ${v === current ? "selected" : ""}>${escapeHtml(v)}</option>`).join("");
+    names.map((v) => `<option value="${escapeHtml(v)}" ${v === current ? "selected" : ""}>${escapeHtml(v)}</option>`).join("");
 }
 
 function duplicateKey(name, date) {

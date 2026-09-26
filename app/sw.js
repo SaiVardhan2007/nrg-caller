@@ -1,4 +1,4 @@
-const CACHE_NAME = "fnrg-preaching-v235";
+const CACHE_NAME = "fnrg-preaching-v244";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -33,20 +33,36 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// App shell: network-first. Always fetch the latest JS/HTML when online so
-// code fixes reach an already-open tab/PWA session immediately instead of
-// waiting for a stale-while-revalidate cache to catch up over two reloads.
-// Falls back to the cache only when the network is unavailable (offline).
+// App shell: network-first, but racing a timeout against the cache. A cold
+// launch (app opened fresh from the home screen, not resumed from Recents)
+// has to spin up DNS/TLS/TCP from scratch, which can take many seconds on a
+// weak signal — and since this handler used to always await the network,
+// the splash logo would sit there the whole time. Now, if a cached shell
+// exists, a slow network falls back to it after NETWORK_TIMEOUT_MS so the
+// app opens instantly; the network fetch keeps running in the background
+// and still updates the cache, so code fixes still reach the next open.
+// Falls back to the cache on outright network failure (offline) too.
 // All Supabase API calls go straight to the network untouched, same as before.
+const NETWORK_TIMEOUT_MS = 2500;
+
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return; // let Supabase/CDN requests pass through untouched
 
   event.respondWith(
-    fetch(event.request).then((networkResp) => {
-      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResp.clone()));
-      return networkResp;
-    }).catch(() => caches.match(event.request))
+    (async () => {
+      const cached = await caches.match(event.request);
+
+      const networkFetch = fetch(event.request).then((networkResp) => {
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResp.clone()));
+        return networkResp;
+      });
+
+      if (!cached) return networkFetch.catch(() => caches.match(event.request));
+
+      const timeout = new Promise((resolve) => setTimeout(() => resolve(cached), NETWORK_TIMEOUT_MS));
+      return Promise.race([networkFetch.catch(() => cached), timeout]);
+    })()
   );
 });
 
