@@ -494,8 +494,18 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 }
 .data-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--card-radius); }
 @media (min-width: 641px) {
-  #contacts-table, #collection-submissions-admin-table {
+  #contacts-table {
     min-width: 1400px;
+  }
+  /* New Contacts has several columns Master Contact doesn't (Comment,
+     Collected By, Source, User Reviews) on top of the shared ones, so
+     reusing Master Contact's 1400px floor left no room for the per-column
+     widths below and forced them all back down to cramped defaults. */
+  #collection-submissions-admin-table {
+    min-width: 2900px;
+  }
+  #form-import-entries-table {
+    min-width: 2370px;
   }
 }
 
@@ -805,6 +815,65 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #contacts-table th[data-label="Core Cultivation"], #contacts-table td[data-label="Core Cultivation"] select { min-width: 100px !important; width: 100px !important; }
 #contacts-table th[data-label="Calling Purpose"], #contacts-table td[data-label="Calling Purpose"] select { min-width: 100px !important; width: 100px !important; }
 #contacts-table th[data-label="GFY Status"], #contacts-table td[data-label="GFY Status"] select { min-width: 105px !important; width: 105px !important; }
+
+/* New Contacts (Contact Collection + Sheets-synced submissions): also
+   drag-reorderable — see initColumnDragReorder("collection-submissions-
+   admin-table") in admin.js — so widths are keyed by data-label like Master
+   Contact above. Every column used to fall through to no explicit width at
+   all (Master Contact's nth-child/data-label rules are scoped to
+   #contacts-table only), leaving selects/inputs sized to whatever tiny
+   default the browser picked and their real values ellipsis-clipped.
+   Comment/Collected By/Source/GFY-AOMC don't exist on Master Contact so get
+   their own sizing here rather than reusing its (missing) tuning. */
+/* Every "flexible" column below (max-width: none) also gets a matching
+   min-width — width alone is only a *preferred* size under auto table
+   layout, so when the columns' widths summed to less than the table's own
+   (wider) container, the browser's leftover-space redistribution actually
+   shrank some columns (PG Name, Comment, ...) below their specified width
+   instead of only growing others — silently reintroducing the clipping
+   this block exists to fix. min-width is what actually floors it. */
+#collection-submissions-admin-table th[data-label="S.No"], #collection-submissions-admin-table td[data-label="S.No"] { width: 40px !important; max-width: 40px !important; padding: 8px 2px !important; text-align: center; }
+#collection-submissions-admin-table th[data-label="Time"], #collection-submissions-admin-table td[data-label="Time"] { width: 175px !important; max-width: none !important; white-space: nowrap !important; overflow: visible !important; line-height: 1.3; }
+#collection-submissions-admin-table th[data-label="Name"], #collection-submissions-admin-table td[data-label="Name"], #collection-submissions-admin-table td[data-label="Name"] input { width: 230px !important; min-width: 230px !important; max-width: none !important; }
+#collection-submissions-admin-table th[data-label="Phone"], #collection-submissions-admin-table td[data-label="Phone"], #collection-submissions-admin-table td[data-label="Phone"] input { min-width: 105px !important; width: 105px !important; max-width: 105px !important; }
+#collection-submissions-admin-table th[data-label="PG Name"], #collection-submissions-admin-table td[data-label="PG Name"], #collection-submissions-admin-table td[data-label="PG Name"] input { width: 260px !important; min-width: 260px !important; max-width: none !important; }
+#collection-submissions-admin-table th[data-label="Profession"], #collection-submissions-admin-table td[data-label="Profession"] select { min-width: 70px !important; width: 70px !important; padding: 4px 2px !important; }
+#collection-submissions-admin-table th[data-label="Gender"], #collection-submissions-admin-table td[data-label="Gender"] select { min-width: 75px !important; width: 75px !important; padding: 4px 2px !important; }
+#collection-submissions-admin-table th[data-label="Sessions"], #collection-submissions-admin-table td[data-label="Sessions"],
+#collection-submissions-admin-table th[data-label="Calls"], #collection-submissions-admin-table td[data-label="Calls"] { width: 55px !important; text-align: center; padding-left: 4px !important; padding-right: 4px !important; }
+#collection-submissions-admin-table th[data-label="Admin Tag to Users"], #collection-submissions-admin-table td[data-label="Admin Tag to Users"] select { min-width: 130px !important; width: 130px !important; }
+#collection-submissions-admin-table th[data-label="Core Cultivation"], #collection-submissions-admin-table td[data-label="Core Cultivation"] select { min-width: 220px !important; width: 220px !important; }
+#collection-submissions-admin-table th[data-label="Calling Purpose"], #collection-submissions-admin-table td[data-label="Calling Purpose"] select { min-width: 210px !important; width: 210px !important; }
+/* GFY/AOMC's longest real option is "Not Intrested AOMC" (19 chars) — no
+   table tunes this column's real data-label anywhere else in the app, so
+   it needs its own width rather than inheriting a narrower guess. */
+#collection-submissions-admin-table th[data-label="GFY/AOMC"], #collection-submissions-admin-table td[data-label="GFY/AOMC"] select { min-width: 210px !important; width: 210px !important; }
+#collection-submissions-admin-table th[data-label="Comment"], #collection-submissions-admin-table td[data-label="Comment"], #collection-submissions-admin-table td[data-label="Comment"] input { width: 280px !important; min-width: 280px !important; max-width: none !important; }
+#collection-submissions-admin-table th[data-label="Collected By"], #collection-submissions-admin-table td[data-label="Collected By"], #collection-submissions-admin-table td[data-label="Collected By"] input { width: 180px !important; min-width: 180px !important; max-width: none !important; }
+#collection-submissions-admin-table th[data-label="Source"], #collection-submissions-admin-table td[data-label="Source"], #collection-submissions-admin-table td[data-label="Source"] input { width: 190px !important; min-width: 190px !important; max-width: none !important; }
+#collection-submissions-admin-table th[data-label="User Reviews"], #collection-submissions-admin-table td[data-label="User Reviews"] { width: 100px !important; max-width: 100px !important; text-align: center; }
+#collection-submissions-admin-table th[data-label="Admin Review"], #collection-submissions-admin-table td[data-label="Admin Review"] { width: 110px !important; max-width: 110px !important; text-align: center; }
+#collection-submissions-admin-table th[data-label=""], #collection-submissions-admin-table td[data-label=""] { width: 170px !important; max-width: 170px !important; min-width: 170px !important; }
+
+/* Form Import entries: not drag-reorderable (fixed column set defined in
+   index.html), so widths key by position instead of data-label. Same
+   problem as New Contacts above — nothing here reused Master Contact's
+   scoped tuning, so every select/input was left at its cramped default;
+   same min-width-alongside-width reasoning as the block above applies here
+   too. */
+#form-import-entries-table th:nth-child(1), #form-import-entries-table td:nth-child(1), #form-import-entries-table td:nth-child(1) input { min-width: 105px !important; width: 105px !important; max-width: 105px !important; } /* Phone */
+#form-import-entries-table th:nth-child(2), #form-import-entries-table td:nth-child(2), #form-import-entries-table td:nth-child(2) input { width: 230px !important; min-width: 230px !important; max-width: none !important; } /* Name */
+#form-import-entries-table th:nth-child(3), #form-import-entries-table td:nth-child(3), #form-import-entries-table td:nth-child(3) input { width: 260px !important; min-width: 260px !important; max-width: none !important; } /* PG Name */
+#form-import-entries-table th:nth-child(4), #form-import-entries-table td:nth-child(4), #form-import-entries-table td:nth-child(4) input { width: 220px !important; min-width: 220px !important; max-width: none !important; } /* Profession (free text) */
+#form-import-entries-table th:nth-child(5), #form-import-entries-table td:nth-child(5), #form-import-entries-table td:nth-child(5) input { width: 230px !important; min-width: 230px !important; max-width: none !important; } /* Org / Company */
+#form-import-entries-table th:nth-child(6), #form-import-entries-table td:nth-child(6) select { min-width: 70px !important; width: 70px !important; padding: 4px 2px !important; } /* W/S */
+#form-import-entries-table th:nth-child(7), #form-import-entries-table td:nth-child(7) select { min-width: 75px !important; width: 75px !important; padding: 4px 2px !important; } /* Gender */
+#form-import-entries-table th:nth-child(8), #form-import-entries-table td:nth-child(8) select { min-width: 130px !important; width: 130px !important; } /* Admin Tag to Users */
+#form-import-entries-table th:nth-child(9), #form-import-entries-table td:nth-child(9) select { min-width: 220px !important; width: 220px !important; } /* Core Cultivation */
+#form-import-entries-table th:nth-child(10), #form-import-entries-table td:nth-child(10) select { min-width: 210px !important; width: 210px !important; } /* Calling Purpose */
+#form-import-entries-table th:nth-child(11), #form-import-entries-table td:nth-child(11) select { min-width: 210px !important; width: 210px !important; } /* GFY/AOMC */
+#form-import-entries-table th:nth-child(12), #form-import-entries-table td:nth-child(12), #form-import-entries-table td:nth-child(12) input { width: 280px !important; min-width: 280px !important; max-width: none !important; } /* Admin Remarks */
+#form-import-entries-table th:nth-child(13), #form-import-entries-table td:nth-child(13) { width: 110px !important; min-width: 110px !important; max-width: 110px !important; text-align: center; } /* Add button */
 
 /* Book Distribution tables: also drag-reorderable, so widths are keyed by
    data-label like Master Contact above. Layout stays the browser default
