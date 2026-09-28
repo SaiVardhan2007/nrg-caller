@@ -171,7 +171,10 @@ function showScreen(id, { forceRefresh = false } = {}) {
     if (id === "sadhana-users-section") Sadhana.initSadhanaUsers(currentUser);
     if (id === "sadhana-analytics-section") Sadhana.initSadhanaAnalytics();
     if (id === "fnrg-sadhana-user-section") Sadhana.initFnrgSadhanaUser(currentUser);
-    if (id === "fnrg-sadhana-user-section") SpClasses.initFsuSpClasses(currentUser);
+    // User-facing Daily Class List/Recommendations/Doubts tabs are commented
+    // out in index.html until SP Classes has real data — keep this init out
+    // too so it doesn't try to wire up elements that aren't in the DOM.
+    // if (id === "fnrg-sadhana-user-section") SpClasses.initFsuSpClasses(currentUser);
     if (id === "spclasses-section") SpClasses.initSpClasses(currentUser);
     if (id === "donations-dashboard-section") Donations.initDonationsDashboard(currentUser);
     if (id === "donations-transactions-section") Donations.initDonationsTransactions(currentUser);
