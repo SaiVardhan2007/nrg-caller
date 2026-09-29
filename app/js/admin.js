@@ -4623,7 +4623,7 @@ const FORM_IMPORT_FIELD_OPTIONS = [
   { value: "calling_purpose", label: "Calling Purpose (event)" },
   { value: "gyc_status", label: "GFY/AOMC" },
   { value: "admin_remarks", label: "Admin Remarks" },
-  { value: "__timestamp__", label: "Timestamp (date filter only)" },
+  { value: "__timestamp__", label: "Timestamp" },
 ];
 
 let formImportWired = false;
@@ -4655,33 +4655,8 @@ function normalizeFormGycStatus(raw) {
 }
 
 export async function initFormImport() {
-  const toggleBtn = document.getElementById("form-import-webhook-toggle-btn");
-  const webhookBox = document.getElementById("form-import-webhook-box");
-
   if (!formImportWired) {
     formImportWired = true;
-
-    toggleBtn.addEventListener("click", () => {
-      webhookBox.classList.toggle("hidden");
-    });
-
-    document.getElementById("form-import-webhook-save-btn").addEventListener("click", async () => {
-      const url = document.getElementById("form-import-webhook-url-input").value.trim();
-      const secret = document.getElementById("form-import-webhook-secret-input").value.trim();
-      const errEl = document.getElementById("form-import-webhook-error");
-      errEl.classList.add("hidden");
-      if (!url) {
-        errEl.textContent = "Webhook URL is required.";
-        errEl.classList.remove("hidden");
-        return;
-      }
-      await setSetting("form_import_webhook_url", url);
-      await setSetting("form_import_secret", secret);
-      formImportWebhookUrl = url;
-      formImportSecret = secret;
-      showToast("Webhook settings saved", "success");
-      webhookBox.classList.add("hidden");
-    });
 
     document.getElementById("form-import-add-source-btn").addEventListener("click", () => openFormImportSourceModal());
     document.getElementById("fi-source-cancel-btn").addEventListener("click", () => {
@@ -4713,9 +4688,6 @@ export async function initFormImport() {
 
   formImportWebhookUrl = await getSetting("form_import_webhook_url");
   formImportSecret = await getSetting("form_import_secret");
-  document.getElementById("form-import-webhook-url-input").value = formImportWebhookUrl;
-  document.getElementById("form-import-webhook-secret-input").value = formImportSecret;
-  if (!formImportWebhookUrl) webhookBox.classList.remove("hidden");
 
   showFormImportListView();
   await loadEvents();
@@ -4852,7 +4824,7 @@ async function saveFormImportSource() {
 
 async function fetchFormImportRows(source) {
   if (!formImportWebhookUrl) {
-    showToast("Configure the Webhook URL first (⚙ Webhook Setup).", "error");
+    showToast("Form Import webhook is not configured in the database.", "error");
     return null;
   }
   const params = new URLSearchParams({
@@ -5047,12 +5019,13 @@ function renderFormImportEntriesTable() {
   const tbody = document.getElementById("form-import-entries-body");
 
   if (!formImportEntriesCache.length) {
-    tbody.innerHTML = `<tr><td colspan="13" class="loading-row">Nothing to show.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14" class="loading-row">Nothing to show.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = formImportEntriesCache.map((entry, idx) => `
     <tr data-index="${idx}">
+      <td data-label="Time">${entry._timestampMs ? new Date(entry._timestampMs).toLocaleString() : "—"}</td>
       <td data-label="Phone"><input class="inline-edit fi-entry-field" data-field="mob_no" data-index="${idx}" value="${escapeHtml(entry.mob_no || "")}" /></td>
       <td data-label="Name"><input class="inline-edit fi-entry-field" data-field="name" data-index="${idx}" value="${escapeHtml(entry.name || "")}" /></td>
       <td data-label="PG Name"><input class="inline-edit fi-entry-field" data-field="pg_name" data-index="${idx}" value="${escapeHtml(entry.pg_name || "")}" /></td>
@@ -5156,8 +5129,13 @@ function renderFormImportEntriesTable() {
   });
 }
 
-function buildFormImportContactPayload(entry) {
-  return {
+// includeTimestamp is only true for brand-new inserts — the mapped
+// Timestamp column becomes the contact's created_at (its actual form
+// submission time) instead of the moment an admin clicks "Add" here. It's
+// left out of the update-existing-contact path so it never overwrites that
+// contact's real original created_at.
+function buildFormImportContactPayload(entry, includeTimestamp) {
+  const payload = {
     mob_no: entry.mob_no,
     name: entry.name,
     pg_name: entry.pg_name || null,
@@ -5171,6 +5149,10 @@ function buildFormImportContactPayload(entry) {
     gyc_status: entry.gyc_status || null,
     admin_remarks: entry.admin_remarks || null,
   };
+  if (includeTimestamp && entry._timestampMs) {
+    payload.created_at = new Date(entry._timestampMs).toISOString();
+  }
+  return payload;
 }
 
 function updateFormImportSummaryCount() {
@@ -5208,7 +5190,7 @@ async function addFormImportEntry(idx) {
       return;
     }
 
-    const { error: insErr } = await supabase.from("contacts").insert(buildFormImportContactPayload(entry));
+    const { error: insErr } = await supabase.from("contacts").insert(buildFormImportContactPayload(entry, true));
     if (insErr) throw insErr;
 
     showToast(`${entry.name} added to Master Contacts!`, "success");
@@ -5251,7 +5233,7 @@ async function addAllFormImportEntries() {
 
     let insertedCount = 0;
     if (toInsert.length) {
-      const { error: insErr } = await supabase.from("contacts").insert(toInsert.map(buildFormImportContactPayload));
+      const { error: insErr } = await supabase.from("contacts").insert(toInsert.map((entry) => buildFormImportContactPayload(entry, true)));
       if (insErr) throw insErr;
       insertedCount = toInsert.length;
     }

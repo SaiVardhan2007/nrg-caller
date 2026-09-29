@@ -500,12 +500,16 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   /* New Contacts has several columns Master Contact doesn't (Comment,
      Collected By, Source, User Reviews) on top of the shared ones, so
      reusing Master Contact's 1400px floor left no room for the per-column
-     widths below and forced them all back down to cramped defaults. */
+     widths below. Sized to the sum of the per-column widths further down
+     this file — shared columns are pinned to Master Contact's own exact
+     widths (see that block's comment), the rest sized just wide enough for
+     their real values so the browser's auto table-layout redistribution
+     can't shrink or stretch anything past what's intended. */
   #collection-submissions-admin-table {
-    min-width: 2900px;
+    min-width: 2100px;
   }
   #form-import-entries-table {
-    min-width: 2370px;
+    min-width: 1800px;
   }
 }
 
@@ -819,12 +823,13 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 /* New Contacts (Contact Collection + Sheets-synced submissions): also
    drag-reorderable — see initColumnDragReorder("collection-submissions-
    admin-table") in admin.js — so widths are keyed by data-label like Master
-   Contact above. Every column used to fall through to no explicit width at
-   all (Master Contact's nth-child/data-label rules are scoped to
-   #contacts-table only), leaving selects/inputs sized to whatever tiny
-   default the browser picked and their real values ellipsis-clipped.
-   Comment/Collected By/Source/GFY-AOMC don't exist on Master Contact so get
-   their own sizing here rather than reusing its (missing) tuning. */
+   Contact above. Columns shared with Master Contact (S.No, Time/Time Stamp,
+   Name, Phone, PG Name, Profession, Gender, Sessions, Calls, Admin Tag to
+   Users, Core Cultivation, Calling Purpose) are pinned to that table's exact
+   widths (see #contacts-table's own block above) rather than each guessing
+   its own. Comment/Collected By/Source/GFY-AOMC don't exist on Master
+   Contact so get their own sizing here, just wide enough for their real
+   values without ballooning past what's needed. */
 /* Every "flexible" column below (max-width: none) also gets a matching
    min-width — width alone is only a *preferred* size under auto table
    layout, so when the columns' widths summed to less than the table's own
@@ -834,46 +839,50 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    this block exists to fix. min-width is what actually floors it. */
 #collection-submissions-admin-table th[data-label="S.No"], #collection-submissions-admin-table td[data-label="S.No"] { width: 40px !important; max-width: 40px !important; padding: 8px 2px !important; text-align: center; }
 #collection-submissions-admin-table th[data-label="Time"], #collection-submissions-admin-table td[data-label="Time"] { width: 175px !important; max-width: none !important; white-space: nowrap !important; overflow: visible !important; line-height: 1.3; }
-#collection-submissions-admin-table th[data-label="Name"], #collection-submissions-admin-table td[data-label="Name"], #collection-submissions-admin-table td[data-label="Name"] input { width: 230px !important; min-width: 230px !important; max-width: none !important; }
+#collection-submissions-admin-table th[data-label="Name"], #collection-submissions-admin-table td[data-label="Name"], #collection-submissions-admin-table td[data-label="Name"] input { width: 190px !important; min-width: 190px !important; max-width: none !important; }
 #collection-submissions-admin-table th[data-label="Phone"], #collection-submissions-admin-table td[data-label="Phone"], #collection-submissions-admin-table td[data-label="Phone"] input { min-width: 105px !important; width: 105px !important; max-width: 105px !important; }
-#collection-submissions-admin-table th[data-label="PG Name"], #collection-submissions-admin-table td[data-label="PG Name"], #collection-submissions-admin-table td[data-label="PG Name"] input { width: 260px !important; min-width: 260px !important; max-width: none !important; }
-#collection-submissions-admin-table th[data-label="Profession"], #collection-submissions-admin-table td[data-label="Profession"] select { min-width: 70px !important; width: 70px !important; padding: 4px 2px !important; }
+#collection-submissions-admin-table th[data-label="PG Name"], #collection-submissions-admin-table td[data-label="PG Name"], #collection-submissions-admin-table td[data-label="PG Name"] input { width: 170px !important; min-width: 170px !important; max-width: none !important; }
+#collection-submissions-admin-table th[data-label="Profession"], #collection-submissions-admin-table td[data-label="Profession"] select { min-width: 55px !important; width: 55px !important; padding: 4px 2px !important; }
 #collection-submissions-admin-table th[data-label="Gender"], #collection-submissions-admin-table td[data-label="Gender"] select { min-width: 75px !important; width: 75px !important; padding: 4px 2px !important; }
 #collection-submissions-admin-table th[data-label="Sessions"], #collection-submissions-admin-table td[data-label="Sessions"],
-#collection-submissions-admin-table th[data-label="Calls"], #collection-submissions-admin-table td[data-label="Calls"] { width: 55px !important; text-align: center; padding-left: 4px !important; padding-right: 4px !important; }
-#collection-submissions-admin-table th[data-label="Admin Tag to Users"], #collection-submissions-admin-table td[data-label="Admin Tag to Users"] select { min-width: 130px !important; width: 130px !important; }
-#collection-submissions-admin-table th[data-label="Core Cultivation"], #collection-submissions-admin-table td[data-label="Core Cultivation"] select { min-width: 220px !important; width: 220px !important; }
-#collection-submissions-admin-table th[data-label="Calling Purpose"], #collection-submissions-admin-table td[data-label="Calling Purpose"] select { min-width: 210px !important; width: 210px !important; }
+#collection-submissions-admin-table th[data-label="Calls"], #collection-submissions-admin-table td[data-label="Calls"] { width: 48px !important; text-align: center; padding-left: 4px !important; padding-right: 4px !important; }
+#collection-submissions-admin-table th[data-label="Admin Tag to Users"], #collection-submissions-admin-table td[data-label="Admin Tag to Users"] select { min-width: 105px !important; width: 105px !important; }
+#collection-submissions-admin-table th[data-label="Core Cultivation"], #collection-submissions-admin-table td[data-label="Core Cultivation"] select { min-width: 100px !important; width: 100px !important; }
+#collection-submissions-admin-table th[data-label="Calling Purpose"], #collection-submissions-admin-table td[data-label="Calling Purpose"] select { min-width: 100px !important; width: 100px !important; }
 /* GFY/AOMC's longest real option is "Not Intrested AOMC" (19 chars) — no
    table tunes this column's real data-label anywhere else in the app, so
    it needs its own width rather than inheriting a narrower guess. */
-#collection-submissions-admin-table th[data-label="GFY/AOMC"], #collection-submissions-admin-table td[data-label="GFY/AOMC"] select { min-width: 210px !important; width: 210px !important; }
-#collection-submissions-admin-table th[data-label="Comment"], #collection-submissions-admin-table td[data-label="Comment"], #collection-submissions-admin-table td[data-label="Comment"] input { width: 280px !important; min-width: 280px !important; max-width: none !important; }
-#collection-submissions-admin-table th[data-label="Collected By"], #collection-submissions-admin-table td[data-label="Collected By"], #collection-submissions-admin-table td[data-label="Collected By"] input { width: 180px !important; min-width: 180px !important; max-width: none !important; }
-#collection-submissions-admin-table th[data-label="Source"], #collection-submissions-admin-table td[data-label="Source"], #collection-submissions-admin-table td[data-label="Source"] input { width: 190px !important; min-width: 190px !important; max-width: none !important; }
-#collection-submissions-admin-table th[data-label="User Reviews"], #collection-submissions-admin-table td[data-label="User Reviews"] { width: 100px !important; max-width: 100px !important; text-align: center; }
-#collection-submissions-admin-table th[data-label="Admin Review"], #collection-submissions-admin-table td[data-label="Admin Review"] { width: 110px !important; max-width: 110px !important; text-align: center; }
-#collection-submissions-admin-table th[data-label=""], #collection-submissions-admin-table td[data-label=""] { width: 170px !important; max-width: 170px !important; min-width: 170px !important; }
+#collection-submissions-admin-table th[data-label="GFY/AOMC"], #collection-submissions-admin-table td[data-label="GFY/AOMC"] select { min-width: 140px !important; width: 140px !important; }
+#collection-submissions-admin-table th[data-label="Comment"], #collection-submissions-admin-table td[data-label="Comment"], #collection-submissions-admin-table td[data-label="Comment"] input { width: 150px !important; min-width: 150px !important; max-width: none !important; }
+#collection-submissions-admin-table th[data-label="Collected By"], #collection-submissions-admin-table td[data-label="Collected By"], #collection-submissions-admin-table td[data-label="Collected By"] input { width: 110px !important; min-width: 110px !important; max-width: none !important; }
+#collection-submissions-admin-table th[data-label="Source"], #collection-submissions-admin-table td[data-label="Source"], #collection-submissions-admin-table td[data-label="Source"] input { width: 130px !important; min-width: 130px !important; max-width: none !important; }
+#collection-submissions-admin-table th[data-label="User Reviews"], #collection-submissions-admin-table td[data-label="User Reviews"] { width: 90px !important; max-width: 90px !important; text-align: center; }
+#collection-submissions-admin-table th[data-label="Admin Review"], #collection-submissions-admin-table td[data-label="Admin Review"] { width: 100px !important; max-width: 100px !important; text-align: center; }
+#collection-submissions-admin-table th[data-label=""], #collection-submissions-admin-table td[data-label=""] { width: 150px !important; max-width: 150px !important; min-width: 150px !important; }
 
 /* Form Import entries: not drag-reorderable (fixed column set defined in
-   index.html), so widths key by position instead of data-label. Same
-   problem as New Contacts above — nothing here reused Master Contact's
-   scoped tuning, so every select/input was left at its cramped default;
-   same min-width-alongside-width reasoning as the block above applies here
-   too. */
-#form-import-entries-table th:nth-child(1), #form-import-entries-table td:nth-child(1), #form-import-entries-table td:nth-child(1) input { min-width: 105px !important; width: 105px !important; max-width: 105px !important; } /* Phone */
-#form-import-entries-table th:nth-child(2), #form-import-entries-table td:nth-child(2), #form-import-entries-table td:nth-child(2) input { width: 230px !important; min-width: 230px !important; max-width: none !important; } /* Name */
-#form-import-entries-table th:nth-child(3), #form-import-entries-table td:nth-child(3), #form-import-entries-table td:nth-child(3) input { width: 260px !important; min-width: 260px !important; max-width: none !important; } /* PG Name */
-#form-import-entries-table th:nth-child(4), #form-import-entries-table td:nth-child(4), #form-import-entries-table td:nth-child(4) input { width: 220px !important; min-width: 220px !important; max-width: none !important; } /* Profession (free text) */
-#form-import-entries-table th:nth-child(5), #form-import-entries-table td:nth-child(5), #form-import-entries-table td:nth-child(5) input { width: 230px !important; min-width: 230px !important; max-width: none !important; } /* Org / Company */
-#form-import-entries-table th:nth-child(6), #form-import-entries-table td:nth-child(6) select { min-width: 70px !important; width: 70px !important; padding: 4px 2px !important; } /* W/S */
-#form-import-entries-table th:nth-child(7), #form-import-entries-table td:nth-child(7) select { min-width: 75px !important; width: 75px !important; padding: 4px 2px !important; } /* Gender */
-#form-import-entries-table th:nth-child(8), #form-import-entries-table td:nth-child(8) select { min-width: 130px !important; width: 130px !important; } /* Admin Tag to Users */
-#form-import-entries-table th:nth-child(9), #form-import-entries-table td:nth-child(9) select { min-width: 220px !important; width: 220px !important; } /* Core Cultivation */
-#form-import-entries-table th:nth-child(10), #form-import-entries-table td:nth-child(10) select { min-width: 210px !important; width: 210px !important; } /* Calling Purpose */
-#form-import-entries-table th:nth-child(11), #form-import-entries-table td:nth-child(11) select { min-width: 210px !important; width: 210px !important; } /* GFY/AOMC */
-#form-import-entries-table th:nth-child(12), #form-import-entries-table td:nth-child(12), #form-import-entries-table td:nth-child(12) input { width: 280px !important; min-width: 280px !important; max-width: none !important; } /* Admin Remarks */
-#form-import-entries-table th:nth-child(13), #form-import-entries-table td:nth-child(13) { width: 110px !important; min-width: 110px !important; max-width: 110px !important; text-align: center; } /* Add button */
+   index.html), so widths key by position instead of data-label. Columns
+   shared with Master Contact (Phone, Name, PG Name, Gender, Admin Tag to
+   Users, Core Cultivation, Calling Purpose) are pinned to that table's exact
+   widths, same reasoning as the New Contacts block above; the rest (Time,
+   free-text Profession/Org/Admin Remarks, GFY/AOMC) are sized just wide
+   enough for their real values. min-width alongside width for the same
+   reason as above — otherwise auto table layout can shrink a column back
+   below its intended size when redistributing leftover space. */
+#form-import-entries-table th:nth-child(1), #form-import-entries-table td:nth-child(1) { width: 175px !important; min-width: 175px !important; max-width: none !important; white-space: nowrap !important; overflow: visible !important; line-height: 1.3; } /* Time */
+#form-import-entries-table th:nth-child(2), #form-import-entries-table td:nth-child(2), #form-import-entries-table td:nth-child(2) input { min-width: 105px !important; width: 105px !important; max-width: 105px !important; } /* Phone */
+#form-import-entries-table th:nth-child(3), #form-import-entries-table td:nth-child(3), #form-import-entries-table td:nth-child(3) input { width: 190px !important; min-width: 190px !important; max-width: none !important; } /* Name */
+#form-import-entries-table th:nth-child(4), #form-import-entries-table td:nth-child(4), #form-import-entries-table td:nth-child(4) input { width: 170px !important; min-width: 170px !important; max-width: none !important; } /* PG Name */
+#form-import-entries-table th:nth-child(5), #form-import-entries-table td:nth-child(5), #form-import-entries-table td:nth-child(5) input { width: 150px !important; min-width: 150px !important; max-width: none !important; } /* Profession (free text) */
+#form-import-entries-table th:nth-child(6), #form-import-entries-table td:nth-child(6), #form-import-entries-table td:nth-child(6) input { width: 150px !important; min-width: 150px !important; max-width: none !important; } /* Org / Company */
+#form-import-entries-table th:nth-child(7), #form-import-entries-table td:nth-child(7) select { min-width: 55px !important; width: 55px !important; padding: 4px 2px !important; } /* W/S */
+#form-import-entries-table th:nth-child(8), #form-import-entries-table td:nth-child(8) select { min-width: 75px !important; width: 75px !important; padding: 4px 2px !important; } /* Gender */
+#form-import-entries-table th:nth-child(9), #form-import-entries-table td:nth-child(9) select { min-width: 105px !important; width: 105px !important; } /* Admin Tag to Users */
+#form-import-entries-table th:nth-child(10), #form-import-entries-table td:nth-child(10) select { min-width: 100px !important; width: 100px !important; } /* Core Cultivation */
+#form-import-entries-table th:nth-child(11), #form-import-entries-table td:nth-child(11) select { min-width: 100px !important; width: 100px !important; } /* Calling Purpose */
+#form-import-entries-table th:nth-child(12), #form-import-entries-table td:nth-child(12) select { min-width: 140px !important; width: 140px !important; } /* GFY/AOMC */
+#form-import-entries-table th:nth-child(13), #form-import-entries-table td:nth-child(13), #form-import-entries-table td:nth-child(13) input { width: 150px !important; min-width: 150px !important; max-width: none !important; } /* Admin Remarks */
+#form-import-entries-table th:nth-child(14), #form-import-entries-table td:nth-child(14) { width: 90px !important; min-width: 90px !important; max-width: 90px !important; text-align: center; } /* Add button */
 
 /* Book Distribution tables: also drag-reorderable, so widths are keyed by
    data-label like Master Contact above. Layout stays the browser default
@@ -1206,47 +1215,46 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .trip-event-card-stats .stat.stat-negative .stat-num { font-weight: 800; }
 .trip-event-detail-title { font-size: 15px; color: var(--tulsi-dark); }
 
-/* ============ SP CLASSES: PLAYLIST CARDS & VIDEO CARDS ============ */
-.spc-playlist-card-count { color: var(--text-muted); font-size: 12.5px; font-weight: 700; margin-top: 2px; }
+/* ============ SB CLASSES: PLAYLIST CARDS & VIDEO CARDS ============ */
+.sbc-playlist-card-count { color: var(--text-muted); font-size: 12.5px; font-weight: 700; margin-top: 2px; }
 
-.spc-video-list { display: flex; flex-direction: column; gap: 10px; }
-.spc-video-card {
+.sbc-video-list { display: flex; flex-direction: column; gap: 10px; }
+.sbc-video-card {
   background: var(--surface); border: 1.5px solid var(--sandstone); border-radius: var(--card-radius);
   padding: 14px 16px; box-shadow: var(--shadow-sm);
   display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
 }
-.spc-video-card-main { flex: 1; min-width: 0; }
-.spc-video-card-title { font-weight: 800; color: var(--text-main); font-size: 15px; line-height: 1.35; word-break: break-word; }
-.spc-video-card-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; font-size: 12px; color: var(--text-muted); }
-.spc-badge {
+.sbc-video-card-main { flex: 1; min-width: 0; }
+.sbc-video-card-title { font-weight: 800; color: var(--text-main); font-size: 15px; line-height: 1.35; word-break: break-word; }
+.sbc-video-card-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; font-size: 12px; color: var(--text-muted); }
+.sbc-badge {
   display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 2px 8px;
   border-radius: 20px; white-space: nowrap; border: 1px solid var(--sandstone); background: var(--surface-alt, #f8f6f2);
 }
-.spc-badge.assigned { background: #eef2ff; border-color: #c7d2fe; color: #4f46e5; }
-.spc-badge.completed { background: #ecfdf5; border-color: #bbf7d0; color: var(--tulsi-dark); }
-.spc-badge.partially_completed { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
-.spc-badge.not_started { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+.sbc-badge.completed { background: #ecfdf5; border-color: #bbf7d0; color: var(--tulsi-dark); }
+.sbc-badge.partially_completed { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+.sbc-badge.not_started { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
 
-.spc-video-card-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.spc-video-menu-wrap { position: relative; }
-.spc-video-menu-btn {
+.sbc-video-card-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.sbc-video-menu-wrap { position: relative; }
+.sbc-video-menu-btn {
   width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--sandstone); background: var(--surface);
   cursor: pointer; font-size: 16px; font-weight: 800; color: var(--text-muted); line-height: 1;
 }
-.spc-video-menu-btn:hover { background: var(--sandstone); }
-.spc-video-menu {
+.sbc-video-menu-btn:hover { background: var(--sandstone); }
+.sbc-video-menu {
   position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 210px;
   background: var(--surface); border: 1px solid var(--sandstone); border-radius: 10px;
   box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; gap: 2px;
 }
-.spc-video-menu.hidden { display: none; }
-.spc-video-menu-item {
+.sbc-video-menu.hidden { display: none; }
+.sbc-video-menu-item {
   display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 6px; border: none;
   background: none; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--text-main); text-align: left;
 }
-.spc-video-menu-item:hover { background: var(--sandstone); }
-.spc-video-menu-item.danger { color: var(--danger); }
-.spc-video-menu-item.danger:hover { background: #fef2f2; }
+.sbc-video-menu-item:hover { background: var(--sandstone); }
+.sbc-video-menu-item.danger { color: var(--danger); }
+.sbc-video-menu-item.danger:hover { background: #fef2f2; }
 
 /* .tag-check-group only sets flex-wrap/row-gap, not display:flex — other
    pages that use it (Limited Access, filter dropdowns) supply their own flex
@@ -1255,7 +1263,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    container width and stacks — this class supplies that missing context so
    a coordinator list renders as wrapping chips instead. */
 .tag-check-chips { display: flex; flex-wrap: wrap; gap: 6px 8px; }
-.spc-select-all { display: inline-flex; margin: 8px 0 6px; }
+.sbc-select-all { display: inline-flex; margin: 8px 0 6px; }
 
 /* small green "% completed" badge next to a page/card title */
 .completion-badge {

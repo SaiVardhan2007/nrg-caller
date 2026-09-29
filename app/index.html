@@ -93,7 +93,7 @@
     <button class="admin-tab active" data-target="admin-sadhana-section">FNRG Sadhana</button>
     <button class="admin-tab" data-target="sadhana-users-section">Users</button>
     <button class="admin-tab" data-target="sadhana-analytics-section">Analytics</button>
-    <button class="admin-tab" data-target="spclasses-section">SP Classes</button>
+    <button class="admin-tab" data-target="sbclasses-section">SB Classes</button>
   </nav>
 
   <!-- ---- Donations tabs ---- -->
@@ -1700,59 +1700,58 @@
       </div>
     </section>
 
-    <!-- ===== FNRG SADHANA: SP Classes ===== -->
-    <section id="spclasses-section" class="page hidden">
-      <nav id="spclasses-tabs" class="admin-tabs fsu-tabs">
-        <button class="admin-tab active" data-target="spc-dashboard-panel">Dashboard</button>
-        <button class="admin-tab" data-target="spc-daily-panel">Daily Class List</button>
-        <button class="admin-tab" data-target="spc-playlists-panel">Playlists</button>
-        <button class="admin-tab" data-target="spc-recommendations-panel">Recommendations</button>
-        <button class="admin-tab" data-target="spc-doubts-panel">Doubts</button>
+    <!-- ===== FNRG SADHANA: SB Classes ===== -->
+    <section id="sbclasses-section" class="page hidden">
+      <nav id="sbclasses-tabs" class="admin-tabs fsu-tabs">
+        <button class="admin-tab active" data-target="sbc-dashboard-panel">Dashboard</button>
+        <button class="admin-tab" data-target="sbc-daily-panel">Daily Class List</button>
+        <button class="admin-tab" data-target="sbc-playlists-panel">Playlists</button>
+        <button class="admin-tab" data-target="sbc-recommendations-panel">Recommendations</button>
+        <button class="admin-tab" data-target="sbc-doubts-panel">Doubts</button>
       </nav>
 
       <!-- Dashboard -->
-      <div id="spc-dashboard-panel" class="fsu-panel">
+      <div id="sbc-dashboard-panel" class="fsu-panel">
         <div class="stats-bar">
-          <div class="stat stat-total"><span id="spc-stat-total" class="stat-num">0</span><span class="stat-label">Total Classes</span></div>
-          <div class="stat"><span id="spc-stat-playlists" class="stat-num">0</span><span class="stat-label">Playlists</span></div>
-          <div class="stat stat-assigned"><span id="spc-stat-assigned" class="stat-num">0</span><span class="stat-label">Assigned</span></div>
-          <div class="stat stat-pending"><span id="spc-stat-not-started" class="stat-num">0</span><span class="stat-label">Not Started</span></div>
-          <div class="stat"><span id="spc-stat-partial" class="stat-num">0</span><span class="stat-label">Partially Completed</span></div>
-          <div class="stat stat-positive"><span id="spc-stat-completed" class="stat-num">0</span><span class="stat-label">Completed</span></div>
+          <div class="stat stat-total"><span id="sbc-stat-total" class="stat-num">0</span><span class="stat-label">Total Classes</span></div>
+          <div class="stat"><span id="sbc-stat-playlists" class="stat-num">0</span><span class="stat-label">Playlists</span></div>
+          <div class="stat stat-pending"><span id="sbc-stat-not-started" class="stat-num">0</span><span class="stat-label">Not Started</span></div>
+          <div class="stat"><span id="sbc-stat-partial" class="stat-num">0</span><span class="stat-label">In Progress</span></div>
+          <div class="stat stat-positive"><span id="sbc-stat-completed" class="stat-num">0</span><span class="stat-label">Completed</span></div>
         </div>
         <div class="panel">
           <h3 class="section-title">Recently Added Classes</h3>
           <div class="table-wrap">
             <table class="data-table">
               <thead><tr><th data-label="Date">Date</th><th data-label="Title">Title</th><th data-label="Playlist">Playlist</th><th data-label="Recommend Level">Recommend Level</th><th data-label="Completion">Completion</th></tr></thead>
-              <tbody id="spc-recent-body"><tr><td colspan="5" class="loading-row">Loading…</td></tr></tbody>
+              <tbody id="sbc-recent-body"><tr><td colspan="5" class="loading-row">Loading…</td></tr></tbody>
             </table>
           </div>
         </div>
       </div>
 
       <!-- Daily Class List -->
-      <div id="spc-daily-panel" class="fsu-panel hidden">
+      <div id="sbc-daily-panel" class="fsu-panel hidden">
         <div class="users-page-layout">
           <div class="panel users-sidebar">
             <div class="users-toolbar">
-              <input id="spc-daily-search" type="search" placeholder="Search title…" class="search-input" />
-              <label class="field inline"><span>Playlist</span><select id="spc-daily-filter-playlist" class="inline-edit"><option value="__ALL__">All</option></select></label>
+              <input id="sbc-daily-search" type="search" placeholder="Search title…" class="search-input" />
+              <label class="field inline"><span>Playlist</span><select id="sbc-daily-filter-playlist" class="inline-edit"><option value="__ALL__">All</option></select></label>
               <label class="field inline"><span>Completion</span>
-                <select id="spc-daily-filter-completion" class="inline-edit">
+                <select id="sbc-daily-filter-completion" class="inline-edit">
                   <option value="__ALL__">All</option>
                   <option value="not_started">Not Started</option>
-                  <option value="partially_completed">Partially Completed</option>
+                  <option value="partially_completed">In Progress</option>
                   <option value="completed">Completed</option>
                 </select>
               </label>
-              <button id="spc-add-class-btn" class="btn btn-primary toolbar-btn">+ Add Class</button>
+              <button id="sbc-add-class-btn" class="btn btn-primary toolbar-btn">+ Add Class</button>
             </div>
           </div>
 
           <div class="users-content">
-            <div class="table-wrap" id="spc-daily-table-wrap">
-              <table class="data-table" id="spc-daily-table">
+            <div class="table-wrap" id="sbc-daily-table-wrap">
+              <table class="data-table" id="sbc-daily-table">
                 <thead>
                   <tr>
                     <th data-label="S.No">S.No</th>
@@ -1760,13 +1759,12 @@
                     <th data-label="Title">Title</th>
                     <th data-label="Link">Link</th>
                     <th data-label="Playlist">Playlist</th>
-                    <th data-label="Assigned">Assigned</th>
                     <th data-label="Recommend Level">Recommend Level</th>
                     <th data-label="Completion Status">Completion Status</th>
                     <th data-label=""></th>
                   </tr>
                 </thead>
-                <tbody id="spc-daily-body"><tr><td colspan="9" class="loading-row">Loading…</td></tr></tbody>
+                <tbody id="sbc-daily-body"><tr><td colspan="8" class="loading-row">Loading…</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -1774,66 +1772,68 @@
       </div>
 
       <!-- Playlists -->
-      <div id="spc-playlists-panel" class="fsu-panel hidden">
-        <div id="spc-playlists-grid-view">
+      <div id="sbc-playlists-panel" class="fsu-panel hidden">
+        <div id="sbc-playlists-grid-view">
           <div class="panel-row">
             <p class="muted-text">Browse playlists of Srila Prabhupada's classes — open one to add and manage its videos.</p>
-            <button id="spc-add-playlist-btn" class="btn btn-primary toolbar-btn">+ Add Playlist</button>
+            <button id="sbc-add-playlist-btn" class="btn btn-primary toolbar-btn">+ Add Playlist</button>
           </div>
-          <div id="spc-playlists-grid" class="trip-event-grid">
+          <div id="sbc-playlists-grid" class="trip-event-grid">
             <p class="loading-row">Loading…</p>
           </div>
         </div>
 
-        <div id="spc-playlist-detail-view" class="hidden">
+        <div id="sbc-playlist-detail-view" class="hidden">
           <div class="panel-row">
-            <button id="spc-playlist-back-btn" class="btn btn-secondary toolbar-btn">← Back to Playlists</button>
-            <strong id="spc-playlist-detail-title" class="trip-event-detail-title"></strong>
-            <button id="spc-playlist-rename-btn" class="cell-chip" title="Rename playlist">✏️ Rename</button>
-            <button id="spc-playlist-add-video-btn" class="btn btn-primary toolbar-btn ml-auto">+ Add Video</button>
+            <button id="sbc-playlist-back-btn" class="btn btn-secondary toolbar-btn">← Back to Playlists</button>
+            <strong id="sbc-playlist-detail-title" class="trip-event-detail-title"></strong>
+            <button id="sbc-playlist-rename-btn" class="cell-chip" title="Rename playlist">✏️ Rename</button>
+            <button id="sbc-playlist-add-video-btn" class="btn btn-primary toolbar-btn ml-auto">+ Add Video</button>
           </div>
-          <div id="spc-playlist-videos-list" class="spc-video-list">
+          <div id="sbc-playlist-videos-list" class="sbc-video-list">
             <p class="muted-text">No classes in this playlist yet.</p>
           </div>
         </div>
       </div>
 
       <!-- Recommendations -->
-      <div id="spc-recommendations-panel" class="fsu-panel hidden">
+      <div id="sbc-recommendations-panel" class="fsu-panel hidden">
         <div class="panel">
           <div class="panel-row no-wrap">
             <h3 class="section-title m0 nowrap">Recommendation History</h3>
-            <input id="spc-rec-history-search" type="search" placeholder="Search class / user…" class="search-input" />
-            <button id="spc-rec-open-modal-btn" class="btn btn-primary toolbar-btn ml-auto">+ Recommend</button>
+            <input id="sbc-rec-history-search" type="search" placeholder="Search class / user…" class="search-input" />
+            <button id="sbc-rec-open-modal-btn" class="btn btn-primary toolbar-btn ml-auto">+ Recommend</button>
           </div>
           <div class="table-wrap">
-            <table class="data-table" id="spc-rec-history-table">
+            <table class="data-table" id="sbc-rec-history-table">
               <thead>
                 <tr>
                   <th data-label="S.No">S.No</th>
                   <th data-label="Class Date">Class Date</th>
                   <th data-label="Title">Title</th>
+                  <th data-label="Link">Link</th>
                   <th data-label="Playlist">Playlist</th>
+                  <th data-label="Completion Status">Completion Status</th>
                   <th data-label="Recommended To">Recommended To</th>
                   <th data-label="Recommended By">Recommended By</th>
                   <th data-label="Recommended At">Recommended At</th>
                   <th data-label=""></th>
                 </tr>
               </thead>
-              <tbody id="spc-rec-history-body"><tr><td colspan="8" class="loading-row">Loading…</td></tr></tbody>
+              <tbody id="sbc-rec-history-body"><tr><td colspan="10" class="loading-row">Loading…</td></tr></tbody>
             </table>
           </div>
         </div>
       </div>
 
       <!-- Doubts -->
-      <div id="spc-doubts-panel" class="fsu-panel hidden">
+      <div id="sbc-doubts-panel" class="fsu-panel hidden">
         <div class="panel">
           <div class="panel-row no-wrap">
             <h3 class="section-title m0 nowrap">Doubts</h3>
-            <input id="spc-doubts-search" type="search" placeholder="Search doubt / class / user…" class="search-input" />
+            <input id="sbc-doubts-search" type="search" placeholder="Search doubt / class / user…" class="search-input" />
             <label class="field inline"><span>Status</span>
-              <select id="spc-doubts-filter-status" class="inline-edit">
+              <select id="sbc-doubts-filter-status" class="inline-edit">
                 <option value="__ALL__">All</option>
                 <option value="pending">Pending</option>
                 <option value="resolved">Resolved</option>
@@ -1841,7 +1841,7 @@
             </label>
           </div>
           <div class="table-wrap">
-            <table class="data-table" id="spc-doubts-table">
+            <table class="data-table" id="sbc-doubts-table">
               <thead>
                 <tr>
                   <th data-label="S.No">S.No</th>
@@ -1855,7 +1855,7 @@
                   <th data-label=""></th>
                 </tr>
               </thead>
-              <tbody id="spc-doubts-body"><tr><td colspan="9" class="loading-row">Loading…</td></tr></tbody>
+              <tbody id="sbc-doubts-body"><tr><td colspan="9" class="loading-row">Loading…</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -2767,7 +2767,7 @@
               <select id="fsu-daily-filter-completion" class="inline-edit">
                 <option value="__ALL__">All</option>
                 <option value="not_started">Not Started</option>
-                <option value="partially_completed">Partially Completed</option>
+                <option value="partially_completed">In Progress</option>
                 <option value="completed">Completed</option>
               </select>
             </label>
@@ -2898,19 +2898,8 @@
       <div class="panel">
         <div class="panel-row no-wrap">
           <h3 class="section-title m0 nowrap">Form Import</h3>
-          <button id="form-import-webhook-toggle-btn" class="btn btn-secondary nowrap">⚙ Webhook Setup</button>
           <button id="form-import-add-source-btn" class="btn btn-primary nowrap ml-auto">+ Connect Form</button>
         </div>
-      </div>
-
-      <div class="panel hidden" id="form-import-webhook-box">
-        <label class="field"><span>Webhook URL</span><input id="form-import-webhook-url-input" type="text" placeholder="https://script.google.com/macros/s/.../exec" /></label>
-        <label class="field"><span>Shared Secret</span><input id="form-import-webhook-secret-input" type="text" /></label>
-        <div id="form-import-webhook-error" class="field-error hidden"></div>
-        <div class="modal-actions">
-          <button id="form-import-webhook-save-btn" class="btn btn-primary">Save</button>
-        </div>
-        <p class="muted-text">One-time setup — see <code>docs/FORM_IMPORT_SETUP.md</code>. This is a separate Apps Script project from the main Sheets bridge.</p>
       </div>
 
       <div id="form-import-list-view">
@@ -2942,6 +2931,7 @@
           <table class="data-table" id="form-import-entries-table">
             <thead>
               <tr>
+                <th>Time</th>
                 <th>Phone</th>
                 <th>Name</th>
                 <th>PG Name</th>
@@ -3767,22 +3757,21 @@
   </div>
 </div>
 
-<div id="spc-class-modal" class="modal">
+<div id="sbc-class-modal" class="modal">
   <div class="modal-box">
-    <h3 id="spc-class-modal-title">Add Class</h3>
-    <label class="field"><span>YouTube Link</span><input id="spc-class-url" type="url" placeholder="https://youtube.com/watch?v=…" /></label>
-    <label class="field"><span>Title</span><input id="spc-class-title" type="text" /></label>
+    <h3 id="sbc-class-modal-title">Add Class</h3>
+    <label class="field"><span>YouTube Link</span><input id="sbc-class-url" type="url" placeholder="https://youtube.com/watch?v=…" /></label>
+    <label class="field"><span>Title</span><input id="sbc-class-title" type="text" /></label>
     <label class="field">
       <span>Playlist</span>
       <div class="panel-row no-wrap">
-        <select id="spc-class-playlist" class="inline-edit"></select>
-        <button id="spc-class-new-playlist-btn" type="button" class="btn btn-secondary btn-sm nowrap">+ New Playlist</button>
+        <select id="sbc-class-playlist" class="inline-edit"></select>
+        <button id="sbc-class-new-playlist-btn" type="button" class="btn btn-secondary btn-sm nowrap">+ New Playlist</button>
       </div>
     </label>
-    <label class="field"><span>Date</span><input id="spc-class-date" type="date" /></label>
-    <label class="field checkbox"><input id="spc-class-assigned" type="checkbox" /><span>Assigned</span></label>
+    <label class="field"><span>Date</span><input id="sbc-class-date" type="date" /></label>
     <label class="field"><span>Recommend Level</span>
-      <select id="spc-class-recommend">
+      <select id="sbc-class-recommend">
         <option value="0">0</option>
         <option value="1">1</option>
         <option value="2">2</option>
@@ -3790,58 +3779,58 @@
       </select>
     </label>
     <label class="field"><span>Completion Status</span>
-      <select id="spc-class-completion">
+      <select id="sbc-class-completion">
         <option value="not_started">Not Started</option>
-        <option value="partially_completed">Partially Completed</option>
+        <option value="partially_completed">In Progress</option>
         <option value="completed">Completed</option>
       </select>
     </label>
-    <div id="spc-class-error" class="field-error hidden"></div>
+    <div id="sbc-class-error" class="field-error hidden"></div>
     <div class="modal-actions">
-      <button id="spc-class-cancel-btn" class="btn btn-secondary">Cancel</button>
-      <button id="spc-class-save-btn" class="btn btn-primary">Save</button>
+      <button id="sbc-class-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="sbc-class-save-btn" class="btn btn-primary">Save</button>
     </div>
   </div>
 </div>
 
-<div id="spc-playlist-modal" class="modal">
+<div id="sbc-playlist-modal" class="modal">
   <div class="modal-box">
     <h3>Add Playlist</h3>
-    <label class="field"><span>Name</span><input id="spc-playlist-name-input" type="text" /></label>
-    <div id="spc-playlist-error" class="field-error hidden"></div>
+    <label class="field"><span>Name</span><input id="sbc-playlist-name-input" type="text" /></label>
+    <div id="sbc-playlist-error" class="field-error hidden"></div>
     <div class="modal-actions">
-      <button id="spc-playlist-cancel-btn" class="btn btn-secondary">Cancel</button>
-      <button id="spc-playlist-save-btn" class="btn btn-primary">Save</button>
+      <button id="sbc-playlist-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="sbc-playlist-save-btn" class="btn btn-primary">Save</button>
     </div>
   </div>
 </div>
 
-<div id="spc-recommend-modal" class="modal">
+<div id="sbc-recommend-modal" class="modal">
   <div class="modal-box">
     <h3>Recommend a Class</h3>
-    <label class="field"><span>Class</span><select id="spc-rec-class-select" class="inline-edit"></select></label>
-    <input id="spc-rec-user-search" type="search" placeholder="Search users…" class="search-input" />
-    <label class="tag-check spc-select-all"><input type="checkbox" id="spc-rec-select-all" /> <strong>Select All</strong></label>
-    <div id="spc-rec-user-list" class="tag-check-group limited-access-pages tag-check-chips"></div>
-    <p id="spc-rec-error" class="field-error hidden"></p>
+    <label class="field"><span>Class</span><select id="sbc-rec-class-select" class="inline-edit"></select></label>
+    <input id="sbc-rec-user-search" type="search" placeholder="Search users…" class="search-input" />
+    <label class="tag-check sbc-select-all"><input type="checkbox" id="sbc-rec-select-all" /> <strong>Select All</strong></label>
+    <div id="sbc-rec-user-list" class="tag-check-group limited-access-pages tag-check-chips"></div>
+    <p id="sbc-rec-error" class="field-error hidden"></p>
     <div class="modal-actions">
-      <button id="spc-rec-cancel-btn" class="btn btn-secondary">Cancel</button>
-      <button id="spc-rec-recommend-btn" class="btn btn-primary">Recommend</button>
+      <button id="sbc-rec-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="sbc-rec-recommend-btn" class="btn btn-primary">Recommend</button>
     </div>
   </div>
 </div>
 
-<div id="spc-quick-rec-modal" class="modal">
+<div id="sbc-quick-rec-modal" class="modal">
   <div class="modal-box">
     <h3>Recommend Class</h3>
-    <p id="spc-quick-rec-video-title" class="muted-text"></p>
-    <input id="spc-quick-rec-search" type="search" placeholder="Search coordinators…" class="search-input" />
-    <label class="tag-check spc-select-all"><input type="checkbox" id="spc-quick-rec-select-all" /> <strong>Select All</strong></label>
-    <div id="spc-quick-rec-user-list" class="tag-check-group limited-access-pages tag-check-chips"></div>
-    <div id="spc-quick-rec-error" class="field-error hidden"></div>
+    <p id="sbc-quick-rec-video-title" class="muted-text"></p>
+    <input id="sbc-quick-rec-search" type="search" placeholder="Search coordinators…" class="search-input" />
+    <label class="tag-check sbc-select-all"><input type="checkbox" id="sbc-quick-rec-select-all" /> <strong>Select All</strong></label>
+    <div id="sbc-quick-rec-user-list" class="tag-check-group limited-access-pages tag-check-chips"></div>
+    <div id="sbc-quick-rec-error" class="field-error hidden"></div>
     <div class="modal-actions">
-      <button id="spc-quick-rec-cancel-btn" class="btn btn-secondary">Cancel</button>
-      <button id="spc-quick-rec-save-btn" class="btn btn-primary">Recommend</button>
+      <button id="sbc-quick-rec-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="sbc-quick-rec-save-btn" class="btn btn-primary">Recommend</button>
     </div>
   </div>
 </div>

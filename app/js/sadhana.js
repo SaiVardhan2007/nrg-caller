@@ -66,7 +66,7 @@ async function loadTrackedNames() {
   // Sorted/deduped once here instead of inside nameOptionsHtml, which used to
   // rebuild+sort this list on every single row — with the full sadhana
   // history rendered at once, that made the render O(rows × names) and could
-  // freeze the tab for seconds (e.g. the SP Classes tab wouldn't respond to
+  // freeze the tab for seconds (e.g. the SB Classes tab wouldn't respond to
   // a click until the whole table finished rendering).
   trackedNamesSorted = [...new Set((data || []).map((u) => u.user_name))].sort((a, b) => a.localeCompare(b));
   trackedNamesSet = new Set(trackedNamesSorted);
@@ -541,7 +541,7 @@ function avg(sum, count) {
 }
 
 function fmt1(n) {
-  return (Math.round((n || 0) * 10) / 10).toString();
+  return Math.round(n || 0).toString();
 }
 
 function daysBetweenInclusive(from, to) {
