@@ -63,6 +63,13 @@ function distinctValues(rows, field) {
   return Array.from(new Set(rows.map((r) => r[field]).filter(Boolean))).sort();
 }
 
+// Unions a master list (e.g. every Distribution Place) with whatever values
+// actually show up in the data, so a place with zero entries still appears
+// in filters, and a stray/legacy value not in the master list isn't dropped.
+function mergeDistinct(...lists) {
+  return Array.from(new Set(lists.flat().filter(Boolean))).sort();
+}
+
 // Renders a <select class="inline-edit"> in place of a free-text input for
 // table cells whose values should come from a known set (Language, Sold
 // Area, Event, Sold By, Place) — cuts down on typo'd variants of the same
@@ -880,6 +887,7 @@ const DEFAULT_OUTWARD_COLUMNS = ["S.No", "Time", "Name", "Language", "Sold Price
 const OUTWARD_SELECT_FILTERS = [["bo-filter-language", "language"], ["bo-filter-area", "sold_area"], ["bo-filter-event", "event"], ["bo-filter-by", "sold_by"]];
 const OUTWARD_NUMBER_FILTERS = [["bo-th-filter-price", "sold_price"], ["bo-th-filter-qty", "quantity"]];
 let outwardCache = [];
+let outwardPlaceNamesCache = [];
 let outwardFiltersWired = false;
 
 function renderOutwardRows(rows, emptyMessage) {
@@ -897,7 +905,7 @@ function renderOutwardRows(rows, emptyMessage) {
       <td data-label="Sold Price"><input class="inline-edit outward-price-input" type="number" min="0" step="1" data-field="sold_price" value="${r.sold_price ?? ""}" /></td>
       <td data-label="Quantity"><input class="inline-edit outward-qty-input" type="number" min="0" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
       <td data-label="Total" class="outward-total-cell"><span class="outward-total-value">${fmtMoney((r.sold_price || 0) * (r.quantity || 0))}</span></td>
-      <td data-label="Sold Area">${editSelectHtml("sold_area", distinctValues(outwardCache, "sold_area"), r.sold_area || "")}</td>
+      <td data-label="Sold Area">${editSelectHtml("sold_area", mergeDistinct(outwardPlaceNamesCache, distinctValues(outwardCache, "sold_area")), r.sold_area || "")}</td>
       <td data-label="Event">${editSelectHtml("event", distinctValues(outwardCache, "event"), r.event || "")}</td>
       <td data-label="Sold By">${editSelectHtml("sold_by", distinctValues(outwardCache, "sold_by"), r.sold_by || "")}</td>
       <td data-label="Realised"><input type="checkbox" class="realised-checkbox outward-realised-input" ${r.realised ? "checked" : ""} /></td>
@@ -1007,10 +1015,13 @@ export async function initOutwardTable() {
   const tbody = document.getElementById("book-outward-body");
   tbody.innerHTML = `<tr><td colspan="12" class="loading-row">Loading…</td></tr>`;
 
-  const { data, error } = await supabase
-    .from("book_outward_stock")
-    .select("id,name,language,sold_price,quantity,sold_area,event,sold_by,created_at,realised")
-    .order("created_at", { ascending: false });
+  const [{ data, error }, placeNames] = await Promise.all([
+    supabase
+      .from("book_outward_stock")
+      .select("id,name,language,sold_price,quantity,sold_area,event,sold_by,created_at,realised")
+      .order("created_at", { ascending: false }),
+    fetchPlaceNames(),
+  ]);
 
   if (error) {
     console.error("book_outward_stock load failed:", error);
@@ -1018,8 +1029,12 @@ export async function initOutwardTable() {
     return;
   }
   outwardCache = data || [];
+  outwardPlaceNamesCache = placeNames;
   populatePairedSelect("bo-filter-language", "bo-th-filter-language", distinctValues(outwardCache, "language"));
-  populatePairedSelect("bo-filter-area", "bo-th-filter-area", distinctValues(outwardCache, "sold_area"));
+  // Sold Area must list every known Distribution Place, not just ones that
+  // already have a sale — otherwise a newly added place with zero entries
+  // so far is invisible in the filter until someone sells there first.
+  populatePairedSelect("bo-filter-area", "bo-th-filter-area", mergeDistinct(placeNames, distinctValues(outwardCache, "sold_area")));
   populatePairedSelect("bo-filter-event", "bo-th-filter-event", distinctValues(outwardCache, "event"));
   populatePairedSelect("bo-filter-by", "bo-th-filter-by", distinctValues(outwardCache, "sold_by"));
   applyOutwardFilters();
@@ -2142,10 +2157,13 @@ export async function initCommander() {
   const tbody = document.getElementById("commander-body");
   tbody.innerHTML = `<tr><td colspan="11" class="loading-row">Loading…</td></tr>`;
 
-  const { data, error } = await supabase
-    .from("book_outward_stock")
-    .select("id,name,language,sold_price,quantity,sold_area,event,sold_by,created_at,realised")
-    .order("created_at", { ascending: false });
+  const [{ data, error }, placeNames] = await Promise.all([
+    supabase
+      .from("book_outward_stock")
+      .select("id,name,language,sold_price,quantity,sold_area,event,sold_by,created_at,realised")
+      .order("created_at", { ascending: false }),
+    fetchPlaceNames(),
+  ]);
 
   if (error) {
     console.error("Commander book_outward_stock load failed:", error);
@@ -2155,7 +2173,7 @@ export async function initCommander() {
   commanderCache = data || [];
   populatePairedSelect("cmd-filter-by", "cmd-th-filter-by", distinctValues(commanderCache, "sold_by"));
   populatePairedSelect("cmd-filter-language", "cmd-th-filter-language", distinctValues(commanderCache, "language"));
-  populatePairedSelect("cmd-filter-area", "cmd-th-filter-area", distinctValues(commanderCache, "sold_area"));
+  populatePairedSelect("cmd-filter-area", "cmd-th-filter-area", mergeDistinct(placeNames, distinctValues(commanderCache, "sold_area")));
   populatePairedSelect("cmd-filter-event", "cmd-th-filter-event", distinctValues(commanderCache, "event"));
   applyCommanderFilters();
 }
