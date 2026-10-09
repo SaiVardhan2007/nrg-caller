@@ -318,7 +318,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.4,0,0.2,1);
 }
 .dashboard.leaving { opacity: 0; transform: scale(0.97); pointer-events: none; }
-.dashboard-cards { display: flex; flex-direction: column; gap: 12px; }
+.dashboard-cards { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .dashboard-card {
   background: var(--surface);
   border: 1.5px solid var(--sandstone);
@@ -329,7 +329,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   grid-template-rows: auto auto;
   align-items: center;
   column-gap: 14px;
-  width: 100%;
+  width: 100%; max-width: 300px;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   transition: transform 0.15s cubic-bezier(0.16,1,0.3,1), box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
@@ -551,6 +551,17 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 #sadhana-table { width: 100%; table-layout: fixed; }
 @media (min-width: 641px) and (max-width: 900px) {
   #sadhana-table { min-width: 900px; }
+}
+
+/* SB Classes tables — same min-width-floor pattern as Master Contact/New
+   Contacts above: no explicit per-column widths here, so plain auto layout
+   sizes columns by content; the floor just stops them getting crushed on a
+   medium screen, letting the wrapper's overflow-x:auto turn that into a
+   horizontal scroll instead. */
+@media (min-width: 641px) {
+  #sbc-daily-table { min-width: 950px; }
+  #sbc-rec-history-table { min-width: 1300px; }
+  #sbc-doubts-table { min-width: 1150px; }
 }
 .data-table th {
   position: sticky;

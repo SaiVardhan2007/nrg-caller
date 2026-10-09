@@ -1746,6 +1746,7 @@
                 </select>
               </label>
               <button id="sbc-add-class-btn" class="btn btn-primary toolbar-btn">+ Add Class</button>
+              <button id="sbc-daily-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
             </div>
           </div>
 
@@ -1754,13 +1755,13 @@
               <table class="data-table" id="sbc-daily-table">
                 <thead>
                   <tr>
-                    <th data-label="S.No">S.No</th>
-                    <th data-label="Date">Date</th>
-                    <th data-label="Title">Title</th>
-                    <th data-label="Link">Link</th>
-                    <th data-label="Playlist">Playlist</th>
-                    <th data-label="Recommend Level">Recommend Level</th>
-                    <th data-label="Completion Status">Completion Status</th>
+                    <th draggable="true" data-label="S.No">S.No</th>
+                    <th draggable="true" data-label="Date">Date</th>
+                    <th draggable="true" data-label="Title">Title</th>
+                    <th draggable="true" data-label="Link">Link</th>
+                    <th draggable="true" data-label="Playlist">Playlist</th>
+                    <th draggable="true" data-label="Recommend Level">Recommend Level</th>
+                    <th draggable="true" data-label="Completion Status">Completion Status</th>
                     <th data-label=""></th>
                   </tr>
                 </thead>
@@ -1802,21 +1803,22 @@
           <div class="panel-row no-wrap">
             <h3 class="section-title m0 nowrap">Recommendation History</h3>
             <input id="sbc-rec-history-search" type="search" placeholder="Search class / user…" class="search-input" />
+            <button id="sbc-rec-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
             <button id="sbc-rec-open-modal-btn" class="btn btn-primary toolbar-btn ml-auto">+ Recommend</button>
           </div>
-          <div class="table-wrap">
+          <div class="table-wrap" id="sbc-rec-history-table-wrap">
             <table class="data-table" id="sbc-rec-history-table">
               <thead>
                 <tr>
-                  <th data-label="S.No">S.No</th>
-                  <th data-label="Class Date">Class Date</th>
-                  <th data-label="Title">Title</th>
-                  <th data-label="Link">Link</th>
-                  <th data-label="Playlist">Playlist</th>
-                  <th data-label="Completion Status">Completion Status</th>
-                  <th data-label="Recommended To">Recommended To</th>
-                  <th data-label="Recommended By">Recommended By</th>
-                  <th data-label="Recommended At">Recommended At</th>
+                  <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Class Date">Class Date</th>
+                  <th draggable="true" data-label="Title">Title</th>
+                  <th draggable="true" data-label="Link">Link</th>
+                  <th draggable="true" data-label="Playlist">Playlist</th>
+                  <th draggable="true" data-label="Completion Status">Completion Status</th>
+                  <th draggable="true" data-label="Recommended To">Recommended To</th>
+                  <th draggable="true" data-label="Recommended By">Recommended By</th>
+                  <th draggable="true" data-label="Recommended At">Recommended At</th>
                   <th data-label=""></th>
                 </tr>
               </thead>
@@ -1839,19 +1841,20 @@
                 <option value="resolved">Resolved</option>
               </select>
             </label>
+            <button id="sbc-doubts-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
           </div>
-          <div class="table-wrap">
+          <div class="table-wrap" id="sbc-doubts-table-wrap">
             <table class="data-table" id="sbc-doubts-table">
               <thead>
                 <tr>
-                  <th data-label="S.No">S.No</th>
-                  <th data-label="Asked At">Asked At</th>
-                  <th data-label="Class">Class</th>
-                  <th data-label="Link">Link</th>
-                  <th data-label="Timing">Timing</th>
-                  <th data-label="Doubt">Doubt</th>
-                  <th data-label="Asked By">Asked By</th>
-                  <th data-label="Resolved">Resolved</th>
+                  <th draggable="true" data-label="S.No">S.No</th>
+                  <th draggable="true" data-label="Asked At">Asked At</th>
+                  <th draggable="true" data-label="Class">Class</th>
+                  <th draggable="true" data-label="Link">Link</th>
+                  <th draggable="true" data-label="Timing">Timing</th>
+                  <th draggable="true" data-label="Doubt">Doubt</th>
+                  <th draggable="true" data-label="Asked By">Asked By</th>
+                  <th draggable="true" data-label="Resolved">Resolved</th>
                   <th data-label=""></th>
                 </tr>
               </thead>

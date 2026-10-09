@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, escapeHtml, debounce } from "./utils.js";
+import { showToast, escapeHtml, debounce, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll } from "./utils.js";
 import { todayLocalDate } from "./sadhana.js";
 
 const COMPLETION_OPTIONS = [
@@ -8,6 +8,13 @@ const COMPLETION_OPTIONS = [
   ["completed", "Completed"],
 ];
 const RECOMMEND_LEVELS = [0, 1, 2, 3];
+
+const DAILY_COLUMNS_KEY = "nrg-col-order:sbc-daily-table";
+const DEFAULT_DAILY_COLUMNS = ["S.No", "Date", "Title", "Link", "Playlist", "Recommend Level", "Completion Status", ""];
+const REC_HISTORY_COLUMNS_KEY = "nrg-col-order:sbc-rec-history-table";
+const DEFAULT_REC_HISTORY_COLUMNS = ["S.No", "Class Date", "Title", "Link", "Playlist", "Completion Status", "Recommended To", "Recommended By", "Recommended At", ""];
+const DOUBTS_COLUMNS_KEY = "nrg-col-order:sbc-doubts-table";
+const DEFAULT_DOUBTS_COLUMNS = ["S.No", "Asked At", "Class", "Link", "Timing", "Doubt", "Asked By", "Resolved", ""];
 
 let sbcCurrentUser = null;
 let sbcWired = false;
@@ -160,6 +167,7 @@ function applyDailyFilters() {
   renderSbcTableRows("sbc-daily-body", sortByDateDesc(rows), 8,
     sbcVideos.length ? "No classes match your filters." : "No classes yet — add one to get started.",
     { showDate: true, showPlaylist: true });
+  reapplyColumnOrder("sbc-daily-table");
 }
 
 function wireSbcDailyPanel() {
@@ -167,6 +175,8 @@ function wireSbcDailyPanel() {
   document.getElementById("sbc-daily-filter-playlist").addEventListener("change", applyDailyFilters);
   document.getElementById("sbc-daily-filter-completion").addEventListener("change", applyDailyFilters);
   document.getElementById("sbc-add-class-btn").addEventListener("click", () => openSbcClassModal());
+  initColumnDragReorder("sbc-daily-table", { storageKey: DAILY_COLUMNS_KEY, columns: DEFAULT_DAILY_COLUMNS, resetBtnId: "sbc-daily-reset-columns-btn" });
+  initHorizontalScroll("sbc-daily-table-wrap");
 }
 
 /* ======================= PLAYLISTS ======================= */
@@ -481,6 +491,7 @@ function renderSbcRecHistoryTable() {
     btn.addEventListener("click", () => deleteSbcRecommendation(btn.closest("tr").dataset.id));
   });
   wireSbcRecHistoryInlineEdits(tbody);
+  reapplyColumnOrder("sbc-rec-history-table");
 }
 
 // Class Date/Title/Playlist live on the recommended video (sb_class_videos)
@@ -572,6 +583,8 @@ function wireSbcRecommendPanel() {
       if (!cb.closest("label").classList.contains("hidden")) cb.checked = e.target.checked;
     });
   });
+  initColumnDragReorder("sbc-rec-history-table", { storageKey: REC_HISTORY_COLUMNS_KEY, columns: DEFAULT_REC_HISTORY_COLUMNS, resetBtnId: "sbc-rec-reset-columns-btn" });
+  initHorizontalScroll("sbc-rec-history-table-wrap");
 }
 
 /* ======================= DOUBTS (admin: view doubts users asked on classes) ======================= */
@@ -637,6 +650,7 @@ function renderSbcDoubtsTable() {
   tbody.querySelectorAll(".sbc-doubt-delete-btn").forEach((btn) => {
     btn.addEventListener("click", () => deleteSbcDoubt(btn.closest("tr").dataset.id));
   });
+  reapplyColumnOrder("sbc-doubts-table");
 }
 
 async function deleteSbcDoubt(id) {
@@ -654,6 +668,8 @@ async function deleteSbcDoubt(id) {
 function wireSbcDoubtsPanel() {
   document.getElementById("sbc-doubts-search").addEventListener("input", debounce(renderSbcDoubtsTable, 150));
   document.getElementById("sbc-doubts-filter-status").addEventListener("change", renderSbcDoubtsTable);
+  initColumnDragReorder("sbc-doubts-table", { storageKey: DOUBTS_COLUMNS_KEY, columns: DEFAULT_DOUBTS_COLUMNS, resetBtnId: "sbc-doubts-reset-columns-btn" });
+  initHorizontalScroll("sbc-doubts-table-wrap");
 }
 
 /* ======================= ADD CLASS / ADD PLAYLIST MODALS ======================= */
