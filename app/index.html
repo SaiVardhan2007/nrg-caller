@@ -142,6 +142,11 @@
         <span class="card-label">Expenses</span>
         <span class="card-arrow">→</span>
       </button>
+      <button class="dashboard-card" data-target="folk-yatras">
+        <span class="card-icon-badge badge-tulsi"><span class="card-emoji">🚌</span></span>
+        <span class="card-label">FOLK Yatras</span>
+        <span class="card-arrow">→</span>
+      </button>
       <button class="dashboard-card" data-target="limited-access">
         <span class="card-icon-badge badge-indigo"><span class="card-emoji">🔒</span></span>
         <span class="card-label">Limited Access</span>
@@ -2161,6 +2166,59 @@
       </div>
     </section>
 
+    <!-- ===== FOLK YATRAS (admin only) ===== -->
+    <section id="folk-yatras-section" class="page hidden">
+      <div id="yatras-list-view">
+        <div class="panel-row">
+          <p class="muted-text">Each yatra has its own attendance, disposables, cooking / serving items and feedback — open one to manage it.</p>
+          <button id="add-yatra-btn" class="btn btn-primary toolbar-btn">+ Add Yatra</button>
+        </div>
+        <div id="yatras-grid" class="trip-event-grid">
+          <p class="loading-row">Loading…</p>
+        </div>
+      </div>
+
+      <div id="yatras-detail-view" class="hidden">
+        <div class="panel-row">
+          <button id="yatra-back-btn" class="btn btn-secondary toolbar-btn">← Back to Yatras</button>
+          <strong id="yatra-detail-title" class="trip-event-detail-title"></strong>
+        </div>
+        <nav id="yatra-tabs" class="admin-tabs yatra-tabs">
+          <button class="admin-tab active" data-ytab="dashboard">Dashboard</button>
+          <button class="admin-tab" data-ytab="attendance">Attendance</button>
+          <button class="admin-tab" data-ytab="disposables">Disposables</button>
+          <button class="admin-tab" data-ytab="cooking">Cooking / Serving Items</button>
+          <button class="admin-tab" data-ytab="feedback">Feedback / Ideas</button>
+        </nav>
+        <div class="users-page-layout">
+          <div id="yatra-sidebar" class="panel users-sidebar">
+            <div class="users-toolbar">
+              <div id="yatra-table-controls" class="users-toolbar">
+                <input id="yatra-search" type="search" placeholder="Search…" class="search-input" />
+                <button id="yatra-add-btn" class="btn btn-primary toolbar-btn">+ Add</button>
+                <button id="yatra-download-btn" class="btn btn-secondary toolbar-btn">⬇ Download Excel</button>
+                <button id="yatra-upload-btn" class="btn btn-secondary toolbar-btn">⬆ Upload Excel</button>
+                <input id="yatra-import-file" type="file" accept=".xlsx,.xls,.csv" class="hidden" />
+              </div>
+            </div>
+          </div>
+
+          <div class="users-content">
+            <div id="yatra-attendance-pane" class="hidden"></div>
+            <div id="yatra-table-pane">
+              <div id="yatra-stats" class="stats-bar yatra-stats"></div>
+              <div class="table-wrap">
+                <table class="data-table" id="yatra-table">
+                  <thead id="yatra-thead"></thead>
+                  <tbody id="yatra-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section id="expenses-preaching-section" class="page hidden">
       <div class="users-page-layout">
         <div class="panel users-sidebar">
@@ -3848,6 +3906,83 @@
     <div class="modal-actions">
       <button id="book-event-cancel-btn" class="btn btn-secondary">Cancel</button>
       <button id="book-event-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="yatra-modal" class="modal">
+  <div class="modal-box">
+    <h3>Add Yatra</h3>
+    <label class="field"><span>Name</span><input id="yatra-name" type="text" placeholder="e.g. Tirupati Yatra" /></label>
+    <label class="field"><span>Date</span><input id="yatra-date" type="date" /></label>
+    <div id="yatra-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="yatra-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="yatra-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="yatra-entry-modal" class="modal">
+  <div class="modal-box modal-large">
+    <h3 id="yatra-entry-title">Add</h3>
+    <div id="yatra-entry-rows"></div>
+    <button id="yatra-entry-add-row-btn" type="button" class="btn btn-secondary btn-sm">+ Add Row</button>
+    <div id="yatra-entry-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="yatra-entry-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="yatra-entry-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="yatra-slot-modal" class="modal">
+  <div class="modal-box">
+    <h3>Attendance Date &amp; Meal</h3>
+    <label class="field"><span>Date</span><input id="att-date" type="date" /></label>
+    <div class="field">
+      <span>Meal</span>
+      <div class="yatra-meal-toggle" id="att-meal">
+        <button type="button" class="btn" data-meal="M">M · Morning</button>
+        <button type="button" class="btn" data-meal="L">L · Lunch</button>
+        <button type="button" class="btn" data-meal="D">D · Dinner</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="yatra-slot-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="yatra-slot-done-btn" class="btn btn-primary">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="yatra-stat-modal" class="modal">
+  <div class="modal-box modal-large">
+    <div class="modal-title-row">
+      <h3 id="yatra-stat-title">Details</h3>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead id="yatra-stat-thead"></thead>
+        <tbody id="yatra-stat-tbody"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="yatra-stat-download-btn" class="btn btn-primary">⬇ Download Excel</button>
+      <button id="yatra-stat-close-btn" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="yatra-import-modal" class="modal">
+  <div class="modal-box">
+    <h3>Upload Participants</h3>
+    <p id="yatra-import-info" class="muted-text"></p>
+    <div id="yatra-import-map"></div>
+    <p class="muted-text">Rows without a name or a valid 10-digit phone, and phone numbers already in this yatra, are skipped.</p>
+    <div id="yatra-import-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="yatra-import-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="yatra-import-save-btn" class="btn btn-primary">Import</button>
     </div>
   </div>
 </div>

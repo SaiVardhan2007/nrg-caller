@@ -35,6 +35,11 @@ export const RESTRICTABLE_PAGES = [
   { module: "Expenses", id: "expenses-trip-section", label: "Trip Expenses" },
   { module: "Expenses", id: "expenses-preaching-section", label: "Preaching" },
   { module: "Expenses", id: "expenses-residency-section", label: "Residency Expenses" },
+  { module: "FOLK Yatras", id: "yatras-dashboard", label: "Dashboard" },
+  { module: "FOLK Yatras", id: "yatras-attendance", label: "Attendance" },
+  { module: "FOLK Yatras", id: "yatras-disposables", label: "Disposables" },
+  { module: "FOLK Yatras", id: "yatras-cooking", label: "Cooking / Serving Items" },
+  { module: "FOLK Yatras", id: "yatras-feedback", label: "Feedback / Ideas" },
 ];
 
 const PAGE_BY_ID = new Map(RESTRICTABLE_PAGES.map((p) => [p.id, p]));

@@ -141,7 +141,7 @@ function wireInlineEditCells(tbody, tableName, cache, { numberFields = [], requi
 // re-checks against a real Admin-role login's password (not just whoever is
 // currently signed in), so a Limited Admin session can never delete on its
 // own — an Admin has to be present to type it in.
-async function verifyAdminPassword() {
+export async function verifyAdminPassword() {
   const pw = prompt("Enter an Admin password to confirm this deletion:");
   if (pw === null) return false;
   const trimmed = pw.trim();

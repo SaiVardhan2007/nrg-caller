@@ -13,6 +13,7 @@ import * as Sadhana from "./sadhana.js";
 import * as SbClasses from "./sbClasses.js";
 import * as Donations from "./donations.js";
 import * as Expenses from "./expenses.js";
+import * as Yatras from "./yatras.js";
 import * as LimitedAccess from "./limitedAccess.js";
 
 const loginView = document.getElementById("login-view");
@@ -63,6 +64,7 @@ const PAGE_TITLES = {
   "expenses-trip-section": "Expenses",
   "expenses-preaching-section": "Expenses",
   "expenses-residency-section": "Expenses",
+  "folk-yatras-section": "FOLK Yatras",
   "admin-limited-access-section": "Limited Access",
   "caller-section": "My Calls",
   "reception-section": "Reception",
@@ -126,10 +128,22 @@ function shouldSkipLoad(id, forceRefresh) {
   return last != null && Date.now() - last < CACHE_TTL_MS;
 }
 
+// Each FOLK Yatras tab is its own Limited Access page id; they all render
+// inside the one folk-yatras-section element (Yatras.initYatras picks the tab).
+const YATRA_PAGE_TABS = {
+  "yatras-dashboard": "dashboard",
+  "yatras-attendance": "attendance",
+  "yatras-disposables": "disposables",
+  "yatras-cooking": "cooking",
+  "yatras-feedback": "feedback",
+};
+
 function showScreen(id, { forceRefresh = false } = {}) {
+  const yatraTab = YATRA_PAGE_TABS[id];
+  const sectionId = yatraTab ? "folk-yatras-section" : id;
   document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
-  document.getElementById(id).classList.remove("hidden");
-  headerTitle.textContent = PAGE_TITLES[id] || "FNRG Preaching";
+  document.getElementById(sectionId).classList.remove("hidden");
+  headerTitle.textContent = PAGE_TITLES[sectionId] || "FNRG Preaching";
 
   const skipLoad = shouldSkipLoad(id, forceRefresh);
   // `loaded` distinguishes an actual backend fetch from a cache hit, so the
@@ -183,6 +197,7 @@ function showScreen(id, { forceRefresh = false } = {}) {
     if (id === "expenses-trip-section") Expenses.initExpensesTrip(currentUser);
     if (id === "expenses-preaching-section") Expenses.initExpensesPreaching(currentUser);
     if (id === "expenses-residency-section") Expenses.initExpensesResidency(currentUser);
+    if (sectionId === "folk-yatras-section") Yatras.initYatras(currentUser, yatraTab ? { tab: yatraTab } : {});
     if (id === "admin-limited-access-section") LimitedAccess.initLimitedAccess();
   }
 
@@ -306,6 +321,14 @@ function enterAdminModule(module) {
     document.getElementById("download-all-db-btn").classList.add("hidden");
     document.getElementById("bulk-delete-btn").classList.remove("hidden");
     showScreen("expenses-trip-section");
+  } else if (module === "folk-yatras") {
+    adminTabs.classList.add("hidden");
+    bookTabs.classList.add("hidden");
+    sadhanaTabs.classList.add("hidden");
+    donationsTabs.classList.add("hidden");
+    expensesTabs.classList.add("hidden");
+    setAdminWideActionsVisible(false);
+    showScreen("folk-yatras-section");
   } else if (module === "limited-access") {
     adminTabs.classList.add("hidden");
     bookTabs.classList.add("hidden");
