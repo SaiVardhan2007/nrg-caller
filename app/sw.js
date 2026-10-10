@@ -1,4 +1,4 @@
-const CACHE_NAME = "fnrg-preaching-v260";
+const CACHE_NAME = "fnrg-preaching-v261";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -48,6 +48,7 @@ const NETWORK_TIMEOUT_MS = 2500;
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return; // let Supabase/CDN requests pass through untouched
+  if (event.request.method !== "GET" || url.pathname.startsWith("/api/")) return; // API calls (e.g. yatras-email) are never cached
 
   event.respondWith(
     (async () => {

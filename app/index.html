@@ -2197,6 +2197,7 @@
                 <input id="yatra-search" type="search" placeholder="Search…" class="search-input" />
                 <button id="yatra-add-btn" class="btn btn-primary toolbar-btn">+ Add</button>
                 <button id="yatra-download-btn" class="btn btn-secondary toolbar-btn">⬇ Download Excel</button>
+                <button id="yatra-email-btn" class="btn btn-secondary toolbar-btn">✉ Email Excel</button>
                 <button id="yatra-upload-btn" class="btn btn-secondary toolbar-btn">⬆ Upload Excel</button>
                 <input id="yatra-import-file" type="file" accept=".xlsx,.xls,.csv" class="hidden" />
               </div>
@@ -3955,6 +3956,19 @@
   </div>
 </div>
 
+<div id="yatra-email-modal" class="modal">
+  <div class="modal-box">
+    <h3>Email Excel</h3>
+    <p id="yatra-email-info" class="muted-text"></p>
+    <label class="field"><span>Send to</span><input id="yatra-email-to" type="email" placeholder="name@example.com" autocomplete="email" /></label>
+    <div id="yatra-email-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="yatra-email-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="yatra-email-send-btn" class="btn btn-primary">Send</button>
+    </div>
+  </div>
+</div>
+
 <div id="yatra-stat-modal" class="modal">
   <div class="modal-box modal-large">
     <div class="modal-title-row">
@@ -3968,6 +3982,7 @@
     </div>
     <div class="modal-actions">
       <button id="yatra-stat-download-btn" class="btn btn-primary">⬇ Download Excel</button>
+      <button id="yatra-stat-email-btn" class="btn btn-secondary">✉ Email Excel</button>
       <button id="yatra-stat-close-btn" class="btn btn-secondary">Close</button>
     </div>
   </div>

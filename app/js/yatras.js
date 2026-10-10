@@ -62,6 +62,7 @@ let shellWired = false;
 // Set when a Limited Admin opens one specific yatra page (e.g. "attendance"):
 // the top nav already switches pages, so the in-page tab strip stays hidden.
 let limitedTab = null;
+let sessionUser = null;
 let pendingTab = null;
 
 const $ = (id) => document.getElementById(id);
@@ -240,7 +241,7 @@ let statPopup = null; // { filename, title, headers, rows } for the open popup's
 // One popup renderer for every list (stat boxes and per-person entries). A
 // "Phone Number" column is click-to-copy.
 function showListPopup(title, headers, rows, filenameBase) {
-  statPopup = { filename: `${filenameBase.replace(/[^\w-]+/g, "_")}_${todayISO()}.xlsx`, title, headers, rows };
+  statPopup = { filename: `${safeName(filenameBase)}_${todayISO()}.xlsx`, title: `${currentYatra.name} — ${title}`, headers, rows };
   $("yatra-stat-title").textContent = title;
   $("yatra-stat-thead").innerHTML = `<tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr>`;
   $("yatra-stat-tbody").innerHTML = rows.length
@@ -405,17 +406,94 @@ async function deleteRow(id) {
   if (currentTab === "dashboard") renderStats();
 }
 
-function downloadTable() {
+// Every page's "Download Excel" and "Email Excel" share one spec shape:
+// { title, filename, headers, rows } — what's on screen is what's exported.
+const safeName = (str) => String(str || "Yatra").replace(/[^\w-]+/g, "_");
+
+function tableExport() {
   const cfg = TABS[currentTab];
-  if (!rowsCache.length) {
+  const label = { dashboard: "Participants", disposables: "Disposables", cooking: "Cooking_Serving", feedback: "Feedback" }[currentTab];
+  return {
+    title: `${currentYatra.name} — ${label.replace("_", " / ")}`,
+    filename: `${safeName(currentYatra.name)}_${label}_${todayISO()}.xlsx`,
+    headers: ["S.No", ...cfg.cols.map((c) => c.label)],
+    rows: rowsCache.map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : r[c.field] ?? ""))]),
+  };
+}
+
+function attendanceExport() {
+  const mealName = Object.fromEntries(MEALS)[attMeal];
+  return {
+    title: `${currentYatra.name} — Attendance ${attDate} ${attMeal} (${mealName})`,
+    filename: `${safeName(currentYatra.name)}_Attendance_${attDate}_${attMeal}.xlsx`,
+    headers: ["S.No", "Name", "Phone Number", "Type", "Time"],
+    rows: attSlotRows.map((r, i) => [
+      attSlotRows.length - i, r.participant?.name || "", r.participant?.phone || "", r.kind === "regular" ? "Coupon" : "Extra",
+      new Date(r.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+    ]),
+  };
+}
+
+function downloadSpec(spec) {
+  if (!spec.rows.length) {
     showToast("Nothing to download yet.", "error");
     return;
   }
-  const rows = [["S.No", ...cfg.cols.map((c) => c.label)]];
-  rowsCache.forEach((r, i) => rows.push([i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : r[c.field] ?? ""))]));
-  const label = { dashboard: "Participants", disposables: "Disposables", cooking: "Cooking_Serving", feedback: "Feedback" }[currentTab];
-  const safe = (currentYatra.name || "Yatra").replace(/[^\w-]+/g, "_");
-  downloadExcel(`${safe}_${label}_${todayISO()}.xlsx`, rows, label);
+  downloadExcel(spec.filename, [spec.headers, ...spec.rows], spec.title.replace(/[\\/?*[\]:]/g, " ").slice(0, 31));
+}
+
+/* ---------------- Email Excel ---------------- */
+
+let emailSpecGetter = null;
+const EMAIL_KEY = "yatras_email_to";
+
+function openEmailModal(getSpec) {
+  const spec = getSpec();
+  if (!spec.rows.length) {
+    showToast("Nothing to email yet.", "error");
+    return;
+  }
+  emailSpecGetter = getSpec;
+  let saved = "";
+  try { saved = localStorage.getItem(EMAIL_KEY) || ""; } catch { /* storage blocked — just start empty */ }
+  $("yatra-email-to").value = saved;
+  $("yatra-email-info").textContent = `${spec.title} — ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"} will be attached as an Excel file.`;
+  $("yatra-email-error").classList.add("hidden");
+  $("yatra-email-modal").classList.add("active");
+  $("yatra-email-to").focus();
+}
+
+async function sendEmail() {
+  const errorEl = $("yatra-email-error");
+  const to = $("yatra-email-to").value.trim();
+  if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(to)) {
+    errorEl.textContent = "Enter one valid email address.";
+    errorEl.classList.remove("hidden");
+    return;
+  }
+  const spec = emailSpecGetter();
+  const btn = $("yatra-email-send-btn");
+  btn.disabled = true;
+  btn.textContent = "Sending…";
+  try {
+    const res = await fetch("/api/yatras-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, title: spec.title, filename: spec.filename, headers: spec.headers, rows: spec.rows, user_name: sessionUser?.user_name, login_pw: sessionUser?.login_pw }),
+    });
+    let out = {};
+    try { out = await res.json(); } catch { /* non-JSON: no API behind this host */ }
+    if (!res.ok || !out.ok) throw new Error(out.error || "Email is only available on the deployed app (no mail server here).");
+    try { localStorage.setItem(EMAIL_KEY, to); } catch { /* storage blocked */ }
+    $("yatra-email-modal").classList.remove("active");
+    showToast(`Emailed to ${to}`, "success");
+  } catch (e) {
+    errorEl.textContent = e.message || String(e);
+    errorEl.classList.remove("hidden");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Send";
+  }
 }
 
 /* ---------------- Add (several rows at once) ---------------- */
@@ -601,6 +679,8 @@ function renderAttendance() {
   const pane = $("yatra-attendance-pane");
   pane.innerHTML = `
     <div class="yatra-slot-bar">
+      <button type="button" id="att-download-btn" class="btn btn-secondary btn-sm">⬇ Download Excel</button>
+      <button type="button" id="att-email-btn" class="btn btn-secondary btn-sm">✉ Email Excel</button>
       <button type="button" id="att-slot-btn" class="btn btn-secondary btn-sm" title="Change date / meal"></button>
     </div>
     <div class="panel">
@@ -619,6 +699,8 @@ function renderAttendance() {
 
   syncAttControls();
   $("att-slot-btn").onclick = openSlotModal;
+  $("att-download-btn").onclick = () => downloadSpec(attendanceExport());
+  $("att-email-btn").onclick = () => openEmailModal(attendanceExport);
   $("att-phone").addEventListener("input", onPhoneInput);
   loadSlot();
   $("att-phone").focus();
@@ -807,7 +889,14 @@ function wireShell() {
 
   const entryModal = $("yatra-entry-modal");
   $("yatra-add-btn").onclick = openEntryModal;
-  $("yatra-download-btn").onclick = downloadTable;
+  $("yatra-download-btn").onclick = () => downloadSpec(tableExport());
+  $("yatra-email-btn").onclick = () => openEmailModal(tableExport);
+  const emailModal = $("yatra-email-modal");
+  $("yatra-email-cancel-btn").onclick = () => emailModal.classList.remove("active");
+  emailModal.addEventListener("click", (e) => { if (e.target === emailModal) emailModal.classList.remove("active"); });
+  $("yatra-email-send-btn").onclick = sendEmail;
+  $("yatra-email-to").addEventListener("keydown", (e) => { if (e.key === "Enter") sendEmail(); });
+  $("yatra-stat-email-btn").onclick = () => openEmailModal(() => statPopup || { rows: [] });
   $("yatra-entry-add-row-btn").onclick = addEntryRow;
   $("yatra-entry-cancel-btn").onclick = () => entryModal.classList.remove("active");
   entryModal.addEventListener("click", (e) => { if (e.target === entryModal) entryModal.classList.remove("active"); });
@@ -853,10 +942,7 @@ function wireShell() {
   });
   $("yatra-stat-close-btn").onclick = () => statModal.classList.remove("active");
   statModal.addEventListener("click", (e) => { if (e.target === statModal) statModal.classList.remove("active"); });
-  $("yatra-stat-download-btn").onclick = () => {
-    if (!statPopup?.rows.length) { showToast("Nothing to download yet.", "error"); return; }
-    downloadExcel(statPopup.filename, [statPopup.headers, ...statPopup.rows], statPopup.title.slice(0, 31));
-  };
+  $("yatra-stat-download-btn").onclick = () => downloadSpec(statPopup || { rows: [] });
   $("yatra-back-btn").onclick = () => {
     showYatrasView();
     loadYatraCards();
@@ -869,6 +955,7 @@ function wireShell() {
 // opts.tab is set only for a Limited Admin landing on one specific yatra page.
 // Switching between their pages keeps the yatra they already opened.
 export const initYatras = async (user, opts = {}) => {
+  sessionUser = user;
   if (!shellWired) {
     shellWired = true;
     wireShell();
