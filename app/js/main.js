@@ -1,4 +1,4 @@
-import { getSession, login, logout, refreshSession } from "./auth.js";
+import { getSession, login, logout, clearSession, refreshSession } from "./auth.js";
 import { initActivityLog, logEvent } from "./activityLog.js";
 import { subscribeToPush } from "./push.js";
 import { refreshAllBadges } from "./badges.js";
@@ -178,7 +178,7 @@ function showScreen(id, { forceRefresh = false } = {}) {
     if (id === "book-stock-entry-section") BookDistribution.initStockEntry(currentUser);
     if (id === "book-requests-user-section") BookDistribution.initRequestPanel(currentUser);
     if (id === "book-savings-user-section") BookDistribution.initSavingsPanel(currentUser);
-    if (id === "book-places-user-section") BookDistribution.initPlacesUser();
+    if (id === "book-places-user-section") BookDistribution.initPlacesUser(currentUser);
     if (id === "book-events-user-section") BookDistribution.initEventsUser();
     if (id === "commander-section") BookDistribution.initCommander();
     if (id === "admin-sadhana-section") Sadhana.initSadhana(currentUser);
@@ -524,14 +524,31 @@ async function boot() {
   wireNav();
 
   const existing = getSession();
-  if (existing) {
+  if (existing && existing.role === "Limited Admin") {
+    // Validate before showing anything, so a deleted / re-passworded login
+    // never flashes its pages.
+    const valid = await refreshSession(existing);
+    if (!valid) {
+      clearSession();
+    } else {
+      currentUser = valid;
+      loginView.classList.add("hidden");
+      appView.classList.remove("hidden");
+      initActivityLog(currentUser);
+      renderForRole(currentUser);
+      subscribeToPush(currentUser);
+      refreshAllBadges(currentUser);
+    }
+  } else if (existing) {
     currentUser = existing;
     loginView.classList.add("hidden");
     appView.classList.remove("hidden");
     initActivityLog(currentUser);
     renderForRole(existing);
 
-    currentUser = await refreshSession(existing);
+    const refreshed = await refreshSession(existing);
+    if (!refreshed) { logout(); return; }
+    currentUser = refreshed;
     initActivityLog(currentUser);
     renderForRole(currentUser);
     subscribeToPush(currentUser);
@@ -592,6 +609,24 @@ async function boot() {
 }
 
 boot();
+
+// Coming back to the app (tab switch, bfcache back-navigation, PWA resume):
+// re-check the session so a deleted login or changed password logs out.
+let recheckingSession = false;
+async function recheckSession() {
+  if (recheckingSession || !currentUser) return;
+  recheckingSession = true;
+  try {
+    const stored = getSession();
+    if (!stored) { logout(); return; }
+    const valid = await refreshSession(stored);
+    if (!valid) logout();
+  } finally {
+    recheckingSession = false;
+  }
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") recheckSession(); });
+window.addEventListener("pageshow", (e) => { if (e.persisted) recheckSession(); });
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

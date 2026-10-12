@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, escapeHtml, normalizePhoneInput, formatPhone, downloadExcel, copyToClipboard } from "./utils.js";
+import { showToast, escapeHtml, normalizePhoneInput, formatPhone, copyToClipboard, initColumnDragReorder, reapplyColumnOrder } from "./utils.js";
 import { verifyAdminPassword } from "./expenses.js";
 
 /* ======================= FOLK YATRAS (admin only) =======================
@@ -10,18 +10,29 @@ import { verifyAdminPassword } from "./expenses.js";
                   columns are mapped in a modal.
      Attendance — meal coupons: look a person up by phone, then mark their
                   one coupon or any number of extra plates for a date + meal.
-     Disposables / Cooking / Serving Items — name, quantity, status.
+     Disposables / Cooking / Serving Items — name, quantity, (unit,) status.
      Feedback / Ideas — content, by.
    Everything lives in its own yatra_* tables, separate from Preaching data.
    The four table tabs share one renderer/add-modal driven by TABS below. */
 
 const ITEM_STATUSES = ["Received", "Not Received", "Not Available"];
-const MEALS = [["M", "Morning"], ["L", "Lunch"], ["D", "Dinner"]];
+// "M" is the stored code for breakfast (rows already use it); screens show B.
+const MEALS = [["M", "Breakfast"], ["L", "Lunch"], ["S", "Snacks"], ["D", "Dinner"]];
+const mealShort = (m) => (m === "M" ? "B" : m);
 
+const ITEM_UNITS = ["Number", "Pieces", "Packets", "Bags"];
+
+// `grid` is the column's track in the Add modal: Name takes the leftover
+// space, the short fields get just enough room for their values.
 const ITEM_COLS = [
-  { field: "name", label: "Name", type: "text", required: true },
-  { field: "quantity", label: "Quantity", type: "number" },
-  { field: "status", label: "Status", type: "select", options: ITEM_STATUSES, default: "Not Received" },
+  { field: "name", label: "Name", type: "text", required: true, grid: "minmax(0, 1fr)" },
+  { field: "quantity", label: "Quantity", type: "number", grid: "64px" },
+  { field: "status", label: "Status", type: "select", options: ITEM_STATUSES, default: "Not Received", grid: "140px" },
+];
+const DISPOSABLE_COLS = [
+  ...ITEM_COLS.slice(0, 2),
+  { field: "unit", label: "Unit", type: "select", options: ITEM_UNITS, default: "Number", grid: "100px" },
+  ITEM_COLS[2],
 ];
 
 const TABS = {
@@ -35,19 +46,21 @@ const TABS = {
       { field: "folk_guide", label: "Folk Guide", type: "text" },
       // read-only: how many coupon entries this person has; the button opens them
       { field: "tokens", label: "Tokens", type: "tokenbtn", noAdd: true },
+      // read-only: flags people added on the spot from Attendance (not in the uploaded list)
+      { field: "is_new", label: "Added", type: "newtag", noAdd: true },
     ],
     searchFields: ["name", "phone", "folk_guide"],
     empty: "No participants yet — add some or upload an Excel file.",
   },
-  disposables: { table: "yatra_items", kind: "disposable", title: "Disposable", order: "created_at", cols: ITEM_COLS, searchFields: ["name"], empty: "No disposables listed yet." },
+  disposables: { table: "yatra_items", kind: "disposable", title: "Disposable", order: "created_at", cols: DISPOSABLE_COLS, searchFields: ["name"], empty: "No disposables listed yet." },
   cooking: { table: "yatra_items", kind: "cooking", title: "Cooking / Serving Item", order: "created_at", cols: ITEM_COLS, searchFields: ["name"], empty: "No cooking / serving items listed yet." },
   feedback: {
     table: "yatra_feedback",
     title: "Feedback",
     order: "created_at",
     cols: [
-      { field: "content", label: "Content", type: "text", required: true },
-      { field: "author", label: "By", type: "text" },
+      { field: "content", label: "Feedback / Ideas", type: "text", required: true },
+      { field: "author", label: "Name", type: "text", required: true },
     ],
     searchFields: ["content", "author"],
     empty: "No feedback or ideas yet.",
@@ -80,7 +93,7 @@ function todayISO() {
 
 function defaultMeal() {
   const h = new Date().getHours();
-  return h < 11 ? "M" : h < 17 ? "L" : "D";
+  return h < 11 ? "M" : h < 16 ? "L" : h < 18 ? "S" : "D";
 }
 
 // PostgREST caps a response at 1000 rows, and rosters can be bigger than that,
@@ -217,6 +230,8 @@ async function switchTab(tab) {
   $("yatra-table-controls").classList.toggle("hidden", isAtt);
   $("yatra-stats").classList.toggle("hidden", tab !== "dashboard");
   $("yatra-upload-btn").classList.toggle("hidden", tab !== "dashboard");
+  $("yatra-served-filter").classList.toggle("hidden", tab !== "dashboard");
+  $("yatra-served-filter").value = "all";
   if (isAtt) renderAttendance();
   else {
     $("yatra-search").value = "";
@@ -224,23 +239,37 @@ async function switchTab(tab) {
   }
 }
 
-// Three clickable boxes (same look/behavior as Trip Expenses' budget box):
-// each opens a popup listing the people behind that number. "Tokens" counts
-// coupon entries (the same number as the button in each row).
+// Three clickable boxes (same look/behavior as Trip Expenses' budget box).
+// They describe ONE meal — the date + meal picked in Attendance (the button
+// above them changes it): total participants, plates served in that meal, and
+// the participants who have no coupon for it. Each opens the list behind it.
+let couponsCache = []; // every coupon of this yatra: { participant_id, coupon_date, meal }
+
+function applySlotCounts() {
+  const n = {};
+  couponsCache.forEach((c) => { if (c.coupon_date === attDate && c.meal === attMeal) n[c.participant_id] = (n[c.participant_id] || 0) + 1; });
+  rowsCache.forEach((r) => { r._slot = n[r.id] || 0; });
+}
+
 function renderStats() {
-  const tokens = rowsCache.reduce((sum, r) => sum + (r._tokens || 0), 0);
-  const present = rowsCache.filter((r) => r._tokens > 0).length;
+  applySlotCounts();
+  const served = rowsCache.reduce((sum, r) => sum + r._slot, 0);
+  const notServed = rowsCache.filter((r) => !r._slot).length;
+  const mealName = Object.fromEntries(MEALS)[attMeal];
   $("yatra-stats").innerHTML = `
-    <div class="stat cursor-pointer" data-stat="participants" title="Tap to view participants"><span class="stat-num">${rowsCache.length}</span><span class="stat-label">Participants</span></div>
-    <div class="stat cursor-pointer" data-stat="tokens" title="Tap to view tokens"><span class="stat-num">${tokens}</span><span class="stat-label">Tokens</span></div>
-    <div class="stat cursor-pointer" data-stat="present" title="Tap to view who has taken a token"><span class="stat-num">${present}</span><span class="stat-label">Taken Token</span></div>`;
+    <div class="yatra-stats-slot"><button type="button" id="dash-slot-btn" class="btn btn-secondary btn-sm" title="Change date / meal">📅 ${fmtDate(attDate)} · ${mealShort(attMeal)} (${mealName})</button></div>
+    <div class="stat cursor-pointer" data-stat="participants" title="Tap to view participants"><span class="stat-num">${rowsCache.length}</span><span class="stat-label">Total Participants</span></div>
+    <div class="stat cursor-pointer" data-stat="tokens" title="Tap to view who was served prasadam"><span class="stat-num">${served}</span><span class="stat-label">Prasadam Served</span></div>
+    <div class="stat cursor-pointer" data-stat="notserved" title="Tap to view who has not been served"><span class="stat-num">${notServed}</span><span class="stat-label">Prasadam Not Served</span></div>`;
+  $("dash-slot-btn").onclick = openSlotModal;
 }
 
 let statPopup = null; // { filename, title, headers, rows } for the open popup's Download button
 
 // One popup renderer for every list (stat boxes and per-person entries). A
-// "Phone Number" column is click-to-copy.
-function showListPopup(title, headers, rows, filenameBase) {
+// "Phone Number" column is click-to-copy. `key` names the popup so each kind
+// remembers its own dragged column order.
+function showListPopup(title, headers, rows, filenameBase, key) {
   statPopup = { filename: `${safeName(filenameBase)}_${todayISO()}.xlsx`, title: `${currentYatra.name} — ${title}`, headers, rows };
   $("yatra-stat-title").textContent = title;
   $("yatra-stat-thead").innerHTML = `<tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr>`;
@@ -249,19 +278,27 @@ function showListPopup(title, headers, rows, filenameBase) {
         ? `<td data-label="${headers[i]}"><button type="button" class="cell-chip yatra-copy-phone" data-phone="${escapeHtml(String(v ?? ""))}" title="Tap to copy">${escapeHtml(formatPhone(v))}</button></td>`
         : `<td data-label="${headers[i]}">${escapeHtml(String(v ?? ""))}</td>`).join("")}</tr>`).join("")
     : `<tr><td colspan="${headers.length}" class="muted-text">Nothing here yet.</td></tr>`;
+  initColumnDragReorder("yatra-stat-table", { force: true, storageKey: `nrg-col-order:yatra-stat:${key}` });
   $("yatra-stat-modal").classList.add("active");
 }
 
 function openStatPopup(kind) {
   const base = currentYatra.name || "Yatra";
+  // ordered by Folk Guide (A→Z), then name; people without a guide go last
+  const byGuide = (list) => [...list].sort((x, y) => {
+    const gx = (x.folk_guide || "").trim(), gy = (y.folk_guide || "").trim();
+    if (!gx !== !gy) return gx ? -1 : 1;
+    return gx.localeCompare(gy, undefined, { sensitivity: "base" }) || (x.name || "").localeCompare(y.name || "", undefined, { sensitivity: "base" });
+  });
   if (kind === "participants") {
-    showListPopup("Participants", ["S.No", "Name", "Phone Number"], rowsCache.map((r, i) => [i + 1, r.name, r.phone]), `${base}_Participants`);
+    showListPopup("Total Participants", ["S.No", "Name", "Phone Number", "Folk Guide"],
+      byGuide(rowsCache).map((r, i) => [i + 1, r.name, r.phone, r.folk_guide || ""]), `${base}_Total_Participants`, kind);
   } else if (kind === "tokens") {
-    showListPopup("Tokens", ["S.No", "Name", "Phone Number", "Tokens"],
-      rowsCache.filter((r) => r._tokens > 0).map((r, i) => [i + 1, r.name, r.phone, r._tokens]), `${base}_Tokens`);
+    showListPopup("Prasadam Served", ["S.No", "Name", "Phone Number", "Folk Guide", "Tokens"],
+      byGuide(rowsCache.filter((r) => r._slot > 0)).map((r, i) => [i + 1, r.name, r.phone, r.folk_guide || "", r._slot]), `${base}_Prasadam_Served`, kind);
   } else {
-    showListPopup("Taken Token", ["S.No", "Name", "Phone Number"],
-      rowsCache.filter((r) => r._tokens > 0).map((r, i) => [i + 1, r.name, r.phone]), `${base}_Taken_Token`);
+    showListPopup("Prasadam Not Served", ["S.No", "Name", "Phone Number", "Folk Guide"],
+      byGuide(rowsCache.filter((r) => !r._slot)).map((r, i) => [i + 1, r.name, r.phone, r.folk_guide || ""]), `${base}_Prasadam_Not_Served`, kind);
   }
 }
 
@@ -280,7 +317,7 @@ async function openTokenEntries(participantId) {
     i + 1, fmtDate(c.coupon_date), mealName[c.meal] || c.meal, c.kind === "regular" ? "Coupon" : "Extra",
     new Date(c.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
   ]);
-  showListPopup(`${person?.name || ""} — Tokens`, ["S.No", "Date", "Meal", "Type", "Time"], rows, `${person?.name || "Person"}_Tokens`);
+  showListPopup(`${person?.name || ""} — Prasadam Count`, ["S.No", "Date", "Meal", "Type", "Time"], rows, `${person?.name || "Person"}_Tokens`, "person");
 }
 
 /* ---------------- Table tabs ---------------- */
@@ -288,10 +325,15 @@ async function openTokenEntries(participantId) {
 function cellHtml(col, row) {
   const v = row[col.field];
   if (col.type === "tokenbtn") return `<button type="button" class="cell-chip info-link yatra-token-btn">${row._tokens || 0}</button>`;
+  if (col.type === "newtag") return v ? `<span class="cell-chip yatra-new-tag">🆕 New</span>` : "";
   if (col.type === "select") {
     return `<select class="inline-edit" data-field="${col.field}">${col.options.map((o) => `<option${o === v ? " selected" : ""}>${o}</option>`).join("")}</select>`;
   }
   const t = col.type === "number" ? `type="number" min="0" step="any"` : "";
+  // long names wrap onto a second line instead of being cut off (item / feedback tabs)
+  if (col.type === "text" && currentTab !== "dashboard") {
+    return `<textarea class="inline-edit yatra-wrap-edit" rows="1" data-field="${col.field}">${escapeHtml(v == null ? "" : String(v))}</textarea>`;
+  }
   return `<input class="inline-edit" ${t} data-field="${col.field}" value="${escapeHtml(v == null ? "" : String(v))}" />`;
 }
 
@@ -299,8 +341,11 @@ async function loadTable() {
   const cfg = TABS[currentTab];
   const tbody = $("yatra-tbody");
   $("yatra-add-btn").textContent = `+ Add ${cfg.title}`;
-  $("yatra-thead").innerHTML = `<tr><th>S.No</th>${cfg.cols.map((c) => `<th>${c.label}</th>`).join("")}<th></th></tr>`;
+  $("yatra-table").dataset.tab = currentTab;
+  $("yatra-thead").innerHTML = `<tr><th data-label="S.No">S.No</th>${cfg.cols.map((c) => `<th data-label="${c.label}">${c.label}</th>`).join("")}<th data-label=""></th></tr>`;
   tbody.innerHTML = `<tr><td colspan="${cfg.cols.length + 2}" class="loading-row">Loading…</td></tr>`;
+  // headers are rebuilt per tab, so the drag handlers are re-wired each time
+  initColumnDragReorder("yatra-table", { force: true, storageKey: `nrg-col-order:yatra:${currentTab}` });
 
   const { data, error } = await fetchAll(() => {
     let q = supabase.from(cfg.table).select("*").eq("yatra_id", currentYatra.id);
@@ -313,9 +358,10 @@ async function loadTable() {
   }
   rowsCache = data;
   if (currentTab === "dashboard") {
-    const coupons = await fetchAll(() => supabase.from("yatra_coupons").select("id,participant_id").eq("yatra_id", currentYatra.id));
+    const coupons = await fetchAll(() => supabase.from("yatra_coupons").select("id,participant_id,coupon_date,meal").eq("yatra_id", currentYatra.id));
+    couponsCache = coupons.data || [];
     const n = {};
-    (coupons.data || []).forEach((c) => { n[c.participant_id] = (n[c.participant_id] || 0) + 1; });
+    couponsCache.forEach((c) => { n[c.participant_id] = (n[c.participant_id] || 0) + 1; });
     rowsCache.forEach((r) => { r._tokens = n[r.id] || 0; });
   }
   renderRows();
@@ -325,12 +371,10 @@ async function loadTable() {
 function renderRows() {
   const cfg = TABS[currentTab];
   const tbody = $("yatra-tbody");
-  const term = $("yatra-search").value.trim().toLowerCase();
-  const rows = term
-    ? rowsCache.filter((r) => cfg.searchFields.some((f) => String(r[f] || "").toLowerCase().includes(term)))
-    : rowsCache;
+  const rows = visibleRows();
+  const filtered = $("yatra-search").value.trim() || (currentTab === "dashboard" && $("yatra-served-filter").value !== "all");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="${cfg.cols.length + 2}" class="muted-text">${term ? "No matches." : cfg.empty}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${cfg.cols.length + 2}" class="muted-text">${filtered ? "No matches." : cfg.empty}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, i) => `
@@ -339,8 +383,15 @@ function renderRows() {
       ${cfg.cols.map((c) => `<td data-label="${c.label}">${cellHtml(c, r)}</td>`).join("")}
       <td data-label=""><button type="button" class="cell-chip danger yatra-row-delete">🗑 Delete</button></td>
     </tr>`).join("");
+  reapplyColumnOrder("yatra-table");
 
   tbody.querySelectorAll("[data-field]").forEach((el) => el.addEventListener("change", () => saveCell(el)));
+  const fit = (el) => { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; };
+  tbody.querySelectorAll(".yatra-wrap-edit").forEach((el) => {
+    el.addEventListener("input", () => fit(el));
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); el.blur(); } });
+    fit(el);
+  });
   tbody.querySelectorAll(".yatra-token-btn").forEach((btn) => {
     btn.addEventListener("click", () => openTokenEntries(btn.closest("tr").dataset.id));
   });
@@ -406,40 +457,184 @@ async function deleteRow(id) {
   if (currentTab === "dashboard") renderStats();
 }
 
-// Every page's "Download Excel" and "Email Excel" share one spec shape:
-// { title, filename, headers, rows } — what's on screen is what's exported.
+// Every page's Download and "Email Excel" share one spec shape:
+// { title, filename, headers, rows } — what's on screen is what's exported,
+// including any columns the user has dragged into a new order.
 const safeName = (str) => String(str || "Yatra").replace(/[^\w-]+/g, "_");
+
+function inScreenOrder(spec, theadId) {
+  const labels = Array.from(document.querySelectorAll(`#${theadId} th`)).map((th) => th.textContent.trim()).filter(Boolean);
+  const idx = labels.map((l) => spec.headers.indexOf(l));
+  if (idx.length !== spec.headers.length || idx.includes(-1)) return spec;
+  return { ...spec, headers: idx.map((i) => spec.headers[i]), rows: spec.rows.map((r) => idx.map((i) => r[i])) };
+}
+
+// the rows currently shown (search + took/didn't-take filter), so the table,
+// its count and the downloaded file always match
+function visibleRows() {
+  const cfg = TABS[currentTab];
+  const term = $("yatra-search").value.trim().toLowerCase();
+  const served = currentTab === "dashboard" ? $("yatra-served-filter").value : "all";
+  return rowsCache.filter((r) =>
+    (!term || cfg.searchFields.some((f) => String(r[f] || "").toLowerCase().includes(term)))
+    && (served === "all" || (served === "took" ? r._tokens > 0 : !r._tokens)));
+}
 
 function tableExport() {
   const cfg = TABS[currentTab];
   const label = { dashboard: "Participants", disposables: "Disposables", cooking: "Cooking_Serving", feedback: "Feedback" }[currentTab];
-  return {
+  return inScreenOrder({
     title: `${currentYatra.name} — ${label.replace("_", " / ")}`,
     filename: `${safeName(currentYatra.name)}_${label}_${todayISO()}.xlsx`,
     headers: ["S.No", ...cfg.cols.map((c) => c.label)],
-    rows: rowsCache.map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : r[c.field] ?? ""))]),
-  };
+    rows: visibleRows().map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : c.type === "newtag" ? (r.is_new ? "New" : "") : r[c.field] ?? ""))]),
+  }, "yatra-thead");
+}
+
+// Dashboard download: asks for a date + meal first, then lists every
+// participant with how many plates they took in that slot.
+let dlDraft = null;
+function paintDlModal() {
+  $("dl-date").value = dlDraft.date;
+  $("dl-meal").querySelectorAll("[data-meal]").forEach((b) => {
+    b.classList.toggle("btn-primary", b.dataset.meal === dlDraft.meal);
+    b.classList.toggle("btn-secondary", b.dataset.meal !== dlDraft.meal);
+  });
+}
+function openDownloadSlot() {
+  if (!rowsCache.length) {
+    showToast("Nothing to download yet.", "error");
+    return;
+  }
+  dlDraft = { date: attDate, meal: attMeal };
+  paintDlModal();
+  $("yatra-dl-modal").classList.add("active");
+}
+async function dashboardSlotDownload() {
+  const { date, meal } = dlDraft;
+  const { data, error } = await fetchAll(() =>
+    supabase.from("yatra_coupons").select("id,participant_id").eq("yatra_id", currentYatra.id).eq("coupon_date", date).eq("meal", meal));
+  if (error) {
+    showToast("Could not load: " + error.message, "error");
+    return;
+  }
+  const n = {};
+  data.forEach((c) => { n[c.participant_id] = (n[c.participant_id] || 0) + 1; });
+  $("yatra-dl-modal").classList.remove("active");
+  const mealName = Object.fromEntries(MEALS)[meal];
+  downloadSpec({
+    title: `${currentYatra.name} — Participants · ${fmtDate(date)} · ${mealName}`,
+    filename: `${safeName(currentYatra.name)}_Participants_${date}_${mealShort(meal)}.xlsx`,
+    headers: ["S.No", "Name", "Phone Number", "Folk Guide", "Plates", "Status"],
+    rows: rowsCache.map((r, i) => [i + 1, r.name, r.phone, r.folk_guide ?? "", n[r.id] || 0, n[r.id] ? "Served" : "Not Served"]),
+  });
 }
 
 function attendanceExport() {
   const mealName = Object.fromEntries(MEALS)[attMeal];
-  return {
-    title: `${currentYatra.name} — Attendance ${attDate} ${attMeal} (${mealName})`,
-    filename: `${safeName(currentYatra.name)}_Attendance_${attDate}_${attMeal}.xlsx`,
+  return inScreenOrder({
+    title: `${currentYatra.name} — Attendance ${fmtDate(attDate)} · ${mealName}`,
+    filename: `${safeName(currentYatra.name)}_Attendance_${attDate}_${mealShort(attMeal)}.xlsx`,
     headers: ["S.No", "Name", "Phone Number", "Type", "Time"],
     rows: attSlotRows.map((r, i) => [
       attSlotRows.length - i, r.participant?.name || "", r.participant?.phone || "", r.kind === "regular" ? "Coupon" : "Extra",
       new Date(r.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
     ]),
-  };
+  }, "att-thead");
 }
 
+/* ---------------- Download: preview, then Excel or PDF ---------------- */
+
+const CENTERED_COLS = ["S.No", "Quantity", "Tokens", "Unit", "Type", "Time", "Plates", "Status"];
+let previewSpec = null;
+
+const generatedStamp = () => new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+// Shows the sheet the way it will print; its two buttons do the real download.
 function downloadSpec(spec) {
   if (!spec.rows.length) {
     showToast("Nothing to download yet.", "error");
     return;
   }
-  downloadExcel(spec.filename, [spec.headers, ...spec.rows], spec.title.replace(/[\\/?*[\]:]/g, " ").slice(0, 31));
+  previewSpec = spec;
+  const head = spec.headers.map((h) => `<th class="${CENTERED_COLS.includes(h) ? "c" : ""}">${escapeHtml(h)}</th>`).join("");
+  const body = spec.rows.map((r) => `<tr>${r.map((v, i) => `<td class="${CENTERED_COLS.includes(spec.headers[i]) ? "c" : ""}">${escapeHtml(String(v ?? ""))}</td>`).join("")}</tr>`).join("");
+  $("yatra-preview-sheet").innerHTML = `
+    <h4 class="yatra-paper-title">${escapeHtml(spec.title)}</h4>
+    <p class="yatra-paper-meta">Generated ${escapeHtml(generatedStamp())} &nbsp;·&nbsp; ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"}</p>
+    <table class="yatra-paper-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  $("yatra-preview-modal").classList.add("active");
+}
+
+function downloadXlsx(spec) {
+  const last = spec.headers.length - 1;
+  const ws = XLSX.utils.aoa_to_sheet([[spec.title], [`Generated ${generatedStamp()}`], [], spec.headers, ...spec.rows]);
+  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: last } }, { s: { r: 1, c: 0 }, e: { r: 1, c: last } }];
+  ws["!cols"] = spec.headers.map((h, c) => ({
+    wch: Math.min(50, Math.max(8, String(h).length + 2, ...spec.rows.map((r) => String(r[c] ?? "").length + 2))),
+  }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, spec.title.replace(/[\\/?*[\]:]/g, " ").slice(0, 31));
+  XLSX.writeFile(wb, spec.filename);
+}
+
+function downloadPdf(spec) {
+  const { jsPDF } = window.jspdf || {};
+  if (!jsPDF) {
+    showToast("PDF tools did not load — check your connection and retry.", "error");
+    return;
+  }
+  const ink = [60, 35, 15];
+  const accent = [194, 98, 22];
+  const doc = new jsPDF({ orientation: spec.headers.length > 5 ? "landscape" : "portrait", unit: "pt", format: "a4" });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const M = 40;
+  // the built-in PDF fonts only cover Latin-1, so swap the typographic dash/dot
+  const plain = (t) => String(t).replace(/[—–]/g, "-").replace(/·/g, "|");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(17);
+  doc.setTextColor(...ink);
+  doc.text(plain(spec.title), M, 46, { maxWidth: W - 2 * M });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(120, 110, 100);
+  doc.text(`Generated ${generatedStamp()}   |   ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"}`, M, 63);
+  doc.setDrawColor(...accent);
+  doc.setLineWidth(1.5);
+  doc.line(M, 71, W - M, 71);
+
+  const columnStyles = {};
+  spec.headers.forEach((h, i) => {
+    if (CENTERED_COLS.includes(h)) columnStyles[i] = { halign: "center" };
+    if (h === "S.No") columnStyles[i].cellWidth = 44;
+  });
+  doc.autoTable({
+    head: [spec.headers],
+    body: spec.rows.map((r) => r.map((v) => plain(v ?? ""))),
+    startY: 84,
+    margin: { left: M, right: M, top: 40, bottom: 44 },
+    theme: "grid",
+    styles: { font: "helvetica", fontSize: 10, cellPadding: { top: 6, bottom: 6, left: 8, right: 8 }, lineColor: [205, 195, 180], lineWidth: 0.6, textColor: [40, 35, 30], valign: "middle", overflow: "linebreak" },
+    headStyles: { fillColor: accent, textColor: 255, fontStyle: "bold", halign: "left", lineColor: accent },
+    alternateRowStyles: { fillColor: [253, 249, 242] },
+    columnStyles,
+    didParseCell: (d) => { if (d.section === "head" && CENTERED_COLS.includes(spec.headers[d.column.index])) d.cell.styles.halign = "center"; },
+  });
+
+  const pages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setFontSize(8.5);
+    doc.setTextColor(140, 130, 120);
+    doc.setDrawColor(205, 195, 180);
+    doc.setLineWidth(0.6);
+    doc.line(M, H - 34, W - M, H - 34);
+    doc.text("FOLK Yatras", M, H - 20);
+    doc.text(`Page ${p} of ${pages}`, W - M, H - 20, { align: "right" });
+  }
+  doc.save(spec.filename.replace(/\.xlsx$/, ".pdf"));
 }
 
 /* ---------------- Email Excel ---------------- */
@@ -507,7 +702,8 @@ function entryRowHtml(cfg) {
     const type = c.type === "number" ? `type="number" min="0" step="any"` : c.type === "phone" ? `type="tel" inputmode="numeric"` : `type="text"`;
     return `<input data-ef="${c.field}" ${type} placeholder="${c.label}" />`;
   }).join("");
-  return `<div class="yatra-entry-row" style="grid-template-columns: repeat(${addCols.length}, minmax(0, 1fr)) 32px">${cells}<button type="button" class="stock-row-remove cell-chip danger" title="Remove">✕</button></div>`;
+  const tracks = addCols.map((c) => c.grid || "minmax(0, 1fr)").join(" ");
+  return `<div class="yatra-entry-row" style="grid-template-columns: ${tracks} 32px">${cells}<button type="button" class="stock-row-remove cell-chip danger" title="Remove">✕</button></div>`;
 }
 
 function addEntryRow() {
@@ -679,9 +875,10 @@ function renderAttendance() {
   const pane = $("yatra-attendance-pane");
   pane.innerHTML = `
     <div class="yatra-slot-bar">
-      <button type="button" id="att-download-btn" class="btn btn-secondary btn-sm">⬇ Download Excel</button>
-      <button type="button" id="att-email-btn" class="btn btn-secondary btn-sm">✉ Email Excel</button>
-      <button type="button" id="att-slot-btn" class="btn btn-secondary btn-sm" title="Change date / meal"></button>
+      <input id="att-search" type="search" placeholder="Search…" class="search-input yatra-slot-search" />
+      <button type="button" id="att-download-btn" class="btn btn-secondary btn-sm">⬇ Download</button>
+      <span class="yatra-mind-note" role="note">🙏 Please mind me</span>
+      <button type="button" id="att-slot-btn" class="btn btn-primary btn-sm" title="Change date / meal"></button>
     </div>
     <div class="panel">
       <label class="field"><span>Phone number</span>
@@ -691,17 +888,18 @@ function renderAttendance() {
     </div>
     <div class="stats-bar yatra-stats" id="att-stats"></div>
     <div class="table-wrap">
-      <table class="data-table">
-        <thead><tr><th>S.No</th><th>Name</th><th>Phone Number</th><th>Type</th><th>Time</th><th></th></tr></thead>
+      <table class="data-table" id="att-table">
+        <thead id="att-thead"><tr><th>S.No</th><th>Name</th><th>Phone Number</th><th>Type</th><th>Time</th><th></th></tr></thead>
         <tbody id="att-tbody"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
       </table>
     </div>`;
 
   syncAttControls();
+  initColumnDragReorder("att-table", { storageKey: "nrg-col-order:yatra:attendance" });
   $("att-slot-btn").onclick = openSlotModal;
   $("att-download-btn").onclick = () => downloadSpec(attendanceExport());
-  $("att-email-btn").onclick = () => openEmailModal(attendanceExport);
   $("att-phone").addEventListener("input", onPhoneInput);
+  $("att-search").addEventListener("input", renderSlot);
   loadSlot();
   $("att-phone").focus();
 }
@@ -709,7 +907,7 @@ function renderAttendance() {
 function syncAttControls() {
   const mealName = Object.fromEntries(MEALS)[attMeal];
   const btn = $("att-slot-btn");
-  if (btn) btn.textContent = `📅 ${fmtDate(attDate)} · ${attMeal} (${mealName})`;
+  if (btn) btn.textContent = `📅 ${fmtDate(attDate)} · ${mealShort(attMeal)} (${mealName})`;
 }
 
 // the slot popup edits a draft; Done applies it
@@ -728,6 +926,10 @@ function openSlotModal() {
 }
 
 async function onSlotChanged() {
+  if (currentTab === "dashboard") {
+    renderStats();
+    return;
+  }
   await loadSlot();
   if (attPerson) showPerson();
 }
@@ -754,11 +956,15 @@ function renderSlot() {
     <div class="stat stat-positive"><span class="stat-num">${attSlotRows.length}</span><span class="stat-label">Total Plates</span></div>`;
 
   const tbody = $("att-tbody");
-  if (!attSlotRows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">Nothing marked for this meal yet.</td></tr>`;
+  const term = ($("att-search")?.value || "").trim().toLowerCase();
+  const shown = term
+    ? attSlotRows.filter((r) => `${r.participant?.name || ""} ${r.participant?.phone || ""}`.toLowerCase().includes(term))
+    : attSlotRows;
+  if (!shown.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">${term ? "No matches." : "Nothing marked for this meal yet."}</td></tr>`;
     return;
   }
-  tbody.innerHTML = attSlotRows.map((r, i) => `
+  tbody.innerHTML = shown.map((r, i) => `
     <tr data-id="${r.id}">
       <td data-label="S.No">${attSlotRows.length - i}</td>
       <td data-label="Name">${escapeHtml(r.participant?.name || "")}</td>
@@ -767,6 +973,7 @@ function renderSlot() {
       <td data-label="Time">${new Date(r.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</td>
       <td data-label=""><button type="button" class="cell-chip danger att-delete">🗑 Undo</button></td>
     </tr>`).join("");
+  reapplyColumnOrder("att-table");
   tbody.querySelectorAll(".att-delete").forEach((btn) => btn.addEventListener("click", async () => {
     if (!confirm("Remove this entry?")) return;
     const { error } = await supabase.from("yatra_coupons").delete().eq("id", btn.closest("tr").dataset.id);
@@ -785,7 +992,7 @@ async function onPhoneInput(e) {
   }
   result.innerHTML = `<p class="loading-row">Looking up…</p>`;
   const { data, error } = await supabase.from("yatra_participants")
-    .select("id,name,phone,folk_guide").eq("yatra_id", currentYatra.id).eq("phone", phone).maybeSingle();
+    .select("id,name,phone,folk_guide,is_new").eq("yatra_id", currentYatra.id).eq("phone", phone).maybeSingle();
   // the field may have changed while the request was in flight
   if (normalizePhoneInput($("att-phone").value) !== phone) return;
   if (error) {
@@ -793,12 +1000,58 @@ async function onPhoneInput(e) {
     return;
   }
   if (!data) {
-    result.innerHTML = `<p class="field-error">No participant with this number in this yatra.</p>`;
+    showNewPersonForm(phone);
     return;
   }
   attPerson = data;
   attPerson.usedTotal = await countRows("yatra_coupons", currentYatra.id, (q) => q.eq("participant_id", data.id));
   showPerson();
+}
+
+// Phone isn't in this yatra's list: offer to add the person right here. They
+// are saved with is_new = true so the Dashboard can tell them apart.
+function showNewPersonForm(phone) {
+  $("att-result").innerHTML = `
+    <div class="yatra-person-card yatra-new-card">
+      <div class="yatra-person-info">
+        <p class="yatra-person-name">Not in the list</p>
+        <p class="muted-text">📞 ${escapeHtml(formatPhone(phone))} isn't registered in this yatra. Add them as a new participant:</p>
+        <label class="field"><span>Name *</span><input id="att-new-name" type="text" autocomplete="off" placeholder="Full name" /></label>
+        <label class="field"><span>Folk Guide</span><input id="att-new-guide" type="text" autocomplete="off" placeholder="Optional" /></label>
+        <div id="att-new-error" class="field-error hidden"></div>
+      </div>
+      <div class="yatra-person-actions">
+        <button id="att-new-save-btn" class="btn btn-primary">+ Add &amp; Mark Coupon</button>
+        <button id="att-new-add-only-btn" class="btn btn-secondary">Add Only</button>
+      </div>
+    </div>`;
+  const save = async (markCoupon) => {
+    const name = $("att-new-name").value.trim();
+    const errorEl = $("att-new-error");
+    if (!name) {
+      errorEl.textContent = "Enter the person's name.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    const btns = [$("att-new-save-btn"), $("att-new-add-only-btn")];
+    btns.forEach((b) => { b.disabled = true; });
+    const { data, error } = await supabase.from("yatra_participants")
+      .insert({ yatra_id: currentYatra.id, name, phone, folk_guide: $("att-new-guide").value.trim() || null, is_new: true })
+      .select("id,name,phone,folk_guide,is_new").single();
+    if (error) {
+      btns.forEach((b) => { b.disabled = false; });
+      errorEl.textContent = /duplicate|unique/i.test(error.message) ? "This number was just added — type it again." : "Could not add: " + friendlyDbError(error);
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    showToast(`${name} added as a new participant`, "success");
+    attPerson = { ...data, usedTotal: 0 };
+    if (markCoupon) await markCoupons("regular", 1);
+    else showPerson();
+  };
+  $("att-new-save-btn").onclick = () => save(true);
+  $("att-new-add-only-btn").onclick = () => save(false);
+  $("att-new-name").focus();
 }
 
 function showPerson() {
@@ -809,7 +1062,7 @@ function showPerson() {
   $("att-result").innerHTML = `
     <div class="yatra-person-card">
       <div class="yatra-person-info">
-        <p class="yatra-person-name">${escapeHtml(p.name)}</p>
+        <p class="yatra-person-name">${escapeHtml(p.name)}${p.is_new ? ` <span class="cell-chip yatra-new-tag">🆕 New</span>` : ""}</p>
         <p class="muted-text">📞 ${escapeHtml(formatPhone(p.phone))}${p.folk_guide ? ` · Folk Guide: ${escapeHtml(p.folk_guide)}` : ""}</p>
         <p class="muted-text">Tokens taken so far (all meals): <strong>${p.usedTotal}</strong></p>
         <p class="muted-text">This meal: ${hasRegular ? "✅ coupon marked" : "coupon not marked yet"}${extras ? ` · ${extras} extra plate(s)` : ""}</p>
@@ -890,13 +1143,20 @@ function wireShell() {
   const entryModal = $("yatra-entry-modal");
   $("yatra-add-btn").onclick = openEntryModal;
   $("yatra-download-btn").onclick = () => downloadSpec(tableExport());
-  $("yatra-email-btn").onclick = () => openEmailModal(tableExport);
+  const dlModal = $("yatra-dl-modal");
+  $("dl-date").addEventListener("change", (e) => { if (e.target.value) dlDraft.date = e.target.value; });
+  $("dl-meal").querySelectorAll("[data-meal]").forEach((b) => b.addEventListener("click", () => {
+    dlDraft.meal = b.dataset.meal;
+    paintDlModal();
+  }));
+  $("yatra-dl-next-btn").onclick = dashboardSlotDownload;
+  $("yatra-dl-cancel-btn").onclick = () => dlModal.classList.remove("active");
+  dlModal.addEventListener("click", (e) => { if (e.target === dlModal) dlModal.classList.remove("active"); });
   const emailModal = $("yatra-email-modal");
   $("yatra-email-cancel-btn").onclick = () => emailModal.classList.remove("active");
   emailModal.addEventListener("click", (e) => { if (e.target === emailModal) emailModal.classList.remove("active"); });
   $("yatra-email-send-btn").onclick = sendEmail;
   $("yatra-email-to").addEventListener("keydown", (e) => { if (e.key === "Enter") sendEmail(); });
-  $("yatra-stat-email-btn").onclick = () => openEmailModal(() => statPopup || { rows: [] });
   $("yatra-entry-add-row-btn").onclick = addEntryRow;
   $("yatra-entry-cancel-btn").onclick = () => entryModal.classList.remove("active");
   entryModal.addEventListener("click", (e) => { if (e.target === entryModal) entryModal.classList.remove("active"); });
@@ -915,6 +1175,7 @@ function wireShell() {
   $("yatra-import-save-btn").onclick = runImport;
 
   $("yatra-search").addEventListener("input", renderRows);
+  $("yatra-served-filter").addEventListener("change", renderRows);
   const slotModal = $("yatra-slot-modal");
   $("att-date").addEventListener("change", (e) => { if (e.target.value) slotDraft.date = e.target.value; });
   $("att-meal").querySelectorAll("[data-meal]").forEach((b) => b.addEventListener("click", () => {
@@ -942,7 +1203,12 @@ function wireShell() {
   });
   $("yatra-stat-close-btn").onclick = () => statModal.classList.remove("active");
   statModal.addEventListener("click", (e) => { if (e.target === statModal) statModal.classList.remove("active"); });
-  $("yatra-stat-download-btn").onclick = () => downloadSpec(statPopup || { rows: [] });
+  $("yatra-stat-download-btn").onclick = () => downloadSpec(inScreenOrder(statPopup || { headers: [], rows: [] }, "yatra-stat-thead"));
+  const previewModal = $("yatra-preview-modal");
+  $("yatra-preview-xlsx-btn").onclick = () => previewSpec && downloadXlsx(previewSpec);
+  $("yatra-preview-pdf-btn").onclick = () => previewSpec && downloadPdf(previewSpec);
+  $("yatra-preview-close-btn").onclick = () => previewModal.classList.remove("active");
+  previewModal.addEventListener("click", (e) => { if (e.target === previewModal) previewModal.classList.remove("active"); });
   $("yatra-back-btn").onclick = () => {
     showYatrasView();
     loadYatraCards();

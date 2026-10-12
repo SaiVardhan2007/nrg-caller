@@ -61,6 +61,21 @@ module.exports = async (req, res) => {
   }
 
   try {
+    // Two triggers can fire this (Supabase pg_cron at exactly 20:30 IST, and
+    // Vercel's cron, which on the Hobby plan runs at an arbitrary minute of
+    // the scheduled hour). Whichever comes second must not send a duplicate.
+    const force = String((req.query && req.query.force) || "") === "1";
+    if (!force) {
+      const lr = await fetch(`${SUPABASE_URL}/rest/v1/settings?select=value&key=eq.${LAST_RUN_KEY}`, {
+        headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
+      });
+      const [row] = lr.ok ? await lr.json() : [];
+      const last = row ? Date.parse(row.value) : NaN;
+      if (!Number.isNaN(last) && Date.now() - last < 12 * 3600 * 1000) {
+        return res.status(200).json({ ok: true, skipped: "already sent in the last 12h" });
+      }
+    }
+
     if (!SMTP_USER || !SMTP_PASS) {
       return res.status(500).json({ error: "SMTP_USER/SMTP_PASS Vercel env vars are not set" });
     }
@@ -120,7 +135,7 @@ module.exports = async (req, res) => {
       }],
     });
 
-    await fetch(`${SUPABASE_URL}/rest/v1/settings?on_conflict=key`, {
+    const lastRunRes = await fetch(`${SUPABASE_URL}/rest/v1/settings?on_conflict=key`, {
       method: "POST",
       headers: {
         apikey: SERVICE_KEY,
@@ -130,6 +145,8 @@ module.exports = async (req, res) => {
       },
       body: JSON.stringify({ key: LAST_RUN_KEY, value: new Date().toISOString() }),
     });
+
+    if (!lastRunRes.ok) console.error("could not record last run:", lastRunRes.status, await lastRunRes.text());
 
     return res.status(200).json({ ok: true, tables: tables.length, rows: rowCount });
   } catch (err) {

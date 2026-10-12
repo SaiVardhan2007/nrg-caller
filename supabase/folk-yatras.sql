@@ -36,7 +36,7 @@ create table if not exists yatra_participants (
 );
 create unique index if not exists yatra_participants_phone_uniq on yatra_participants(yatra_id, phone);
 
--- One row per plate. meal: M = morning, L = lunch, D = dinner.
+-- One row per plate. meal: M = breakfast, L = lunch, S = snacks, D = dinner.
 -- kind 'regular' is the single normal coupon (max one per person per meal);
 -- kind 'extra' rows are unlimited (typing 3 extra plates inserts 3 rows).
 create table if not exists yatra_coupons (
@@ -44,7 +44,7 @@ create table if not exists yatra_coupons (
   yatra_id       uuid not null references yatras(id) on delete cascade,
   participant_id uuid not null references yatra_participants(id) on delete cascade,
   coupon_date    date not null,
-  meal           text not null check (meal in ('M','L','D')),
+  meal           text not null check (meal in ('M','L','S','D')),
   kind           text not null check (kind in ('regular','extra')),
   created_at     timestamptz not null default now()
 );
@@ -60,9 +60,14 @@ create table if not exists yatra_items (
   kind        text not null check (kind in ('disposable','cooking')),
   name        text not null,
   quantity    numeric,
+  unit        text default 'Number' check (unit in ('Number','Pieces','Packets','Bags')),
   status      text not null default 'Not Received' check (status in ('Received','Not Received','Not Available')),
   created_at  timestamptz not null default now()
 );
+
+-- Unit (Disposables only) — added after the table first shipped.
+alter table yatra_items add column if not exists unit text default 'Number'
+  check (unit in ('Number','Pieces','Packets','Bags'));
 
 create table if not exists yatra_feedback (
   id          uuid primary key default gen_random_uuid(),
@@ -92,3 +97,6 @@ drop policy if exists app_all on yatra_items;
 create policy app_all on yatra_items for all to anon, authenticated using (true) with check (true);
 drop policy if exists app_all on yatra_feedback;
 create policy app_all on yatra_feedback for all to anon, authenticated using (true) with check (true);
+
+-- People added on the spot from Attendance (phone not in the uploaded list).
+alter table yatra_participants add column if not exists is_new boolean not null default false;

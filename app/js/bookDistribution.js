@@ -215,19 +215,21 @@ function sortRows(rows, sortVal, defaultVal) {
 }
 
 const PLACES_COLUMNS_KEY = "nrg-book-places-column-order";
-const DEFAULT_PLACES_COLUMNS = ["S.No", "Name", "Description", "Map Link", ""];
+const DEFAULT_PLACES_COLUMNS = ["S.No", "Name", "Description", "Map Link", "Review", ""];
 const PLACES_BLANK_FILTERS = [["bp-filter-description", "description"], ["bp-filter-map-link", "map_link"]];
 let placesFiltersWired = false;
 
-export async function initPlaces() {
+export async function initPlaces(currentUser) {
+  if (currentUser) reviewUser = currentUser;
   wirePlaceModal();
+  wirePlaceReviewModals();
   wirePlacesFilters();
   await loadPlaces();
 }
 
 async function loadPlaces() {
   const tbody = document.getElementById("book-places-body");
-  tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
 
   const { data, error } = await supabase
     .from("book_places")
@@ -235,7 +237,7 @@ async function loadPlaces() {
     .order("name", { ascending: true });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Could not load places.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Could not load places.</td></tr>`;
     return;
   }
   placesCache = data || [];
@@ -245,7 +247,7 @@ async function loadPlaces() {
 function renderPlacesRows(rows, emptyMessage) {
   const tbody = document.getElementById("book-places-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">${emptyMessage}</td></tr>`;
     return;
   }
 
@@ -260,6 +262,7 @@ function renderPlacesRows(rows, emptyMessage) {
           ${p.map_link ? `<a href="${escapeHtml(p.map_link)}" target="_blank" rel="noopener noreferrer" class="cell-chip" title="Open Map">📍</a>` : ""}
         </div>
       </td>
+      <td data-label="Review"><button type="button" class="cell-chip place-review-btn" title="Reviews">💬 Reviews</button></td>
       <td data-label="">
         <button type="button" class="cell-chip danger place-delete-btn" title="Delete">🗑 Delete</button>
       </td>
@@ -269,6 +272,7 @@ function renderPlacesRows(rows, emptyMessage) {
   tbody.querySelectorAll(".place-delete-btn").forEach((btn) => {
     btn.addEventListener("click", () => deletePlace(btn.closest("tr").dataset.id));
   });
+  wirePlaceReviewButtons(tbody, placesCache, true);
   wireInlineEditCells(tbody, "book_places", placesCache, { requiredFields: ["name"] }, loadPlaces);
   reapplyColumnOrder("book-places-table");
 }
@@ -366,6 +370,142 @@ function wirePlaceModal() {
   };
 }
 
+/* ======================= PLACE REVIEWS =======================
+   Experience notes per distribution place. A user is prompted for one right
+   after saving sales (Add Sales modal); the Review column on both Places
+   tables opens the full list. Admins can add/edit/delete, users only add. */
+let reviewUser = null;
+let reviewPlace = null;      // { id, name } currently open in the list modal
+let reviewIsAdmin = false;
+let reviewEditingId = null;  // set while the form modal is editing an existing review
+let reviewsCache = [];
+let reviewModalsWired = false;
+
+function wirePlaceReviewButtons(tbody, cache, isAdmin) {
+  tbody.querySelectorAll(".place-review-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const p = cache.find((x) => x.id === btn.closest("tr").dataset.id);
+      if (p) openReviewList(p, isAdmin);
+    });
+  });
+}
+
+function fmtReviewTime(iso) {
+  return new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+async function openReviewList(place, isAdmin) {
+  wirePlaceReviewModals();
+  reviewPlace = place;
+  reviewIsAdmin = isAdmin;
+  document.getElementById("book-place-review-title").textContent = `Reviews — ${place.name}`;
+  document.getElementById("book-place-review-actions-th").classList.toggle("hidden", !isAdmin);
+  document.getElementById("book-place-review-modal").classList.add("active");
+  await loadReviews();
+}
+
+async function loadReviews() {
+  const tbody = document.getElementById("book-place-review-body");
+  const cols = reviewIsAdmin ? 5 : 4;
+  tbody.innerHTML = `<tr><td colspan="${cols}" class="loading-row">Loading…</td></tr>`;
+  const { data, error } = await supabase
+    .from("book_place_reviews")
+    .select("id,review,user_name,created_at")
+    .eq("place_id", reviewPlace.id)
+    .order("created_at", { ascending: true });
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="${cols}" class="loading-row">Could not load reviews.</td></tr>`;
+    return;
+  }
+  reviewsCache = data || [];
+  if (!reviewsCache.length) {
+    tbody.innerHTML = `<tr><td colspan="${cols}" class="muted-text">No reviews yet.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = reviewsCache.map((r, idx) => `
+    <tr data-id="${r.id}">
+      <td data-label="S.No">${idx + 1}</td>
+      <td data-label="Time">${escapeHtml(fmtReviewTime(r.created_at))}</td>
+      <td data-label="User">${escapeHtml(r.user_name || "—")}</td>
+      <td data-label="Review" style="white-space:pre-wrap;">${escapeHtml(r.review)}</td>
+      ${reviewIsAdmin ? `<td data-label="">
+        <button type="button" class="cell-chip review-edit-btn" title="Edit">✏️ Edit</button>
+        <button type="button" class="cell-chip danger review-delete-btn" title="Delete">🗑 Delete</button>
+      </td>` : ""}
+    </tr>
+  `).join("");
+  tbody.querySelectorAll(".review-edit-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const r = reviewsCache.find((x) => x.id === btn.closest("tr").dataset.id);
+      if (r) openReviewForm(reviewPlace, r);
+    });
+  });
+  tbody.querySelectorAll(".review-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Delete this review?")) return;
+      const { error: delErr } = await supabase.from("book_place_reviews").delete().eq("id", btn.closest("tr").dataset.id);
+      if (delErr) { showToast("Delete failed: " + delErr.message, "error"); return; }
+      showToast("Review deleted", "success");
+      await loadReviews();
+    });
+  });
+}
+
+// existing = review row being edited (admin), otherwise a blank add form.
+function openReviewForm(place, existing) {
+  wirePlaceReviewModals();
+  reviewPlace = place;
+  reviewEditingId = existing ? existing.id : null;
+  document.getElementById("book-place-review-form-title").textContent = existing ? "Edit Review" : "Add Review";
+  document.getElementById("book-place-review-form-label").textContent = `What was your experience of book distribution at ${place.name}?`;
+  document.getElementById("book-place-review-form-cancel-btn").textContent = existing ? "Cancel" : "Skip";
+  document.getElementById("book-place-review-text").value = existing ? existing.review : "";
+  document.getElementById("book-place-review-error").classList.add("hidden");
+  document.getElementById("book-place-review-form-modal").classList.add("active");
+}
+
+function wirePlaceReviewModals() {
+  if (reviewModalsWired) return;
+  reviewModalsWired = true;
+  const listModal = document.getElementById("book-place-review-modal");
+  const formModal = document.getElementById("book-place-review-form-modal");
+  const errorEl = document.getElementById("book-place-review-error");
+  const saveBtn = document.getElementById("book-place-review-form-save-btn");
+
+  document.getElementById("book-place-review-close-btn").onclick = () => listModal.classList.remove("active");
+  listModal.addEventListener("click", (e) => { if (e.target === listModal) listModal.classList.remove("active"); });
+  document.getElementById("book-place-review-add-btn").onclick = () => openReviewForm(reviewPlace, null);
+  document.getElementById("book-place-review-form-cancel-btn").onclick = () => formModal.classList.remove("active");
+
+  saveBtn.onclick = async () => {
+    const text = document.getElementById("book-place-review-text").value.trim();
+    if (!text) {
+      errorEl.textContent = "Please write your review.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    saveBtn.disabled = true;
+    const { error } = reviewEditingId
+      ? await supabase.from("book_place_reviews").update({ review: text }).eq("id", reviewEditingId)
+      : await supabase.from("book_place_reviews").insert({ place_id: reviewPlace.id, review: text, user_name: reviewUser?.user_name || null });
+    saveBtn.disabled = false;
+    if (error) {
+      errorEl.textContent = error.message;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    formModal.classList.remove("active");
+    showToast(reviewEditingId ? "Review updated" : "Review added", "success");
+    if (listModal.classList.contains("active")) await loadReviews();
+  };
+}
+
+// After saving sales: ask for the user's experience at that place.
+async function promptReviewForPlace(placeName) {
+  const { data } = await supabase.from("book_places").select("id,name").ilike("name", placeName).limit(1);
+  if (data && data[0]) openReviewForm(data[0], null);
+}
+
 /* ---- Add Places / Add Events: read-only-except-edit views for regular
    users (Book Distribution dashboard → "Add Places" / "Add Events") — same
    book_places/book_events tables as the admin pages above, minus delete and
@@ -375,7 +515,7 @@ let placesUserCache = [];
 async function loadPlacesUser() {
   const tbody = document.getElementById("book-places-user-body");
   if (!tbody) return;
-  tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
 
   const { data, error } = await supabase
     .from("book_places")
@@ -383,7 +523,7 @@ async function loadPlacesUser() {
     .order("name", { ascending: true });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="4" class="loading-row">Could not load places.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Could not load places.</td></tr>`;
     return;
   }
   placesUserCache = data || [];
@@ -393,7 +533,7 @@ async function loadPlacesUser() {
 function renderPlacesUserRows(rows) {
   const tbody = document.getElementById("book-places-user-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="muted-text">No places yet — add one to get started.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="muted-text">No places yet — add one to get started.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((p, idx) => `
@@ -407,8 +547,10 @@ function renderPlacesUserRows(rows) {
           ${p.map_link ? `<a href="${escapeHtml(p.map_link)}" target="_blank" rel="noopener noreferrer" class="cell-chip" title="Open Map">📍</a>` : ""}
         </div>
       </td>
+      <td data-label="Review"><button type="button" class="cell-chip place-review-btn" title="Reviews">💬 Reviews</button></td>
     </tr>
   `).join("");
+  wirePlaceReviewButtons(tbody, placesUserCache, false);
   wireInlineEditCells(tbody, "book_places", placesUserCache, { requiredFields: ["name"] }, loadPlacesUser);
 }
 
@@ -613,8 +755,10 @@ function renderEventsUserRows(rows) {
   wireInlineEditCells(tbody, "book_events", eventsUserCache, { requiredFields: ["name"] }, loadEventsUser);
 }
 
-export async function initPlacesUser() {
+export async function initPlacesUser(currentUser) {
+  if (currentUser) reviewUser = currentUser;
   wirePlaceModal();
+  wirePlaceReviewModals();
   await loadPlacesUser();
 }
 
@@ -1667,6 +1811,8 @@ function wireOutwardModal(currentUser) {
       saveBtn.disabled = false;
       saveBtn.textContent = saveBtnLabel;
     }, 4000);
+    reviewUser = currentUser;
+    promptReviewForPlace(area);
     await renderMyOutward(currentUser.user_name);
     await renderLatestEntryLocation(currentUser.user_name);
   };

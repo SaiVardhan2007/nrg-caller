@@ -46,13 +46,17 @@ export async function login(userName, password) {
 export async function refreshSession(existing) {
   const { data, error } = await supabase
     .from("users")
-    .select("id,user_name,role,call_limit,auto_assign,commander,allowed_pages,allowed_trip_events")
+    .select("id,user_name,login_pw,role,call_limit,auto_assign,commander,allowed_pages,allowed_trip_events")
     .eq("id", existing.id)
     .limit(1);
+  if (error) return existing; // offline / server hiccup — keep the cached session
   const row = data && data[0];
-  if (error || !row) return existing;
+  // Login was deleted, or its password changed since this session was
+  // created: the session is no longer valid.
+  if (!row) return null;
+  if (existing.login_pw && row.login_pw !== existing.login_pw) return null;
 
-  const user = { ...existing, role: row.role, call_limit: row.call_limit, auto_assign: row.auto_assign, commander: row.commander, allowed_pages: row.allowed_pages, allowed_trip_events: row.allowed_trip_events };
+  const user = { ...existing, login_pw: row.login_pw, role: row.role, call_limit: row.call_limit, auto_assign: row.auto_assign, commander: row.commander, allowed_pages: row.allowed_pages, allowed_trip_events: row.allowed_trip_events };
   setSession(user);
   return user;
 }

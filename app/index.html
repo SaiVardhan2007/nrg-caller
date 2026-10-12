@@ -1161,11 +1161,12 @@
                       <option value="__BLANK__">Blank Only</option>
                     </select>
                   </th>
+                  <th data-label="Review">Review</th>
                   <th data-label=""></th>
                 </tr>
               </thead>
               <tbody id="book-places-body">
-                <tr><td colspan="5" class="loading-row">Loading…</td></tr>
+                <tr><td colspan="6" class="loading-row">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -2194,10 +2195,16 @@
           <div id="yatra-sidebar" class="panel users-sidebar">
             <div class="users-toolbar">
               <div id="yatra-table-controls" class="users-toolbar">
-                <input id="yatra-search" type="search" placeholder="Search…" class="search-input" />
+                <div class="yatra-search-row">
+                  <input id="yatra-search" type="search" placeholder="Search…" class="search-input" />
+                  <select id="yatra-served-filter" class="search-input hidden" title="Filter by prasadam">
+                    <option value="all">Took &amp; didn't take</option>
+                    <option value="took">Only who took</option>
+                    <option value="not">Only who didn't take</option>
+                  </select>
+                </div>
                 <button id="yatra-add-btn" class="btn btn-primary toolbar-btn">+ Add</button>
-                <button id="yatra-download-btn" class="btn btn-secondary toolbar-btn">⬇ Download Excel</button>
-                <button id="yatra-email-btn" class="btn btn-secondary toolbar-btn">✉ Email Excel</button>
+                <button id="yatra-download-btn" class="btn btn-secondary toolbar-btn">⬇ Download</button>
                 <button id="yatra-upload-btn" class="btn btn-secondary toolbar-btn">⬆ Upload Excel</button>
                 <input id="yatra-import-file" type="file" accept=".xlsx,.xls,.csv" class="hidden" />
               </div>
@@ -2561,9 +2568,10 @@
                 <th data-label="Name">Name</th>
                 <th data-label="Description">Description</th>
                 <th data-label="Map Link">Map Link</th>
+                <th data-label="Review">Review</th>
               </tr>
             </thead>
-            <tbody id="book-places-user-body"><tr><td colspan="4" class="loading-row">Loading…</td></tr></tbody>
+            <tbody id="book-places-user-body"><tr><td colspan="5" class="loading-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -3663,6 +3671,42 @@
   </div>
 </div>
 
+<div id="book-place-review-modal" class="modal">
+  <div class="modal-box modal-large">
+    <h3 id="book-place-review-title">Reviews</h3>
+    <div class="table-wrap">
+      <table class="data-table" id="book-place-review-table">
+        <thead>
+          <tr>
+            <th data-label="S.No">S.No</th>
+            <th data-label="Time">Time</th>
+            <th data-label="User">User</th>
+            <th data-label="Review">Review</th>
+            <th data-label="" id="book-place-review-actions-th"></th>
+          </tr>
+        </thead>
+        <tbody id="book-place-review-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button id="book-place-review-close-btn" class="btn btn-secondary">Close</button>
+      <button id="book-place-review-add-btn" class="btn btn-primary">+ Add Review</button>
+    </div>
+  </div>
+</div>
+
+<div id="book-place-review-form-modal" class="modal">
+  <div class="modal-box">
+    <h3 id="book-place-review-form-title">Add Review</h3>
+    <label class="field"><span id="book-place-review-form-label">What was your experience at this place?</span><textarea id="book-place-review-text" rows="5" placeholder="Share your experience of book distribution here…"></textarea></label>
+    <div id="book-place-review-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="book-place-review-form-cancel-btn" class="btn btn-secondary">Skip</button>
+      <button id="book-place-review-form-save-btn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="book-inward-modal" class="modal">
   <div class="modal-box modal-large">
     <div class="modal-title-row">
@@ -3944,14 +3988,36 @@
     <div class="field">
       <span>Meal</span>
       <div class="yatra-meal-toggle" id="att-meal">
-        <button type="button" class="btn" data-meal="M">M · Morning</button>
+        <button type="button" class="btn" data-meal="M">B · Breakfast</button>
         <button type="button" class="btn" data-meal="L">L · Lunch</button>
+        <button type="button" class="btn" data-meal="S">S · Snacks</button>
         <button type="button" class="btn" data-meal="D">D · Dinner</button>
       </div>
     </div>
     <div class="modal-actions">
       <button id="yatra-slot-cancel-btn" class="btn btn-secondary">Cancel</button>
       <button id="yatra-slot-done-btn" class="btn btn-primary">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="yatra-dl-modal" class="modal">
+  <div class="modal-box">
+    <h3>Download — Date &amp; Meal</h3>
+    <p class="muted-text">The list will show who was served prasadam on this date and meal.</p>
+    <label class="field"><span>Date</span><input id="dl-date" type="date" /></label>
+    <div class="field">
+      <span>Meal</span>
+      <div class="yatra-meal-toggle" id="dl-meal">
+        <button type="button" class="btn" data-meal="M">B · Breakfast</button>
+        <button type="button" class="btn" data-meal="L">L · Lunch</button>
+        <button type="button" class="btn" data-meal="S">S · Snacks</button>
+        <button type="button" class="btn" data-meal="D">D · Dinner</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="yatra-dl-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="yatra-dl-next-btn" class="btn btn-primary">Continue</button>
     </div>
   </div>
 </div>
@@ -3975,15 +4041,29 @@
       <h3 id="yatra-stat-title">Details</h3>
     </div>
     <div class="table-wrap">
-      <table class="data-table">
+      <table class="data-table" id="yatra-stat-table">
         <thead id="yatra-stat-thead"></thead>
         <tbody id="yatra-stat-tbody"></tbody>
       </table>
     </div>
     <div class="modal-actions">
-      <button id="yatra-stat-download-btn" class="btn btn-primary">⬇ Download Excel</button>
-      <button id="yatra-stat-email-btn" class="btn btn-secondary">✉ Email Excel</button>
+      <button id="yatra-stat-download-btn" class="btn btn-primary">⬇ Download</button>
       <button id="yatra-stat-close-btn" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="yatra-preview-modal" class="modal">
+  <div class="modal-box modal-large">
+    <div class="modal-title-row">
+      <h3>Download Preview</h3>
+    </div>
+    <p class="muted-text">This is how the file will look. Choose a format to download it.</p>
+    <div class="yatra-preview-stage"><div id="yatra-preview-sheet" class="yatra-paper"></div></div>
+    <div class="modal-actions">
+      <button id="yatra-preview-xlsx-btn" class="btn btn-primary">⬇ Download in Excel</button>
+      <button id="yatra-preview-pdf-btn" class="btn btn-primary">⬇ Download in PDF</button>
+      <button id="yatra-preview-close-btn" class="btn btn-secondary">Close</button>
     </div>
   </div>
 </div>
@@ -4659,6 +4739,8 @@
 </div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script type="module" src="js/main.js"></script>
 </body>
 </html>
