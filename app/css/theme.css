@@ -4236,3 +4236,8 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .yatra-new-tag { background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 800; padding: 2px 8px; white-space: nowrap; vertical-align: middle; }
 .yatra-new-card { border-color: #f59e0b; background: rgba(245,158,11,0.06); }
 .yatra-new-card .field { margin-bottom: 10px; }
+
+/* No spinner arrows on number inputs (quantity, count, price, …) anywhere. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }

@@ -16,6 +16,13 @@ import * as Expenses from "./expenses.js";
 import * as Yatras from "./yatras.js";
 import * as LimitedAccess from "./limitedAccess.js";
 
+// Mouse-wheel scrolling over a focused number input silently changes its
+// value (e.g. a quantity) — blur it so the wheel just scrolls the page.
+document.addEventListener("wheel", (e) => {
+  const el = document.activeElement;
+  if (el instanceof HTMLInputElement && el.type === "number" && e.target === el) el.blur();
+}, { passive: true });
+
 const loginView = document.getElementById("login-view");
 const appView = document.getElementById("app-view");
 const loginForm = document.getElementById("login-form");
