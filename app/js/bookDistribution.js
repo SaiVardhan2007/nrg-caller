@@ -380,6 +380,7 @@ let reviewIsAdmin = false;
 let reviewEditingId = null;  // set while the form modal is editing an existing review
 let reviewsCache = [];
 let reviewModalsWired = false;
+let reviewMandatoryResolve = null; // set while the review step of Add Sales is awaiting Submit/Cancel
 
 function wirePlaceReviewButtons(tbody, cache, isAdmin) {
   tbody.querySelectorAll(".place-review-btn").forEach((btn) => {
@@ -458,7 +459,8 @@ function openReviewForm(place, existing) {
   reviewEditingId = existing ? existing.id : null;
   document.getElementById("book-place-review-form-title").textContent = existing ? "Edit Review" : "Add Review";
   document.getElementById("book-place-review-form-label").textContent = `What was your experience of book distribution at ${place.name}?`;
-  document.getElementById("book-place-review-form-cancel-btn").textContent = existing ? "Cancel" : "Skip";
+  document.getElementById("book-place-review-form-cancel-btn").textContent = "Cancel";
+  document.getElementById("book-place-review-form-save-btn").textContent = "Save";
   document.getElementById("book-place-review-text").value = existing ? existing.review : "";
   document.getElementById("book-place-review-error").classList.add("hidden");
   document.getElementById("book-place-review-form-modal").classList.add("active");
@@ -475,13 +477,21 @@ function wirePlaceReviewModals() {
   document.getElementById("book-place-review-close-btn").onclick = () => listModal.classList.remove("active");
   listModal.addEventListener("click", (e) => { if (e.target === listModal) listModal.classList.remove("active"); });
   document.getElementById("book-place-review-add-btn").onclick = () => openReviewForm(reviewPlace, null);
-  document.getElementById("book-place-review-form-cancel-btn").onclick = () => formModal.classList.remove("active");
+  document.getElementById("book-place-review-form-cancel-btn").onclick = () => {
+    formModal.classList.remove("active");
+    if (reviewMandatoryResolve) { const r = reviewMandatoryResolve; reviewMandatoryResolve = null; r(null); }
+  };
 
   saveBtn.onclick = async () => {
     const text = document.getElementById("book-place-review-text").value.trim();
     if (!text) {
       errorEl.textContent = "Please write your review.";
       errorEl.classList.remove("hidden");
+      return;
+    }
+    if (reviewMandatoryResolve) {
+      formModal.classList.remove("active");
+      const r = reviewMandatoryResolve; reviewMandatoryResolve = null; r(text);
       return;
     }
     saveBtn.disabled = true;
@@ -500,10 +510,22 @@ function wirePlaceReviewModals() {
   };
 }
 
-// After saving sales: ask for the user's experience at that place.
-async function promptReviewForPlace(placeName) {
+async function lookupPlaceByName(placeName) {
   const { data } = await supabase.from("book_places").select("id,name").ilike("name", placeName).limit(1);
-  if (data && data[0]) openReviewForm(data[0], null);
+  return (data && data[0]) || null;
+}
+
+// Mandatory review step of "Add Sales": resolves to the review text on
+// Submit, or null if the user cancels (the caller then keeps the sales
+// modal open and saves nothing).
+function requestMandatoryReview(place) {
+  wirePlaceReviewModals();
+  return new Promise((resolve) => {
+    reviewMandatoryResolve = resolve;
+    openReviewForm(place, null);
+    document.getElementById("book-place-review-form-cancel-btn").textContent = "Cancel";
+    document.getElementById("book-place-review-form-save-btn").textContent = "Submit";
+  });
 }
 
 /* ---- Add Places / Add Events: read-only-except-edit views for regular
@@ -1790,6 +1812,16 @@ function wireOutwardModal(currentUser) {
     // this a user tapping Save again (or twice quickly) submitted the same
     // batch multiple times.
     outwardSaveInFlight = true;
+
+    // A review of the place is mandatory before anything is saved. Cancel
+    // returns to this modal with the entered books intact and nothing saved.
+    const reviewPlaceRow = await lookupPlaceByName(area);
+    const reviewText = reviewPlaceRow ? await requestMandatoryReview(reviewPlaceRow) : "";
+    if (reviewText === null) {
+      outwardSaveInFlight = false;
+      return;
+    }
+
     saveBtn.disabled = true;
     saveBtn.textContent = "Submitted…";
 
@@ -1811,8 +1843,11 @@ function wireOutwardModal(currentUser) {
       saveBtn.disabled = false;
       saveBtn.textContent = saveBtnLabel;
     }, 4000);
-    reviewUser = currentUser;
-    promptReviewForPlace(area);
+    if (reviewPlaceRow && reviewText) {
+      const { error: reviewErr } = await supabase.from("book_place_reviews")
+        .insert({ place_id: reviewPlaceRow.id, review: reviewText, user_name: currentUser.user_name });
+      if (reviewErr) showToast("Sales saved, but the review failed: " + reviewErr.message, "error");
+    }
     await renderMyOutward(currentUser.user_name);
     await renderLatestEntryLocation(currentUser.user_name);
   };
