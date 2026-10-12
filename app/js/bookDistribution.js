@@ -241,6 +241,7 @@ async function loadPlaces() {
     return;
   }
   placesCache = data || [];
+  await loadReviewCounts();
   applyPlacesFilters();
 }
 
@@ -262,7 +263,7 @@ function renderPlacesRows(rows, emptyMessage) {
           ${p.map_link ? `<a href="${escapeHtml(p.map_link)}" target="_blank" rel="noopener noreferrer" class="cell-chip" title="Open Map">📍</a>` : ""}
         </div>
       </td>
-      <td data-label="Review"><button type="button" class="cell-chip place-review-btn" title="Reviews">💬 Reviews</button></td>
+      <td data-label="Review"><button type="button" class="cell-chip place-review-btn" title="View reviews">${reviewCounts[p.id] || 0}</button></td>
       <td data-label="">
         <button type="button" class="cell-chip danger place-delete-btn" title="Delete">🗑 Delete</button>
       </td>
@@ -379,6 +380,18 @@ let reviewPlace = null;      // { id, name } currently open in the list modal
 let reviewIsAdmin = false;
 let reviewEditingId = null;  // set while the form modal is editing an existing review
 let reviewsCache = [];
+let reviewCounts = {}; // place_id -> number of reviews, shown on the Review button
+
+async function loadReviewCounts() {
+  const { data } = await supabase.from("book_place_reviews").select("place_id");
+  reviewCounts = {};
+  (data || []).forEach((r) => { reviewCounts[r.place_id] = (reviewCounts[r.place_id] || 0) + 1; });
+}
+
+function refreshReviewButton(placeId) {
+  document.querySelectorAll(`#book-places-body tr[data-id="${placeId}"] .place-review-btn, #book-places-user-body tr[data-id="${placeId}"] .place-review-btn`)
+    .forEach((b) => { b.textContent = reviewCounts[placeId] || 0; });
+}
 let reviewModalsWired = false;
 let reviewMandatoryResolve = null; // set while the review step of Add Sales is awaiting Submit/Cancel
 
@@ -419,6 +432,8 @@ async function loadReviews() {
     return;
   }
   reviewsCache = data || [];
+  reviewCounts[reviewPlace.id] = reviewsCache.length;
+  refreshReviewButton(reviewPlace.id);
   if (!reviewsCache.length) {
     tbody.innerHTML = `<tr><td colspan="${cols}" class="muted-text">No reviews yet.</td></tr>`;
     return;
@@ -549,6 +564,7 @@ async function loadPlacesUser() {
     return;
   }
   placesUserCache = data || [];
+  await loadReviewCounts();
   renderPlacesUserRows(placesUserCache);
 }
 
@@ -569,7 +585,7 @@ function renderPlacesUserRows(rows) {
           ${p.map_link ? `<a href="${escapeHtml(p.map_link)}" target="_blank" rel="noopener noreferrer" class="cell-chip" title="Open Map">📍</a>` : ""}
         </div>
       </td>
-      <td data-label="Review"><button type="button" class="cell-chip place-review-btn" title="Reviews">💬 Reviews</button></td>
+      <td data-label="Review"><button type="button" class="cell-chip place-review-btn" title="View reviews">${reviewCounts[p.id] || 0}</button></td>
     </tr>
   `).join("");
   wirePlaceReviewButtons(tbody, placesUserCache, false);
