@@ -369,6 +369,7 @@ async function loadTable() {
     return;
   }
   rowsCache = data;
+  if (currentTab === "feedback") await loadFeedbackCategories();
   if (currentTab === "dashboard") {
     const coupons = await fetchAll(() => supabase.from("yatra_coupons").select("id,participant_id,coupon_date,meal").eq("yatra_id", currentYatra.id));
     couponsCache = coupons.data || [];
@@ -798,8 +799,41 @@ function addEntryRow() {
   row.querySelector("input, select")?.focus();
 }
 
-function openEntryModal() {
+// Categories added by the user live in yatra_feedback_categories and are
+// merged into the built-in list; if that table doesn't exist yet only the
+// built-ins are offered.
+async function loadFeedbackCategories() {
+  const { data } = await supabase.from("yatra_feedback_categories").select("name").order("created_at");
+  (data || []).forEach((r) => { if (!FEEDBACK_CATEGORIES.includes(r.name)) FEEDBACK_CATEGORIES.push(r.name); });
+}
+
+async function addFeedbackCategory() {
+  const name = (prompt("New feedback category:") || "").trim();
+  if (!name) return;
+  const existing = FEEDBACK_CATEGORIES.find((c) => c.toLowerCase() === name.toLowerCase());
+  if (!existing) {
+    const { error } = await supabase.from("yatra_feedback_categories").insert({ name });
+    if (error) {
+      showToast("Could not add category: " + error.message, "error");
+      return;
+    }
+    FEEDBACK_CATEGORIES.push(name);
+  }
+  // add it to every open category dropdown and select it in the last one
+  const val = existing || name;
+  document.querySelectorAll('#yatra-entry-rows select[data-ef="category"]').forEach((sel) => {
+    if (![...sel.options].some((o) => o.value === val)) sel.add(new Option(val, val));
+  });
+  const sels = document.querySelectorAll('#yatra-entry-rows select[data-ef="category"]');
+  if (sels.length) sels[sels.length - 1].value = val;
+  showToast(existing ? "Category already exists" : "Category added", existing ? "info" : "success");
+}
+
+async function openEntryModal() {
   const cfg = TABS[currentTab];
+  const isFeedback = currentTab === "feedback";
+  $("yatra-entry-add-cat-btn").classList.toggle("hidden", !isFeedback);
+  if (isFeedback) await loadFeedbackCategories();
   $("yatra-entry-title").textContent = `Add ${cfg.title}s`;
   $("yatra-entry-rows").innerHTML = "";
   addEntryRow();
@@ -1250,6 +1284,7 @@ function wireShell() {
   $("yatra-email-send-btn").onclick = sendEmail;
   $("yatra-email-to").addEventListener("keydown", (e) => { if (e.key === "Enter") sendEmail(); });
   $("yatra-entry-add-row-btn").onclick = addEntryRow;
+  $("yatra-entry-add-cat-btn").onclick = addFeedbackCategory;
   $("yatra-entry-cancel-btn").onclick = () => entryModal.classList.remove("active");
   entryModal.addEventListener("click", (e) => { if (e.target === entryModal) entryModal.classList.remove("active"); });
   $("yatra-entry-save-btn").onclick = saveEntries;
