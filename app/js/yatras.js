@@ -3,7 +3,7 @@ import { showToast, escapeHtml, normalizePhoneInput, formatPhone, copyToClipboar
 import { verifyAdminPassword } from "./expenses.js";
 
 /* ======================= FOLK YATRAS (admin only) =======================
-   A card per yatra (name + date) showing Participants / Coupons / Items Ready.
+   A card per yatra (name) showing Participants / Coupons / Items Ready.
    Opening one shows a tab strip:
      Dashboard  — the participant roster (S.No, Name, Phone, Folk Guide,
                   Tokens), filled by hand or by uploading an Excel file whose
@@ -35,6 +35,8 @@ const DISPOSABLE_COLS = [
   ITEM_COLS[2],
 ];
 
+const FEEDBACK_CATEGORIES = ["Food / Prasadam", "Accommodation", "Transport", "Program / Schedule", "Management", "Facilities", "Other"];
+
 const TABS = {
   dashboard: {
     table: "yatra_participants",
@@ -59,10 +61,11 @@ const TABS = {
     title: "Feedback",
     order: "created_at",
     cols: [
-      { field: "content", label: "Feedback / Ideas", type: "text", required: true },
-      { field: "author", label: "Name", type: "text", required: true },
+      { field: "content", label: "Feedback / Ideas", type: "longtext", required: true },
+      { field: "author", label: "Name", type: "text", required: true, grid: "minmax(0, 1fr)" },
+      { field: "category", label: "Category", type: "select", options: FEEDBACK_CATEGORIES, required: true, placeholder: "Select category", grid: "190px" },
     ],
-    searchFields: ["content", "author"],
+    searchFields: ["content", "author", "category"],
     empty: "No feedback or ideas yet.",
   },
 };
@@ -125,7 +128,7 @@ async function loadYatraCards() {
   grid.innerHTML = `<p class="loading-row">Loading…</p>`;
 
   const [{ data: yatras, error }, people, coupons, items] = await Promise.all([
-    supabase.from("yatras").select("id,name,yatra_date,created_at").order("created_at", { ascending: false }),
+    supabase.from("yatras").select("id,name,created_at").order("created_at", { ascending: false }),
     fetchAll(() => supabase.from("yatra_participants").select("id,yatra_id")),
     fetchAll(() => supabase.from("yatra_coupons").select("id,yatra_id")),
     fetchAll(() => supabase.from("yatra_items").select("id,yatra_id,status")),
@@ -156,7 +159,6 @@ async function loadYatraCards() {
       <div class="trip-event-card-header">
         <div>
           <p class="trip-event-card-name">${escapeHtml(y.name)}</p>
-          ${y.yatra_date ? `<p class="muted-text">${fmtDate(y.yatra_date)}</p>` : ""}
         </div>
         <button type="button" class="cell-chip danger yatra-delete-btn" title="Delete yatra">🗑</button>
       </div>
@@ -213,7 +215,7 @@ async function openYatra(id) {
   attMeal = defaultMeal();
   $("yatras-list-view").classList.add("hidden");
   $("yatras-detail-view").classList.remove("hidden");
-  $("yatra-detail-title").textContent = y.yatra_date ? `${y.name} · ${fmtDate(y.yatra_date)}` : y.name;
+  $("yatra-detail-title").textContent = y.name;
   const tab = pendingTab || "dashboard";
   pendingTab = null;
   await switchTab(tab);
@@ -329,11 +331,12 @@ function cellHtml(col, row) {
   if (col.type === "tokenbtn") return `<button type="button" class="cell-chip info-link yatra-token-btn">${row._tokens || 0}</button>`;
   if (col.type === "newtag") return v ? `<span class="cell-chip yatra-new-tag">🆕 New</span>` : "";
   if (col.type === "select") {
-    return `<select class="inline-edit" data-field="${col.field}">${col.options.map((o) => `<option${o === v ? " selected" : ""}>${o}</option>`).join("")}</select>`;
+    const blank = col.required && !v ? `<option value="" selected>${col.placeholder || "—"}</option>` : "";
+    return `<select class="inline-edit" data-field="${col.field}">${blank}${col.options.map((o) => `<option${o === v ? " selected" : ""}>${o}</option>`).join("")}</select>`;
   }
   const t = col.type === "number" ? `type="number" min="0" step="any"` : "";
   // long names wrap onto a second line instead of being cut off (item / feedback tabs)
-  if (col.type === "text" && currentTab !== "dashboard") {
+  if ((col.type === "text" || col.type === "longtext") && currentTab !== "dashboard") {
     return `<textarea class="inline-edit yatra-wrap-edit" rows="1" data-field="${col.field}">${escapeHtml(v == null ? "" : String(v))}</textarea>`;
   }
   return `<input class="inline-edit" ${t} data-field="${col.field}" value="${escapeHtml(v == null ? "" : String(v))}" />`;
@@ -768,19 +771,27 @@ function entryRowHtml(cfg) {
   const addCols = cfg.cols.filter((c) => !c.noAdd);
   const cells = addCols.map((c) => {
     if (c.type === "select") {
-      return `<select data-ef="${c.field}">${c.options.map((o) => `<option${o === c.default ? " selected" : ""}>${o}</option>`).join("")}</select>`;
+      const blank = c.required ? `<option value="" selected disabled>${c.placeholder || "Select"}</option>` : "";
+      return `<select data-ef="${c.field}">${blank}${c.options.map((o) => `<option${o === c.default ? " selected" : ""}>${o}</option>`).join("")}</select>`;
+    }
+    if (c.type === "longtext") {
+      return `<textarea class="yatra-entry-long" data-ef="${c.field}" rows="3" placeholder="${c.label}"></textarea>`;
     }
     const type = c.type === "number" ? `type="number" min="0" step="any"` : c.type === "phone" ? `type="tel" inputmode="numeric"` : `type="text"`;
     return `<input data-ef="${c.field}" ${type} placeholder="${c.label}" />`;
   }).join("");
-  const tracks = addCols.map((c) => c.grid || "minmax(0, 1fr)").join(" ");
-  return `<div class="yatra-entry-row" style="grid-template-columns: ${tracks} 32px">${cells}<button type="button" class="stock-row-remove cell-chip danger" title="Remove">✕</button></div>`;
+  // a long-text field sits on its own full-width line above the other fields
+  const hasLong = addCols.some((c) => c.type === "longtext");
+  const tracks = addCols.filter((c) => c.type !== "longtext").map((c) => c.grid || "minmax(0, 1fr)").join(" ");
+  return `<div class="yatra-entry-row${hasLong ? " has-long" : ""}" style="grid-template-columns: ${tracks} 32px">${cells}<button type="button" class="stock-row-remove cell-chip danger" title="Remove">✕</button></div>`;
 }
 
 function addEntryRow() {
   const wrap = $("yatra-entry-rows");
   wrap.insertAdjacentHTML("beforeend", entryRowHtml(TABS[currentTab]));
   const row = wrap.lastElementChild;
+  const long = row.querySelector(".yatra-entry-long");
+  if (long) long.addEventListener("input", () => { long.style.height = "auto"; long.style.height = long.scrollHeight + "px"; });
   row.querySelector(".stock-row-remove").addEventListener("click", () => {
     if (wrap.children.length > 1) row.remove();
   });
@@ -1182,7 +1193,6 @@ async function markCoupons(kind, count) {
 function wireShell() {
   const addModal = $("yatra-modal");
   const nameInput = $("yatra-name");
-  const dateInput = $("yatra-date");
   const errorEl = $("yatra-error");
 
   let editingYatraId = null; // set while the modal edits the open yatra's title/date
@@ -1190,7 +1200,6 @@ function wireShell() {
     editingYatraId = yatra ? yatra.id : null;
     $("yatra-modal-title").textContent = yatra ? "Edit Yatra" : "Add Yatra";
     nameInput.value = yatra ? yatra.name : "";
-    dateInput.value = yatra?.yatra_date || "";
     errorEl.classList.add("hidden");
     addModal.classList.add("active");
   };
@@ -1205,7 +1214,7 @@ function wireShell() {
       errorEl.classList.remove("hidden");
       return;
     }
-    const fields = { name, yatra_date: dateInput.value || null };
+    const fields = { name };
     const { error } = editingYatraId
       ? await supabase.from("yatras").update(fields).eq("id", editingYatraId)
       : await supabase.from("yatras").insert(fields);
@@ -1218,7 +1227,7 @@ function wireShell() {
     showToast(editingYatraId ? "Yatra updated" : "Yatra added", "success");
     if (editingYatraId && currentYatra?.id === editingYatraId) {
       Object.assign(currentYatra, fields);
-      $("yatra-detail-title").textContent = fields.yatra_date ? `${name} · ${fmtDate(fields.yatra_date)}` : name;
+      $("yatra-detail-title").textContent = name;
     }
     await loadYatraCards();
   };
