@@ -71,6 +71,7 @@ let yatrasCache = [];
 let currentYatra = null;
 let currentTab = "dashboard";
 let rowsCache = [];
+let rowOrderEnabled = true; // false until the `position` column exists
 let shellWired = false;
 // Set when a Limited Admin opens one specific yatra page (e.g. "attendance"):
 // the top nav already switches pages, so the in-page tab strip stays hidden.
@@ -254,7 +255,8 @@ function applySlotCounts() {
 function renderStats() {
   applySlotCounts();
   const served = rowsCache.reduce((sum, r) => sum + r._slot, 0);
-  const notServed = rowsCache.filter((r) => !r._slot).length;
+  // plates, not people: total participants minus plates served (extras can push it below 0)
+  const notServed = Math.max(0, rowsCache.length - served);
   const mealName = Object.fromEntries(MEALS)[attMeal];
   $("yatra-stats").innerHTML = `
     <div class="yatra-stats-slot"><button type="button" id="dash-slot-btn" class="btn btn-secondary btn-sm" title="Change date / meal">📅 ${fmtDate(attDate)} · ${mealShort(attMeal)} (${mealName})</button></div>
@@ -347,11 +349,18 @@ async function loadTable() {
   // headers are rebuilt per tab, so the drag handlers are re-wired each time
   initColumnDragReorder("yatra-table", { force: true, storageKey: `nrg-col-order:yatra:${currentTab}` });
 
-  const { data, error } = await fetchAll(() => {
+  // Rows can be dragged into a custom order (the `position` column); rows never
+  // moved have no position and sort last, oldest first. If the column hasn't
+  // been added yet (yatra-row-order.sql), fall back to plain creation order.
+  const load = (withPosition) => fetchAll(() => {
     let q = supabase.from(cfg.table).select("*").eq("yatra_id", currentYatra.id);
     if (cfg.kind) q = q.eq("kind", cfg.kind);
+    if (withPosition) q = q.order("position", { ascending: true, nullsFirst: false });
     return q.order(cfg.order, { ascending: true });
   });
+  let { data, error } = await load(true);
+  rowOrderEnabled = !error;
+  if (error) ({ data, error } = await load(false));
   if (error) {
     tbody.innerHTML = `<tr><td colspan="${cfg.cols.length + 2}" class="muted-text">Could not load: ${escapeHtml(error.message)}</td></tr>`;
     return;
@@ -377,9 +386,11 @@ function renderRows() {
     tbody.innerHTML = `<tr><td colspan="${cfg.cols.length + 2}" class="muted-text">${filtered ? "No matches." : cfg.empty}</td></tr>`;
     return;
   }
+  // reordering only makes sense on the full, unfiltered list
+  const canReorder = rowOrderEnabled && !filtered;
   tbody.innerHTML = rows.map((r, i) => `
     <tr data-id="${r.id}">
-      <td data-label="S.No">${i + 1}</td>
+      <td data-label="S.No">${canReorder ? `<span class="yatra-drag-handle" title="Drag to reorder">⠿</span>` : ""}${i + 1}</td>
       ${cfg.cols.map((c) => `<td data-label="${c.label}">${cellHtml(c, r)}</td>`).join("")}
       <td data-label=""><button type="button" class="cell-chip danger yatra-row-delete">🗑 Delete</button></td>
     </tr>`).join("");
@@ -398,6 +409,66 @@ function renderRows() {
   tbody.querySelectorAll(".yatra-row-delete").forEach((btn) => {
     btn.addEventListener("click", () => deleteRow(btn.closest("tr").dataset.id));
   });
+  tbody.querySelectorAll(".yatra-drag-handle").forEach((h) => h.addEventListener("pointerdown", startRowDrag));
+}
+
+// Pointer-based drag (works for mouse and touch): the row follows the pointer
+// and the DOM order is the new order; on release only the moved row's
+// `position` is saved — a value between its new neighbours.
+function startRowDrag(e) {
+  e.preventDefault();
+  const tbody = $("yatra-tbody");
+  const row = e.currentTarget.closest("tr");
+  row.classList.add("yatra-row-dragging");
+  const onMove = (ev) => {
+    const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest("#yatra-tbody tr[data-id]");
+    if (!over || over === row) return;
+    const r = over.getBoundingClientRect();
+    tbody.insertBefore(row, ev.clientY < r.top + r.height / 2 ? over : over.nextSibling);
+  };
+  const onUp = async () => {
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    document.removeEventListener("pointercancel", onUp);
+    row.classList.remove("yatra-row-dragging");
+    await persistRowOrder(row.dataset.id);
+  };
+  document.addEventListener("pointermove", onMove);
+  document.addEventListener("pointerup", onUp);
+  document.addEventListener("pointercancel", onUp);
+}
+
+async function persistRowOrder(movedId) {
+  const cfg = TABS[currentTab];
+  const ids = Array.from($("yatra-tbody").querySelectorAll("tr[data-id]")).map((tr) => tr.dataset.id);
+  const byId = new Map(rowsCache.map((r) => [r.id, r]));
+  const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+  if (ordered.map((r) => r.id).join() === rowsCache.map((r) => r.id).join()) { renderRows(); return; }
+
+  // rows never moved before have no position yet: number the whole list once,
+  // after that a moved row only needs a value between its neighbours
+  let updates;
+  if (ordered.some((r) => r.position == null)) {
+    ordered.forEach((r, i) => { r._newPos = (i + 1) * 1000; });
+    updates = ordered;
+  } else {
+    const i = ordered.findIndex((r) => r.id === movedId);
+    const prev = ordered[i - 1]?.position;
+    const next = ordered[i + 1]?.position;
+    const moved = ordered[i];
+    moved._newPos = prev == null ? next - 1000 : next == null ? prev + 1000 : (prev + next) / 2;
+    updates = [moved];
+  }
+  const results = await Promise.all(updates.map((r) => supabase.from(cfg.table).update({ position: r._newPos }).eq("id", r.id)));
+  const failed = results.find((x) => x.error);
+  if (failed) {
+    showToast("Reorder failed: " + failed.error.message, "error");
+    renderRows();
+    return;
+  }
+  updates.forEach((r) => { r.position = r._newPos; delete r._newPos; });
+  rowsCache = ordered;
+  renderRows();
 }
 
 // Converts a typed value to what the column stores; returns { error } for
@@ -1114,12 +1185,17 @@ function wireShell() {
   const dateInput = $("yatra-date");
   const errorEl = $("yatra-error");
 
-  $("add-yatra-btn").onclick = () => {
-    nameInput.value = "";
-    dateInput.value = "";
+  let editingYatraId = null; // set while the modal edits the open yatra's title/date
+  const openYatraModal = (yatra) => {
+    editingYatraId = yatra ? yatra.id : null;
+    $("yatra-modal-title").textContent = yatra ? "Edit Yatra" : "Add Yatra";
+    nameInput.value = yatra ? yatra.name : "";
+    dateInput.value = yatra?.yatra_date || "";
     errorEl.classList.add("hidden");
     addModal.classList.add("active");
   };
+  $("add-yatra-btn").onclick = () => openYatraModal(null);
+  $("yatra-edit-btn").onclick = () => currentYatra && openYatraModal(currentYatra);
   $("yatra-cancel-btn").onclick = () => addModal.classList.remove("active");
   addModal.addEventListener("click", (e) => { if (e.target === addModal) addModal.classList.remove("active"); });
   $("yatra-save-btn").onclick = async () => {
@@ -1129,14 +1205,21 @@ function wireShell() {
       errorEl.classList.remove("hidden");
       return;
     }
-    const { error } = await supabase.from("yatras").insert({ name, yatra_date: dateInput.value || null });
+    const fields = { name, yatra_date: dateInput.value || null };
+    const { error } = editingYatraId
+      ? await supabase.from("yatras").update(fields).eq("id", editingYatraId)
+      : await supabase.from("yatras").insert(fields);
     if (error) {
       errorEl.textContent = error.message;
       errorEl.classList.remove("hidden");
       return;
     }
     addModal.classList.remove("active");
-    showToast("Yatra added", "success");
+    showToast(editingYatraId ? "Yatra updated" : "Yatra added", "success");
+    if (editingYatraId && currentYatra?.id === editingYatraId) {
+      Object.assign(currentYatra, fields);
+      $("yatra-detail-title").textContent = fields.yatra_date ? `${name} · ${fmtDate(fields.yatra_date)}` : name;
+    }
     await loadYatraCards();
   };
 
@@ -1228,6 +1311,7 @@ export const initYatras = async (user, opts = {}) => {
   }
   limitedTab = opts.tab || null;
   $("yatra-tabs").classList.toggle("hidden", !!limitedTab);
+  $("yatra-edit-btn").classList.toggle("hidden", !!limitedTab);
   if (limitedTab && currentYatra && !$("yatras-detail-view").classList.contains("hidden")) {
     await switchTab(limitedTab);
     return;

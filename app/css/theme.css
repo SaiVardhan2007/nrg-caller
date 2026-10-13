@@ -4241,3 +4241,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
+/* FOLK Yatras: drag handle for custom row order */
+.yatra-drag-handle { display: inline-block; cursor: grab; touch-action: none; user-select: none; padding: 0 6px 0 0; color: var(--text-muted, #888); font-size: 16px; line-height: 1; }
+tr.yatra-row-dragging { opacity: .55; background: rgba(0, 0, 0, .05); }

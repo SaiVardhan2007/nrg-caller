@@ -2183,6 +2183,7 @@
         <div class="panel-row">
           <button id="yatra-back-btn" class="btn btn-secondary toolbar-btn">← Back to Yatras</button>
           <strong id="yatra-detail-title" class="trip-event-detail-title"></strong>
+          <button id="yatra-edit-btn" class="cell-chip" title="Edit title and date">✏️ Edit</button>
         </div>
         <nav id="yatra-tabs" class="admin-tabs yatra-tabs">
           <button class="admin-tab active" data-ytab="dashboard">Dashboard</button>
@@ -3957,7 +3958,7 @@
 
 <div id="yatra-modal" class="modal">
   <div class="modal-box">
-    <h3>Add Yatra</h3>
+    <h3 id="yatra-modal-title">Add Yatra</h3>
     <label class="field"><span>Name</span><input id="yatra-name" type="text" placeholder="e.g. Tirupati Yatra" /></label>
     <label class="field"><span>Date</span><input id="yatra-date" type="date" /></label>
     <div id="yatra-error" class="field-error hidden"></div>
