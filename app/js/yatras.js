@@ -3,7 +3,7 @@ import { showToast, escapeHtml, normalizePhoneInput, formatPhone, copyToClipboar
 import { verifyAdminPassword } from "./expenses.js";
 
 /* ======================= FOLK YATRAS (admin only) =======================
-   A card per yatra (name) showing Total Participants.
+   A card per yatra (name) showing Total Participants / Prasadam Served / Not Served.
    Opening one shows a tab strip:
      Dashboard  — the participant roster (S.No, Name, Phone, Folk Guide,
                   Tokens), filled by hand or by uploading an Excel file whose
@@ -127,9 +127,11 @@ async function loadYatraCards() {
   const grid = $("yatras-grid");
   grid.innerHTML = `<p class="loading-row">Loading…</p>`;
 
-  const [{ data: yatras, error }, people] = await Promise.all([
+  // served / not served follow the date + meal last picked on a yatra's dashboard
+  const [{ data: yatras, error }, people, coupons] = await Promise.all([
     supabase.from("yatras").select("id,name,created_at").order("created_at", { ascending: false }),
     fetchAll(() => supabase.from("yatra_participants").select("id,yatra_id")),
+    fetchAll(() => supabase.from("yatra_coupons").select("id,yatra_id").eq("coupon_date", attDate).eq("meal", attMeal)),
   ]);
   if (error) {
     grid.innerHTML = `<p class="loading-row">Could not load yatras. Has the FOLK Yatras SQL been run?</p>`;
@@ -143,6 +145,7 @@ async function loadYatraCards() {
     return m;
   };
   const people_n = tally(people.data);
+  const served_n = tally(coupons.data);
 
   if (!yatrasCache.length) {
     grid.innerHTML = `<p class="muted-text">No yatras yet — add one to get started.</p>`;
@@ -154,11 +157,14 @@ async function loadYatraCards() {
       <div class="trip-event-card-header">
         <div>
           <p class="trip-event-card-name">${escapeHtml(y.name)}</p>
+          <p class="muted-text">${slotLabel(attDate, attMeal)}</p>
         </div>
         <button type="button" class="cell-chip danger yatra-delete-btn" title="Delete yatra">🗑</button>
       </div>
       <div class="trip-event-card-stats">
         <div class="stat"><span class="stat-num">${people_n[y.id] || 0}</span><span class="stat-label">Total Participants</span></div>
+        <div class="stat"><span class="stat-num">${served_n[y.id] || 0}</span><span class="stat-label">Prasadam Served</span></div>
+        <div class="stat"><span class="stat-num">${Math.max(0, (people_n[y.id] || 0) - (served_n[y.id] || 0))}</span><span class="stat-label">Prasadam Not Served</span></div>
       </div>
     </div>
   `).join("");
@@ -996,7 +1002,7 @@ async function runImport() {
 /* ---------------- Attendance (meal coupons) ---------------- */
 
 let attDate = todayISO();
-let attMeal = "M";
+let attMeal = defaultMeal();
 let attSlotRows = [];
 let attPerson = null;
 
