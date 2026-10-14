@@ -4103,6 +4103,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .yatra-preview-stage { background: #e9e5de; border-radius: var(--radius-sm); padding: 14px; max-height: 58vh; overflow: auto; }
 .yatra-paper { background: #fff; color: #2a2520; margin: 0 auto; padding: 22px 24px; max-width: 820px; box-shadow: 0 2px 10px rgba(0,0,0,.18); border-radius: 2px; }
 .yatra-paper-title { margin: 0 0 4px; font-size: 1.15rem; color: #3c2310; }
+.yatra-paper-sub { margin: 0 0 4px; font-size: .92rem; font-weight: 700; color: #c26216; }
 .yatra-paper-meta { margin: 0 0 12px; padding-bottom: 8px; font-size: .78rem; color: #7a6e62; border-bottom: 2px solid #c26216; }
 .yatra-paper-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
 .yatra-paper-table th { background: #c26216; color: #fff; text-align: left; font-weight: 700; padding: 7px 10px; border: 1px solid #c26216; }

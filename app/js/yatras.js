@@ -3,7 +3,7 @@ import { showToast, escapeHtml, normalizePhoneInput, formatPhone, copyToClipboar
 import { verifyAdminPassword } from "./expenses.js";
 
 /* ======================= FOLK YATRAS (admin only) =======================
-   A card per yatra (name) showing Participants / Coupons / Items Ready.
+   A card per yatra (name) showing Total Participants.
    Opening one shows a tab strip:
      Dashboard  — the participant roster (S.No, Name, Phone, Folk Guide,
                   Tokens), filled by hand or by uploading an Excel file whose
@@ -127,11 +127,9 @@ async function loadYatraCards() {
   const grid = $("yatras-grid");
   grid.innerHTML = `<p class="loading-row">Loading…</p>`;
 
-  const [{ data: yatras, error }, people, coupons, items] = await Promise.all([
+  const [{ data: yatras, error }, people] = await Promise.all([
     supabase.from("yatras").select("id,name,created_at").order("created_at", { ascending: false }),
     fetchAll(() => supabase.from("yatra_participants").select("id,yatra_id")),
-    fetchAll(() => supabase.from("yatra_coupons").select("id,yatra_id")),
-    fetchAll(() => supabase.from("yatra_items").select("id,yatra_id,status")),
   ]);
   if (error) {
     grid.innerHTML = `<p class="loading-row">Could not load yatras. Has the FOLK Yatras SQL been run?</p>`;
@@ -145,9 +143,6 @@ async function loadYatraCards() {
     return m;
   };
   const people_n = tally(people.data);
-  const coupons_n = tally(coupons.data);
-  const items_n = tally(items.data);
-  const items_ok = tally(items.data, (r) => r.status === "Received");
 
   if (!yatrasCache.length) {
     grid.innerHTML = `<p class="muted-text">No yatras yet — add one to get started.</p>`;
@@ -163,9 +158,7 @@ async function loadYatraCards() {
         <button type="button" class="cell-chip danger yatra-delete-btn" title="Delete yatra">🗑</button>
       </div>
       <div class="trip-event-card-stats">
-        <div class="stat"><span class="stat-num">${people_n[y.id] || 0}</span><span class="stat-label">Participants</span></div>
-        <div class="stat"><span class="stat-num">${coupons_n[y.id] || 0}</span><span class="stat-label">Coupons</span></div>
-        <div class="stat"><span class="stat-num">${items_ok[y.id] || 0}/${items_n[y.id] || 0}</span><span class="stat-label">Items Ready</span></div>
+        <div class="stat"><span class="stat-num">${people_n[y.id] || 0}</span><span class="stat-label">Total Participants</span></div>
       </div>
     </div>
   `).join("");
@@ -248,6 +241,11 @@ async function switchTab(tab) {
 // the participants who have no coupon for it. Each opens the list behind it.
 let couponsCache = []; // every coupon of this yatra: { participant_id, coupon_date, meal }
 
+// "20 Oct 2026 - Lunch"
+function slotLabel(date, meal) {
+  return `${fmtDate(date)} - ${Object.fromEntries(MEALS)[meal]}`;
+}
+
 function applySlotCounts() {
   const n = {};
   couponsCache.forEach((c) => { if (c.coupon_date === attDate && c.meal === attMeal) n[c.participant_id] = (n[c.participant_id] || 0) + 1; });
@@ -274,7 +272,8 @@ let statPopup = null; // { filename, title, headers, rows } for the open popup's
 // "Phone Number" column is click-to-copy. `key` names the popup so each kind
 // remembers its own dragged column order.
 function showListPopup(title, headers, rows, filenameBase, key) {
-  statPopup = { filename: `${safeName(filenameBase)}_${todayISO()}.xlsx`, title: `${currentYatra.name} — ${title}`, headers, rows };
+  // the three stat lists describe the selected date + meal; a person's own entries don't
+  statPopup = { filename: `${safeName(filenameBase)}_${todayISO()}.xlsx`, title: `${currentYatra.name} — ${title}`, subtitle: key === "person" ? "" : slotLabel(attDate, attMeal), headers, rows };
   $("yatra-stat-title").textContent = title;
   $("yatra-stat-thead").innerHTML = `<tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr>`;
   $("yatra-stat-tbody").innerHTML = rows.length
@@ -295,8 +294,8 @@ function openStatPopup(kind) {
     return gx.localeCompare(gy, undefined, { sensitivity: "base" }) || (x.name || "").localeCompare(y.name || "", undefined, { sensitivity: "base" });
   });
   if (kind === "participants") {
-    showListPopup("Total Participants", ["S.No", "Name", "Phone Number", "Folk Guide"],
-      byGuide(rowsCache).map((r, i) => [i + 1, r.name, r.phone, r.folk_guide || ""]), `${base}_Total_Participants`, kind);
+    showListPopup("Total Participants", ["S.No", "Name", "Phone Number", "Folk Guide", "Status"],
+      byGuide(rowsCache).map((r, i) => [i + 1, r.name, r.phone, r.folk_guide || "", r._slot ? "Served" : "Not Served"]), `${base}_Total_Participants`, kind);
   } else if (kind === "tokens") {
     showListPopup("Prasadam Served", ["S.No", "Name", "Phone Number", "Folk Guide", "Tokens"],
       byGuide(rowsCache.filter((r) => r._slot > 0)).map((r, i) => [i + 1, r.name, r.phone, r.folk_guide || "", r._slot]), `${base}_Prasadam_Served`, kind);
@@ -596,9 +595,9 @@ async function dashboardSlotDownload() {
   const n = {};
   data.forEach((c) => { n[c.participant_id] = (n[c.participant_id] || 0) + 1; });
   $("yatra-dl-modal").classList.remove("active");
-  const mealName = Object.fromEntries(MEALS)[meal];
   downloadSpec({
-    title: `${currentYatra.name} — Participants · ${fmtDate(date)} · ${mealName}`,
+    title: `${currentYatra.name} — Participants`,
+    subtitle: slotLabel(date, meal),
     filename: `${safeName(currentYatra.name)}_Participants_${date}_${mealShort(meal)}.xlsx`,
     headers: ["S.No", "Name", "Phone Number", "Folk Guide", "Plates", "Status"],
     rows: rowsCache.map((r, i) => [i + 1, r.name, r.phone, r.folk_guide ?? "", n[r.id] || 0, n[r.id] ? "Served" : "Not Served"]),
@@ -606,9 +605,9 @@ async function dashboardSlotDownload() {
 }
 
 function attendanceExport() {
-  const mealName = Object.fromEntries(MEALS)[attMeal];
   return inScreenOrder({
-    title: `${currentYatra.name} — Attendance ${fmtDate(attDate)} · ${mealName}`,
+    title: `${currentYatra.name} — Attendance`,
+    subtitle: slotLabel(attDate, attMeal),
     filename: `${safeName(currentYatra.name)}_Attendance_${attDate}_${mealShort(attMeal)}.xlsx`,
     headers: ["S.No", "Name", "Phone Number", "Type", "Time"],
     rows: attSlotRows.map((r, i) => [
@@ -636,6 +635,7 @@ function downloadSpec(spec) {
   const body = spec.rows.map((r) => `<tr>${r.map((v, i) => `<td class="${CENTERED_COLS.includes(spec.headers[i]) ? "c" : ""}">${escapeHtml(String(v ?? ""))}</td>`).join("")}</tr>`).join("");
   $("yatra-preview-sheet").innerHTML = `
     <h4 class="yatra-paper-title">${escapeHtml(spec.title)}</h4>
+    ${spec.subtitle ? `<p class="yatra-paper-sub">${escapeHtml(spec.subtitle)}</p>` : ""}
     <p class="yatra-paper-meta">Generated ${escapeHtml(generatedStamp())} &nbsp;·&nbsp; ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"}</p>
     <table class="yatra-paper-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
   $("yatra-preview-modal").classList.add("active");
@@ -643,8 +643,9 @@ function downloadSpec(spec) {
 
 function downloadXlsx(spec) {
   const last = spec.headers.length - 1;
-  const ws = XLSX.utils.aoa_to_sheet([[spec.title], [`Generated ${generatedStamp()}`], [], spec.headers, ...spec.rows]);
-  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: last } }, { s: { r: 1, c: 0 }, e: { r: 1, c: last } }];
+  const top = spec.subtitle ? [[spec.title], [spec.subtitle], [`Generated ${generatedStamp()}`]] : [[spec.title], [`Generated ${generatedStamp()}`]];
+  const ws = XLSX.utils.aoa_to_sheet([...top, [], spec.headers, ...spec.rows]);
+  ws["!merges"] = top.map((_, r) => ({ s: { r, c: 0 }, e: { r, c: last } }));
   ws["!cols"] = spec.headers.map((h, c) => ({
     wch: Math.min(50, Math.max(8, String(h).length + 2, ...spec.rows.map((r) => String(r[c] ?? "").length + 2))),
   }));
@@ -671,14 +672,26 @@ function downloadPdf(spec) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(17);
   doc.setTextColor(...ink);
-  doc.text(plain(spec.title), M, 46, { maxWidth: W - 2 * M });
+  // a long title wraps onto several lines, so everything below is positioned from where it ends
+  const titleLines = doc.splitTextToSize(plain(spec.title), W - 2 * M);
+  doc.text(titleLines, M, 46);
+  let y = 46 + (titleLines.length - 1) * 21;
+  if (spec.subtitle) {
+    y += 20;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...accent);
+    doc.text(plain(spec.subtitle), M, y);
+  }
+  y += 17;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(120, 110, 100);
-  doc.text(`Generated ${generatedStamp()}   |   ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"}`, M, 63);
+  doc.text(`Generated ${generatedStamp()}   |   ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"}`, M, y);
+  y += 8;
   doc.setDrawColor(...accent);
   doc.setLineWidth(1.5);
-  doc.line(M, 71, W - M, 71);
+  doc.line(M, y, W - M, y);
 
   const columnStyles = {};
   spec.headers.forEach((h, i) => {
@@ -688,7 +701,7 @@ function downloadPdf(spec) {
   doc.autoTable({
     head: [spec.headers],
     body: spec.rows.map((r) => r.map((v) => plain(v ?? ""))),
-    startY: 84,
+    startY: y + 13,
     margin: { left: M, right: M, top: 40, bottom: 44 },
     theme: "grid",
     styles: { font: "helvetica", fontSize: 10, cellPadding: { top: 6, bottom: 6, left: 8, right: 8 }, lineColor: [205, 195, 180], lineWidth: 0.6, textColor: [40, 35, 30], valign: "middle", overflow: "linebreak" },
