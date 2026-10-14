@@ -20,7 +20,7 @@ const ITEM_STATUSES = ["Received", "Not Received", "Not Available"];
 const MEALS = [["M", "Breakfast"], ["L", "Lunch"], ["S", "Snacks"], ["D", "Dinner"]];
 const mealShort = (m) => (m === "M" ? "B" : m);
 
-const ITEM_UNITS = ["Number", "Pieces", "Packets", "Bags"];
+const ITEM_UNITS = ["Number", "Pieces", "Packets", "Bags", "Liter", "Kg", "Gm"];
 
 // `grid` is the column's track in the Add modal: Name takes the leftover
 // space, the short fields get just enough room for their values.
@@ -29,7 +29,8 @@ const ITEM_COLS = [
   { field: "quantity", label: "Quantity", type: "number", grid: "64px" },
   { field: "status", label: "Status", type: "select", options: ITEM_STATUSES, default: "Not Received", grid: "140px" },
 ];
-const DISPOSABLE_COLS = [
+// Disposables and Cooking / Serving items share the same columns incl. Unit
+const ITEM_COLS_WITH_UNIT = [
   ...ITEM_COLS.slice(0, 2),
   { field: "unit", label: "Unit", type: "select", options: ITEM_UNITS, default: "Number", grid: "100px" },
   ITEM_COLS[2],
@@ -54,8 +55,8 @@ const TABS = {
     searchFields: ["name", "phone", "folk_guide"],
     empty: "No participants yet — add some or upload an Excel file.",
   },
-  disposables: { table: "yatra_items", kind: "disposable", title: "Disposable", order: "created_at", cols: DISPOSABLE_COLS, searchFields: ["name"], empty: "No disposables listed yet." },
-  cooking: { table: "yatra_items", kind: "cooking", title: "Cooking / Serving Item", order: "created_at", cols: ITEM_COLS, searchFields: ["name"], empty: "No cooking / serving items listed yet." },
+  disposables: { table: "yatra_items", kind: "disposable", title: "Disposable", order: "created_at", cols: ITEM_COLS_WITH_UNIT, searchFields: ["name"], empty: "No disposables listed yet." },
+  cooking: { table: "yatra_items", kind: "cooking", title: "Cooking / Serving Item", order: "created_at", cols: ITEM_COLS_WITH_UNIT, searchFields: ["name"], empty: "No cooking / serving items listed yet." },
   feedback: {
     table: "yatra_feedback",
     title: "Feedback",
