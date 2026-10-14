@@ -1,6 +1,5 @@
 import { supabase } from "./supabaseClient.js";
 import { showToast, escapeHtml, normalizePhoneInput, formatPhone, copyToClipboard, initColumnDragReorder, reapplyColumnOrder } from "./utils.js";
-import { verifyAdminPassword } from "./expenses.js";
 
 /* ======================= FOLK YATRAS (admin only) =======================
    A card per yatra (name) showing Total Participants / Prasadam Served / Not Served.
@@ -38,6 +37,33 @@ const ITEM_COLS_WITH_UNIT = [
 
 const FEEDBACK_CATEGORIES = ["Food / Prasadam", "Accommodation", "Transport", "Program / Schedule", "Management", "Facilities", "Other"];
 
+// Prasadam Details: one row per meal order. Total Cost and Balance are worked
+// out from the other columns (type "calc"), never stored.
+const PRASADAM_COLS = [
+  { field: "meal_date", label: "Date", type: "date", required: true },
+  { field: "meal_type", label: "Type", type: "select", options: MEALS.map((m) => m[1]), required: true, placeholder: "Select type" },
+  { field: "for_how_many", label: "For How Many", type: "number" },
+  { field: "menu", label: "Menu", type: "text" },
+  { field: "vendor", label: "Vendor", type: "text" },
+  { field: "delivery_location", label: "Delivery Location", type: "text" },
+  { field: "delivery_time", label: "Delivery Time", type: "time" },
+  { field: "packing_method", label: "Packing Method", type: "text" },
+  { field: "serving_location", label: "Serving Location", type: "text" },
+  { field: "serving_method", label: "Serving Method", type: "text" },
+  { field: "items_required", label: "Items Required for Serving", type: "text" },
+  { field: "cost_per_plate", label: "Cost per Plate", type: "number" },
+  { field: "total_cost", label: "Total Cost", type: "calc", noAdd: true },
+  { field: "advance_payment", label: "Advance Payment", type: "number" },
+  { field: "balance", label: "Balance", type: "calc", noAdd: true },
+  { field: "remarks", label: "Remarks", type: "text" },
+];
+
+const calcValue = (field, r) => {
+  const total = (Number(r.for_how_many) || 0) * (Number(r.cost_per_plate) || 0);
+  const v = field === "total_cost" ? total : total - (Number(r.advance_payment) || 0);
+  return Math.round(v * 100) / 100;
+};
+
 const TABS = {
   dashboard: {
     table: "yatra_participants",
@@ -54,6 +80,15 @@ const TABS = {
     ],
     searchFields: ["name", "phone", "folk_guide"],
     empty: "No participants yet — add some or upload an Excel file.",
+  },
+  prasadam: {
+    table: "yatra_prasadam",
+    title: "Prasadam Detail",
+    order: "meal_date",
+    form: true,
+    cols: PRASADAM_COLS,
+    searchFields: ["meal_type", "menu", "vendor", "delivery_location", "packing_method", "serving_location", "serving_method", "items_required", "remarks"],
+    empty: "No prasadam details yet.",
   },
   disposables: { table: "yatra_items", kind: "disposable", title: "Disposable", order: "created_at", cols: ITEM_COLS_WITH_UNIT, searchFields: ["name"], empty: "No disposables listed yet." },
   cooking: { table: "yatra_items", kind: "cooking", title: "Cooking / Serving Item", order: "created_at", cols: ITEM_COLS_WITH_UNIT, searchFields: ["name"], empty: "No cooking / serving items listed yet." },
@@ -191,11 +226,32 @@ async function deleteYatra(id) {
     ? ` This permanently deletes ${p} participant(s), ${c} coupon(s), ${i} item(s) and ${f} feedback entr${f === 1 ? "y" : "ies"} for this yatra.`
     : "";
   if (!confirm(`Delete yatra "${y?.name || ""}"?${warn} This cannot be undone.`)) return;
-  if (!(await verifyAdminPassword())) return;
-
-  const { error } = await supabase.from("yatras").delete().eq("id", id);
-  if (error) {
-    showToast("Delete failed: " + error.message, "error");
+  // the delete is authorised by a one-time code emailed to the owner, not a password
+  const call = async (payload) => {
+    const res = await fetch("/api/yatra-delete-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ yatra_id: id, user_name: sessionUser?.user_name, login_pw: sessionUser?.login_pw, ...payload }),
+    });
+    let out = {};
+    try { out = await res.json(); } catch { /* non-JSON: no API behind this host */ }
+    if (!res.ok || !out.ok) throw new Error(out.error || "Deleting needs the deployed app (no mail server here).");
+    return out;
+  };
+  let token;
+  try {
+    showToast("Sending OTP…", "info");
+    ({ token } = await call({ action: "send" }));
+  } catch (e) {
+    showToast("Could not send OTP: " + (e.message || e), "error");
+    return;
+  }
+  const otp = prompt("An OTP was emailed to snkdasa@gmail.com. Enter it to delete this yatra (valid for 5 minutes):");
+  if (otp === null) return;
+  try {
+    await call({ action: "confirm", otp: otp.trim(), token });
+  } catch (e) {
+    showToast(e.message || String(e), "error");
     return;
   }
   showToast("Yatra deleted", "success");
@@ -340,7 +396,8 @@ function cellHtml(col, row) {
     const blank = col.required && !v ? `<option value="" selected>${col.placeholder || "—"}</option>` : "";
     return `<select class="inline-edit" data-field="${col.field}">${blank}${col.options.map((o) => `<option${o === v ? " selected" : ""}>${o}</option>`).join("")}</select>`;
   }
-  const t = col.type === "number" ? `type="number" min="0" step="any"` : "";
+  if (col.type === "calc") return `<span class="yatra-calc" data-calc="${col.field}">${calcValue(col.field, row)}</span>`;
+  const t = col.type === "number" ? `type="number" min="0" step="any"` : col.type === "date" ? `type="date"` : col.type === "time" ? `type="time"` : "";
   // long names wrap onto a second line instead of being cut off (item / feedback tabs)
   if ((col.type === "text" || col.type === "longtext") && currentTab !== "dashboard") {
     return `<textarea class="inline-edit yatra-wrap-edit" rows="1" data-field="${col.field}">${escapeHtml(v == null ? "" : String(v))}</textarea>`;
@@ -387,6 +444,9 @@ async function loadTable() {
   if (currentTab === "dashboard") renderStats();
 }
 
+// Disposables / Cooking rows are green once Received, red otherwise
+const statusClass = (r) => (currentTab === "disposables" || currentTab === "cooking" ? (r.status === "Received" ? " yatra-row-ok" : " yatra-row-bad") : "");
+
 function renderRows() {
   const cfg = TABS[currentTab];
   const tbody = $("yatra-tbody");
@@ -399,7 +459,7 @@ function renderRows() {
   // reordering only makes sense on the full, unfiltered list
   const canReorder = rowOrderEnabled && !filtered;
   tbody.innerHTML = rows.map((r, i) => `
-    <tr data-id="${r.id}">
+    <tr data-id="${r.id}" class="${statusClass(r).trim()}">
       <td data-label="S.No">${canReorder ? `<span class="yatra-drag-handle" title="Drag to reorder">⠿</span>` : ""}${i + 1}</td>
       ${cfg.cols.map((c) => `<td data-label="${c.label}">${cellHtml(c, r)}</td>`).join("")}
       <td data-label=""><button type="button" class="cell-chip danger yatra-row-delete">🗑 Delete</button></td>
@@ -522,6 +582,10 @@ async function saveCell(el) {
     return;
   }
   record[field] = parsed.value;
+  if (currentTab === "prasadam") {
+    el.closest("tr").querySelectorAll("[data-calc]").forEach((c) => { c.textContent = calcValue(c.dataset.calc, record); });
+  }
+  if (field === "status") el.closest("tr").className = statusClass(record).trim();
   el.value = parsed.value ?? "";
 }
 
@@ -563,12 +627,12 @@ function visibleRows() {
 
 function tableExport() {
   const cfg = TABS[currentTab];
-  const label = { dashboard: "Participants", disposables: "Disposables", cooking: "Cooking_Serving", feedback: "Feedback" }[currentTab];
+  const label = { dashboard: "Participants", prasadam: "Prasadam_Details", disposables: "Disposables", cooking: "Cooking_Serving", feedback: "Feedback" }[currentTab];
   return inScreenOrder({
     title: `${currentYatra.name} — ${label.replace("_", " / ")}`,
     filename: `${safeName(currentYatra.name)}_${label}_${todayISO()}.xlsx`,
     headers: ["S.No", ...cfg.cols.map((c) => c.label)],
-    rows: visibleRows().map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : c.type === "newtag" ? (r.is_new ? "New" : "") : r[c.field] ?? ""))]),
+    rows: visibleRows().map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : c.type === "newtag" ? (r.is_new ? "New" : "") : c.type === "calc" ? calcValue(c.field, r) : c.type === "date" ? fmtDate(r[c.field]) : r[c.field] ?? ""))]),
   }, "yatra-thead");
 }
 
@@ -626,7 +690,7 @@ function attendanceExport() {
 
 /* ---------------- Download: preview, then Excel or PDF ---------------- */
 
-const CENTERED_COLS = ["S.No", "Quantity", "Tokens", "Unit", "Type", "Time", "Plates", "Status"];
+const CENTERED_COLS = ["S.No", "Quantity", "Tokens", "Unit", "Type", "Time", "Plates", "Status", "Date", "For How Many", "Delivery Time", "Cost per Plate", "Total Cost", "Advance Payment", "Balance"];
 let previewSpec = null;
 
 const generatedStamp = () => new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -711,7 +775,7 @@ function downloadPdf(spec) {
     startY: y + 13,
     margin: { left: M, right: M, top: 40, bottom: 44 },
     theme: "grid",
-    styles: { font: "helvetica", fontSize: 10, cellPadding: { top: 6, bottom: 6, left: 8, right: 8 }, lineColor: [205, 195, 180], lineWidth: 0.6, textColor: [40, 35, 30], valign: "middle", overflow: "linebreak" },
+    styles: { font: "helvetica", fontSize: spec.headers.length > 10 ? 6.5 : 10, cellPadding: spec.headers.length > 10 ? { top: 3, bottom: 3, left: 3, right: 3 } : { top: 6, bottom: 6, left: 8, right: 8 }, lineColor: [205, 195, 180], lineWidth: 0.6, textColor: [40, 35, 30], valign: "middle", overflow: "linebreak" },
     headStyles: { fillColor: accent, textColor: 255, fontStyle: "bold", halign: "left", lineColor: accent },
     alternateRowStyles: { fillColor: [253, 249, 242] },
     columnStyles,
@@ -790,6 +854,20 @@ async function sendEmail() {
 
 function entryRowHtml(cfg) {
   const addCols = cfg.cols.filter((c) => !c.noAdd);
+  if (cfg.form) {
+    // many fields: a labelled, wrapping grid instead of one line per row
+    const fields = addCols.map((c) => {
+      let ctl;
+      if (c.type === "select") {
+        ctl = `<select data-ef="${c.field}"><option value="" selected disabled>${c.placeholder || "Select"}</option>${c.options.map((o) => `<option>${o}</option>`).join("")}</select>`;
+      } else {
+        const type = c.type === "number" ? `type="number" min="0" step="any"` : c.type === "date" ? `type="date"` : c.type === "time" ? `type="time"` : `type="text"`;
+        ctl = `<input data-ef="${c.field}" ${type} />`;
+      }
+      return `<label class="field"><span>${c.label}${c.required ? " *" : ""}</span>${ctl}</label>`;
+    }).join("");
+    return `<div class="yatra-entry-row yatra-entry-form">${fields}<button type="button" class="stock-row-remove cell-chip danger" title="Remove">✕ Remove</button></div>`;
+  }
   const cells = addCols.map((c) => {
     if (c.type === "select") {
       const blank = c.required ? `<option value="" selected disabled>${c.placeholder || "Select"}</option>` : "";

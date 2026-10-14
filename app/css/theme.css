@@ -608,6 +608,10 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
    those (equal specificity, later in source) still win over it as needed. */
 .data-table tbody tr:nth-child(even) { background: rgba(6,95,70,0.025); }
 .data-table tbody tr:hover { background: rgba(5,150,105,0.04); }
+.data-table tbody tr.yatra-row-ok, .data-table tbody tr.yatra-row-ok:nth-child(even) { background: rgba(22,163,74,0.18); }
+.data-table tbody tr.yatra-row-bad, .data-table tbody tr.yatra-row-bad:nth-child(even) { background: rgba(220,38,38,0.14); }
+.data-table tbody tr.yatra-row-ok:hover { background: rgba(22,163,74,0.26); }
+.data-table tbody tr.yatra-row-bad:hover { background: rgba(220,38,38,0.22); }
 .data-table tbody tr.row-low-stock { background: rgba(220,38,38,0.12); }
 .data-table tbody tr.row-low-stock:hover { background: rgba(220,38,38,0.2); }
 .data-table tbody tr.row-cc-stale { background: rgba(220,38,38,0.12); }
@@ -1248,6 +1252,15 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
   .yatra-entry-row { grid-template-columns: 1fr 1fr !important; padding-bottom: 8px; border-bottom: 1px solid var(--sandstone); }
   .yatra-entry-row > :first-child { grid-column: 1 / -1; }
 }
+.yatra-entry-form { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important; align-items: end; gap: 10px 12px; padding: 12px; margin-bottom: 12px; border: 1.5px solid var(--sandstone); border-radius: var(--radius-sm); }
+.yatra-entry-form > :first-child { grid-column: auto !important; }
+.yatra-entry-form .field { margin: 0; }
+.yatra-entry-form .stock-row-remove { grid-column: 1 / -1; justify-self: end; }
+#yatra-table[data-tab="prasadam"] { width: max-content; min-width: 100%; }
+#yatra-table[data-tab="prasadam"] td .inline-edit { min-width: 130px; }
+#yatra-table[data-tab="prasadam"] td[data-label="Menu"] .inline-edit, #yatra-table[data-tab="prasadam"] td[data-label="Items Required for Serving"] .inline-edit, #yatra-table[data-tab="prasadam"] td[data-label="Remarks"] .inline-edit { min-width: 200px; }
+#yatra-table[data-tab="prasadam"] td[data-label="For How Many"] .inline-edit, #yatra-table[data-tab="prasadam"] td[data-label="Cost per Plate"] .inline-edit, #yatra-table[data-tab="prasadam"] td[data-label="Advance Payment"] .inline-edit { min-width: 90px; }
+.yatra-calc { display: block; text-align: center; font-weight: 700; }
 .yatra-wrap-edit { resize: none; overflow: hidden; white-space: pre-wrap; word-break: break-word; line-height: 1.35; display: block; width: 100%; box-sizing: border-box; text-overflow: clip; }
 .yatra-meal-toggle { display: flex; gap: 8px; flex-wrap: wrap; }
 .yatra-slot-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }

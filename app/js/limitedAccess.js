@@ -37,6 +37,7 @@ export const RESTRICTABLE_PAGES = [
   { module: "Expenses", id: "expenses-residency-section", label: "Residency Expenses" },
   { module: "FOLK Yatras", id: "yatras-dashboard", label: "Dashboard" },
   { module: "FOLK Yatras", id: "yatras-attendance", label: "Attendance" },
+  { module: "FOLK Yatras", id: "yatras-prasadam", label: "Prasadam Details" },
   { module: "FOLK Yatras", id: "yatras-disposables", label: "Disposables" },
   { module: "FOLK Yatras", id: "yatras-cooking", label: "Cooking / Serving Items" },
   { module: "FOLK Yatras", id: "yatras-feedback", label: "Feedback / Ideas" },
