@@ -1255,6 +1255,7 @@ h1, h2, h3 { font-family: inherit; letter-spacing: -0.01em; }
 .yatra-entry-form { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important; align-items: end; gap: 10px 12px; padding: 12px; margin-bottom: 12px; border: 1.5px solid var(--sandstone); border-radius: var(--radius-sm); }
 .yatra-entry-form > :first-child { grid-column: auto !important; }
 .yatra-entry-form .field { margin: 0; }
+.yatra-entry-form .yatra-field-wide { grid-column: 1 / -1; }
 .yatra-entry-form .stock-row-remove { grid-column: 1 / -1; justify-self: end; }
 #yatra-table[data-tab="prasadam"] { width: max-content; min-width: 100%; }
 #yatra-table[data-tab="prasadam"] td .inline-edit { min-width: 130px; }

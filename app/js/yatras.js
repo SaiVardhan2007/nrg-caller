@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { showToast, escapeHtml, normalizePhoneInput, formatPhone, copyToClipboard, initColumnDragReorder, reapplyColumnOrder } from "./utils.js";
+import { showToast, escapeHtml, normalizePhoneInput, formatPhone, copyToClipboard, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll } from "./utils.js";
 
 /* ======================= FOLK YATRAS (admin only) =======================
    A card per yatra (name) showing Total Participants / Prasadam Served / Not Served.
@@ -43,20 +43,73 @@ const PRASADAM_COLS = [
   { field: "meal_date", label: "Date", type: "date", required: true },
   { field: "meal_type", label: "Type", type: "select", options: MEALS.map((m) => m[1]), required: true, placeholder: "Select type" },
   { field: "for_how_many", label: "For How Many", type: "number" },
-  { field: "menu", label: "Menu", type: "text" },
+  { field: "menu", label: "Menu", type: "points" },
   { field: "vendor", label: "Vendor", type: "text" },
   { field: "delivery_location", label: "Delivery Location", type: "text" },
   { field: "delivery_time", label: "Delivery Time", type: "time" },
   { field: "packing_method", label: "Packing Method", type: "text" },
   { field: "serving_location", label: "Serving Location", type: "text" },
-  { field: "serving_method", label: "Serving Method", type: "text" },
-  { field: "items_required", label: "Items Required for Serving", type: "text" },
   { field: "cost_per_plate", label: "Cost per Plate", type: "number" },
   { field: "total_cost", label: "Total Cost", type: "calc", noAdd: true },
   { field: "advance_payment", label: "Advance Payment", type: "number" },
   { field: "balance", label: "Balance", type: "calc", noAdd: true },
   { field: "remarks", label: "Remarks", type: "text" },
 ];
+
+// Menu cells are a numbered list: one point per line ("1) Rice", "2) Dal"…).
+// A long point just wraps; Enter starts the next point.
+const POINT_RE = /^\s*\d+\s*[).]\s*/;
+function numberPoints(text) {
+  const lines = String(text ?? "").split("\n").map((l) => l.replace(POINT_RE, "").trim()).filter(Boolean);
+  return lines.map((l, i) => `${i + 1}) ${l}`).join("\n");
+}
+
+// Enter adds the next numbered point; Backspace on an empty point removes it.
+function wirePoints(el) {
+  const renumber = (lineIdx, offsetInLine = null) => {
+    const lines = el.value.split("\n").map((l) => l.replace(POINT_RE, ""));
+    el.value = lines.map((l, i) => `${i + 1}) ${l}`).join("\n");
+    if (lineIdx != null) {
+      const before = el.value.split("\n").slice(0, lineIdx).reduce((n, l) => n + l.length + 1, 0);
+      const prefix = `${lineIdx + 1}) `.length;
+      const pos = before + prefix + (offsetInLine ?? lines[lineIdx].length);
+      el.setSelectionRange(pos, pos);
+    }
+    el.dispatchEvent(new Event("input"));
+  };
+  el.addEventListener("focus", () => { if (!el.value.trim()) { el.value = "1) "; el.setSelectionRange(3, 3); } });
+  el.addEventListener("blur", () => { if (!numberPoints(el.value)) el.value = ""; });
+  el.addEventListener("keydown", (e) => {
+    const lineStart = el.value.lastIndexOf("\n", el.selectionStart - 1) + 1;
+    const lineIdx = el.value.slice(0, el.selectionStart).split("\n").length - 1;
+    if (e.key === "Enter") {
+      e.preventDefault();
+      // split the current point at the caret; the tail becomes the next point
+      const lines = el.value.split("\n");
+      const cur = lines[lineIdx].replace(POINT_RE, "");
+      const prefixLen = lines[lineIdx].length - cur.length;
+      const at = Math.max(0, el.selectionStart - lineStart - prefixLen);
+      if (!cur.trim()) return; // an empty point: don't add another
+      lines.splice(lineIdx, 1, cur.slice(0, at).trimEnd(), cur.slice(at).trimStart());
+      el.value = lines.join("\n");
+      renumber(lineIdx + 1, 0);
+    } else if (e.key === "Backspace" && el.selectionStart === el.selectionEnd) {
+      const line = el.value.split("\n")[lineIdx];
+      const prefixLen = line.length - line.replace(POINT_RE, "").length;
+      if (prefixLen && el.selectionStart - lineStart <= prefixLen) {
+        e.preventDefault();
+        const lines = el.value.split("\n");
+        const rest = lines[lineIdx].replace(POINT_RE, "");
+        if (lineIdx === 0) { if (!rest) el.value = ""; return; }
+        // join this point onto the end of the previous one
+        const prev = lines[lineIdx - 1].replace(POINT_RE, "");
+        lines.splice(lineIdx - 1, 2, prev + rest);
+        el.value = lines.join("\n");
+        renumber(lineIdx - 1, prev.length);
+      }
+    }
+  });
+}
 
 const calcValue = (field, r) => {
   const total = (Number(r.for_how_many) || 0) * (Number(r.cost_per_plate) || 0);
@@ -87,7 +140,7 @@ const TABS = {
     order: "meal_date",
     form: true,
     cols: PRASADAM_COLS,
-    searchFields: ["meal_type", "menu", "vendor", "delivery_location", "packing_method", "serving_location", "serving_method", "items_required", "remarks"],
+    searchFields: ["meal_type", "menu", "vendor", "delivery_location", "packing_method", "serving_location", "remarks"],
     empty: "No prasadam details yet.",
   },
   disposables: { table: "yatra_items", kind: "disposable", title: "Disposable", order: "created_at", cols: ITEM_COLS_WITH_UNIT, searchFields: ["name"], empty: "No disposables listed yet." },
@@ -399,6 +452,9 @@ function cellHtml(col, row) {
   if (col.type === "calc") return `<span class="yatra-calc" data-calc="${col.field}">${calcValue(col.field, row)}</span>`;
   const t = col.type === "number" ? `type="number" min="0" step="any"` : col.type === "date" ? `type="date"` : col.type === "time" ? `type="time"` : "";
   // long names wrap onto a second line instead of being cut off (item / feedback tabs)
+  if (col.type === "points") {
+    return `<textarea class="inline-edit yatra-wrap-edit yatra-points-edit" rows="1" data-field="${col.field}">${escapeHtml(numberPoints(v))}</textarea>`;
+  }
   if ((col.type === "text" || col.type === "longtext") && currentTab !== "dashboard") {
     return `<textarea class="inline-edit yatra-wrap-edit" rows="1" data-field="${col.field}">${escapeHtml(v == null ? "" : String(v))}</textarea>`;
   }
@@ -410,6 +466,10 @@ async function loadTable() {
   const tbody = $("yatra-tbody");
   $("yatra-add-btn").textContent = `+ Add ${cfg.title}`;
   $("yatra-table").dataset.tab = currentTab;
+  // Prasadam Details is wide: ◀ ▶ buttons (top right of the table) pan it sideways
+  if (currentTab === "prasadam") initHorizontalScroll("yatra-table-wrap");
+  const hs = $("yatra-table-wrap").previousElementSibling;
+  if (hs?.classList.contains("hscroll-controls")) hs.classList.toggle("hidden", currentTab !== "prasadam");
   $("yatra-thead").innerHTML = `<tr><th data-label="S.No">S.No</th>${cfg.cols.map((c) => `<th data-label="${c.label}">${c.label}</th>`).join("")}<th data-label=""></th></tr>`;
   tbody.innerHTML = `<tr><td colspan="${cfg.cols.length + 2}" class="loading-row">Loading…</td></tr>`;
   // headers are rebuilt per tab, so the drag handlers are re-wired each time
@@ -470,7 +530,8 @@ function renderRows() {
   const fit = (el) => { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; };
   tbody.querySelectorAll(".yatra-wrap-edit").forEach((el) => {
     el.addEventListener("input", () => fit(el));
-    el.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); el.blur(); } });
+    if (el.classList.contains("yatra-points-edit")) wirePoints(el);
+    else el.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); el.blur(); } });
     fit(el);
   });
   tbody.querySelectorAll(".yatra-token-btn").forEach((btn) => {
@@ -550,6 +611,7 @@ function parseValue(col, raw) {
     const p = normalizePhoneInput(raw);
     return p.length === 10 ? { value: p } : { error: `${col.label} must be a 10-digit number.` };
   }
+  if (col.type === "points") raw = numberPoints(raw);
   if (col.required && !raw) return { error: `${col.label} is required.` };
   if (col.type === "number") {
     if (raw === "") return { value: null };
@@ -632,7 +694,7 @@ function tableExport() {
     title: `${currentYatra.name} — ${label.replace("_", " / ")}`,
     filename: `${safeName(currentYatra.name)}_${label}_${todayISO()}.xlsx`,
     headers: ["S.No", ...cfg.cols.map((c) => c.label)],
-    rows: visibleRows().map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : c.type === "newtag" ? (r.is_new ? "New" : "") : c.type === "calc" ? calcValue(c.field, r) : c.type === "date" ? fmtDate(r[c.field]) : r[c.field] ?? ""))]),
+    rows: visibleRows().map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : c.type === "newtag" ? (r.is_new ? "New" : "") : c.type === "calc" ? calcValue(c.field, r) : c.type === "points" ? numberPoints(r[c.field]) : c.type === "date" ? fmtDate(r[c.field]) : r[c.field] ?? ""))]),
   }, "yatra-thead");
 }
 
@@ -860,11 +922,13 @@ function entryRowHtml(cfg) {
       let ctl;
       if (c.type === "select") {
         ctl = `<select data-ef="${c.field}"><option value="" selected disabled>${c.placeholder || "Select"}</option>${c.options.map((o) => `<option>${o}</option>`).join("")}</select>`;
+      } else if (c.type === "points") {
+        ctl = `<textarea class="yatra-entry-long yatra-points-edit" data-ef="${c.field}" rows="3"></textarea>`;
       } else {
         const type = c.type === "number" ? `type="number" min="0" step="any"` : c.type === "date" ? `type="date"` : c.type === "time" ? `type="time"` : `type="text"`;
         ctl = `<input data-ef="${c.field}" ${type} />`;
       }
-      return `<label class="field"><span>${c.label}${c.required ? " *" : ""}</span>${ctl}</label>`;
+      return `<label class="field${c.type === "points" ? " yatra-field-wide" : ""}"><span>${c.label}${c.required ? " *" : ""}</span>${ctl}</label>`;
     }).join("");
     return `<div class="yatra-entry-row yatra-entry-form">${fields}<button type="button" class="stock-row-remove cell-chip danger" title="Remove">✕ Remove</button></div>`;
   }
@@ -890,6 +954,7 @@ function addEntryRow() {
   wrap.insertAdjacentHTML("beforeend", entryRowHtml(TABS[currentTab]));
   const row = wrap.lastElementChild;
   const long = row.querySelector(".yatra-entry-long");
+  if (long?.classList.contains("yatra-points-edit")) wirePoints(long);
   if (long) long.addEventListener("input", () => { long.style.height = "auto"; long.style.height = long.scrollHeight + "px"; });
   row.querySelector(".stock-row-remove").addEventListener("click", () => {
     if (wrap.children.length > 1) row.remove();

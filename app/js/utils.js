@@ -527,7 +527,7 @@ export function initHorizontalScroll(wrapId, { leftBtnId, rightBtnId } = {}) {
   // Drag-to-pan. Ignored when the press starts on something interactive so
   // inline edits, dropdowns and draggable column headers still work.
   let dragging = false, startX = 0, startScroll = 0, moved = false;
-  const INTERACTIVE = "input, select, textarea, button, a, th[draggable='true']";
+  const INTERACTIVE = "input, select, textarea, button, a, th[draggable='true'], .yatra-drag-handle";
 
   wrap.addEventListener("pointerdown", (e) => {
     if (e.button !== 0 || e.target.closest(INTERACTIVE)) return;
