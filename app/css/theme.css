@@ -4285,3 +4285,5 @@ tr.yatra-row-dragging { opacity: .55; background: rgba(0, 0, 0, .05); }
 #yatra-table[data-tab="itinerary"] td[data-label="Program Details / Place"] .inline-edit { min-width: 280px; }
 #yatra-table[data-tab="itinerary"] td[data-label="Day & Date"] .inline-edit { min-width: 150px; }
 #yatra-table[data-tab="itinerary"] td[data-label="Start Time"] .inline-edit, #yatra-table[data-tab="itinerary"] td[data-label="End Time"] .inline-edit { min-width: 120px; }
+
+.yatra-paper-table td { white-space: pre-line; }

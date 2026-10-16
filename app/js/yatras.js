@@ -233,6 +233,14 @@ function fmtDay(d) {
   return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
+// "Tuesday\n20 Oct 2026" (two lines, short month) for the itinerary downloads
+function fmtDayShort(d) {
+  if (!d) return "";
+  const dt = new Date(d + "T00:00:00");
+  if (Number.isNaN(dt.getTime())) return "";
+  return `${dt.toLocaleDateString("en-IN", { weekday: "long" })}\n${dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`;
+}
+
 // "17:30:00" -> "05:30 PM"
 function fmtTime(t) {
   if (!t) return "";
@@ -812,7 +820,7 @@ function tableExport() {
     title: `${currentYatra.name} — ${label.replace("_", " / ")}`,
     filename: `${safeName(currentYatra.name)}_${label}_${todayISO()}.xlsx`,
     headers: ["S.No", ...cfg.cols.map((c) => c.label)],
-    rows: visibleRows().map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : c.type === "newtag" ? (r.is_new ? "New" : "") : c.type === "calc" ? calcValue(c.field, r) : c.type === "points" ? numberPoints(r[c.field]) : c.type === "date" ? (c.day ? fmtDay(r[c.field]) : fmtDate(r[c.field])) : c.type === "time" ? fmtTime(r[c.field]) : r[c.field] ?? ""))]),
+    rows: visibleRows().map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : c.type === "newtag" ? (r.is_new ? "New" : "") : c.type === "calc" ? calcValue(c.field, r) : c.type === "points" ? numberPoints(r[c.field]) : c.type === "date" ? (c.day ? fmtDayShort(r[c.field]) : fmtDate(r[c.field])) : c.type === "time" ? fmtTime(r[c.field]) : r[c.field] ?? ""))]),
   }, "yatra-thead");
 }
 
@@ -895,7 +903,8 @@ function itineraryDownload() {
     subtitle: dayLabel + win,
     filename: `${safeName(currentYatra.name)}_Trip_Itinerary${day ? "_" + day : ""}.xlsx`,
     headers: ["S.No", "Day & Date", "Start Time", "End Time", "Duration (min)", "Program Details / Place", "Mode of Travel"],
-    rows: rows.map((r, i) => [i + 1, fmtDay(r.day_date), fmtTime(r.start_time), fmtTime(r.end_time), durationMinutes(r), r.details || "", r.travel_mode || ""]),
+    pdfColumns: { "S.No": 32, "Day & Date": 78, "Start Time": 54, "End Time": 54, "Duration (min)": 50, "Program Details / Place": "fill", "Mode of Travel": 72 },
+    rows: rows.map((r, i) => [i + 1, fmtDayShort(r.day_date), fmtTime(r.start_time), fmtTime(r.end_time), durationMinutes(r), r.details || "", r.travel_mode || ""]),
   });
 }
 
@@ -939,7 +948,10 @@ function downloadSpec(spec) {
 function downloadXlsx(spec) {
   const last = spec.headers.length - 1;
   const top = spec.subtitle ? [[spec.title], [spec.subtitle], [`Generated ${generatedStamp()}`]] : [[spec.title], [`Generated ${generatedStamp()}`]];
-  const ws = XLSX.utils.aoa_to_sheet([...top, [], spec.headers, ...spec.rows]);
+  // a plain Excel cell can't show the two-line day, so join it with a comma there
+  const dayCol = spec.headers.indexOf("Day & Date");
+  const rows = dayCol < 0 ? spec.rows : spec.rows.map((r) => r.map((v, i) => (i === dayCol ? String(v ?? "").replace("\n", ", ") : v)));
+  const ws = XLSX.utils.aoa_to_sheet([...top, [], spec.headers, ...rows]);
   ws["!merges"] = top.map((_, r) => ({ s: { r, c: 0 }, e: { r, c: last } }));
   ws["!cols"] = spec.headers.map((h, c) => ({
     wch: Math.min(50, Math.max(8, String(h).length + 2, ...spec.rows.map((r) => String(r[c] ?? "").length + 2))),
@@ -989,9 +1001,13 @@ function downloadPdf(spec) {
   doc.line(M, y, W - M, y);
 
   const columnStyles = {};
+  // optional fixed widths per header (pt); one "fill" column takes whatever is left
+  const fixed = Object.values(spec.pdfColumns || {}).filter((w) => typeof w === "number").reduce((a, b) => a + b, 0);
   spec.headers.forEach((h, i) => {
-    if (CENTERED_COLS.includes(h)) columnStyles[i] = { halign: "center" };
+    columnStyles[i] = CENTERED_COLS.includes(h) ? { halign: "center" } : {};
     if (h === "S.No") columnStyles[i].cellWidth = 44;
+    const w = spec.pdfColumns?.[h];
+    if (w) columnStyles[i].cellWidth = w === "fill" ? W - 2 * M - fixed : w;
   });
   doc.autoTable({
     head: [spec.headers],
