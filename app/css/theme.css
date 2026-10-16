@@ -4287,3 +4287,16 @@ tr.yatra-row-dragging { opacity: .55; background: rgba(0, 0, 0, .05); }
 #yatra-table[data-tab="itinerary"] td[data-label="Start Time"] .inline-edit, #yatra-table[data-tab="itinerary"] td[data-label="End Time"] .inline-edit { min-width: 120px; }
 
 .yatra-paper-table td { white-space: pre-line; }
+
+/* Accommodation: short fields stay narrow, descriptive ones get room */
+#yatra-table[data-tab="accommodation"] { width: max-content; min-width: 100%; }
+#yatra-table[data-tab="accommodation"] td[data-label="Name"] .inline-edit { min-width: 220px; }
+#yatra-table[data-tab="accommodation"] td[data-label="Contact Person"] .inline-edit { min-width: 150px; }
+#yatra-table[data-tab="accommodation"] td[data-label="Mobile Number"] .inline-edit { min-width: 125px; }
+#yatra-table[data-tab="accommodation"] td[data-label="No. of Rooms"] .inline-edit { min-width: 0; width: 70px; }
+#yatra-table[data-tab="accommodation"] td[data-label="Check-in"] .inline-edit, #yatra-table[data-tab="accommodation"] td[data-label="Check-out"] .inline-edit { min-width: 200px; }
+#yatra-table[data-tab="accommodation"] td[data-label="Location"] .inline-edit { min-width: 240px; }
+#yatra-table[data-tab="accommodation"] td[data-label="Cost per Room"] .inline-edit, #yatra-table[data-tab="accommodation"] td[data-label="Extra Charges"] .inline-edit, #yatra-table[data-tab="accommodation"] td[data-label="Adv Paid"] .inline-edit { min-width: 0; width: 95px; }
+#yatra-table[data-tab="accommodation"] td[data-label="Date of Booking"] .inline-edit { min-width: 140px; }
+#yatra-table[data-tab="accommodation"] td[data-label="Total Cost"], #yatra-table[data-tab="accommodation"] td[data-label="Balance Amt"] { min-width: 90px; }
+#yatra-table[data-tab="accommodation"] td[data-label="Remarks"] .inline-edit { min-width: 240px; }

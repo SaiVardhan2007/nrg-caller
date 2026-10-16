@@ -40,6 +40,7 @@ export const RESTRICTABLE_PAGES = [
   { module: "FOLK Yatras", id: "yatras-prasadam", label: "Prasadam Details" },
   { module: "FOLK Yatras", id: "yatras-checklist", label: "Travel Check List" },
   { module: "FOLK Yatras", id: "yatras-itinerary", label: "Trip Itinerary" },
+  { module: "FOLK Yatras", id: "yatras-accommodation", label: "Accommodation" },
   { module: "FOLK Yatras", id: "yatras-disposables", label: "Disposables" },
   { module: "FOLK Yatras", id: "yatras-cooking", label: "Cooking / Serving Items" },
   { module: "FOLK Yatras", id: "yatras-feedback", label: "Feedback / Ideas" },

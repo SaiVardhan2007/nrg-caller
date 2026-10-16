@@ -120,8 +120,12 @@ const durationMinutes = (r) => {
   return d < 0 ? d + 1440 : d;
 };
 
+const roomTotal = (r) => (Number(r.no_of_rooms) || 0) * (Number(r.cost_per_room) || 0) + (Number(r.extra_charges) || 0);
+
 const calcValue = (field, r) => {
   if (field === "duration") return durationMinutes(r);
+  if (field === "room_total") return Math.round(roomTotal(r) * 100) / 100;
+  if (field === "room_balance") return Math.round((roomTotal(r) - (Number(r.advance_paid) || 0)) * 100) / 100;
   const total = (Number(r.for_how_many) || 0) * (Number(r.cost_per_plate) || 0);
   const v = field === "total_cost" ? total : total - (Number(r.advance_payment) || 0);
   return Math.round(v * 100) / 100;
@@ -143,6 +147,30 @@ const TABS = {
     ],
     searchFields: ["name", "phone", "folk_guide"],
     empty: "No participants yet — add some or upload an Excel file.",
+  },
+  accommodation: {
+    table: "yatra_accommodation",
+    title: "Accommodation",
+    order: "created_at",
+    form: true,
+    cols: [
+      { field: "name", label: "Name", type: "text", required: true, wide: true },
+      { field: "contact_person", label: "Contact Person", type: "text" },
+      { field: "mobile", label: "Mobile Number", type: "phone" },
+      { field: "no_of_rooms", label: "No. of Rooms", type: "number" },
+      { field: "checkin_time", label: "Check-in", type: "datetime" },
+      { field: "checkout_time", label: "Check-out", type: "datetime" },
+      { field: "location", label: "Location", type: "text", wide: true },
+      { field: "cost_per_room", label: "Cost per Room", type: "number" },
+      { field: "extra_charges", label: "Extra Charges", type: "number" },
+      { field: "booking_date", label: "Date of Booking", type: "date" },
+      { field: "room_total", label: "Total Cost", type: "calc", noAdd: true },
+      { field: "advance_paid", label: "Adv Paid", type: "number" },
+      { field: "room_balance", label: "Balance Amt", type: "calc", noAdd: true },
+      { field: "remarks", label: "Remarks", type: "text", wide: true },
+    ],
+    searchFields: ["name", "contact_person", "mobile", "location", "remarks"],
+    empty: "No accommodation added yet.",
   },
   checklist: {
     table: "yatra_checklist",
@@ -231,6 +259,13 @@ function fmtDay(d) {
   if (!d) return "";
   const dt = new Date(d + "T00:00:00");
   return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+// "20 Oct 2026, 02:00 PM" from a datetime-local value
+function fmtDateTime(v) {
+  if (!v) return "";
+  const [d, t] = String(v).split("T");
+  return [fmtDate(d), fmtTime(t)].filter(Boolean).join(", ");
 }
 
 // "Tuesday\n20 Oct 2026" (two lines, short month) for the itinerary downloads
@@ -525,6 +560,7 @@ function showListPopup(title, headers, rows, filenameBase, key) {
         : `<td data-label="${headers[i]}">${escapeHtml(String(v ?? ""))}</td>`).join("")}</tr>`).join("")
     : `<tr><td colspan="${headers.length}" class="muted-text">Nothing here yet.</td></tr>`;
   initColumnDragReorder("yatra-stat-table", { force: true, storageKey: `nrg-col-order:yatra-stat:${key}` });
+  initHorizontalScroll("yatra-stat-table-wrap");
   $("yatra-stat-modal").classList.add("active");
 }
 
@@ -577,7 +613,8 @@ function cellHtml(col, row) {
     return `<select class="inline-edit" data-field="${col.field}">${blank}${col.options.map((o) => `<option${o === v ? " selected" : ""}>${o}</option>`).join("")}</select>`;
   }
   if (col.type === "calc") return `<span class="yatra-calc" data-calc="${col.field}">${calcValue(col.field, row)}</span>`;
-  const t = col.type === "number" ? `type="number" min="0" step="any"` : col.type === "date" ? `type="date"` : col.type === "time" ? `type="time"` : "";
+  const t = col.type === "number" ? `type="number" min="0" step="any"` : col.type === "date" ? `type="date"` : col.type === "time" ? `type="time"` : col.type === "datetime" ? `type="datetime-local"` : "";
+  if (col.type === "datetime") return `<input class="inline-edit" ${t} data-field="${col.field}" value="${escapeHtml(v ? String(v).slice(0, 16) : "")}" />`;
   // long names wrap onto a second line instead of being cut off (item / feedback tabs)
   if (col.type === "points") {
     return `<textarea class="inline-edit yatra-wrap-edit yatra-points-edit" rows="1" data-field="${col.field}">${escapeHtml(numberPoints(v))}</textarea>`;
@@ -593,10 +630,8 @@ async function loadTable() {
   const tbody = $("yatra-tbody");
   $("yatra-add-btn").textContent = `+ Add ${cfg.title}`;
   $("yatra-table").dataset.tab = currentTab;
-  // Prasadam Details is wide: ◀ ▶ buttons (top right of the table) pan it sideways
-  if (currentTab === "prasadam") initHorizontalScroll("yatra-table-wrap");
-  const hs = $("yatra-table-wrap").previousElementSibling;
-  if (hs?.classList.contains("hscroll-controls")) hs.classList.toggle("hidden", currentTab !== "prasadam");
+  // ◀ ▶ buttons (top right of the table) pan wide tables sideways on every tab
+  initHorizontalScroll("yatra-table-wrap");
   $("yatra-thead").innerHTML = `<tr><th data-label="S.No">S.No</th>${cfg.cols.map((c) => `<th data-label="${c.label}">${c.label}</th>`).join("")}<th data-label=""></th></tr>`;
   tbody.innerHTML = `<tr><td colspan="${cfg.cols.length + 2}" class="loading-row">Loading…</td></tr>`;
   // headers are rebuilt per tab, so the drag handlers are re-wired each time
@@ -815,12 +850,12 @@ function visibleRows() {
 
 function tableExport() {
   const cfg = TABS[currentTab];
-  const label = { dashboard: "Participants", prasadam: "Prasadam_Details", checklist: "Travel_Checklist", itinerary: "Trip_Itinerary", disposables: "Disposables", cooking: "Cooking_Serving", feedback: "Feedback" }[currentTab];
+  const label = { dashboard: "Participants", prasadam: "Prasadam_Details", checklist: "Travel_Checklist", accommodation: "Accommodation", itinerary: "Trip_Itinerary", disposables: "Disposables", cooking: "Cooking_Serving", feedback: "Feedback" }[currentTab];
   return inScreenOrder({
     title: `${currentYatra.name} — ${label.replace("_", " / ")}`,
     filename: `${safeName(currentYatra.name)}_${label}_${todayISO()}.xlsx`,
     headers: ["S.No", ...cfg.cols.map((c) => c.label)],
-    rows: visibleRows().map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : c.type === "newtag" ? (r.is_new ? "New" : "") : c.type === "calc" ? calcValue(c.field, r) : c.type === "points" ? numberPoints(r[c.field]) : c.type === "date" ? (c.day ? fmtDayShort(r[c.field]) : fmtDate(r[c.field])) : c.type === "time" ? fmtTime(r[c.field]) : r[c.field] ?? ""))]),
+    rows: visibleRows().map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : c.type === "newtag" ? (r.is_new ? "New" : "") : c.type === "calc" ? calcValue(c.field, r) : c.type === "points" ? numberPoints(r[c.field]) : c.type === "date" ? (c.day ? fmtDayShort(r[c.field]) : fmtDate(r[c.field])) : c.type === "time" ? fmtTime(r[c.field]) : c.type === "datetime" ? fmtDateTime(r[c.field]) : r[c.field] ?? ""))]),
   }, "yatra-thead");
 }
 
@@ -923,7 +958,7 @@ function attendanceExport() {
 
 /* ---------------- Download: preview, then Excel or PDF ---------------- */
 
-const CENTERED_COLS = ["S.No", "Quantity", "Tokens", "Unit", "Type", "Time", "Plates", "Status", "Date", "Day & Date", "Start Time", "End Time", "Duration (min)", "For How Many", "Delivery Time", "Cost per Plate", "Total Cost", "Advance Payment", "Balance"];
+const CENTERED_COLS = ["S.No", "Quantity", "Tokens", "Unit", "Type", "Time", "Plates", "Status", "Date", "No. of Rooms", "Cost per Room", "Extra Charges", "Date of Booking", "Adv Paid", "Balance Amt", "Day & Date", "Start Time", "End Time", "Duration (min)", "For How Many", "Delivery Time", "Cost per Plate", "Total Cost", "Advance Payment", "Balance"];
 let previewSpec = null;
 
 const generatedStamp = () => new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -1103,7 +1138,7 @@ function entryRowHtml(cfg) {
       } else if (c.type === "points") {
         ctl = `<textarea class="yatra-entry-long yatra-points-edit" data-ef="${c.field}" rows="3"></textarea>`;
       } else {
-        const type = c.type === "number" ? `type="number" min="0" step="any"` : c.type === "date" ? `type="date"` : c.type === "time" ? `type="time"` : `type="text"`;
+        const type = c.type === "number" ? `type="number" min="0" step="any"` : c.type === "date" ? `type="date"` : c.type === "time" ? `type="time"` : c.type === "datetime" ? `type="datetime-local"` : c.type === "phone" ? `type="tel" inputmode="numeric"` : `type="text"`;
         ctl = `<input data-ef="${c.field}" ${type} />`;
       }
       return `<label class="field${c.type === "points" || c.wide ? " yatra-field-wide" : ""}"><span>${c.label}${c.required ? " *" : ""}</span>${ctl}</label>`;
@@ -1344,7 +1379,7 @@ function renderAttendance() {
       <div id="att-result"></div>
     </div>
     <div class="stats-bar yatra-stats" id="att-stats"></div>
-    <div class="table-wrap">
+    <div class="table-wrap" id="att-table-wrap">
       <table class="data-table" id="att-table">
         <thead id="att-thead"><tr><th>S.No</th><th>Name</th><th>Phone Number</th><th>Type</th><th>Time</th><th></th></tr></thead>
         <tbody id="att-tbody"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
@@ -1353,6 +1388,7 @@ function renderAttendance() {
 
   syncAttControls();
   initColumnDragReorder("att-table", { storageKey: "nrg-col-order:yatra:attendance" });
+  initHorizontalScroll("att-table-wrap");
   $("att-slot-btn").onclick = openSlotModal;
   $("att-download-btn").onclick = () => downloadSpec(attendanceExport());
   $("att-phone").addEventListener("input", onPhoneInput);
