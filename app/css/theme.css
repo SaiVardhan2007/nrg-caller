@@ -4268,10 +4268,16 @@ tr.yatra-row-dragging { opacity: .55; background: rgba(0, 0, 0, .05); }
 .yatra-card-handle:hover { background: rgba(0, 0, 0, .06); }
 .trip-event-card.yatra-card-dragging { opacity: .55; outline: 2px dashed var(--tulsi-light, #34d399); }
 
-/* Feedback tab: wide Feedback column, Name only about 15 characters wide */
-#yatra-table[data-tab="feedback"] { table-layout: auto; width: 100%; }
-#yatra-table[data-tab="feedback"] th[data-label="Feedback / Ideas"], #yatra-table[data-tab="feedback"] td[data-label="Feedback / Ideas"] { width: 62%; min-width: 320px; }
-#yatra-table[data-tab="feedback"] th[data-label="Name"], #yatra-table[data-tab="feedback"] td[data-label="Name"] { width: 1%; white-space: nowrap; }
-#yatra-table[data-tab="feedback"] td[data-label="Name"] .inline-edit { width: 17ch; min-width: 0; }
-#yatra-table[data-tab="feedback"] td[data-label="Category"] { width: 1%; white-space: nowrap; }
-#yatra-table[data-tab="feedback"] td[data-label="Feedback / Ideas"] .inline-edit { width: 100%; min-width: 0; }
+/* Feedback tab: roomy Feedback column (capped, scales with the screen), Name about
+   15 characters wide, Category sized by its longest option so no value is ever cut
+   off. Desktop/tablet only: on phones the table is stacked cards and every field is
+   already full width. */
+@media (min-width: 641px) {
+  #yatra-table[data-tab="feedback"] { width: max-content; max-width: 100%; }
+  #yatra-table[data-tab="feedback"] th[data-label="Feedback / Ideas"], #yatra-table[data-tab="feedback"] td[data-label="Feedback / Ideas"] { width: clamp(280px, 42vw, 560px); }
+  #yatra-table[data-tab="feedback"] td[data-label="Feedback / Ideas"] .inline-edit { width: 100%; min-width: 0; }
+  #yatra-table[data-tab="feedback"] th[data-label="Name"], #yatra-table[data-tab="feedback"] td[data-label="Name"] { width: 170px; }
+  #yatra-table[data-tab="feedback"] td[data-label="Name"] .inline-edit { width: 100%; min-width: 0; }
+  #yatra-table[data-tab="feedback"] th[data-label="Category"], #yatra-table[data-tab="feedback"] td[data-label="Category"] { width: 1%; min-width: 230px; white-space: nowrap; overflow: visible; }
+  #yatra-table[data-tab="feedback"] td[data-label="Category"] .inline-edit { width: auto; min-width: 210px; max-width: none; padding-right: 28px; text-overflow: clip; overflow: visible; }
+}
