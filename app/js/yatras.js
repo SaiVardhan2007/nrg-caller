@@ -163,6 +163,7 @@ let yatrasCache = [];
 let currentYatra = null;
 let currentTab = "dashboard";
 let rowsCache = [];
+const YATRA_ORDER_KEY = "yatras_card_order";
 let yatraOrderEnabled = true; // false until the yatras `position` column exists
 let rowOrderEnabled = true; // false until the `position` column exists
 let shellWired = false;
@@ -237,6 +238,13 @@ async function loadYatraCards() {
     return;
   }
   yatrasCache = yatras || [];
+  if (!yatraOrderEnabled) {
+    // no `position` column yet: use the order saved in this browser instead
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem(YATRA_ORDER_KEY) || "[]"); } catch { /* storage blocked */ }
+    const rank = (y) => { const i = saved.indexOf(y.id); return i < 0 ? Infinity : i; };
+    yatrasCache = [...yatrasCache].sort((a, b) => rank(a) - rank(b));
+  }
 
   const tally = (rows, pred = () => true) => {
     const m = {};
@@ -259,7 +267,7 @@ async function loadYatraCards() {
           <p class="muted-text">${slotLabel(attDate, attMeal)}</p>
         </div>
         <span class="yatra-card-actions">
-          ${yatraOrderEnabled && yatrasCache.length > 1 ? `<span class="yatra-card-handle" title="Drag to reorder">⠿</span>` : ""}
+          ${yatrasCache.length > 1 ? `<span class="yatra-card-handle" title="Drag to reorder">⠿</span>` : ""}
           <button type="button" class="cell-chip danger yatra-delete-btn" title="Delete yatra">🗑</button>
         </span>
       </div>
@@ -309,6 +317,13 @@ function startCardDrag(e) {
     card.classList.remove("yatra-card-dragging");
     const ids = Array.from(grid.querySelectorAll(".trip-event-card")).map((c) => c.dataset.id);
     if (ids.join() === yatrasCache.map((y) => y.id).join()) return;
+    if (!yatraOrderEnabled) {
+      try { localStorage.setItem(YATRA_ORDER_KEY, JSON.stringify(ids)); } catch { /* storage blocked */ }
+      const byId = new Map(yatrasCache.map((y) => [y.id, y]));
+      yatrasCache = ids.map((id) => byId.get(id));
+      showToast("Order saved on this device only — run yatra-order.sql in Supabase to save it for everyone.", "info");
+      return;
+    }
     const results = await Promise.all(ids.map((id, i) => supabase.from("yatras").update({ position: i + 1 }).eq("id", id)));
     if (results.some((r) => r.error)) {
       showToast("Could not save the order: " + results.find((r) => r.error).error.message, "error");

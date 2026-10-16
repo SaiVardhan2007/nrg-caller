@@ -4267,3 +4267,11 @@ tr.yatra-row-dragging { opacity: .55; background: rgba(0, 0, 0, .05); }
 .yatra-card-handle { cursor: grab; touch-action: none; user-select: none; padding: 2px 6px; font-size: 18px; line-height: 1; color: var(--text-muted, #888); border-radius: 6px; }
 .yatra-card-handle:hover { background: rgba(0, 0, 0, .06); }
 .trip-event-card.yatra-card-dragging { opacity: .55; outline: 2px dashed var(--tulsi-light, #34d399); }
+
+/* Feedback tab: wide Feedback column, Name only about 15 characters wide */
+#yatra-table[data-tab="feedback"] { table-layout: auto; width: 100%; }
+#yatra-table[data-tab="feedback"] th[data-label="Feedback / Ideas"], #yatra-table[data-tab="feedback"] td[data-label="Feedback / Ideas"] { width: 62%; min-width: 320px; }
+#yatra-table[data-tab="feedback"] th[data-label="Name"], #yatra-table[data-tab="feedback"] td[data-label="Name"] { width: 1%; white-space: nowrap; }
+#yatra-table[data-tab="feedback"] td[data-label="Name"] .inline-edit { width: 17ch; min-width: 0; }
+#yatra-table[data-tab="feedback"] td[data-label="Category"] { width: 1%; white-space: nowrap; }
+#yatra-table[data-tab="feedback"] td[data-label="Feedback / Ideas"] .inline-edit { width: 100%; min-width: 0; }

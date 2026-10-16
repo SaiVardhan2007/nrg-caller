@@ -3612,6 +3612,21 @@ function tirthaNidhiContribution(bookName, profit, rate = TIRTHA_NIDHI_RATE) {
   return profit > 0 ? profit * rate : profit;
 }
 
+// Supabase caps a single select at 1000 rows, so org-wide sales/inward totals
+// would silently come back truncated (and differ from a per-user view).
+// Pages through with a stable id order until everything is loaded.
+async function fetchAllPages(build) {
+  const PAGE = 1000;
+  let all = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await build().order("id").range(from, from + PAGE - 1);
+    if (error) return { data: all, error };
+    all = all.concat(data || []);
+    if (!data || data.length < PAGE) break;
+  }
+  return { data: all, error: null };
+}
+
 // Per-user override of the Tirtha Nidhi rate, set via the Tapasya table
 // (falls back to the default 65% for anyone left unset).
 async function fetchTirthaNidhiRates() {
@@ -3659,8 +3674,8 @@ async function renderSavingsPanel() {
     { data: contributionsData },
     tirthaNidhiRates
   ] = await Promise.all([
-    outwardQuery,
-    supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
+    fetchAllPages(() => outwardQuery),
+    fetchAllPages(() => supabase.from("book_inward_stock").select("name, language, purchase_price, quantity")),
     contributionsQuery,
     fetchTirthaNidhiRates()
   ]);
@@ -3755,8 +3770,8 @@ async function openBsUserContributionModal(isAdmin, currentUser) {
   if (!isOrgWide) outwardQuery = outwardQuery.eq("sold_by", scopeUser);
 
   const [{ data: outwardData, error }, { data: inwardData }, { data: expensesData }, tirthaNidhiRates] = await Promise.all([
-    outwardQuery.order("created_at", { ascending: true }),
-    supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
+    fetchAllPages(() => outwardQuery),
+    fetchAllPages(() => supabase.from("book_inward_stock").select("name, language, purchase_price, quantity")),
     supabase.from("book_expenses").select("cost, to_users"),
     fetchTirthaNidhiRates(),
   ]);
@@ -3860,8 +3875,8 @@ function wireBsGeneralDataModal() {
 
     const [{ data: coordinators }, { data: inwardData }, { data: outwardData }, tirthaNidhiRates, redeemedByUser] = await Promise.all([
       supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
-      supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
-      supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by"),
+      fetchAllPages(() => supabase.from("book_inward_stock").select("name, language, purchase_price, quantity")),
+      fetchAllPages(() => supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by")),
       fetchTirthaNidhiRates(),
       fetchApprovedRedeemedByUser(),
     ]);
@@ -3955,8 +3970,8 @@ function wireBsTapasyaModal() {
 
     const [{ data: coordinators, error }, { data: inwardData }, { data: outwardData }, redeemedByUser] = await Promise.all([
       supabase.from("users").select("id, user_name, tirtha_nidhi_percent").eq("role", "Coordinator").order("user_name"),
-      supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
-      supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by"),
+      fetchAllPages(() => supabase.from("book_inward_stock").select("name, language, purchase_price, quantity")),
+      fetchAllPages(() => supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by")),
       fetchApprovedRedeemedByUser(),
     ]);
 
@@ -4056,8 +4071,8 @@ function redeemStatusLabel(status) {
 // left.
 async function computeUserRedeemAvailability(userName) {
   const [{ data: outwardData }, { data: inwardData }, { data: redeemData }, tirthaNidhiRates] = await Promise.all([
-    supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by").eq("sold_by", userName),
-    supabase.from("book_inward_stock").select("name, language, purchase_price, quantity"),
+    fetchAllPages(() => supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by").eq("sold_by", userName)),
+    fetchAllPages(() => supabase.from("book_inward_stock").select("name, language, purchase_price, quantity")),
     supabase.from("tirtha_nidhi_redeem_requests").select("requested_amount, approved_amount, status").eq("user_name", userName),
     fetchTirthaNidhiRates(),
   ]);
