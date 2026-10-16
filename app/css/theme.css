@@ -4262,3 +4262,8 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 /* FOLK Yatras: drag handle for custom row order */
 .yatra-drag-handle { display: inline-block; cursor: grab; touch-action: none; user-select: none; padding: 0 6px 0 0; color: var(--text-muted, #888); font-size: 16px; line-height: 1; }
 tr.yatra-row-dragging { opacity: .55; background: rgba(0, 0, 0, .05); }
+
+.yatra-card-actions { display: inline-flex; align-items: center; gap: 8px; }
+.yatra-card-handle { cursor: grab; touch-action: none; user-select: none; padding: 2px 6px; font-size: 18px; line-height: 1; color: var(--text-muted, #888); border-radius: 6px; }
+.yatra-card-handle:hover { background: rgba(0, 0, 0, .06); }
+.trip-event-card.yatra-card-dragging { opacity: .55; outline: 2px dashed var(--tulsi-light, #34d399); }

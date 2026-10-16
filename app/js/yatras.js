@@ -163,6 +163,7 @@ let yatrasCache = [];
 let currentYatra = null;
 let currentTab = "dashboard";
 let rowsCache = [];
+let yatraOrderEnabled = true; // false until the yatras `position` column exists
 let rowOrderEnabled = true; // false until the `position` column exists
 let shellWired = false;
 // Set when a Limited Admin opens one specific yatra page (e.g. "attendance"):
@@ -217,8 +218,17 @@ async function loadYatraCards() {
   grid.innerHTML = `<p class="loading-row">Loading…</p>`;
 
   // served / not served follow the date + meal last picked on a yatra's dashboard
+  // Cards can be dragged into a custom order (the `position` column); never-moved
+  // yatras sort last, newest first. Without the column (yatra-order.sql not run)
+  // fall back to plain newest-first.
+  const loadYatras = async () => {
+    const r = await supabase.from("yatras").select("id,name,created_at,position")
+      .order("position", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false });
+    yatraOrderEnabled = !r.error;
+    return r.error ? supabase.from("yatras").select("id,name,created_at").order("created_at", { ascending: false }) : r;
+  };
   const [{ data: yatras, error }, people, coupons] = await Promise.all([
-    supabase.from("yatras").select("id,name,created_at").order("created_at", { ascending: false }),
+    loadYatras(),
     fetchAll(() => supabase.from("yatra_participants").select("id,yatra_id")),
     fetchAll(() => supabase.from("yatra_coupons").select("id,yatra_id").eq("coupon_date", attDate).eq("meal", attMeal)),
   ]);
@@ -248,7 +258,10 @@ async function loadYatraCards() {
           <p class="trip-event-card-name">${escapeHtml(y.name)}</p>
           <p class="muted-text">${slotLabel(attDate, attMeal)}</p>
         </div>
-        <button type="button" class="cell-chip danger yatra-delete-btn" title="Delete yatra">🗑</button>
+        <span class="yatra-card-actions">
+          ${yatraOrderEnabled && yatrasCache.length > 1 ? `<span class="yatra-card-handle" title="Drag to reorder">⠿</span>` : ""}
+          <button type="button" class="cell-chip danger yatra-delete-btn" title="Delete yatra">🗑</button>
+        </span>
       </div>
       <div class="trip-event-card-stats">
         <div class="stat"><span class="stat-num">${people_n[y.id] || 0}</span><span class="stat-label">Total Participants</span></div>
@@ -258,6 +271,10 @@ async function loadYatraCards() {
     </div>
   `).join("");
 
+  grid.querySelectorAll(".yatra-card-handle").forEach((h) => {
+    h.addEventListener("click", (e) => e.stopPropagation());
+    h.addEventListener("pointerdown", startCardDrag);
+  });
   grid.querySelectorAll(".trip-event-card").forEach((card) => {
     card.addEventListener("click", () => openYatra(card.dataset.id));
   });
@@ -267,6 +284,43 @@ async function loadYatraCards() {
       deleteYatra(btn.closest(".trip-event-card").dataset.id);
     });
   });
+}
+
+// Pointer-based drag (mouse and touch): the card follows the pointer through the
+// grid; on release every card's `position` is saved in the new order.
+function startCardDrag(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const grid = $("yatras-grid");
+  const card = e.currentTarget.closest(".trip-event-card");
+  card.classList.add("yatra-card-dragging");
+  const onMove = (ev) => {
+    const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest("#yatras-grid .trip-event-card");
+    if (!over || over === card) return;
+    const r = over.getBoundingClientRect();
+    // cards sit in rows and columns: left/top half of the target puts the card before it
+    const before = Math.abs(ev.clientY - (r.top + r.height / 2)) > r.height / 4 ? ev.clientY < r.top + r.height / 2 : ev.clientX < r.left + r.width / 2;
+    grid.insertBefore(card, before ? over : over.nextSibling);
+  };
+  const onUp = async () => {
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    document.removeEventListener("pointercancel", onUp);
+    card.classList.remove("yatra-card-dragging");
+    const ids = Array.from(grid.querySelectorAll(".trip-event-card")).map((c) => c.dataset.id);
+    if (ids.join() === yatrasCache.map((y) => y.id).join()) return;
+    const results = await Promise.all(ids.map((id, i) => supabase.from("yatras").update({ position: i + 1 }).eq("id", id)));
+    if (results.some((r) => r.error)) {
+      showToast("Could not save the order: " + results.find((r) => r.error).error.message, "error");
+      await loadYatraCards();
+      return;
+    }
+    const byId = new Map(yatrasCache.map((y) => [y.id, y]));
+    yatrasCache = ids.map((id, i) => Object.assign(byId.get(id), { position: i + 1 }));
+  };
+  document.addEventListener("pointermove", onMove);
+  document.addEventListener("pointerup", onUp);
+  document.addEventListener("pointercancel", onUp);
 }
 
 async function deleteYatra(id) {
