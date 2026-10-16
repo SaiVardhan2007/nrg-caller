@@ -2171,7 +2171,7 @@
     <section id="folk-yatras-section" class="page hidden">
       <div id="yatras-list-view">
         <div class="panel-row">
-          <p class="muted-text">Each yatra has its own attendance, prasadam details, disposables, cooking / serving items and feedback — open one to manage it.</p>
+          <p class="muted-text">Each yatra has its own attendance, prasadam details, travel check list, trip itinerary, disposables, cooking / serving items and feedback — open one to manage it.</p>
           <button id="add-yatra-btn" class="btn btn-primary toolbar-btn">+ Add Yatra</button>
         </div>
         <div id="yatras-grid" class="trip-event-grid">
@@ -2189,6 +2189,8 @@
           <button class="admin-tab active" data-ytab="dashboard">Dashboard</button>
           <button class="admin-tab" data-ytab="attendance">Attendance</button>
           <button class="admin-tab" data-ytab="prasadam">Prasadam Details</button>
+          <button class="admin-tab" data-ytab="checklist">Travel Check List</button>
+          <button class="admin-tab" data-ytab="itinerary">Trip Itinerary</button>
           <button class="admin-tab" data-ytab="disposables">Disposables</button>
           <button class="admin-tab" data-ytab="cooking">Cooking / Serving Items</button>
           <button class="admin-tab" data-ytab="feedback">Feedback / Ideas</button>
@@ -3999,6 +4001,23 @@
     <div class="modal-actions">
       <button id="yatra-slot-cancel-btn" class="btn btn-secondary">Cancel</button>
       <button id="yatra-slot-done-btn" class="btn btn-primary">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="yatra-itin-dl-modal" class="modal">
+  <div class="modal-box">
+    <h3>Download — Trip Itinerary</h3>
+    <p class="muted-text">Pick a day and, if you like, a time window. You'll see a preview before downloading.</p>
+    <label class="field"><span>Day</span><select id="itin-dl-day"></select></label>
+    <div style="display:flex;gap:10px">
+      <label class="field" style="flex:1"><span>From time (optional)</span><input id="itin-dl-from" type="time" /></label>
+      <label class="field" style="flex:1"><span>To time (optional)</span><input id="itin-dl-to" type="time" /></label>
+    </div>
+    <div id="itin-dl-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="itin-dl-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="itin-dl-next-btn" class="btn btn-primary">Preview</button>
     </div>
   </div>
 </div>

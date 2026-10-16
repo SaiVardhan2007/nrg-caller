@@ -141,6 +141,8 @@ const YATRA_PAGE_TABS = {
   "yatras-dashboard": "dashboard",
   "yatras-attendance": "attendance",
   "yatras-prasadam": "prasadam",
+  "yatras-checklist": "checklist",
+  "yatras-itinerary": "itinerary",
   "yatras-disposables": "disposables",
   "yatras-cooking": "cooking",
   "yatras-feedback": "feedback",

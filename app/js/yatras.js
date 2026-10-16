@@ -111,7 +111,17 @@ function wirePoints(el) {
   });
 }
 
+// Trip Itinerary: Duration is worked out from Start / End Time (an end earlier
+// than the start means the slot runs past midnight).
+const minutesOf = (t) => { const [h, m] = String(t || "").split(":"); return (Number(h) || 0) * 60 + (Number(m) || 0); };
+const durationMinutes = (r) => {
+  if (!r.start_time || !r.end_time) return "";
+  const d = minutesOf(r.end_time) - minutesOf(r.start_time);
+  return d < 0 ? d + 1440 : d;
+};
+
 const calcValue = (field, r) => {
+  if (field === "duration") return durationMinutes(r);
   const total = (Number(r.for_how_many) || 0) * (Number(r.cost_per_plate) || 0);
   const v = field === "total_cost" ? total : total - (Number(r.advance_payment) || 0);
   return Math.round(v * 100) / 100;
@@ -133,6 +143,31 @@ const TABS = {
     ],
     searchFields: ["name", "phone", "folk_guide"],
     empty: "No participants yet — add some or upload an Excel file.",
+  },
+  checklist: {
+    table: "yatra_checklist",
+    title: "Checklist Item",
+    order: "created_at",
+    cols: [{ field: "item", label: "List", type: "text", required: true }],
+    searchFields: ["item"],
+    empty: "No checklist items yet.",
+  },
+  itinerary: {
+    table: "yatra_itinerary",
+    title: "Itinerary Row",
+    order: "day_date",
+    orderThen: "start_time",
+    form: true,
+    cols: [
+      { field: "day_date", label: "Day & Date", type: "date", day: true, required: true },
+      { field: "start_time", label: "Start Time", type: "time", required: true },
+      { field: "end_time", label: "End Time", type: "time", required: true },
+      { field: "duration", label: "Duration (min)", type: "calc", noAdd: true },
+      { field: "details", label: "Program Details / Place", type: "text", required: true, wide: true },
+      { field: "travel_mode", label: "Mode of Travel", type: "text" },
+    ],
+    searchFields: ["details", "travel_mode"],
+    empty: "No itinerary rows yet.",
   },
   prasadam: {
     table: "yatra_prasadam",
@@ -189,6 +224,21 @@ function todayISO() {
 function defaultMeal() {
   const h = new Date().getHours();
   return h < 11 ? "M" : h < 16 ? "L" : h < 18 ? "S" : "D";
+}
+
+// "Tuesday, 20 October 2026"
+function fmtDay(d) {
+  if (!d) return "";
+  const dt = new Date(d + "T00:00:00");
+  return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+// "17:30:00" -> "05:30 PM"
+function fmtTime(t) {
+  if (!t) return "";
+  const [h, m] = String(t).split(":").map(Number);
+  if (Number.isNaN(h)) return "";
+  return `${String(h % 12 || 12).padStart(2, "0")}:${String(m || 0).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 }
 
 // PostgREST caps a response at 1000 rows, and rosters can be bigger than that,
@@ -551,7 +601,8 @@ async function loadTable() {
     let q = supabase.from(cfg.table).select("*").eq("yatra_id", currentYatra.id);
     if (cfg.kind) q = q.eq("kind", cfg.kind);
     if (withPosition) q = q.order("position", { ascending: true, nullsFirst: false });
-    return q.order(cfg.order, { ascending: true });
+    q = q.order(cfg.order, { ascending: true });
+    return cfg.orderThen ? q.order(cfg.orderThen, { ascending: true }) : q;
   });
   let { data, error } = await load(true);
   rowOrderEnabled = !error;
@@ -713,9 +764,7 @@ async function saveCell(el) {
     return;
   }
   record[field] = parsed.value;
-  if (currentTab === "prasadam") {
-    el.closest("tr").querySelectorAll("[data-calc]").forEach((c) => { c.textContent = calcValue(c.dataset.calc, record); });
-  }
+  el.closest("tr").querySelectorAll("[data-calc]").forEach((c) => { c.textContent = calcValue(c.dataset.calc, record); });
   if (field === "status") el.closest("tr").className = statusClass(record).trim();
   el.value = parsed.value ?? "";
 }
@@ -758,12 +807,12 @@ function visibleRows() {
 
 function tableExport() {
   const cfg = TABS[currentTab];
-  const label = { dashboard: "Participants", prasadam: "Prasadam_Details", disposables: "Disposables", cooking: "Cooking_Serving", feedback: "Feedback" }[currentTab];
+  const label = { dashboard: "Participants", prasadam: "Prasadam_Details", checklist: "Travel_Checklist", itinerary: "Trip_Itinerary", disposables: "Disposables", cooking: "Cooking_Serving", feedback: "Feedback" }[currentTab];
   return inScreenOrder({
     title: `${currentYatra.name} — ${label.replace("_", " / ")}`,
     filename: `${safeName(currentYatra.name)}_${label}_${todayISO()}.xlsx`,
     headers: ["S.No", ...cfg.cols.map((c) => c.label)],
-    rows: visibleRows().map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : c.type === "newtag" ? (r.is_new ? "New" : "") : c.type === "calc" ? calcValue(c.field, r) : c.type === "points" ? numberPoints(r[c.field]) : c.type === "date" ? fmtDate(r[c.field]) : r[c.field] ?? ""))]),
+    rows: visibleRows().map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : c.type === "newtag" ? (r.is_new ? "New" : "") : c.type === "calc" ? calcValue(c.field, r) : c.type === "points" ? numberPoints(r[c.field]) : c.type === "date" ? (c.day ? fmtDay(r[c.field]) : fmtDate(r[c.field])) : c.type === "time" ? fmtTime(r[c.field]) : r[c.field] ?? ""))]),
   }, "yatra-thead");
 }
 
@@ -806,6 +855,50 @@ async function dashboardSlotDownload() {
   });
 }
 
+// Trip Itinerary download: pick a day (or all) and, optionally, a time window,
+// then the usual preview opens with Excel / PDF buttons.
+function openItineraryDownload() {
+  if (!rowsCache.length) {
+    showToast("Nothing to download yet.", "error");
+    return;
+  }
+  const days = [...new Set(rowsCache.map((r) => r.day_date).filter(Boolean))].sort();
+  $("itin-dl-day").innerHTML = `<option value="">All days</option>` + days.map((d, i) => `<option value="${d}">Day #${i + 1} - ${escapeHtml(fmtDay(d))}</option>`).join("");
+  $("itin-dl-from").value = "";
+  $("itin-dl-to").value = "";
+  $("itin-dl-error").classList.add("hidden");
+  $("yatra-itin-dl-modal").classList.add("active");
+}
+
+function itineraryDownload() {
+  const day = $("itin-dl-day").value, from = $("itin-dl-from").value, to = $("itin-dl-to").value;
+  const errorEl = $("itin-dl-error");
+  if (from && to && to < from) {
+    errorEl.textContent = "The To time can't be before the From time.";
+    errorEl.classList.remove("hidden");
+    return;
+  }
+  const days = [...new Set(rowsCache.map((r) => r.day_date).filter(Boolean))].sort();
+  const rows = rowsCache
+    .filter((r) => (!day || r.day_date === day) && (!from || String(r.start_time).slice(0, 5) >= from) && (!to || String(r.start_time).slice(0, 5) <= to))
+    .sort((a, b) => String(a.day_date).localeCompare(String(b.day_date)) || String(a.start_time).localeCompare(String(b.start_time)));
+  if (!rows.length) {
+    errorEl.textContent = "No itinerary rows match that day and time.";
+    errorEl.classList.remove("hidden");
+    return;
+  }
+  const dayLabel = day ? `Day #${days.indexOf(day) + 1} - ${fmtDay(day)}` : "All days";
+  const win = from || to ? ` | ${from ? fmtTime(from) : "start"} to ${to ? fmtTime(to) : "end"}` : "";
+  $("yatra-itin-dl-modal").classList.remove("active");
+  downloadSpec({
+    title: `${currentYatra.name} — Trip Itinerary`,
+    subtitle: dayLabel + win,
+    filename: `${safeName(currentYatra.name)}_Trip_Itinerary${day ? "_" + day : ""}.xlsx`,
+    headers: ["S.No", "Day & Date", "Start Time", "End Time", "Duration (min)", "Program Details / Place", "Mode of Travel"],
+    rows: rows.map((r, i) => [i + 1, fmtDay(r.day_date), fmtTime(r.start_time), fmtTime(r.end_time), durationMinutes(r), r.details || "", r.travel_mode || ""]),
+  });
+}
+
 function attendanceExport() {
   return inScreenOrder({
     title: `${currentYatra.name} — Attendance`,
@@ -821,7 +914,7 @@ function attendanceExport() {
 
 /* ---------------- Download: preview, then Excel or PDF ---------------- */
 
-const CENTERED_COLS = ["S.No", "Quantity", "Tokens", "Unit", "Type", "Time", "Plates", "Status", "Date", "For How Many", "Delivery Time", "Cost per Plate", "Total Cost", "Advance Payment", "Balance"];
+const CENTERED_COLS = ["S.No", "Quantity", "Tokens", "Unit", "Type", "Time", "Plates", "Status", "Date", "Day & Date", "Start Time", "End Time", "Duration (min)", "For How Many", "Delivery Time", "Cost per Plate", "Total Cost", "Advance Payment", "Balance"];
 let previewSpec = null;
 
 const generatedStamp = () => new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -997,7 +1090,7 @@ function entryRowHtml(cfg) {
         const type = c.type === "number" ? `type="number" min="0" step="any"` : c.type === "date" ? `type="date"` : c.type === "time" ? `type="time"` : `type="text"`;
         ctl = `<input data-ef="${c.field}" ${type} />`;
       }
-      return `<label class="field${c.type === "points" ? " yatra-field-wide" : ""}"><span>${c.label}${c.required ? " *" : ""}</span>${ctl}</label>`;
+      return `<label class="field${c.type === "points" || c.wide ? " yatra-field-wide" : ""}"><span>${c.label}${c.required ? " *" : ""}</span>${ctl}</label>`;
     }).join("");
     return `<div class="yatra-entry-row yatra-entry-form">${fields}<button type="button" class="stock-row-remove cell-chip danger" title="Remove">✕ Remove</button></div>`;
   }
@@ -1500,7 +1593,9 @@ function wireShell() {
 
   const entryModal = $("yatra-entry-modal");
   $("yatra-add-btn").onclick = openEntryModal;
-  $("yatra-download-btn").onclick = () => downloadSpec(tableExport());
+  $("yatra-download-btn").onclick = () => (currentTab === "itinerary" ? openItineraryDownload() : downloadSpec(tableExport()));
+  $("itin-dl-cancel-btn").onclick = () => $("yatra-itin-dl-modal").classList.remove("active");
+  $("itin-dl-next-btn").onclick = itineraryDownload;
   const dlModal = $("yatra-dl-modal");
   $("dl-date").addEventListener("change", (e) => { if (e.target.value) dlDraft.date = e.target.value; });
   $("dl-meal").querySelectorAll("[data-meal]").forEach((b) => b.addEventListener("click", () => {
