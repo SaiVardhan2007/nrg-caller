@@ -168,12 +168,13 @@ const TABS = {
     table: "yatra_travel",
     title: "Travel Info",
     order: "journey_date",
+    sortOnly: true, // always ascending by journey date & time; rows can't be dragged
     form: true,
     cols: [
       { field: "journey_date", label: "Date & Time of Journey", type: "datetime", required: true },
       { field: "train_number", label: "Train Number", type: "text" },
       { field: "ticket_for", label: "Ticket Booked For", type: "text", wide: true },
-      { field: "travellers", label: "Who is Travelling", type: "points" },
+      { field: "travellers", label: "Who is Travelling", type: "text" },
       { field: "pnr_no", label: "PNR No", type: "text" },
       { field: "seat_no", label: "Seat No", type: "text" },
       { field: "ticket_status", label: "Ticket Status", type: "select", options: TICKET_STATUSES, blankOption: true, placeholder: "—" },
@@ -678,8 +679,9 @@ async function loadTable() {
   const load = (withPosition) => fetchAll(() => {
     let q = supabase.from(cfg.table).select("*").eq("yatra_id", currentYatra.id);
     if (cfg.kind) q = q.eq("kind", cfg.kind);
-    if (withPosition) q = q.order("position", { ascending: true, nullsFirst: false });
-    q = q.order(cfg.order, { ascending: true });
+    if (withPosition && !cfg.sortOnly) q = q.order("position", { ascending: true, nullsFirst: false });
+    // sortOnly tabs (Travel Info) are always date-ordered, rows without a date last
+    q = cfg.sortOnly ? q.order(cfg.order, { ascending: true, nullsFirst: false }).order("created_at", { ascending: true }) : q.order(cfg.order, { ascending: true });
     return cfg.orderThen ? q.order(cfg.orderThen, { ascending: true }) : q;
   });
   let { data, error } = await load(true);
@@ -715,7 +717,7 @@ function renderRows() {
     return;
   }
   // reordering only makes sense on the full, unfiltered list
-  const canReorder = rowOrderEnabled && !filtered;
+  const canReorder = rowOrderEnabled && !filtered && !cfg.sortOnly;
   tbody.innerHTML = rows.map((r, i) => `
     <tr data-id="${r.id}" class="${statusClass(r).trim()}">
       <td data-label="S.No">${canReorder ? `<span class="yatra-drag-handle" title="Drag to reorder">⠿</span>` : ""}${i + 1}</td>
@@ -842,6 +844,12 @@ async function saveCell(el) {
     return;
   }
   record[field] = parsed.value;
+  if (cfg.sortOnly && field === cfg.order) {
+    // the date changed: the row moves to its new place in the date order
+    rowsCache.sort((a, b) => (a[cfg.order] ? 0 : 1) - (b[cfg.order] ? 0 : 1) || String(a[cfg.order] || "").localeCompare(String(b[cfg.order] || "")) || String(a.created_at).localeCompare(String(b.created_at)));
+    renderRows();
+    return;
+  }
   el.closest("tr").querySelectorAll("[data-calc]").forEach((c) => { c.textContent = calcValue(c.dataset.calc, record); });
   if (field === "status") el.closest("tr").className = statusClass(record).trim();
   el.value = parsed.value ?? "";
@@ -902,7 +910,7 @@ function exportCell(c, r) {
 // Travel Info download: filter by date & time, serial numbers, who the ticket is booked for
 // and who is travelling, then the usual preview (Excel / PDF) opens. Serial numbers are
 // the ones shown in the table, so "1 to 5" means rows 1-5 as you see them.
-const travellerNames = (r) => numberPoints(r.travellers).split("\n").map((l) => l.replace(POINT_RE, "").trim()).filter(Boolean);
+const travellerNames = (r) => String(r.travellers || "").split(/\n|,/).map((l) => l.replace(POINT_RE, "").trim()).filter(Boolean);
 
 function openTravelDownload() {
   if (!rowsCache.length) {
@@ -934,17 +942,10 @@ function travelDownload() {
     && (!from || (r.journey_date && String(r.journey_date).slice(0, 16) >= from))
     && (!to || (r.journey_date && String(r.journey_date).slice(0, 16) <= to)));
   if (!rows.length) return fail("No travel rows match those filters.");
-  const bits = [
-    sFrom > 1 || sTo !== Infinity ? `S.No ${sFrom}-${sTo === Infinity ? rowsCache.length : sTo}` : "",
-    forVal ? `Ticket for: ${forVal}` : "",
-    who ? `Travelling: ${who}` : "",
-    from || to ? `${from ? fmtDateTime(from) : "start"} to ${to ? fmtDateTime(to) : "end"}` : "",
-  ].filter(Boolean);
   $("yatra-trv-dl-modal").classList.remove("active");
   downloadSpec(inScreenOrder({
     layoutTableId: "yatra-table",
     title: `${currentYatra.name} — Travel Info`,
-    subtitle: bits.join("  |  "),
     filename: `${safeName(currentYatra.name)}_Travel_Info_${todayISO()}.xlsx`,
     headers: ["S.No", ...cfg.cols.map((c) => c.label)],
     rows: rows.map(({ r, sno }) => [sno, ...cfg.cols.map((c) => exportCell(c, r))]),
