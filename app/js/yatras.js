@@ -157,7 +157,7 @@ const TABS = {
     cols: [
       { field: "service_owner", label: "Service Owner", type: "points" },
       { field: "service_name", label: "Service Name", type: "text", required: true },
-      { field: "description", label: "Description", type: "text", wide: true },
+      { field: "description", label: "Description", type: "points" },
     ],
     searchFields: ["service_owner", "service_name", "description"],
     empty: "No services listed yet.",
