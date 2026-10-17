@@ -2,9 +2,10 @@
 // everywhere. Each `table.data-table` that has an id gets a "⇔ Columns" button
 // (just above it, on the right) opening a panel where every column's width and
 // left/right margin can be stepped up or down. Settings are remembered per
-// table (and per tab, via data-tab) on this device, and re-applied whenever the
+// table (and per tab, via data-tab), shared by every user (see layoutStore.js), and re-applied whenever the
 // table is redrawn. (PDF / Excel column widths are separate: see exportDoc.js.)
 import { columnKeyOf } from "./utils.js";
+import { getLayout, setLayout, loadLayouts, layoutsStale } from "./layoutStore.js";
 
 const STORE = "nrg-col-layout:";
 const WIDTH_STEP = 10, MARGIN_STEP = 2;
@@ -15,17 +16,12 @@ const wide = window.matchMedia("(min-width: 641px)");
 const keyOf = (table) => STORE + table.id + (table.dataset.tab ? ":" + table.dataset.tab : "");
 
 function load(table) {
-  try {
-    const v = JSON.parse(localStorage.getItem(keyOf(table)));
-    return v && typeof v === "object" ? v : {};
-  } catch { return {}; }
+  const v = getLayout(keyOf(table));
+  return v && typeof v === "object" ? v : {};
 }
 
 function save(table, cfg) {
-  try {
-    if (Object.keys(cfg).length) localStorage.setItem(keyOf(table), JSON.stringify(cfg));
-    else localStorage.removeItem(keyOf(table));
-  } catch { /* storage blocked: the change still applies until reload */ }
+  setLayout(keyOf(table), Object.keys(cfg).length ? cfg : null);
 }
 
 function clear(table) {
@@ -92,7 +88,7 @@ function openPanel(table, btn) {
       <button type="button" class="btn btn-secondary btn-sm" data-act="reset">Reset all</button>
       <button type="button" class="col-layout-close" data-act="close" title="Close">✕</button></div>
     <div class="col-layout-list"></div>
-    <p class="col-layout-note">Width widens or narrows a column; Margin is the space inside it, left and right. Saved on this device.</p>`;
+    <p class="col-layout-note">Width widens or narrows a column; Margin is the space inside it, left and right. Saved for all users.</p>`;
   fillPanel(panel, table);
 
   const commit = (row, field, value) => {
@@ -192,6 +188,12 @@ function scan() {
 
 export function initColumnLayout() {
   scan();
+  // settings are shared by every user: fetch them, then redraw the tables already on screen
+  const reapplyAll = () => document.querySelectorAll("table.data-table[data-col-layout]").forEach(apply);
+  loadLayouts().then(reapplyAll);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && layoutsStale()) loadLayouts().then(reapplyAll);
+  });
   const pending = new Set();
   new MutationObserver((muts) => {
     let added = false;

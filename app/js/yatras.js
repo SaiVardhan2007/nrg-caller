@@ -20,6 +20,8 @@ const ITEM_STATUSES = ["Received", "Not Received", "Not Available"];
 const MEALS = [["M", "Breakfast"], ["L", "Lunch"], ["S", "Snacks"], ["D", "Dinner"]];
 const mealShort = (m) => (m === "M" ? "B" : m);
 
+const TICKET_STATUSES = ["Confirmed", "RAC", "Waiting List", "Cancelled", "Not Booked"];
+
 const ITEM_UNITS = ["Number", "Pieces", "Packets", "Bags", "Liter", "Kg", "Gm"];
 
 // `grid` is the column's track in the Add modal: Name takes the leftover
@@ -169,14 +171,16 @@ const TABS = {
     form: true,
     cols: [
       { field: "journey_date", label: "Date & Time of Journey", type: "datetime", required: true },
+      { field: "train_number", label: "Train Number", type: "text" },
       { field: "ticket_for", label: "Ticket Booked For", type: "text", wide: true },
       { field: "travellers", label: "Who is Travelling", type: "points" },
       { field: "pnr_no", label: "PNR No", type: "text" },
       { field: "seat_no", label: "Seat No", type: "text" },
+      { field: "ticket_status", label: "Ticket Status", type: "select", options: TICKET_STATUSES, blankOption: true, placeholder: "—" },
       { field: "from_place", label: "From", type: "text" },
       { field: "to_place", label: "To", type: "text" },
     ],
-    searchFields: ["ticket_for", "travellers", "pnr_no", "seat_no", "from_place", "to_place"],
+    searchFields: ["train_number", "ticket_for", "travellers", "pnr_no", "seat_no", "ticket_status", "from_place", "to_place"],
     empty: "No travel info added yet.",
   },
   accommodation: {
@@ -640,7 +644,7 @@ function cellHtml(col, row) {
   if (col.type === "tokenbtn") return `<button type="button" class="cell-chip info-link yatra-token-btn">${row._tokens || 0}</button>`;
   if (col.type === "newtag") return v ? `<span class="cell-chip yatra-new-tag">🆕 New</span>` : "";
   if (col.type === "select") {
-    const blank = col.required && !v ? `<option value="" selected>${col.placeholder || "—"}</option>` : "";
+    const blank = (col.required || col.blankOption) && !v ? `<option value="" selected>${col.placeholder || "—"}</option>` : "";
     return `<select class="inline-edit" data-field="${col.field}">${blank}${col.options.map((o) => `<option${o === v ? " selected" : ""}>${o}</option>`).join("")}</select>`;
   }
   if (col.type === "calc") return `<span class="yatra-calc" data-calc="${col.field}">${calcValue(col.field, row)}</span>`;
@@ -812,7 +816,7 @@ function parseValue(col, raw) {
     const n = Number(raw);
     return Number.isNaN(n) ? { error: `${col.label} must be a number.` } : { value: n };
   }
-  if (col.type === "select") return { value: raw || col.default || col.options[0] };
+  if (col.type === "select") return { value: col.blankOption ? raw || null : raw || col.default || col.options[0] };
   return { value: raw || null };
 }
 
@@ -887,8 +891,64 @@ function tableExport() {
     title: `${currentYatra.name} — ${label.replace("_", " / ")}`,
     filename: `${safeName(currentYatra.name)}_${label}_${todayISO()}.xlsx`,
     headers: ["S.No", ...cfg.cols.map((c) => c.label)],
-    rows: visibleRows().map((r, i) => [i + 1, ...cfg.cols.map((c) => (c.type === "tokenbtn" ? r._tokens || 0 : c.type === "newtag" ? (r.is_new ? "New" : "") : c.type === "calc" ? calcValue(c.field, r) : c.type === "points" ? numberPoints(r[c.field]) : c.type === "date" ? (c.day ? fmtDayShort(r[c.field]) : fmtDate(r[c.field])) : c.type === "time" ? fmtTime(r[c.field]) : c.type === "datetime" ? fmtDateTime(r[c.field]) : r[c.field] ?? ""))]),
+    rows: visibleRows().map((r, i) => [i + 1, ...cfg.cols.map((c) => exportCell(c, r))]),
   }, "yatra-thead");
+}
+
+function exportCell(c, r) {
+  return c.type === "tokenbtn" ? r._tokens || 0 : c.type === "newtag" ? (r.is_new ? "New" : "") : c.type === "calc" ? calcValue(c.field, r) : c.type === "points" ? numberPoints(r[c.field]) : c.type === "date" ? (c.day ? fmtDayShort(r[c.field]) : fmtDate(r[c.field])) : c.type === "time" ? fmtTime(r[c.field]) : c.type === "datetime" ? fmtDateTime(r[c.field]) : r[c.field] ?? "";
+}
+
+// Travel Info download: filter by date & time, serial numbers, who the ticket is booked for
+// and who is travelling, then the usual preview (Excel / PDF) opens. Serial numbers are
+// the ones shown in the table, so "1 to 5" means rows 1-5 as you see them.
+const travellerNames = (r) => numberPoints(r.travellers).split("\n").map((l) => l.replace(POINT_RE, "").trim()).filter(Boolean);
+
+function openTravelDownload() {
+  if (!rowsCache.length) {
+    showToast("Nothing to download yet.", "error");
+    return;
+  }
+  const opts = (vals) => `<option value="">All</option>` + [...new Set(vals)].filter(Boolean).sort((a, b) => a.localeCompare(b)).map((v) => `<option>${escapeHtml(v)}</option>`).join("");
+  $("trv-dl-for").innerHTML = opts(rowsCache.map((r) => (r.ticket_for || "").trim()));
+  $("trv-dl-who").innerHTML = opts(rowsCache.flatMap(travellerNames));
+  ["trv-dl-from", "trv-dl-to", "trv-dl-sno-from", "trv-dl-sno-to"].forEach((id) => { $(id).value = ""; });
+  $("trv-dl-sno-to").placeholder = String(rowsCache.length);
+  $("trv-dl-error").classList.add("hidden");
+  $("yatra-trv-dl-modal").classList.add("active");
+}
+
+function travelDownload() {
+  const cfg = TABS.travel;
+  const from = $("trv-dl-from").value, to = $("trv-dl-to").value;
+  const sFrom = Number($("trv-dl-sno-from").value) || 1, sTo = Number($("trv-dl-sno-to").value) || Infinity;
+  const forVal = $("trv-dl-for").value, who = $("trv-dl-who").value;
+  const errorEl = $("trv-dl-error");
+  const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove("hidden"); };
+  if (from && to && to < from) return fail("The To date & time can't be before the From date & time.");
+  if (sFrom > sTo) return fail("The first serial number can't be larger than the last.");
+  const rows = rowsCache.map((r, i) => ({ r, sno: i + 1 })).filter(({ r, sno }) =>
+    sno >= sFrom && sno <= sTo
+    && (!forVal || (r.ticket_for || "").trim() === forVal)
+    && (!who || travellerNames(r).includes(who))
+    && (!from || (r.journey_date && String(r.journey_date).slice(0, 16) >= from))
+    && (!to || (r.journey_date && String(r.journey_date).slice(0, 16) <= to)));
+  if (!rows.length) return fail("No travel rows match those filters.");
+  const bits = [
+    sFrom > 1 || sTo !== Infinity ? `S.No ${sFrom}-${sTo === Infinity ? rowsCache.length : sTo}` : "",
+    forVal ? `Ticket for: ${forVal}` : "",
+    who ? `Travelling: ${who}` : "",
+    from || to ? `${from ? fmtDateTime(from) : "start"} to ${to ? fmtDateTime(to) : "end"}` : "",
+  ].filter(Boolean);
+  $("yatra-trv-dl-modal").classList.remove("active");
+  downloadSpec(inScreenOrder({
+    layoutTableId: "yatra-table",
+    title: `${currentYatra.name} — Travel Info`,
+    subtitle: bits.join("  |  "),
+    filename: `${safeName(currentYatra.name)}_Travel_Info_${todayISO()}.xlsx`,
+    headers: ["S.No", ...cfg.cols.map((c) => c.label)],
+    rows: rows.map(({ r, sno }) => [sno, ...cfg.cols.map((c) => exportCell(c, r))]),
+  }, "yatra-thead"));
 }
 
 // Dashboard download: asks for a date + meal first, then lists every
@@ -1054,7 +1114,7 @@ function entryRowHtml(cfg) {
     const fields = addCols.map((c) => {
       let ctl;
       if (c.type === "select") {
-        ctl = `<select data-ef="${c.field}"><option value="" selected disabled>${c.placeholder || "Select"}</option>${c.options.map((o) => `<option>${o}</option>`).join("")}</select>`;
+        ctl = `<select data-ef="${c.field}"><option value="" selected${c.blankOption ? "" : " disabled"}>${c.placeholder || (c.blankOption ? "—" : "Select")}</option>${c.options.map((o) => `<option>${o}</option>`).join("")}</select>`;
       } else if (c.type === "points") {
         ctl = `<textarea class="yatra-entry-long yatra-points-edit" data-ef="${c.field}" rows="3"></textarea>`;
       } else {
@@ -1565,7 +1625,9 @@ function wireShell() {
 
   const entryModal = $("yatra-entry-modal");
   $("yatra-add-btn").onclick = openEntryModal;
-  $("yatra-download-btn").onclick = () => (currentTab === "itinerary" ? openItineraryDownload() : downloadSpec(tableExport()));
+  $("yatra-download-btn").onclick = () => (currentTab === "itinerary" ? openItineraryDownload() : currentTab === "travel" ? openTravelDownload() : downloadSpec(tableExport()));
+  $("trv-dl-cancel-btn").onclick = () => $("yatra-trv-dl-modal").classList.remove("active");
+  $("trv-dl-next-btn").onclick = travelDownload;
   $("itin-dl-cancel-btn").onclick = () => $("yatra-itin-dl-modal").classList.remove("active");
   $("itin-dl-next-btn").onclick = itineraryDownload;
   const dlModal = $("yatra-dl-modal");

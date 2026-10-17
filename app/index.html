@@ -4008,6 +4008,28 @@
   </div>
 </div>
 
+<div id="yatra-trv-dl-modal" class="modal">
+  <div class="modal-box">
+    <h3>Download — Travel Info</h3>
+    <p class="muted-text">Leave a filter empty to include everything. You'll see a preview before downloading.</p>
+    <div style="display:flex;gap:10px">
+      <label class="field" style="flex:1"><span>From date &amp; time</span><input id="trv-dl-from" type="datetime-local" /></label>
+      <label class="field" style="flex:1"><span>To date &amp; time</span><input id="trv-dl-to" type="datetime-local" /></label>
+    </div>
+    <div style="display:flex;gap:10px">
+      <label class="field" style="flex:1"><span>Serial no. from</span><input id="trv-dl-sno-from" type="number" min="1" placeholder="1" /></label>
+      <label class="field" style="flex:1"><span>Serial no. to</span><input id="trv-dl-sno-to" type="number" min="1" /></label>
+    </div>
+    <label class="field"><span>Ticket booked for</span><select id="trv-dl-for"></select></label>
+    <label class="field"><span>Who is travelling</span><select id="trv-dl-who"></select></label>
+    <div id="trv-dl-error" class="field-error hidden"></div>
+    <div class="modal-actions">
+      <button id="trv-dl-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="trv-dl-next-btn" class="btn btn-primary">Preview</button>
+    </div>
+  </div>
+</div>
+
 <div id="yatra-itin-dl-modal" class="modal">
   <div class="modal-box">
     <h3>Download — Trip Itinerary</h3>

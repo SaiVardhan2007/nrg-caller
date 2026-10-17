@@ -1,4 +1,5 @@
 import { showToast, escapeHtml } from "./utils.js";
+import { getLayout, setLayout } from "./layoutStore.js";
 
 /* ======================= SHARED DOWNLOAD (preview → Excel / PDF) =======================
    Every page's download goes through downloadSpec({ title, subtitle?, filename,
@@ -29,7 +30,7 @@ const generatedStamp = () => new Date().toLocaleString("en-IN", { day: "2-digit"
 /* ---------------- PDF / Excel column widths (separate from the on-screen table) ----------------
    Each column has a Width (% of the page width, scaled so the row always fits) and a
    Margin (pt of space inside the cell, left and right). They are edited from the
-   preview's "⇔ PDF columns" button and remembered per table / tab on this device, so
+   preview's "⇔ PDF columns" button and remembered per table / tab for every user, so
    the downloaded file can be laid out differently from the table on screen. */
 
 const PDF_STORE = "nrg-pdf-layout:";
@@ -40,13 +41,11 @@ function pdfKey(spec) {
   return PDF_STORE + (spec.layoutTableId ? spec.layoutTableId + (t?.dataset.tab ? ":" + t.dataset.tab : "") : "page:" + spec.title);
 }
 function loadPdfLayout(spec) {
-  try { const v = JSON.parse(localStorage.getItem(pdfKey(spec))); return v && typeof v === "object" ? v : {}; } catch { return {}; }
+  const v = getLayout(pdfKey(spec));
+  return v && typeof v === "object" ? v : {};
 }
 function savePdfLayout(spec, cfg) {
-  try {
-    if (Object.keys(cfg).length) localStorage.setItem(pdfKey(spec), JSON.stringify(cfg));
-    else localStorage.removeItem(pdfKey(spec));
-  } catch { /* storage blocked: applies until the page is reloaded */ }
+  setLayout(pdfKey(spec), Object.keys(cfg).length ? cfg : null);
 }
 
 // Starting widths (% of the page): a spec's fixed pdfColumns when it has them, otherwise
@@ -129,7 +128,7 @@ function openPdfPanel(btn) {
       <button type="button" class="btn btn-secondary btn-sm" data-act="reset">Reset</button>
       <button type="button" class="col-layout-close" data-act="close" title="Close">✕</button></div>
     <div class="col-layout-list"></div>
-    <p class="col-layout-note">These only change the downloaded file and this preview, not the table on screen. Width is a share of the page (the row is scaled to fit); Margin is the space inside the column, left and right.</p>`;
+    <p class="col-layout-note">These only change the downloaded file and this preview, not the table on screen. Width is a share of the page (the row is scaled to fit); Margin is the space inside the column, left and right. Saved for all users.</p>`;
   fillPdfPanel();
   const commit = (i, field, value) => {
     const cfg = loadPdfLayout(spec);
