@@ -81,6 +81,12 @@ function pdfLayout(spec) {
   };
 }
 
+// "Vrindavan - 16 Rounder … 2026 — Participants" → ["Vrindavan - 16 Rounder … 2026", "Participants"]
+const splitTitle = (title) => {
+  const i = String(title).indexOf(" — ");
+  return i < 0 ? [String(title)] : [title.slice(0, i), title.slice(i + 3)];
+};
+
 function renderPreview() {
   const spec = previewSpec;
   const lay = pdfLayout(spec);
@@ -90,7 +96,7 @@ function renderPreview() {
   const shown = spec.rows.slice(0, PREVIEW_MAX);
   const body = shown.map((r) => `<tr>${r.map((v, i) => `<td class="${isCentered(spec, i) ? "c" : ""}"${pad(i)}>${escapeHtml(String(v ?? ""))}</td>`).join("")}</tr>`).join("");
   $("yatra-preview-sheet").innerHTML = `
-    <h4 class="yatra-paper-title">${escapeHtml(spec.title)}</h4>
+    <h4 class="yatra-paper-title">${(() => { const [a, b] = splitTitle(spec.title); return escapeHtml(a) + (b ? `<span class="yatra-paper-title-section">${escapeHtml(b)}</span>` : ""); })()}</h4>
     ${spec.subtitle ? `<p class="yatra-paper-sub">${escapeHtml(spec.subtitle)}</p>` : ""}
     <p class="yatra-paper-meta">Generated ${escapeHtml(generatedStamp())} &nbsp;·&nbsp; ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"}</p>
     <table class="yatra-paper-table" style="table-layout:fixed">${colgroup}<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${spec.rows.length > PREVIEW_MAX ? `<p class="yatra-paper-meta">Preview shows the first ${PREVIEW_MAX} of ${spec.rows.length} rows — the downloaded file has all of them.</p>` : ""}`;
@@ -174,7 +180,7 @@ export function downloadSpec(spec) {
 
 function downloadXlsx(spec) {
   const last = spec.headers.length - 1;
-  const top = spec.subtitle ? [[spec.title], [spec.subtitle], [`Generated ${generatedStamp()}`]] : [[spec.title], [`Generated ${generatedStamp()}`]];
+  const top = [...splitTitle(spec.title).map((t) => [t]), ...(spec.subtitle ? [[spec.subtitle]] : []), [`Generated ${generatedStamp()}`]];
   // a plain Excel cell can't show the two-line day, so join it with a comma there
   const dayCol = spec.headers.indexOf("Day & Date");
   const rows = dayCol < 0 ? spec.rows : spec.rows.map((r) => r.map((v, i) => (i === dayCol ? String(v ?? "").replace("\n", ", ") : v)));
@@ -204,25 +210,35 @@ function downloadPdf(spec) {
   // the built-in PDF fonts only cover Latin-1, so swap the typographic dash/dot
   const plain = (t) => String(t).replace(/[—–]/g, "-").replace(/·/g, "|");
 
+  // title: the name on the first line, the section on the second, both centred;
+  // a name too wide for the page shrinks (down to a point) before it wraps
+  const [t1, t2] = splitTitle(spec.title);
+  const cx = W / 2;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(17);
   doc.setTextColor(...ink);
-  // a long title wraps onto several lines, so everything below is positioned from where it ends
-  const titleLines = doc.splitTextToSize(plain(spec.title), W - 2 * M);
-  doc.text(titleLines, M, 46);
-  let y = 46 + (titleLines.length - 1) * 21;
+  let size = 17;
+  doc.setFontSize(size);
+  while (doc.getTextWidth(plain(t1)) > W - 2 * M && size > 10) { size -= 0.5; doc.setFontSize(size); }
+  const nameLines = doc.splitTextToSize(plain(t1), W - 2 * M);
+  doc.text(nameLines, cx, 46, { align: "center" });
+  let y = 46 + (nameLines.length - 1) * (size + 3);
+  if (t2) {
+    y += 21;
+    doc.setFontSize(14);
+    doc.text(plain(t2), cx, y, { align: "center", maxWidth: W - 2 * M });
+  }
   if (spec.subtitle) {
-    y += 20;
+    y += 19;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.setTextColor(...accent);
-    doc.text(plain(spec.subtitle), M, y);
+    doc.text(plain(spec.subtitle), cx, y, { align: "center", maxWidth: W - 2 * M });
   }
   y += 17;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(120, 110, 100);
-  doc.text(`Generated ${generatedStamp()}   |   ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"}`, M, y);
+  doc.text(`Generated ${generatedStamp()}   |   ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"}`, cx, y, { align: "center" });
   y += 8;
   doc.setDrawColor(...accent);
   doc.setLineWidth(1.5);
@@ -246,10 +262,10 @@ function downloadPdf(spec) {
     margin: { left: M, right: M, top: 40, bottom: 44 },
     theme: "grid",
     styles: { font: "helvetica", fontSize: spec.headers.length > 10 ? 6.5 : 10, cellPadding: spec.headers.length > 10 ? { top: 3, bottom: 3, left: 3, right: 3 } : { top: 6, bottom: 6, left: 8, right: 8 }, lineColor: [205, 195, 180], lineWidth: 0.6, textColor: [40, 35, 30], valign: "middle", overflow: "linebreak" },
-    headStyles: { fillColor: accent, textColor: 255, fontStyle: "bold", halign: "left", lineColor: accent },
+    headStyles: { fillColor: accent, textColor: 255, fontStyle: "bold", halign: "center", lineColor: accent },
     alternateRowStyles: { fillColor: [253, 249, 242] },
     columnStyles,
-    didParseCell: (d) => { if (d.section === "head" && isCentered(spec, d.column.index)) d.cell.styles.halign = "center"; },
+    didParseCell: (d) => { if (d.section === "head") d.cell.styles.halign = "center"; },
   });
 
   const pages = doc.internal.getNumberOfPages();

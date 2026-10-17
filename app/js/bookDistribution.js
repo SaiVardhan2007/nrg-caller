@@ -1327,8 +1327,8 @@ async function fetchBookCatalog() {
 
 async function fetchCurrentStockByKey() {
   const [{ data: inward }, { data: outward }] = await Promise.all([
-    supabase.from("book_inward_stock").select("name,language,quantity"),
-    supabase.from("book_outward_stock").select("name,language,quantity"),
+    fetchAllPages(() => supabase.from("book_inward_stock").select("name,language,quantity")),
+    fetchAllPages(() => supabase.from("book_outward_stock").select("name,language,quantity")),
   ]);
   const map = new Map();
   (inward || []).forEach((r) => {
@@ -2569,8 +2569,8 @@ async function renderDashboard() {
   tbody.innerHTML = `<tr><td colspan="13" class="loading-row">Loading…</td></tr>`;
 
   const [{ data: inward, error: inErr }, { data: outward, error: outErr }, { data: standardPrices, error: spErr }] = await Promise.all([
-    supabase.from("book_inward_stock").select("name,language,purchase_price,quantity,purchased_from,created_at"),
-    supabase.from("book_outward_stock").select("name,language,sold_price,quantity,sold_area,sold_by,created_at"),
+    fetchAllPages(() => supabase.from("book_inward_stock").select("name,language,purchase_price,quantity,purchased_from,created_at")),
+    fetchAllPages(() => supabase.from("book_outward_stock").select("name,language,sold_price,quantity,sold_area,sold_by,created_at")),
     supabase.from("book_standard_prices").select("book_key,standard_selling_price,min_stock"),
   ]);
 
@@ -3025,7 +3025,7 @@ async function fetchStockStats(selectedBooks) {
     inwardQuery = inwardQuery.in("name", selectedBooks);
     outwardQuery = outwardQuery.in("name", selectedBooks);
   }
-  const [{ data: inward }, { data: outward }] = await Promise.all([inwardQuery, outwardQuery]);
+  const [{ data: inward }, { data: outward }] = await Promise.all([fetchAllPages(() => inwardQuery), fetchAllPages(() => outwardQuery)]);
   const bookStats = buildBookBuckets(inward || [], outward || []).map(computeBookStats);
   return {
     totalStockQty: bookStats.reduce((s, r) => s + Math.max(0, r.currentStock), 0),
@@ -3062,7 +3062,7 @@ async function runAnalytics() {
   if (selectedBooks.length) { inwardQuery = inwardQuery.in("name", selectedBooks); outwardQuery = outwardQuery.in("name", selectedBooks); }
 
   const [{ data: inward, error: inErr }, { data: outward, error: outErr }, { data: expenses, error: expErr }, stockStats] = await Promise.all([
-    inwardQuery, outwardQuery, expensesQuery, fetchStockStats(selectedBooks),
+    fetchAllPages(() => inwardQuery), fetchAllPages(() => outwardQuery), expensesQuery, fetchStockStats(selectedBooks),
   ]);
   if (inErr || outErr || expErr) {
     showToast("Could not load analytics data.", "error");
@@ -3248,8 +3248,8 @@ function wireBaGeneralDataModal() {
 
     const [{ data: coordinators }, { data: outward }] = await Promise.all([
       supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name"),
-      supabase.from("book_outward_stock").select("sold_price,quantity,sold_by,created_at")
-        .gte("created_at", fromISO).lte("created_at", toISO),
+      fetchAllPages(() => supabase.from("book_outward_stock").select("sold_price,quantity,sold_by,created_at")
+        .gte("created_at", fromISO).lte("created_at", toISO)),
     ]);
 
     const byUser = new Map();
@@ -3562,8 +3562,8 @@ async function loadExpenses() {
 // drifts from what those tabs show for the same underlying sales.
 async function updateExpensesSummaryStats() {
   const [{ data: inward }, { data: outward }] = await Promise.all([
-    supabase.from("book_inward_stock").select("name,language,purchase_price,quantity"),
-    supabase.from("book_outward_stock").select("name,language,sold_price,quantity"),
+    fetchAllPages(() => supabase.from("book_inward_stock").select("name,language,purchase_price,quantity")),
+    fetchAllPages(() => supabase.from("book_outward_stock").select("name,language,sold_price,quantity")),
   ]);
 
   const bookStats = buildBookBuckets(inward || [], outward || []).map(computeBookStats);

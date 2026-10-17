@@ -170,10 +170,19 @@ function placeButton(table) {
   wrap.parentNode.insertBefore(bar, wrap);
 }
 
+// Column titles are centred over their columns on every table. Some tables carry their own
+// left-aligned header rules (with !important), so the centring is set inline, which outranks them.
+function centerHeads(table) {
+  table.querySelectorAll("thead th").forEach((th) => {
+    if (th.style.getPropertyValue("text-align") !== "center") th.style.setProperty("text-align", "center", "important");
+  });
+}
+
 function wire(table) {
   if (table.dataset.colLayout) return;
   table.dataset.colLayout = "1";
   placeButton(table);
+  centerHeads(table);
   apply(table);
 }
 
@@ -193,7 +202,7 @@ export function initColumnLayout() {
     });
     if (added) scan();
     // redrawn rows / headers lose their inline sizes: put them back (a microtask, so before paint)
-    pending.forEach((t) => { placeButton(t); apply(t); });
+    pending.forEach((t) => { placeButton(t); centerHeads(t); apply(t); });
     pending.clear();
   }).observe(document.body, { childList: true, subtree: true });
   wide.addEventListener("change", () => document.querySelectorAll("table.data-table[data-col-layout]").forEach(apply));

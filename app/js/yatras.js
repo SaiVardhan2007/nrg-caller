@@ -168,14 +168,15 @@ const TABS = {
     order: "journey_date",
     form: true,
     cols: [
-      { field: "journey_date", label: "Date of Journey", type: "date", required: true },
+      { field: "journey_date", label: "Date & Time of Journey", type: "datetime", required: true },
       { field: "ticket_for", label: "Ticket Booked For", type: "text", wide: true },
       { field: "travellers", label: "Who is Travelling", type: "points" },
       { field: "pnr_no", label: "PNR No", type: "text" },
       { field: "seat_no", label: "Seat No", type: "text" },
-      { field: "from_to", label: "From - To", type: "text", wide: true },
+      { field: "from_place", label: "From", type: "text" },
+      { field: "to_place", label: "To", type: "text" },
     ],
-    searchFields: ["ticket_for", "travellers", "pnr_no", "seat_no", "from_to"],
+    searchFields: ["ticket_for", "travellers", "pnr_no", "seat_no", "from_place", "to_place"],
     empty: "No travel info added yet.",
   },
   accommodation: {
