@@ -1,5 +1,4 @@
 import { showToast, escapeHtml } from "./utils.js";
-import { exportColumnLayout } from "./columnLayout.js";
 
 /* ======================= SHARED DOWNLOAD (preview → Excel / PDF) =======================
    Every page's download goes through downloadSpec({ title, subtitle?, filename,
@@ -27,32 +26,149 @@ const $ = (id) => document.getElementById(id);
 
 const generatedStamp = () => new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-// Shows the sheet the way it will print; its two buttons do the real download.
+/* ---------------- PDF / Excel column widths (separate from the on-screen table) ----------------
+   Each column has a Width (% of the page width, scaled so the row always fits) and a
+   Margin (pt of space inside the cell, left and right). They are edited from the
+   preview's "⇔ PDF columns" button and remembered per table / tab on this device, so
+   the downloaded file can be laid out differently from the table on screen. */
+
+const PDF_STORE = "nrg-pdf-layout:";
+const PDF_W_STEP = 1, PDF_M_STEP = 1, PDF_M_DEFAULT = 8, PDF_M_MAX = 30;
+
+function pdfKey(spec) {
+  const t = spec.layoutTableId ? document.getElementById(spec.layoutTableId) : null;
+  return PDF_STORE + (spec.layoutTableId ? spec.layoutTableId + (t?.dataset.tab ? ":" + t.dataset.tab : "") : "page:" + spec.title);
+}
+function loadPdfLayout(spec) {
+  try { const v = JSON.parse(localStorage.getItem(pdfKey(spec))); return v && typeof v === "object" ? v : {}; } catch { return {}; }
+}
+function savePdfLayout(spec, cfg) {
+  try {
+    if (Object.keys(cfg).length) localStorage.setItem(pdfKey(spec), JSON.stringify(cfg));
+    else localStorage.removeItem(pdfKey(spec));
+  } catch { /* storage blocked: applies until the page is reloaded */ }
+}
+
+// Starting widths (% of the page): a spec's fixed pdfColumns when it has them, otherwise
+// sized to the longest line in each column.
+function defaultWidths(spec) {
+  if (spec.pdfColumns) {
+    const avail = 515;
+    const fixed = Object.values(spec.pdfColumns).filter((w) => typeof w === "number").reduce((a, b) => a + b, 0);
+    const pt = spec.headers.map((h) => { const w = spec.pdfColumns[h]; return w === "fill" ? Math.max(60, avail * 1.4 - fixed) : (w || 70); });
+    const tot = pt.reduce((a, b) => a + b, 0);
+    return pt.map((w) => (w / tot) * 100);
+  }
+  const len = spec.headers.map((h, i) => {
+    const longestWord = Math.max(...String(h).split(/\s+/).map((w) => w.length), 3);
+    const cellMax = Math.max(0, ...spec.rows.map((r) => Math.max(0, ...String(r[i] ?? "").split("\n").map((l) => l.length))));
+    return Math.max(longestWord + 2, Math.min(cellMax, 45) + 2);
+  });
+  const tot = len.reduce((a, b) => a + b, 0);
+  return len.map((w) => (w / tot) * 100);
+}
+
+// width % (normalised to sum 100) and margin pt for each header, saved settings over defaults
+function pdfLayout(spec) {
+  const saved = loadPdfLayout(spec);
+  const def = defaultWidths(spec);
+  const raw = spec.headers.map((h, i) => saved[h]?.w ?? def[i]);
+  const tot = raw.reduce((a, b) => a + b, 0) || 1;
+  return {
+    raw,
+    w: raw.map((v) => (v / tot) * 100),
+    m: spec.headers.map((h) => saved[h]?.m ?? PDF_M_DEFAULT),
+  };
+}
+
+function renderPreview() {
+  const spec = previewSpec;
+  const lay = pdfLayout(spec);
+  const colgroup = `<colgroup>${lay.w.map((w) => `<col style="width:${w.toFixed(2)}%">`).join("")}</colgroup>`;
+  const pad = (i) => ` style="padding-left:${(lay.m[i] * 1.3).toFixed(1)}px;padding-right:${(lay.m[i] * 1.3).toFixed(1)}px"`;
+  const head = spec.headers.map((h, i) => `<th class="${isCentered(spec, i) ? "c" : ""}"${pad(i)}>${escapeHtml(h)}</th>`).join("");
+  const shown = spec.rows.slice(0, PREVIEW_MAX);
+  const body = shown.map((r) => `<tr>${r.map((v, i) => `<td class="${isCentered(spec, i) ? "c" : ""}"${pad(i)}>${escapeHtml(String(v ?? ""))}</td>`).join("")}</tr>`).join("");
+  $("yatra-preview-sheet").innerHTML = `
+    <h4 class="yatra-paper-title">${escapeHtml(spec.title)}</h4>
+    ${spec.subtitle ? `<p class="yatra-paper-sub">${escapeHtml(spec.subtitle)}</p>` : ""}
+    <p class="yatra-paper-meta">Generated ${escapeHtml(generatedStamp())} &nbsp;·&nbsp; ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"}</p>
+    <table class="yatra-paper-table" style="table-layout:fixed">${colgroup}<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${spec.rows.length > PREVIEW_MAX ? `<p class="yatra-paper-meta">Preview shows the first ${PREVIEW_MAX} of ${spec.rows.length} rows — the downloaded file has all of them.</p>` : ""}`;
+}
+
+let pdfPanel = null;
+function closePdfPanel() { if (pdfPanel) { pdfPanel.remove(); pdfPanel = null; } }
+
+function fillPdfPanel() {
+  const spec = previewSpec;
+  const lay = pdfLayout(spec);
+  pdfPanel.querySelector(".col-layout-list").innerHTML = spec.headers.map((h, i) => {
+    const name = escapeHtml(h);
+    return `<div class="col-layout-row" data-i="${i}">
+      <span class="col-layout-name" title="${name}">${name}</span>
+      <span class="col-layout-group"><span>Width %</span>
+        <button type="button" data-act="w-">−</button><input type="number" data-f="w" step="0.5" value="${lay.w[i].toFixed(1)}" min="2" max="90"><button type="button" data-act="w+">+</button></span>
+      <span class="col-layout-group"><span>Margin</span>
+        <button type="button" data-act="m-">−</button><input type="number" data-f="m" value="${lay.m[i]}" min="0" max="${PDF_M_MAX}"><button type="button" data-act="m+">+</button></span>
+    </div>`;
+  }).join("");
+}
+
+function openPdfPanel(btn) {
+  closePdfPanel();
+  const spec = previewSpec;
+  pdfPanel = document.createElement("div");
+  pdfPanel.className = "col-layout-panel";
+  pdfPanel.innerHTML = `<div class="col-layout-head"><strong>PDF / Excel column widths</strong>
+      <button type="button" class="btn btn-secondary btn-sm" data-act="reset">Reset</button>
+      <button type="button" class="col-layout-close" data-act="close" title="Close">✕</button></div>
+    <div class="col-layout-list"></div>
+    <p class="col-layout-note">These only change the downloaded file and this preview, not the table on screen. Width is a share of the page (the row is scaled to fit); Margin is the space inside the column, left and right.</p>`;
+  fillPdfPanel();
+  const commit = (i, field, value) => {
+    const cfg = loadPdfLayout(spec);
+    const h = spec.headers[i];
+    const lay = pdfLayout(spec);
+    // keep the other columns exactly where they are while one changes
+    spec.headers.forEach((hh, j) => { cfg[hh] = { w: cfg[hh]?.w ?? lay.w[j], m: cfg[hh]?.m ?? lay.m[j] }; });
+    const v = field === "w" ? Math.min(90, Math.max(2, Number(value) || 2)) : Math.min(PDF_M_MAX, Math.max(0, Math.round(Number(value)) || 0));
+    cfg[h] = { ...cfg[h], [field]: v };
+    savePdfLayout(spec, cfg);
+    renderPreview();
+    fillPdfPanel();
+  };
+  pdfPanel.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-act]");
+    if (!b) return;
+    const act = b.dataset.act;
+    if (act === "close") return closePdfPanel();
+    if (act === "reset") { savePdfLayout(spec, {}); renderPreview(); fillPdfPanel(); return; }
+    const row = b.closest(".col-layout-row");
+    const field = act[0];
+    const input = row.querySelector(`input[data-f="${field}"]`);
+    commit(Number(row.dataset.i), field, Number(input.value) + (act[1] === "+" ? 1 : -1) * (field === "w" ? PDF_W_STEP : PDF_M_STEP));
+  });
+  pdfPanel.addEventListener("change", (e) => {
+    const input = e.target.closest("input[data-f]");
+    if (input) commit(Number(input.closest(".col-layout-row").dataset.i), input.dataset.f, input.value);
+  });
+  document.body.appendChild(pdfPanel);
+  pdfPanel.style.zIndex = "2200";
+  const r = btn.getBoundingClientRect();
+  pdfPanel.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pdfPanel.offsetWidth - 8)) + "px";
+  pdfPanel.style.top = Math.max(8, r.top - pdfPanel.offsetHeight - 8) + "px";
+}
+
+// Shows the sheet the way it will print; its buttons do the real download.
 export function downloadSpec(spec) {
   wirePreviewModal();
   if (!spec.rows.length) {
     showToast("Nothing to download yet.", "error");
     return;
   }
-  // saved column widths / margins (⇔ Columns) carry into the preview, Excel and PDF
-  // (a spec with its own fixed pdfColumns keeps them until the user saves custom widths)
-  spec.layout = spec.layoutTableId ? exportColumnLayout(spec.layoutTableId, !spec.pdfColumns) : null;
   previewSpec = spec;
-  const colgroup = spec.layout
-    ? `<colgroup>${(() => {
-        const ws = spec.headers.map((h) => spec.layout[h]?.w || 100);
-        const tot = ws.reduce((a, b) => a + b, 0);
-        return ws.map((w) => `<col style="width:${((w / tot) * 100).toFixed(2)}%">`).join("");
-      })()}</colgroup>`
-    : "";
-  const head = spec.headers.map((h, i) => `<th class="${isCentered(spec, i) ? "c" : ""}">${escapeHtml(h)}</th>`).join("");
-  const shown = spec.rows.slice(0, PREVIEW_MAX);
-  const body = shown.map((r) => `<tr>${r.map((v, i) => `<td class="${isCentered(spec, i) ? "c" : ""}">${escapeHtml(String(v ?? ""))}</td>`).join("")}</tr>`).join("");
-  $("yatra-preview-sheet").innerHTML = `
-    <h4 class="yatra-paper-title">${escapeHtml(spec.title)}</h4>
-    ${spec.subtitle ? `<p class="yatra-paper-sub">${escapeHtml(spec.subtitle)}</p>` : ""}
-    <p class="yatra-paper-meta">Generated ${escapeHtml(generatedStamp())} &nbsp;·&nbsp; ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"}</p>
-    <table class="yatra-paper-table"${spec.layout ? ' style="table-layout:fixed"' : ""}>${colgroup}<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${spec.rows.length > PREVIEW_MAX ? `<p class="yatra-paper-meta">Preview shows the first ${PREVIEW_MAX} of ${spec.rows.length} rows — the downloaded file has all of them.</p>` : ""}`;
+  closePdfPanel();
+  renderPreview();
   $("yatra-preview-modal").classList.add("active");
 }
 
@@ -64,8 +180,9 @@ function downloadXlsx(spec) {
   const rows = dayCol < 0 ? spec.rows : spec.rows.map((r) => r.map((v, i) => (i === dayCol ? String(v ?? "").replace("\n", ", ") : v)));
   const ws = XLSX.utils.aoa_to_sheet([...top, [], spec.headers, ...rows]);
   ws["!merges"] = top.map((_, r) => ({ s: { r, c: 0 }, e: { r, c: last } }));
+  const lay = pdfLayout(spec);
   ws["!cols"] = spec.headers.map((h, c) => ({
-    wch: spec.layout?.[h] ? Math.max(4, Math.round(spec.layout[h].w / 7)) : Math.min(50, Math.max(8, String(h).length + 2, ...spec.rows.map((r) => String(r[c] ?? "").length + 2))),
+    wch: Math.max(5, Math.round(lay.w[c] * 1.6)),
   }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, spec.title.replace(/[\\/?*[\]:]/g, " ").slice(0, 31));
@@ -112,23 +229,15 @@ function downloadPdf(spec) {
   doc.line(M, y, W - M, y);
 
   const columnStyles = {};
-  // optional fixed widths per header (pt); one "fill" column takes whatever is left
-  const fixed = Object.values(spec.pdfColumns || {}).filter((w) => typeof w === "number").reduce((a, b) => a + b, 0);
-  const dense = spec.headers.length > 10;
-  // saved on-screen widths / margins, scaled to fit the page width
-  const lw = spec.layout ? spec.headers.map((h) => spec.layout[h]?.w || 100) : null;
-  const k = lw ? (W - 2 * M) / lw.reduce((a, b) => a + b, 0) : 1;
+  // widths / margins from the preview's "⇔ PDF columns" settings (or the defaults)
+  const lay = pdfLayout(spec);
+  const padV = spec.headers.length > 10 ? 3 : 6;
   spec.headers.forEach((h, i) => {
-    columnStyles[i] = isCentered(spec, i) ? { halign: "center" } : {};
-    if (h === "S.No") columnStyles[i].cellWidth = 44;
-    const w = spec.pdfColumns?.[h];
-    if (w) columnStyles[i].cellWidth = w === "fill" ? W - 2 * M - fixed : w;
-    if (lw) {
-      const padV = dense ? 3 : 6;
-      const padH = Math.max(1.5, (spec.layout[h]?.m ?? 8) * k);
-      columnStyles[i].cellWidth = lw[i] * k;
-      columnStyles[i].cellPadding = { top: padV, bottom: padV, left: padH, right: padH };
-    }
+    columnStyles[i] = {
+      ...(isCentered(spec, i) ? { halign: "center" } : {}),
+      cellWidth: (lay.w[i] / 100) * (W - 2 * M),
+      cellPadding: { top: padV, bottom: padV, left: lay.m[i], right: lay.m[i] },
+    };
   });
   doc.autoTable({
     head: [spec.headers],
@@ -164,8 +273,9 @@ function wirePreviewModal() {
   const modal = $("yatra-preview-modal");
   $("yatra-preview-xlsx-btn").onclick = () => previewSpec && downloadXlsx(previewSpec);
   $("yatra-preview-pdf-btn").onclick = () => previewSpec && downloadPdf(previewSpec);
-  $("yatra-preview-close-btn").onclick = () => modal.classList.remove("active");
-  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+  $("yatra-preview-close-btn").onclick = () => { closePdfPanel(); modal.classList.remove("active"); };
+  $("yatra-preview-cols-btn").onclick = (e) => (pdfPanel ? closePdfPanel() : openPdfPanel(e.currentTarget));
+  modal.addEventListener("click", (e) => { if (e.target === modal) { closePdfPanel(); modal.classList.remove("active"); } });
 }
 
 // "nrg-reception-analytics-2026-10-17.xlsx" / "Book_Events_2026-10-17.xlsx" → "Nrg Reception Analytics" / "Book Events"

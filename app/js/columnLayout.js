@@ -3,8 +3,7 @@
 // (just above it, on the right) opening a panel where every column's width and
 // left/right margin can be stepped up or down. Settings are remembered per
 // table (and per tab, via data-tab) on this device, and re-applied whenever the
-// table is redrawn. FOLK Yatras' PDF / Excel downloads read the same settings
-// through exportColumnLayout().
+// table is redrawn. (PDF / Excel column widths are separate: see exportDoc.js.)
 import { columnKeyOf } from "./utils.js";
 
 const STORE = "nrg-col-layout:";
@@ -198,19 +197,4 @@ export function initColumnLayout() {
     pending.clear();
   }).observe(document.body, { childList: true, subtree: true });
   wide.addEventListener("change", () => document.querySelectorAll("table.data-table[data-col-layout]").forEach(apply));
-}
-
-// For PDF / Excel / preview: every labelled column's current on-screen width and margin,
-// so a download is laid out like the table. Unless `always` is set, null when the table
-// has no saved settings (the download then keeps its own default layout).
-export function exportColumnLayout(tableId, always = false) {
-  const table = document.getElementById(tableId);
-  if (!table || (!always && !Object.keys(load(table)).length)) return null;
-  const out = {};
-  table.querySelectorAll("thead tr:first-child th").forEach((th) => {
-    const key = columnKeyOf(th);
-    if (!key) return;
-    out[key] = { w: Math.round(th.getBoundingClientRect().width) || 100, m: Math.round(parseFloat(getComputedStyle(th).paddingLeft)) || 8 };
-  });
-  return out;
 }
