@@ -4315,3 +4315,26 @@ tr.yatra-row-dragging { opacity: .55; background: rgba(0, 0, 0, .05); }
 /* "⬇ Download" bar above tables that have no toolbar export button */
 .dl-bar { display: flex; justify-content: flex-end; margin: 0 0 8px; }
 .dl-bar .btn.toolbar-btn { width: auto; padding: 7px 16px; }
+
+#yatra-table[data-tab="travel"] { width: max-content; min-width: 100%; }
+#yatra-table[data-tab="travel"] td[data-label="Date of Journey"] .inline-edit { min-width: 140px; }
+#yatra-table[data-tab="travel"] td[data-label="Ticket Booked For"] .inline-edit, #yatra-table[data-tab="travel"] td[data-label="From - To"] .inline-edit { min-width: 220px; }
+#yatra-table[data-tab="travel"] td[data-label="Who is Travelling"] .inline-edit { min-width: 240px; }
+#yatra-table[data-tab="travel"] td[data-label="PNR No"] .inline-edit, #yatra-table[data-tab="travel"] td[data-label="Seat No"] .inline-edit { min-width: 120px; }
+
+/* ---- Adjustable column widths / margins (columnLayout.js) ---- */
+.col-custom > .inline-edit, .col-custom > select, .col-custom > textarea, .col-custom > input { min-width: 0 !important; width: 100% !important; box-sizing: border-box; }
+.col-layout-bar { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+.col-layout-btn { white-space: nowrap; }
+@media (max-width: 640px) { .col-layout-bar, .col-layout-btn { display: none !important; } }
+.col-layout-panel { position: fixed; z-index: 2000; width: min(520px, calc(100vw - 16px)); max-height: 70vh; display: flex; flex-direction: column; background: var(--surface, #fff); border: 1.5px solid var(--sandstone, #d6cdbd); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.22); padding: 12px 14px; }
+.col-layout-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.col-layout-head strong { flex: 1; }
+.col-layout-close { border: 0; background: transparent; cursor: pointer; font-size: 16px; padding: 4px 8px; color: var(--text-muted, #777); }
+.col-layout-list { overflow: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 2px; }
+.col-layout-row { display: flex; align-items: center; gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--sandstone, #eee); }
+.col-layout-name { flex: 1 1 120px; min-width: 0; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-layout-group { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted, #777); }
+.col-layout-group button { width: 26px; height: 26px; border: 1.5px solid var(--sandstone, #d6cdbd); background: var(--surface, #fff); border-radius: 6px; cursor: pointer; font-size: 15px; line-height: 1; }
+.col-layout-group input { width: 54px; padding: 4px 4px; text-align: center; border: 1.5px solid var(--sandstone, #d6cdbd); border-radius: 6px; font: inherit; font-size: 13px; background: var(--surface, #fff); }
+.col-layout-note { margin: 8px 0 0; font-size: 11.5px; color: var(--text-muted, #777); }

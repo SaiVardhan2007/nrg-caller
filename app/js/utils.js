@@ -375,7 +375,7 @@ export function enableWordAutocorrect(el) {
 // content), so most tables need no markup changes beyond a stable table id.
 const columnReorderState = new Map(); // tableId -> { getOrder, applyOrder }
 
-function columnKeyOf(cell) {
+export function columnKeyOf(cell) {
   // data-label="" (a deliberately unlabeled trailing actions column) is a
   // real key and must win here — only an absent attribute falls through.
   if (cell.dataset.label !== undefined) return cell.dataset.label;

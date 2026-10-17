@@ -1,4 +1,4 @@
-const CACHE_NAME = "fnrg-preaching-v306";
+const CACHE_NAME = "fnrg-preaching-v308";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -7,6 +7,8 @@ const SHELL_FILES = [
   "./js/config.js",
   "./js/supabaseClient.js",
   "./js/utils.js",
+  "./js/columnLayout.js",
+  "./js/exportDoc.js",
   "./js/auth.js",
   "./js/admin.js",
   "./js/caller.js",

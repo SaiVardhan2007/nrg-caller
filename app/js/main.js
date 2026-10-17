@@ -3,6 +3,7 @@ import { initActivityLog, logEvent } from "./activityLog.js";
 import { subscribeToPush } from "./push.js";
 import { refreshAllBadges } from "./badges.js";
 import * as Admin from "./admin.js";
+import { initColumnLayout } from "./columnLayout.js";
 import * as Caller from "./caller.js";
 import * as Reception from "./reception.js";
 import * as OneToOne from "./oneToOne.js";
@@ -193,6 +194,7 @@ const YATRA_PAGE_TABS = {
   "yatras-prasadam": "prasadam",
   "yatras-checklist": "checklist",
   "yatras-itinerary": "itinerary",
+  "yatras-travel": "travel",
   "yatras-accommodation": "accommodation",
   "yatras-services": "services",
   "yatras-disposables": "disposables",
@@ -706,3 +708,5 @@ if ("serviceWorker" in navigator) {
     window.location.reload();
   });
 }
+
+initColumnLayout();

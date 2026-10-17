@@ -1,4 +1,5 @@
 import { showToast, escapeHtml } from "./utils.js";
+import { exportColumnLayout } from "./columnLayout.js";
 
 /* ======================= SHARED DOWNLOAD (preview → Excel / PDF) =======================
    Every page's download goes through downloadSpec({ title, subtitle?, filename,
@@ -33,7 +34,16 @@ export function downloadSpec(spec) {
     showToast("Nothing to download yet.", "error");
     return;
   }
+  // saved column widths / margins (⇔ Columns) carry into the preview, Excel and PDF
+  spec.layout = spec.layoutTableId ? exportColumnLayout(spec.layoutTableId) : null;
   previewSpec = spec;
+  const colgroup = spec.layout
+    ? `<colgroup>${(() => {
+        const ws = spec.headers.map((h) => spec.layout[h]?.w || 100);
+        const tot = ws.reduce((a, b) => a + b, 0);
+        return ws.map((w) => `<col style="width:${((w / tot) * 100).toFixed(2)}%">`).join("");
+      })()}</colgroup>`
+    : "";
   const head = spec.headers.map((h, i) => `<th class="${isCentered(spec, i) ? "c" : ""}">${escapeHtml(h)}</th>`).join("");
   const shown = spec.rows.slice(0, PREVIEW_MAX);
   const body = shown.map((r) => `<tr>${r.map((v, i) => `<td class="${isCentered(spec, i) ? "c" : ""}">${escapeHtml(String(v ?? ""))}</td>`).join("")}</tr>`).join("");
@@ -41,7 +51,7 @@ export function downloadSpec(spec) {
     <h4 class="yatra-paper-title">${escapeHtml(spec.title)}</h4>
     ${spec.subtitle ? `<p class="yatra-paper-sub">${escapeHtml(spec.subtitle)}</p>` : ""}
     <p class="yatra-paper-meta">Generated ${escapeHtml(generatedStamp())} &nbsp;·&nbsp; ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"}</p>
-    <table class="yatra-paper-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${spec.rows.length > PREVIEW_MAX ? `<p class="yatra-paper-meta">Preview shows the first ${PREVIEW_MAX} of ${spec.rows.length} rows — the downloaded file has all of them.</p>` : ""}`;
+    <table class="yatra-paper-table"${spec.layout ? ' style="table-layout:fixed"' : ""}>${colgroup}<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${spec.rows.length > PREVIEW_MAX ? `<p class="yatra-paper-meta">Preview shows the first ${PREVIEW_MAX} of ${spec.rows.length} rows — the downloaded file has all of them.</p>` : ""}`;
   $("yatra-preview-modal").classList.add("active");
 }
 
@@ -54,7 +64,7 @@ function downloadXlsx(spec) {
   const ws = XLSX.utils.aoa_to_sheet([...top, [], spec.headers, ...rows]);
   ws["!merges"] = top.map((_, r) => ({ s: { r, c: 0 }, e: { r, c: last } }));
   ws["!cols"] = spec.headers.map((h, c) => ({
-    wch: Math.min(50, Math.max(8, String(h).length + 2, ...spec.rows.map((r) => String(r[c] ?? "").length + 2))),
+    wch: spec.layout?.[h] ? Math.max(4, Math.round(spec.layout[h].w / 7)) : Math.min(50, Math.max(8, String(h).length + 2, ...spec.rows.map((r) => String(r[c] ?? "").length + 2))),
   }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, spec.title.replace(/[\\/?*[\]:]/g, " ").slice(0, 31));
@@ -103,11 +113,21 @@ function downloadPdf(spec) {
   const columnStyles = {};
   // optional fixed widths per header (pt); one "fill" column takes whatever is left
   const fixed = Object.values(spec.pdfColumns || {}).filter((w) => typeof w === "number").reduce((a, b) => a + b, 0);
+  const dense = spec.headers.length > 10;
+  // saved on-screen widths / margins, scaled to fit the page width
+  const lw = spec.layout ? spec.headers.map((h) => spec.layout[h]?.w || 100) : null;
+  const k = lw ? (W - 2 * M) / lw.reduce((a, b) => a + b, 0) : 1;
   spec.headers.forEach((h, i) => {
     columnStyles[i] = isCentered(spec, i) ? { halign: "center" } : {};
     if (h === "S.No") columnStyles[i].cellWidth = 44;
     const w = spec.pdfColumns?.[h];
     if (w) columnStyles[i].cellWidth = w === "fill" ? W - 2 * M - fixed : w;
+    if (lw) {
+      const padV = dense ? 3 : 6;
+      const padH = Math.max(1.5, (spec.layout[h]?.m ?? 8) * k);
+      columnStyles[i].cellWidth = lw[i] * k;
+      columnStyles[i].cellPadding = { top: padV, bottom: padV, left: padH, right: padH };
+    }
   });
   doc.autoTable({
     head: [spec.headers],
@@ -179,7 +199,7 @@ export function downloadTable(table, filename, title, subtitle) {
       return field ? (field.tagName === "SELECT" ? field.selectedOptions[0]?.textContent.trim() ?? "" : field.value) : td.innerText.replace(/\s*\n\s*/g, " ").trim();
     }));
   });
-  downloadSpec({ title: title || titleFromFilename(filename), subtitle, filename: filename.replace(/\.\w+$/, "") + ".xlsx", headers, rows, autoCenter: true });
+  downloadSpec({ layoutTableId: table.id, title: title || titleFromFilename(filename), subtitle, filename: filename.replace(/\.\w+$/, "") + ".xlsx", headers, rows, autoCenter: true });
 }
 
 // Adds a "⬇ Download" button above each listed table that has no export button of its own.

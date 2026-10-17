@@ -162,6 +162,22 @@ const TABS = {
     searchFields: ["service_owner", "service_name", "description"],
     empty: "No services listed yet.",
   },
+  travel: {
+    table: "yatra_travel",
+    title: "Travel Info",
+    order: "journey_date",
+    form: true,
+    cols: [
+      { field: "journey_date", label: "Date of Journey", type: "date", required: true },
+      { field: "ticket_for", label: "Ticket Booked For", type: "text", wide: true },
+      { field: "travellers", label: "Who is Travelling", type: "points" },
+      { field: "pnr_no", label: "PNR No", type: "text" },
+      { field: "seat_no", label: "Seat No", type: "text" },
+      { field: "from_to", label: "From - To", type: "text", wide: true },
+    ],
+    searchFields: ["ticket_for", "travellers", "pnr_no", "seat_no", "from_to"],
+    empty: "No travel info added yet.",
+  },
   accommodation: {
     table: "yatra_accommodation",
     title: "Accommodation",
@@ -565,7 +581,7 @@ let statPopup = null; // { filename, title, headers, rows } for the open popup's
 // remembers its own dragged column order.
 function showListPopup(title, headers, rows, filenameBase, key) {
   // the three stat lists describe the selected date + meal; a person's own entries don't
-  statPopup = { filename: `${safeName(filenameBase)}_${todayISO()}.xlsx`, title: `${currentYatra.name} — ${title}`, subtitle: key === "person" ? "" : slotLabel(attDate, attMeal), headers, rows };
+  statPopup = { layoutTableId: "yatra-stat-table", filename: `${safeName(filenameBase)}_${todayISO()}.xlsx`, title: `${currentYatra.name} — ${title}`, subtitle: key === "person" ? "" : slotLabel(attDate, attMeal), headers, rows };
   $("yatra-stat-title").textContent = title;
   $("yatra-stat-thead").innerHTML = `<tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr>`;
   $("yatra-stat-tbody").innerHTML = rows.length
@@ -864,8 +880,9 @@ function visibleRows() {
 
 function tableExport() {
   const cfg = TABS[currentTab];
-  const label = { dashboard: "Participants", prasadam: "Prasadam_Details", checklist: "Travel_Checklist", services: "Service_List", accommodation: "Accommodation", itinerary: "Trip_Itinerary", disposables: "Disposables", cooking: "Cooking_Serving", feedback: "Feedback" }[currentTab];
+  const label = { dashboard: "Participants", prasadam: "Prasadam_Details", checklist: "Travel_Checklist", services: "Service_List", travel: "Travel_Info", accommodation: "Accommodation", itinerary: "Trip_Itinerary", disposables: "Disposables", cooking: "Cooking_Serving", feedback: "Feedback" }[currentTab];
   return inScreenOrder({
+    layoutTableId: "yatra-table",
     title: `${currentYatra.name} — ${label.replace("_", " / ")}`,
     filename: `${safeName(currentYatra.name)}_${label}_${todayISO()}.xlsx`,
     headers: ["S.No", ...cfg.cols.map((c) => c.label)],
@@ -904,6 +921,7 @@ async function dashboardSlotDownload() {
   data.forEach((c) => { n[c.participant_id] = (n[c.participant_id] || 0) + 1; });
   $("yatra-dl-modal").classList.remove("active");
   downloadSpec({
+    layoutTableId: "yatra-table",
     title: `${currentYatra.name} — Participants`,
     subtitle: slotLabel(date, meal),
     filename: `${safeName(currentYatra.name)}_Participants_${date}_${mealShort(meal)}.xlsx`,
@@ -948,6 +966,7 @@ function itineraryDownload() {
   const win = from || to ? ` | ${from ? fmtTime(from) : "start"} to ${to ? fmtTime(to) : "end"}` : "";
   $("yatra-itin-dl-modal").classList.remove("active");
   downloadSpec({
+    layoutTableId: "yatra-table",
     title: `${currentYatra.name} — Trip Itinerary`,
     subtitle: dayLabel + win,
     filename: `${safeName(currentYatra.name)}_Trip_Itinerary${day ? "_" + day : ""}.xlsx`,
@@ -959,6 +978,7 @@ function itineraryDownload() {
 
 function attendanceExport() {
   return inScreenOrder({
+    layoutTableId: "att-table",
     title: `${currentYatra.name} — Attendance`,
     subtitle: slotLabel(attDate, attMeal),
     filename: `${safeName(currentYatra.name)}_Attendance_${attDate}_${mealShort(attMeal)}.xlsx`,
