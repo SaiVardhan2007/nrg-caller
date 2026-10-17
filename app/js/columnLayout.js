@@ -200,11 +200,12 @@ export function initColumnLayout() {
   wide.addEventListener("change", () => document.querySelectorAll("table.data-table[data-col-layout]").forEach(apply));
 }
 
-// For PDF / Excel: null when the table has no saved settings (downloads keep their
-// default layout), otherwise every labelled column's current on-screen width and margin.
-export function exportColumnLayout(tableId) {
+// For PDF / Excel / preview: every labelled column's current on-screen width and margin,
+// so a download is laid out like the table. Unless `always` is set, null when the table
+// has no saved settings (the download then keeps its own default layout).
+export function exportColumnLayout(tableId, always = false) {
   const table = document.getElementById(tableId);
-  if (!table || !Object.keys(load(table)).length) return null;
+  if (!table || (!always && !Object.keys(load(table)).length)) return null;
   const out = {};
   table.querySelectorAll("thead tr:first-child th").forEach((th) => {
     const key = columnKeyOf(th);

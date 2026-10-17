@@ -35,7 +35,8 @@ export function downloadSpec(spec) {
     return;
   }
   // saved column widths / margins (⇔ Columns) carry into the preview, Excel and PDF
-  spec.layout = spec.layoutTableId ? exportColumnLayout(spec.layoutTableId) : null;
+  // (a spec with its own fixed pdfColumns keeps them until the user saves custom widths)
+  spec.layout = spec.layoutTableId ? exportColumnLayout(spec.layoutTableId, !spec.pdfColumns) : null;
   previewSpec = spec;
   const colgroup = spec.layout
     ? `<colgroup>${(() => {
