@@ -707,7 +707,7 @@ async function wireSadhanaAnalyticsFilters() {
   document.getElementById("sa-sort").addEventListener("change", refreshLeaderboardView);
   document.getElementById("sa-filter-min-entries").addEventListener("input", debounce(refreshLeaderboardView, 200));
   document.getElementById("sa-export-btn").addEventListener("click", () => {
-    exportTableToExcel(document.getElementById("sa-leaderboard-table"), "FNRG_Sadhana_Analytics.xlsx");
+    exportTableToExcel(document.getElementById("sa-leaderboard-table"), "FNRG_Sadhana_Analytics.xlsx", "Sadhana Analytics");
   });
 
   // Mobile: tapping a row (not the View button) expands it in place to

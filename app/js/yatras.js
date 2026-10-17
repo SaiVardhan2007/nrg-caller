@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient.js";
+import { downloadSpec } from "./exportDoc.js";
 import { showToast, escapeHtml, normalizePhoneInput, formatPhone, copyToClipboard, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll } from "./utils.js";
 
 /* ======================= FOLK YATRAS (admin only) =======================
@@ -147,6 +148,19 @@ const TABS = {
     ],
     searchFields: ["name", "phone", "folk_guide"],
     empty: "No participants yet — add some or upload an Excel file.",
+  },
+  services: {
+    table: "yatra_services",
+    title: "Service",
+    order: "created_at",
+    form: true,
+    cols: [
+      { field: "service_owner", label: "Service Owner", type: "points" },
+      { field: "service_name", label: "Service Name", type: "text", required: true },
+      { field: "description", label: "Description", type: "text", wide: true },
+    ],
+    searchFields: ["service_owner", "service_name", "description"],
+    empty: "No services listed yet.",
   },
   accommodation: {
     table: "yatra_accommodation",
@@ -850,7 +864,7 @@ function visibleRows() {
 
 function tableExport() {
   const cfg = TABS[currentTab];
-  const label = { dashboard: "Participants", prasadam: "Prasadam_Details", checklist: "Travel_Checklist", accommodation: "Accommodation", itinerary: "Trip_Itinerary", disposables: "Disposables", cooking: "Cooking_Serving", feedback: "Feedback" }[currentTab];
+  const label = { dashboard: "Participants", prasadam: "Prasadam_Details", checklist: "Travel_Checklist", services: "Service_List", accommodation: "Accommodation", itinerary: "Trip_Itinerary", disposables: "Disposables", cooking: "Cooking_Serving", feedback: "Feedback" }[currentTab];
   return inScreenOrder({
     title: `${currentYatra.name} — ${label.replace("_", " / ")}`,
     filename: `${safeName(currentYatra.name)}_${label}_${todayISO()}.xlsx`,
@@ -954,121 +968,6 @@ function attendanceExport() {
       new Date(r.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
     ]),
   }, "att-thead");
-}
-
-/* ---------------- Download: preview, then Excel or PDF ---------------- */
-
-const CENTERED_COLS = ["S.No", "Quantity", "Tokens", "Unit", "Type", "Time", "Plates", "Status", "Date", "No. of Rooms", "Cost per Room", "Extra Charges", "Date of Booking", "Adv Paid", "Balance Amt", "Day & Date", "Start Time", "End Time", "Duration (min)", "For How Many", "Delivery Time", "Cost per Plate", "Total Cost", "Advance Payment", "Balance"];
-let previewSpec = null;
-
-const generatedStamp = () => new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-
-// Shows the sheet the way it will print; its two buttons do the real download.
-function downloadSpec(spec) {
-  if (!spec.rows.length) {
-    showToast("Nothing to download yet.", "error");
-    return;
-  }
-  previewSpec = spec;
-  const head = spec.headers.map((h) => `<th class="${CENTERED_COLS.includes(h) ? "c" : ""}">${escapeHtml(h)}</th>`).join("");
-  const body = spec.rows.map((r) => `<tr>${r.map((v, i) => `<td class="${CENTERED_COLS.includes(spec.headers[i]) ? "c" : ""}">${escapeHtml(String(v ?? ""))}</td>`).join("")}</tr>`).join("");
-  $("yatra-preview-sheet").innerHTML = `
-    <h4 class="yatra-paper-title">${escapeHtml(spec.title)}</h4>
-    ${spec.subtitle ? `<p class="yatra-paper-sub">${escapeHtml(spec.subtitle)}</p>` : ""}
-    <p class="yatra-paper-meta">Generated ${escapeHtml(generatedStamp())} &nbsp;·&nbsp; ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"}</p>
-    <table class="yatra-paper-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
-  $("yatra-preview-modal").classList.add("active");
-}
-
-function downloadXlsx(spec) {
-  const last = spec.headers.length - 1;
-  const top = spec.subtitle ? [[spec.title], [spec.subtitle], [`Generated ${generatedStamp()}`]] : [[spec.title], [`Generated ${generatedStamp()}`]];
-  // a plain Excel cell can't show the two-line day, so join it with a comma there
-  const dayCol = spec.headers.indexOf("Day & Date");
-  const rows = dayCol < 0 ? spec.rows : spec.rows.map((r) => r.map((v, i) => (i === dayCol ? String(v ?? "").replace("\n", ", ") : v)));
-  const ws = XLSX.utils.aoa_to_sheet([...top, [], spec.headers, ...rows]);
-  ws["!merges"] = top.map((_, r) => ({ s: { r, c: 0 }, e: { r, c: last } }));
-  ws["!cols"] = spec.headers.map((h, c) => ({
-    wch: Math.min(50, Math.max(8, String(h).length + 2, ...spec.rows.map((r) => String(r[c] ?? "").length + 2))),
-  }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, spec.title.replace(/[\\/?*[\]:]/g, " ").slice(0, 31));
-  XLSX.writeFile(wb, spec.filename);
-}
-
-function downloadPdf(spec) {
-  const { jsPDF } = window.jspdf || {};
-  if (!jsPDF) {
-    showToast("PDF tools did not load — check your connection and retry.", "error");
-    return;
-  }
-  const ink = [60, 35, 15];
-  const accent = [194, 98, 22];
-  const doc = new jsPDF({ orientation: spec.headers.length > 5 ? "landscape" : "portrait", unit: "pt", format: "a4" });
-  const W = doc.internal.pageSize.getWidth();
-  const H = doc.internal.pageSize.getHeight();
-  const M = 40;
-  // the built-in PDF fonts only cover Latin-1, so swap the typographic dash/dot
-  const plain = (t) => String(t).replace(/[—–]/g, "-").replace(/·/g, "|");
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(17);
-  doc.setTextColor(...ink);
-  // a long title wraps onto several lines, so everything below is positioned from where it ends
-  const titleLines = doc.splitTextToSize(plain(spec.title), W - 2 * M);
-  doc.text(titleLines, M, 46);
-  let y = 46 + (titleLines.length - 1) * 21;
-  if (spec.subtitle) {
-    y += 20;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(...accent);
-    doc.text(plain(spec.subtitle), M, y);
-  }
-  y += 17;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(120, 110, 100);
-  doc.text(`Generated ${generatedStamp()}   |   ${spec.rows.length} row${spec.rows.length === 1 ? "" : "s"}`, M, y);
-  y += 8;
-  doc.setDrawColor(...accent);
-  doc.setLineWidth(1.5);
-  doc.line(M, y, W - M, y);
-
-  const columnStyles = {};
-  // optional fixed widths per header (pt); one "fill" column takes whatever is left
-  const fixed = Object.values(spec.pdfColumns || {}).filter((w) => typeof w === "number").reduce((a, b) => a + b, 0);
-  spec.headers.forEach((h, i) => {
-    columnStyles[i] = CENTERED_COLS.includes(h) ? { halign: "center" } : {};
-    if (h === "S.No") columnStyles[i].cellWidth = 44;
-    const w = spec.pdfColumns?.[h];
-    if (w) columnStyles[i].cellWidth = w === "fill" ? W - 2 * M - fixed : w;
-  });
-  doc.autoTable({
-    head: [spec.headers],
-    body: spec.rows.map((r) => r.map((v) => plain(v ?? ""))),
-    startY: y + 13,
-    margin: { left: M, right: M, top: 40, bottom: 44 },
-    theme: "grid",
-    styles: { font: "helvetica", fontSize: spec.headers.length > 10 ? 6.5 : 10, cellPadding: spec.headers.length > 10 ? { top: 3, bottom: 3, left: 3, right: 3 } : { top: 6, bottom: 6, left: 8, right: 8 }, lineColor: [205, 195, 180], lineWidth: 0.6, textColor: [40, 35, 30], valign: "middle", overflow: "linebreak" },
-    headStyles: { fillColor: accent, textColor: 255, fontStyle: "bold", halign: "left", lineColor: accent },
-    alternateRowStyles: { fillColor: [253, 249, 242] },
-    columnStyles,
-    didParseCell: (d) => { if (d.section === "head" && CENTERED_COLS.includes(spec.headers[d.column.index])) d.cell.styles.halign = "center"; },
-  });
-
-  const pages = doc.internal.getNumberOfPages();
-  for (let p = 1; p <= pages; p++) {
-    doc.setPage(p);
-    doc.setFontSize(8.5);
-    doc.setTextColor(140, 130, 120);
-    doc.setDrawColor(205, 195, 180);
-    doc.setLineWidth(0.6);
-    doc.line(M, H - 34, W - M, H - 34);
-    doc.text("FOLK Yatras", M, H - 20);
-    doc.text(`Page ${p} of ${pages}`, W - M, H - 20, { align: "right" });
-  }
-  doc.save(spec.filename.replace(/\.xlsx$/, ".pdf"));
 }
 
 /* ---------------- Email Excel ---------------- */
@@ -1710,11 +1609,6 @@ function wireShell() {
   $("yatra-stat-close-btn").onclick = () => statModal.classList.remove("active");
   statModal.addEventListener("click", (e) => { if (e.target === statModal) statModal.classList.remove("active"); });
   $("yatra-stat-download-btn").onclick = () => downloadSpec(inScreenOrder(statPopup || { headers: [], rows: [] }, "yatra-stat-thead"));
-  const previewModal = $("yatra-preview-modal");
-  $("yatra-preview-xlsx-btn").onclick = () => previewSpec && downloadXlsx(previewSpec);
-  $("yatra-preview-pdf-btn").onclick = () => previewSpec && downloadPdf(previewSpec);
-  $("yatra-preview-close-btn").onclick = () => previewModal.classList.remove("active");
-  previewModal.addEventListener("click", (e) => { if (e.target === previewModal) previewModal.classList.remove("active"); });
   $("yatra-back-btn").onclick = () => {
     showYatrasView();
     loadYatraCards();

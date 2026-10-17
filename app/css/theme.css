@@ -4300,3 +4300,18 @@ tr.yatra-row-dragging { opacity: .55; background: rgba(0, 0, 0, .05); }
 #yatra-table[data-tab="accommodation"] td[data-label="Date of Booking"] .inline-edit { min-width: 140px; }
 #yatra-table[data-tab="accommodation"] td[data-label="Total Cost"], #yatra-table[data-tab="accommodation"] td[data-label="Balance Amt"] { min-width: 90px; }
 #yatra-table[data-tab="accommodation"] td[data-label="Remarks"] .inline-edit { min-width: 240px; }
+
+/* Service List: S.No fits 3 digits, Owner ~12 chars, Name ~10 chars; Description takes the rest of the page */
+#yatra-table[data-tab="services"] { width: 100%; }
+#yatra-table[data-tab="services"] th[data-label="S.No"], #yatra-table[data-tab="services"] td[data-label="S.No"] { width: 64px; min-width: 64px; }
+#yatra-table[data-tab="services"] th[data-label="Service Owner"], #yatra-table[data-tab="services"] td[data-label="Service Owner"] { width: 150px; min-width: 150px; max-width: 150px; }
+#yatra-table[data-tab="services"] th[data-label="Service Name"], #yatra-table[data-tab="services"] td[data-label="Service Name"] { width: 130px; min-width: 130px; max-width: 130px; }
+#yatra-table[data-tab="services"] th[data-label="Description"], #yatra-table[data-tab="services"] td[data-label="Description"] { width: 100%; min-width: 260px; }
+#yatra-table[data-tab="services"] td .inline-edit { min-width: 0; width: 100%; }
+@media (max-width: 640px) {
+  #yatra-table[data-tab="services"] th, #yatra-table[data-tab="services"] td { max-width: none; min-width: 0; }
+}
+
+/* "⬇ Download" bar above tables that have no toolbar export button */
+.dl-bar { display: flex; justify-content: flex-end; margin: 0 0 8px; }
+.dl-bar .btn.toolbar-btn { width: auto; padding: 7px 16px; }

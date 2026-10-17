@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
-import { showToast, formatPhone, escapeHtml, downloadExcel, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, daysAgo, CORE_CULTIVATION_STALE_DAYS, initMobileFilterDrawer, initMobileFilterBar } from "./utils.js";
+import { showToast, formatPhone, escapeHtml, exportRows, exportTableToExcel, parseCSV, normalizePhoneInput, ADMIN_TAG_TO_USERS_OPTIONS, syncCoordinatorUser, GYC_STATUS_OPTIONS, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, daysAgo, CORE_CULTIVATION_STALE_DAYS, initMobileFilterDrawer, initMobileFilterBar } from "./utils.js";
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
@@ -1246,7 +1246,7 @@ function wireUsersImportExport() {
     (users || []).forEach((u) => {
       rows.push([u.user_name, u.login_pw, u.role, u.call_limit ?? "", counts[u.user_name] || 0, u.auto_assign ? "Yes" : "No"]);
     });
-    downloadExcel(`nrg-users-${todayStamp()}.xlsx`, rows);
+    exportRows(`nrg-users-${todayStamp()}.xlsx`, rows, "Users");
   });
 
   const fileInput = document.getElementById("users-import-file");
@@ -2179,7 +2179,7 @@ function wireContactsImportExport() {
         c.gyc_status || "", c.admin_remarks || "",
       ]);
     });
-    downloadExcel(`nrg-master-contact-${todayStamp()}.xlsx`, rows);
+    exportRows(`nrg-master-contact-${todayStamp()}.xlsx`, rows, "Master Contact");
   });
 }
 
@@ -2479,26 +2479,7 @@ export async function initAnalytics() {
     });
 
     document.getElementById("analytics-export-btn").addEventListener("click", () => {
-      const readTable = (tableEl) => {
-        const headCells = Array.from(tableEl.querySelectorAll("thead th"));
-        const skip = headCells.map((th) => th.classList.contains("followup-select-col"));
-        const rows = [headCells.filter((_, i) => !skip[i]).map((th) => (th.querySelector(".th-label")?.textContent || th.textContent).trim())];
-        tableEl.querySelectorAll("tbody tr").forEach((tr) => {
-          rows.push(Array.from(tr.children).filter((_, i) => !skip[i]).map((td) => {
-            const field = td.querySelector("input, select");
-            return field ? field.value : td.textContent.trim();
-          }));
-        });
-        return rows;
-      };
-      const rows = [
-        [`Calls Made: ${document.getElementById("analytics-total-calls").textContent}`],
-        [],
-        ["Currently Assigned Contacts"], ...readTable(document.getElementById("analytics-assigned-body").closest("table")),
-        [],
-        ["Core Cultivation Health"], ...readTable(document.getElementById("analytics-cultivation-body").closest("table")),
-      ];
-      downloadExcel(`nrg-analytics-${todayStamp()}.xlsx`, rows);
+      exportTableToExcel(document.getElementById("analytics-assigned-body").closest("table"), `nrg-analytics-assigned-${todayStamp()}.xlsx`, "Calling Analytics — Currently Assigned Contacts", `Calls Made: ${document.getElementById("analytics-total-calls").textContent}`);
     });
     initHorizontalScroll("analytics-assigned-table-wrap");
     initHorizontalScroll("analytics-cultivation-table-wrap");
@@ -3072,7 +3053,7 @@ async function openAnalyticsStatModal(statType) {
     tbody.querySelectorAll("tr").forEach((tr) => {
       rows.push(Array.from(tr.children).map((td) => td.textContent.trim()));
     });
-    downloadExcel(`nrg-pending-contacts-${todayStamp()}.xlsx`, rows);
+    exportRows(`nrg-pending-contacts-${todayStamp()}.xlsx`, rows, "Pending Contacts");
   };
 
   if (statType === "assigned") {
@@ -3496,7 +3477,7 @@ export async function initReceptionAnalytics() {
     document.getElementById("reception-analytics-run-btn").addEventListener("click", run);
     document.getElementById("reception-analytics-export-btn").addEventListener("click", () => {
       const table = document.getElementById("reception-analytics-attendance-body").closest("table");
-      exportTableToExcel(table, `nrg-reception-analytics-${todayStamp()}.xlsx`);
+      exportTableToExcel(table, `nrg-reception-analytics-${todayStamp()}.xlsx`, "Reception Analytics");
     });
     initHorizontalScroll("reception-analytics-attendance-table-wrap");
 

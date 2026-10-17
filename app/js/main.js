@@ -15,6 +15,56 @@ import * as Donations from "./donations.js";
 import * as Expenses from "./expenses.js";
 import * as Yatras from "./yatras.js";
 import * as LimitedAccess from "./limitedAccess.js";
+import { addDownloadButtons } from "./exportDoc.js";
+
+// Every data table that doesn't already have its own export button gets a "⬇ Download"
+// (preview → Excel / PDF). Tables with a toolbar Export button use the same flow.
+addDownloadButtons([
+  { table: "analytics-cultivation-table", title: "Core Cultivation Health" },
+  { table: "one-to-one-table", title: "One to One" },
+  { table: "sadhana-table", title: "Sadhana Entries" },
+  { table: "sadhana-users-table", title: "Sadhana Users" },
+  { body: "sbc-recent-body", title: "SB Classes - Recent Classes" },
+  { table: "sbc-daily-table", title: "SB Classes - Daily List" },
+  { table: "sbc-rec-history-table", title: "SB Classes - Recommendations" },
+  { table: "sbc-doubts-table", title: "SB Classes - Doubts" },
+  { table: "donations-dashboard-table", title: "Donations Dashboard" },
+  { table: "donations-tx-table", title: "Donation Transactions" },
+  { table: "donations-ev-table", title: "Donation Events" },
+  { table: "my-inward-table", title: "My Inward Stock" },
+  { table: "my-outward-table", title: "My Outward Stock" },
+  { table: "my-requests-table", title: "My Book Requests" },
+  { table: "bs-realise-table", title: "Tirtha Nidhi Realise" },
+  { table: "book-places-user-table", title: "Distribution Places" },
+  { table: "book-events-user-table", title: "Book Events" },
+  { table: "commander-table", title: "Commander" },
+  { body: "collection-submissions-body", title: "Contact Collection" },
+  { table: "collection-submissions-admin-table", title: "New Contacts" },
+  { table: "form-import-entries-table", title: "Form Import Entries" },
+  { body: "reception-attendance-body", title: "Reception Attendance" },
+  { body: "one-to-one-user-questions-body", title: "One to One Questions" },
+  { table: "fsu-daily-table", title: "Sadhana Daily List" },
+  { table: "fsu-rec-table", title: "Sadhana Recommendations" },
+  { table: "fsu-doubts-table", title: "Sadhana Doubts" },
+  { table: "general-data-table", title: "General Data" },
+  { table: "followup-data-table", title: "Follow-up Data" },
+  { table: "cc-general-data-table", title: "Core Cultivation General Data" },
+  { table: "bs-general-data-table", title: "Tirtha Nidhi General Data" },
+  { table: "ba-general-data-table", title: "Book Analytics General Data" },
+  { table: "donation-analytics-detail-table", title: "Donation Details" },
+  { body: "donation-donor-detail-body", title: "Donor Transactions" },
+  { table: "sadhana-analytics-detail-table", title: "Sadhana Details" },
+  { table: "book-dashboard-detail-table", title: "Book Dashboard Details" },
+  { table: "help-requests-table", title: "Help Requests" },
+  { table: "remarks-table", title: "Remarks" },
+  { table: "bs-tapasya-table", title: "Tapasya" },
+  { table: "bs-redeem-my-table", title: "My Redeem Requests" },
+  { table: "bs-redeem-requests-table", title: "Redeem Requests" },
+  { table: "bs-user-contribution-table", title: "User Contributions" },
+  { body: "et-budget-history-body", title: "Trip Budget History" },
+  { body: "ep-budget-history-body", title: "Preaching Budget History" },
+  { body: "er-budget-history-body", title: "Residency Budget History" },
+]);
 
 // Mouse-wheel scrolling over a focused number input silently changes its
 // value (e.g. a quantity) — blur it so the wheel just scrolls the page.
@@ -144,6 +194,7 @@ const YATRA_PAGE_TABS = {
   "yatras-checklist": "checklist",
   "yatras-itinerary": "itinerary",
   "yatras-accommodation": "accommodation",
+  "yatras-services": "services",
   "yatras-disposables": "disposables",
   "yatras-cooking": "cooking",
   "yatras-feedback": "feedback",

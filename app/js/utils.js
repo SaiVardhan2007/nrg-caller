@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient.js";
+import { downloadTable, downloadRows } from "./exportDoc.js";
 
 export function formatPhone(mob) {
   const d = String(mob || "").replace(/\D/g, "");
@@ -270,19 +271,14 @@ export function downloadExcel(filename, rows, sheetName = "Sheet1") {
   XLSX.writeFile(wb, filename);
 }
 
-// exports a rendered <table class="data-table"> as-is (header labels + current cell text) —
-// used for read-only/computed views where there's no separate underlying data array to export from.
-export function exportTableToExcel(table, filename) {
-  const rows = [];
-  rows.push(Array.from(table.querySelectorAll("thead th:not(.no-export)")).map((th) => (th.querySelector(".th-label") || th).textContent.trim()));
-  table.querySelectorAll("tbody tr").forEach((tr) => {
-    rows.push(Array.from(tr.children).filter((td) => !td.classList.contains("no-export")).map((td) => {
-      const field = td.querySelector("input, select");
-      if (field) return field.value;
-      return td.textContent.trim();
-    }));
-  });
-  downloadExcel(filename, rows);
+// Opens the shared download preview (Excel / PDF) for a rendered table — see exportDoc.js.
+export function exportTableToExcel(table, filename, title) {
+  downloadTable(table, filename, title);
+}
+
+// Same, for data already in array-of-arrays form (first row = headers).
+export function exportRows(filename, rows, title) {
+  downloadRows(filename, rows, title);
 }
 
 // minimal RFC4180-ish CSV parser: handles quoted fields with embedded commas/newlines/escaped quotes.

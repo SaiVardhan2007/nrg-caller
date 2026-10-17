@@ -806,7 +806,7 @@ async function wireDonationAnalyticsFilters() {
   document.getElementById("da-run-btn").addEventListener("click", runDonationAnalytics);
   document.getElementById("da-sort").addEventListener("change", refreshDonationLeaderboardView);
   document.getElementById("da-export-btn").addEventListener("click", () => {
-    exportTableToExcel(document.getElementById("da-leaderboard-table"), "FNRG_Donations_Analytics.xlsx");
+    exportTableToExcel(document.getElementById("da-leaderboard-table"), "FNRG_Donations_Analytics.xlsx", "Donations Analytics");
   });
 
   // Mobile: tapping a row (not the View button) expands it in place to
