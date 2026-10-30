@@ -427,15 +427,23 @@ function createExpenseCategory({ table, prefix, sectionId, tableId, tbodyId, mod
     tbody.innerHTML = rows.map((r, idx) => `
       <tr data-id="${r.id}">
         <td data-label="S.No">${idx + 1}</td>
-        <td data-label="Date">${r.transaction_date || ""}</td>
-        <td data-label="Description">${escapeHtml(r.description || "")}</td>
-        <td data-label="Amount">${fmtMoney(r.amount)}</td>
-        <td data-label="Added By">${escapeHtml(r.added_by || "")}</td>
+        <td data-label="Date"><input class="inline-edit" type="date" data-field="transaction_date" value="${r.transaction_date || ""}" /></td>
+        <td data-label="Description"><input class="inline-edit" data-field="description" value="${escapeHtml(r.description || "")}" /></td>
+        <td data-label="Amount"><input class="inline-edit" type="number" min="0" step="0.01" data-field="amount" value="${r.amount ?? ""}" /></td>
+        <td data-label="Added By"><input class="inline-edit" data-field="added_by" value="${escapeHtml(r.added_by || "")}" /></td>
         <td data-label="">
           <button type="button" class="cell-chip danger budget-delete-btn" title="Delete">🗑 Delete</button>
         </td>
       </tr>
     `).join("");
+
+    wireInlineEditCells(tbody, "budget_transactions", budgetCache, {
+      numberFields: ["amount"],
+      requiredFields: ["transaction_date", "description", "amount"],
+    }, () => {
+      budget = budgetCache.reduce((s, r) => s + (r.amount || 0), 0);
+      updateStats();
+    });
 
     tbody.querySelectorAll(".budget-delete-btn").forEach((btn) => {
       btn.addEventListener("click", () => deleteBudgetRow(btn.closest("tr").dataset.id));
