@@ -4066,12 +4066,7 @@ function wireBsTapasyaModal() {
   };
 }
 
-/* ---- Tirtha Nidhi: redeem requests (user submits, admin approves) ---- */
-function redeemStatusLabel(status) {
-  if (status === "approved") return "✅ Approved";
-  if (status === "rejected") return "❌ Rejected";
-  return "⏳ Pending";
-}
+/* ---- Tirtha Nidhi: remaining-balance helper (used by admin Withdraw) ---- */
 
 // A distributor's own Srila Prabhupada's Contribution (same math as the
 // stats bar) minus whatever of it has already been approved-redeemed or is
@@ -4112,209 +4107,6 @@ async function computeUserRedeemAvailability(userName, { includePending = true }
   return { available: contribution - redeemedApproved - (includePending ? redeemedPending : 0) };
 }
 
-async function openRedeemModal(currentUser) {
-  const modal = document.getElementById("bs-redeem-modal");
-  const errorEl = document.getElementById("bs-redeem-error");
-  errorEl.classList.add("hidden");
-  document.getElementById("bs-redeem-amount").value = "";
-  document.getElementById("bs-redeem-available").textContent = "…";
-  const bodyEl = document.getElementById("bs-redeem-my-body");
-  bodyEl.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
-  modal.classList.add("active");
-
-  const [{ available }, { data: myRequests }] = await Promise.all([
-    computeUserRedeemAvailability(currentUser.user_name),
-    supabase.from("tirtha_nidhi_redeem_requests").select("requested_at, requested_amount, approved_amount, status").eq("user_name", currentUser.user_name).order("requested_at", { ascending: false }),
-  ]);
-
-  document.getElementById("bs-redeem-available").textContent = fmtMoney(Math.max(0, available));
-
-  bodyEl.innerHTML = (myRequests || []).length
-    ? myRequests.map((r, idx) => `
-        <tr>
-          <td>${idx + 1}</td>
-          <td>${escapeHtml((r.requested_at || "").slice(0, 10))}</td>
-          <td>${fmtMoney(r.requested_amount)}</td>
-          <td>${r.status === "approved" ? fmtMoney(r.approved_amount) : "—"}</td>
-          <td>${redeemStatusLabel(r.status)}</td>
-        </tr>`).join("")
-    : `<tr><td colspan="5" class="muted-text">No redeem requests yet.</td></tr>`;
-}
-
-let redeemModalWired = false;
-function wireRedeemModal(currentUser, onSaved) {
-  if (redeemModalWired) return;
-  redeemModalWired = true;
-
-  const modal = document.getElementById("bs-redeem-modal");
-  const errorEl = document.getElementById("bs-redeem-error");
-
-  document.getElementById("bs-redeem-btn").onclick = () => openRedeemModal(currentUser);
-  document.getElementById("bs-redeem-cancel-btn").onclick = () => modal.classList.remove("active");
-  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
-
-  let redeemSaveInFlight = false;
-  document.getElementById("bs-redeem-save-btn").onclick = async () => {
-    if (redeemSaveInFlight) return;
-    errorEl.classList.add("hidden");
-    const amount = Number(document.getElementById("bs-redeem-amount").value);
-    if (!amount || amount <= 0) {
-      errorEl.textContent = "Please enter an amount.";
-      errorEl.classList.remove("hidden");
-      return;
-    }
-
-    // Close the modal the instant a valid amount is submitted, before either
-    // network call — leaving it open during the round trip let a second tap
-    // (or an impatient double-click) fire the same request again.
-    redeemSaveInFlight = true;
-    modal.classList.remove("active");
-
-    const { available } = await computeUserRedeemAvailability(currentUser.user_name);
-    if (amount > available) {
-      showToast(`You can redeem up to ${fmtMoney(Math.max(0, available))}.`, "error");
-      redeemSaveInFlight = false;
-      return;
-    }
-
-    const { error } = await supabase.from("tirtha_nidhi_redeem_requests").insert({
-      user_name: currentUser.user_name,
-      requested_amount: amount,
-    });
-    redeemSaveInFlight = false;
-    if (error) {
-      showToast(error.message, "error");
-      return;
-    }
-    showToast("Redeem request submitted", "success");
-    if (onSaved) await onSaved();
-  };
-}
-
-/* ---- Tirtha Nidhi: admin approval queue for redeem requests ---- */
-let redeemRequestsCache = [];
-let redeemRemainingByUser = new Map(); // user -> current remaining (contribution − approved)
-let redeemRequestsModalWired = false;
-
-// Every column here is directly editable by an admin (unlike the read-only
-// "My Redeem Requests" table users see) — Date/User/Requested/Approved use
-// the shared inline-edit wiring below, Status gets its own handler since
-// changing it also stamps reviewed_by/reviewed_at and defaults Approved
-// Amount to the requested amount the first time a request is approved.
-function renderRedeemRequestsRows(rows) {
-  const tbody = document.getElementById("bs-redeem-requests-body");
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="muted-text">No redeem requests found.</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = rows.map((r, idx) => `
-    <tr data-id="${r.id}">
-      <td data-label="S.No">${idx + 1}</td>
-      <td data-label="Date"><input type="date" class="inline-edit redeem-date-input" value="${escapeHtml((r.requested_at || "").slice(0, 10))}" /></td>
-      <td data-label="User"><input class="inline-edit" data-field="user_name" value="${escapeHtml(r.user_name || "")}" /></td>
-      <td data-label="Requested Amount"><input type="number" min="0" step="1" class="inline-edit" data-field="requested_amount" value="${r.requested_amount ?? ""}" /></td>
-      <td data-label="Approved Amount"><input type="number" min="0" step="1" class="inline-edit redeem-approved-input" data-field="approved_amount" value="${r.approved_amount ?? ""}" /></td>
-      <td data-label="Status">
-        <select class="inline-edit redeem-status-select">
-          <option value="pending"${r.status === "pending" ? " selected" : ""}>⏳ Pending</option>
-          <option value="approved"${r.status === "approved" ? " selected" : ""}>✅ Approved</option>
-          <option value="rejected"${r.status === "rejected" ? " selected" : ""}>❌ Rejected</option>
-        </select>
-      </td>
-      <td data-label="Remaining">${redeemRemainingByUser.has(r.user_name) ? fmtMoney(redeemRemainingByUser.get(r.user_name)) : "—"}</td>
-    </tr>
-  `).join("");
-
-  tbody.querySelectorAll(".redeem-date-input").forEach((input) => {
-    input.addEventListener("change", async (e) => {
-      const id = e.target.closest("tr").dataset.id;
-      const record = redeemRequestsCache.find((x) => x.id === id);
-      const raw = e.target.value;
-      if (!raw) {
-        e.target.value = (record?.requested_at || "").slice(0, 10);
-        return;
-      }
-      const { error } = await supabase.from("tirtha_nidhi_redeem_requests").update({ requested_at: raw }).eq("id", id);
-      if (error) {
-        showToast("Update failed: " + error.message, "error");
-        e.target.value = (record?.requested_at || "").slice(0, 10);
-        return;
-      }
-      if (record) record.requested_at = raw;
-    });
-  });
-  tbody.querySelectorAll(".redeem-status-select").forEach((select) => {
-    select.addEventListener("change", (e) => updateRedeemStatus(e.target));
-  });
-  wireInlineEditCells(tbody, "tirtha_nidhi_redeem_requests", redeemRequestsCache, {
-    numberFields: ["requested_amount", "approved_amount"],
-    requiredFields: ["user_name", "requested_amount"],
-  });
-}
-
-async function updateRedeemStatus(selectEl) {
-  const id = selectEl.closest("tr").dataset.id;
-  const record = redeemRequestsCache.find((x) => x.id === id);
-  const newStatus = selectEl.value;
-
-  const patch = {
-    status: newStatus,
-    reviewed_by: currentSavingsUser?.user_name || null,
-    reviewed_at: new Date().toISOString(),
-  };
-  if (newStatus === "approved" && (record?.approved_amount == null)) {
-    patch.approved_amount = record?.requested_amount || 0;
-  }
-
-  const { error } = await supabase.from("tirtha_nidhi_redeem_requests").update(patch).eq("id", id);
-  if (error) {
-    showToast("Update failed: " + error.message, "error");
-    selectEl.value = record?.status || "pending";
-    return;
-  }
-  showToast(`Marked ${redeemStatusLabel(newStatus)}`, "success");
-  await loadRedeemRequests();
-}
-
-function applyRedeemRequestsFilter() {
-  const filter = document.getElementById("bs-redeem-req-filter")?.value ?? "pending";
-  const rows = filter === "__ALL__" ? redeemRequestsCache : redeemRequestsCache.filter((r) => r.status === filter);
-  renderRedeemRequestsRows(rows);
-}
-
-async function loadRedeemRequests() {
-  const tbody = document.getElementById("bs-redeem-requests-body");
-  tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Loading…</td></tr>`;
-  const { data, error } = await supabase
-    .from("tirtha_nidhi_redeem_requests")
-    .select("id, requested_at, user_name, requested_amount, approved_amount, status")
-    .order("requested_at", { ascending: false });
-  if (error) {
-    tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Could not load redeem requests.</td></tr>`;
-    return;
-  }
-  redeemRequestsCache = data || [];
-  redeemRemainingByUser = new Map();
-  const users = [...new Set(redeemRequestsCache.map((r) => r.user_name))];
-  const avail = await Promise.all(users.map((u) => computeUserRedeemAvailability(u, { includePending: false })));
-  users.forEach((u, i) => redeemRemainingByUser.set(u, avail[i].available));
-  applyRedeemRequestsFilter();
-}
-
-function wireRedeemRequestsModal() {
-  if (redeemRequestsModalWired) return;
-  redeemRequestsModalWired = true;
-  const modal = document.getElementById("bs-redeem-requests-modal");
-  document.getElementById("bs-redeem-requests-close").onclick = () => modal.classList.remove("active");
-  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
-  document.getElementById("bs-redeem-req-filter").addEventListener("change", applyRedeemRequestsFilter);
-
-  document.getElementById("bs-redeem-requests-btn").onclick = async () => {
-    modal.classList.add("active");
-    await loadRedeemRequests();
-  };
-}
-
 /* ---- Tirtha Nidhi: withdrawals list behind the Remaining card (editable for Admin) ---- */
 let withdrawalsCache = [];
 let withdrawalsModalWired = false;
@@ -4339,9 +4131,9 @@ function wireWithdrawalsModal(currentUser, onChanged) {
       "Tīrtha Nidhi — Withdrawals" + (sel === "__ALL__" ? "" : ` (${sel})`);
     document.getElementById("bs-withdrawals-remaining").textContent =
       document.getElementById("bs-total-remaining")?.textContent || "—";
-    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Could not load withdrawals.</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Could not load withdrawals.</td></tr>`; return; }
     withdrawalsCache = data || [];
-    if (!withdrawalsCache.length) { tbody.innerHTML = `<tr><td colspan="5" class="muted-text">No withdrawals yet.</td></tr>`; return; }
+    if (!withdrawalsCache.length) { tbody.innerHTML = `<tr><td colspan="6" class="muted-text">No withdrawals yet.</td></tr>`; return; }
     const dis = canEdit ? "" : " disabled";
     tbody.innerHTML = withdrawalsCache.map((r, i) => `
       <tr data-id="${r.id}">
@@ -4350,8 +4142,21 @@ function wireWithdrawalsModal(currentUser, onChanged) {
         <td data-label="User">${escapeHtml(r.user_name || "")}</td>
         <td data-label="Amount"><input type="number" min="0" step="1" class="inline-edit" data-field="approved_amount" value="${r.approved_amount ?? ""}"${dis} /></td>
         <td data-label="Reason"><input class="inline-edit" data-field="reason" value="${escapeHtml(r.reason || "")}"${dis} /></td>
+        <td>${canEdit ? `<button class="btn btn-danger btn-sm wd-delete" type="button" title="Delete withdrawal">🗑</button>` : ""}</td>
       </tr>`).join("");
     if (!canEdit) return;
+    tbody.querySelectorAll(".wd-delete").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.closest("tr").dataset.id;
+        const rec = withdrawalsCache.find((x) => x.id === id);
+        if (!confirm(`Delete this withdrawal of ${fmtMoney(rec?.approved_amount || 0)} for ${rec?.user_name || ""}? The amount will be added back to Remaining.`)) return;
+        const { error: err } = await supabase.from("tirtha_nidhi_redeem_requests").delete().eq("id", id);
+        if (err) { showToast("Delete failed: " + err.message, "error"); return; }
+        showToast("Withdrawal deleted", "success");
+        await onChanged();
+        await load();
+      });
+    });
     tbody.querySelectorAll(".wd-date").forEach((input) => {
       input.addEventListener("change", async (e) => {
         const id = e.target.closest("tr").dataset.id;
@@ -4369,7 +4174,7 @@ function wireWithdrawalsModal(currentUser, onChanged) {
   };
   document.getElementById("bs-remaining-card").onclick = async () => {
     modal.classList.add("active");
-    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
     await load();
   };
   withdrawalsModalWired = { reload: load };
@@ -4728,7 +4533,6 @@ export async function initSavingsPanel(currentUser) {
   wireDashboardDetailModal();
   if (isAdmin) wireBsGeneralDataModal();
   if (isAdmin) wireBsTapasyaModal();
-  if (isAdmin) wireRedeemRequestsModal();
   wireWithdrawalsModal(currentUser, renderSavingsPanel);
   const isFullAdmin = currentUser.role === "Admin";
   document.getElementById("bs-withdraw-btn")?.classList.toggle("hidden", !isFullAdmin);
@@ -4736,7 +4540,6 @@ export async function initSavingsPanel(currentUser) {
     wireWithdrawModal(async () => {
       await renderSavingsPanel();
       if (document.getElementById("bs-withdrawals-modal")?.classList.contains("active")) await withdrawalsModalWired.reload();
-      if (document.getElementById("bs-redeem-requests-modal")?.classList.contains("active")) await loadRedeemRequests();
     });
   }
   wireBsUserContributionModal();
@@ -4744,12 +4547,6 @@ export async function initSavingsPanel(currentUser) {
     await renderSavingsPanel();
     if (isAdmin) await initContributionsAdminTable();
   });
-  document.getElementById("bs-redeem-btn")?.classList.toggle("hidden", isAdmin);
-  if (!isAdmin) {
-    wireRedeemModal(currentUser, async () => {
-      await renderSavingsPanel();
-    });
-  }
   document.getElementById("bs-my-contribution-card").onclick = () => {
     const scopeSel = isAdmin ? (document.getElementById("bs-stats-user-select")?.value || "__ALL__") : currentUser.user_name;
     openMyContributionsPopup(scopeSel === "__ALL__" ? null : scopeSel, scopeSel === "__ALL__");

@@ -2473,7 +2473,6 @@
             <button id="bsc-export-btn" class="btn btn-secondary toolbar-btn">⬇ Download</button>
             <button id="bs-general-data-btn" class="btn btn-secondary toolbar-btn">📊 General Data</button>
             <button id="bs-tapasya-btn" class="btn btn-secondary toolbar-btn">🙏 Tapasya</button>
-            <button id="bs-redeem-requests-btn" class="btn btn-secondary toolbar-btn">💰 Redeem Requests</button>
             <button id="bs-withdraw-btn" class="btn btn-secondary toolbar-btn hidden">➖ Withdraw</button>
             <button id="bsc-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
           </div>
@@ -2492,7 +2491,6 @@
 
           <div class="panel-row book-stock-add-row">
             <button id="add-book-contribution-btn" class="btn btn-primary btn-sm">+ Add Contribution</button>
-            <button id="bs-redeem-btn" class="btn btn-secondary btn-sm hidden">💰 Redeem</button>
           </div>
 
           <div class="hidden" id="bsc-all-table-panel">
@@ -4704,26 +4702,6 @@
   </div>
 </div>
 
-<div id="bs-redeem-modal" class="modal">
-  <div class="modal-box">
-    <h3>Redeem from Srila Prabhupada's Contribution</h3>
-    <p class="muted-text">Available to redeem: <strong id="bs-redeem-available">₹0</strong></p>
-    <label class="field"><span>Amount</span><input id="bs-redeem-amount" type="number" min="0" step="0.01" /></label>
-    <div id="bs-redeem-error" class="field-error hidden"></div>
-    <div class="modal-actions">
-      <button id="bs-redeem-cancel-btn" class="btn btn-secondary">Cancel</button>
-      <button id="bs-redeem-save-btn" class="btn btn-primary">Submit Request</button>
-    </div>
-    <h3 class="section-title">My Redeem Requests</h3>
-    <div class="table-wrap h-220">
-      <table class="data-table" id="bs-redeem-my-table">
-        <thead><tr><th>S.No</th><th>Date</th><th>Requested Amount</th><th>Approved Amount</th><th>Status</th></tr></thead>
-        <tbody id="bs-redeem-my-body"><tr><td colspan="5" class="loading-row">Loading…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
 <div id="bs-withdraw-modal" class="modal">
   <div class="modal-box">
     <h3>Withdraw Tīrtha Nidhi</h3>
@@ -4745,39 +4723,11 @@
     <p class="muted-text">Remaining: <strong id="bs-withdrawals-remaining">—</strong></p>
     <div class="table-wrap">
       <table class="data-table" id="bs-withdrawals-table">
-        <thead><tr><th>S.No</th><th>Date</th><th>User</th><th>Amount</th><th>Reason</th></tr></thead>
-        <tbody id="bs-withdrawals-body"><tr><td colspan="5" class="loading-row">Loading…</td></tr></tbody>
+        <thead><tr><th>S.No</th><th>Date</th><th>User</th><th>Amount</th><th>Reason</th><th></th></tr></thead>
+        <tbody id="bs-withdrawals-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
       </table>
     </div>
     <div class="modal-actions"><button id="bs-withdrawals-close" class="btn btn-secondary">Close</button></div>
-  </div>
-</div>
-
-<div id="bs-redeem-requests-modal" class="modal">
-  <div class="modal-box modal-large" id="bs-redeem-requests-modal-box">
-    <div class="modal-title-row">
-      <h3>Tīrtha Nidhi — Redeem Requests</h3>
-    </div>
-    <div class="panel-row">
-      <label class="field inline">
-        <span>Status</span>
-        <select id="bs-redeem-req-filter" class="inline-edit">
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="__ALL__">All</option>
-        </select>
-      </label>
-    </div>
-    <div class="table-wrap" id="bs-redeem-requests-table-wrap">
-      <table class="data-table" id="bs-redeem-requests-table">
-        <thead><tr><th>S.No</th><th>Date</th><th>User</th><th>Requested Amount</th><th>Approved Amount</th><th>Status</th><th>Remaining</th></tr></thead>
-        <tbody id="bs-redeem-requests-body"><tr><td colspan="7" class="loading-row">Loading…</td></tr></tbody>
-      </table>
-    </div>
-    <div class="modal-actions">
-      <button id="bs-redeem-requests-close" class="btn btn-secondary">Close</button>
-    </div>
   </div>
 </div>
 

@@ -59,8 +59,6 @@ addDownloadButtons([
   { table: "help-requests-table", title: "Help Requests" },
   { table: "remarks-table", title: "Remarks" },
   { table: "bs-tapasya-table", title: "Tapasya" },
-  { table: "bs-redeem-my-table", title: "My Redeem Requests" },
-  { table: "bs-redeem-requests-table", title: "Redeem Requests" },
   { table: "bs-user-contribution-table", title: "User Contributions" },
   { body: "et-budget-history-body", title: "Trip Budget History" },
   { body: "ep-budget-history-body", title: "Preaching Budget History" },
