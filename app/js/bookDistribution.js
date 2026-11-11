@@ -3672,12 +3672,14 @@ async function renderSavingsPanel() {
     { data: outwardData, error: outError },
     { data: inwardData },
     { data: contributionsData },
-    tirthaNidhiRates
+    tirthaNidhiRates,
+    redeemedByUser
   ] = await Promise.all([
     fetchAllPages(() => outwardQuery),
     fetchAllPages(() => supabase.from("book_inward_stock").select("name, language, purchase_price, quantity")),
     contributionsQuery,
-    fetchTirthaNidhiRates()
+    fetchTirthaNidhiRates(),
+    fetchApprovedRedeemedByUser()
   ]);
 
   if (outError) {
@@ -3725,6 +3727,12 @@ async function renderSavingsPanel() {
     netEl.textContent = fmtMoney(netProfit);
     netEl.style.color = netProfit < 0 ? "#dc2626" : netProfit > 0 ? "#16a34a" : "var(--text-main, #111)";
   }
+
+  const redeemedTotal = isOrgWide
+    ? [...redeemedByUser.values()].reduce((a, b) => a + b, 0)
+    : (redeemedByUser.get(scopeUser) || 0);
+  const remainingEl = document.getElementById("bs-total-remaining");
+  if (remainingEl) remainingEl.textContent = fmtMoney(netProfit - redeemedTotal);
 
   const myContributionEl = document.getElementById("bs-total-mycontribution");
   if (myContributionEl) myContributionEl.textContent = fmtMoney(totalMyContribution);
@@ -4069,7 +4077,7 @@ function redeemStatusLabel(status) {
 // stats bar) minus whatever of it has already been approved-redeemed or is
 // still awaiting a decision, so they can never request more than is really
 // left.
-async function computeUserRedeemAvailability(userName) {
+async function computeUserRedeemAvailability(userName, { includePending = true } = {}) {
   const [{ data: outwardData }, { data: inwardData }, { data: redeemData }, tirthaNidhiRates] = await Promise.all([
     fetchAllPages(() => supabase.from("book_outward_stock").select("name, language, sold_price, quantity, sold_by").eq("sold_by", userName)),
     fetchAllPages(() => supabase.from("book_inward_stock").select("name, language, purchase_price, quantity")),
@@ -4101,7 +4109,7 @@ async function computeUserRedeemAvailability(userName) {
   const redeemedApproved = (redeemData || []).filter((r) => r.status === "approved").reduce((s, r) => s + (r.approved_amount || 0), 0);
   const redeemedPending = (redeemData || []).filter((r) => r.status === "pending").reduce((s, r) => s + (r.requested_amount || 0), 0);
 
-  return { available: contribution - redeemedApproved - redeemedPending };
+  return { available: contribution - redeemedApproved - (includePending ? redeemedPending : 0) };
 }
 
 async function openRedeemModal(currentUser) {
@@ -4185,6 +4193,7 @@ function wireRedeemModal(currentUser, onSaved) {
 
 /* ---- Tirtha Nidhi: admin approval queue for redeem requests ---- */
 let redeemRequestsCache = [];
+let redeemRemainingByUser = new Map(); // user -> current remaining (contribution − approved)
 let redeemRequestsModalWired = false;
 
 // Every column here is directly editable by an admin (unlike the read-only
@@ -4195,7 +4204,7 @@ let redeemRequestsModalWired = false;
 function renderRedeemRequestsRows(rows) {
   const tbody = document.getElementById("bs-redeem-requests-body");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="muted-text">No redeem requests found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="muted-text">No redeem requests found.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => `
@@ -4212,6 +4221,7 @@ function renderRedeemRequestsRows(rows) {
           <option value="rejected"${r.status === "rejected" ? " selected" : ""}>❌ Rejected</option>
         </select>
       </td>
+      <td data-label="Remaining">${redeemRemainingByUser.has(r.user_name) ? fmtMoney(redeemRemainingByUser.get(r.user_name)) : "—"}</td>
     </tr>
   `).join("");
 
@@ -4274,16 +4284,20 @@ function applyRedeemRequestsFilter() {
 
 async function loadRedeemRequests() {
   const tbody = document.getElementById("bs-redeem-requests-body");
-  tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Loading…</td></tr>`;
   const { data, error } = await supabase
     .from("tirtha_nidhi_redeem_requests")
     .select("id, requested_at, user_name, requested_amount, approved_amount, status")
     .order("requested_at", { ascending: false });
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Could not load redeem requests.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="loading-row">Could not load redeem requests.</td></tr>`;
     return;
   }
   redeemRequestsCache = data || [];
+  redeemRemainingByUser = new Map();
+  const users = [...new Set(redeemRequestsCache.map((r) => r.user_name))];
+  const avail = await Promise.all(users.map((u) => computeUserRedeemAvailability(u, { includePending: false })));
+  users.forEach((u, i) => redeemRemainingByUser.set(u, avail[i].available));
   applyRedeemRequestsFilter();
 }
 
@@ -4298,6 +4312,67 @@ function wireRedeemRequestsModal() {
   document.getElementById("bs-redeem-requests-btn").onclick = async () => {
     modal.classList.add("active");
     await loadRedeemRequests();
+  };
+}
+
+/* ---- Tirtha Nidhi: admin withdrawal (recorded as an already-approved entry) ---- */
+let withdrawModalWired = false;
+function wireWithdrawModal(onSaved) {
+  if (withdrawModalWired) return;
+  withdrawModalWired = true;
+  const modal = document.getElementById("bs-withdraw-modal");
+  const userSel = document.getElementById("bs-withdraw-user");
+  const availEl = document.getElementById("bs-withdraw-available");
+  const amountEl = document.getElementById("bs-withdraw-amount");
+  const dateEl = document.getElementById("bs-withdraw-date");
+  const refreshAvail = async () => {
+    availEl.textContent = "…";
+    if (!userSel.value) { availEl.textContent = "—"; return; }
+    const { available } = await computeUserRedeemAvailability(userSel.value);
+    availEl.textContent = fmtMoney(available);
+  };
+  userSel.addEventListener("change", refreshAvail);
+  document.getElementById("bs-withdraw-cancel-btn").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  document.getElementById("bs-withdraw-btn").onclick = async () => {
+    amountEl.value = "";
+    dateEl.value = new Date().toISOString().slice(0, 10);
+    const { data: coordinators } = await supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name");
+    userSel.innerHTML = (coordinators || []).map((u) => `<option value="${escapeHtml(u.user_name)}">${escapeHtml(u.user_name)}</option>`).join("");
+    modal.classList.add("active");
+    refreshAvail();
+  };
+
+  let inFlight = false;
+  document.getElementById("bs-withdraw-save-btn").onclick = async () => {
+    if (inFlight) return;
+    const userName = userSel.value;
+    const amount = Number(amountEl.value);
+    if (!userName) { showToast("Choose a distributor", "error"); return; }
+    if (!Number.isFinite(amount) || amount <= 0) { showToast("Enter a valid amount", "error"); return; }
+    inFlight = true;
+    const { available } = await computeUserRedeemAvailability(userName);
+    if (amount > available) {
+      showToast(`Only ${fmtMoney(Math.max(0, available))} remaining for ${userName}.`, "error");
+      inFlight = false;
+      return;
+    }
+    const now = new Date().toISOString();
+    const { error } = await supabase.from("tirtha_nidhi_redeem_requests").insert({
+      user_name: userName,
+      requested_amount: amount,
+      approved_amount: amount,
+      status: "approved",
+      requested_at: dateEl.value || now,
+      reviewed_by: currentSavingsUser?.user_name || null,
+      reviewed_at: now,
+    });
+    inFlight = false;
+    if (error) { showToast("Withdraw failed: " + error.message, "error"); return; }
+    modal.classList.remove("active");
+    showToast("Withdrawal recorded", "success");
+    await onSaved();
   };
 }
 
@@ -4592,6 +4667,14 @@ export async function initSavingsPanel(currentUser) {
   if (isAdmin) wireBsGeneralDataModal();
   if (isAdmin) wireBsTapasyaModal();
   if (isAdmin) wireRedeemRequestsModal();
+  const isFullAdmin = currentUser.role === "Admin";
+  document.getElementById("bs-withdraw-btn")?.classList.toggle("hidden", !isFullAdmin);
+  if (isFullAdmin) {
+    wireWithdrawModal(async () => {
+      await renderSavingsPanel();
+      if (document.getElementById("bs-redeem-requests-modal")?.classList.contains("active")) await loadRedeemRequests();
+    });
+  }
   wireBsUserContributionModal();
   wireContributionModal(currentUser, async () => {
     await renderSavingsPanel();

@@ -2474,6 +2474,7 @@
             <button id="bs-general-data-btn" class="btn btn-secondary toolbar-btn">📊 General Data</button>
             <button id="bs-tapasya-btn" class="btn btn-secondary toolbar-btn">🙏 Tapasya</button>
             <button id="bs-redeem-requests-btn" class="btn btn-secondary toolbar-btn">💰 Redeem Requests</button>
+            <button id="bs-withdraw-btn" class="btn btn-secondary toolbar-btn hidden">➖ Withdraw</button>
             <button id="bsc-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
           </div>
         </div>
@@ -2486,6 +2487,7 @@
             <div class="stat stat-total"><span id="bs-total-grand" class="stat-num">₹0</span><span class="stat-label">Total</span></div>
             <div id="bs-my-contribution-card" class="stat stat-positive cursor-pointer" title="Tap to view all your submissions"><span id="bs-total-mycontribution" class="stat-num">₹0</span><span class="stat-label">My Contribution</span></div>
             <div id="bs-net-profit-card" class="stat stat-assigned cursor-pointer" title="Tap to view book-wise details"><span id="bs-total-net" class="stat-num">₹0</span><span class="stat-label">Srila Prabhupada's Contribution</span></div>
+            <div class="stat stat-positive"><span id="bs-total-remaining" class="stat-num">₹0</span><span class="stat-label">Remaining (after withdrawals)</span></div>
           </div>
 
           <div class="panel-row book-stock-add-row">
@@ -4722,6 +4724,20 @@
   </div>
 </div>
 
+<div id="bs-withdraw-modal" class="modal">
+  <div class="modal-box">
+    <h3>Withdraw Tīrtha Nidhi</h3>
+    <label class="field"><span>Distributor</span><select id="bs-withdraw-user" class="inline-edit"></select></label>
+    <p class="muted-text">Remaining: <strong id="bs-withdraw-available">—</strong></p>
+    <label class="field"><span>Amount</span><input id="bs-withdraw-amount" type="number" min="0" step="1" /></label>
+    <label class="field"><span>Date</span><input id="bs-withdraw-date" type="date" /></label>
+    <div class="modal-actions">
+      <button id="bs-withdraw-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button id="bs-withdraw-save-btn" class="btn btn-primary">Withdraw</button>
+    </div>
+  </div>
+</div>
+
 <div id="bs-redeem-requests-modal" class="modal">
   <div class="modal-box modal-large" id="bs-redeem-requests-modal-box">
     <div class="modal-title-row">
@@ -4740,8 +4756,8 @@
     </div>
     <div class="table-wrap" id="bs-redeem-requests-table-wrap">
       <table class="data-table" id="bs-redeem-requests-table">
-        <thead><tr><th>S.No</th><th>Date</th><th>User</th><th>Requested Amount</th><th>Approved Amount</th><th>Status</th></tr></thead>
-        <tbody id="bs-redeem-requests-body"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
+        <thead><tr><th>S.No</th><th>Date</th><th>User</th><th>Requested Amount</th><th>Approved Amount</th><th>Status</th><th>Remaining</th></tr></thead>
+        <tbody id="bs-redeem-requests-body"><tr><td colspan="7" class="loading-row">Loading…</td></tr></tbody>
       </table>
     </div>
     <div class="modal-actions">
