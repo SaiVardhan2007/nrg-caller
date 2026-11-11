@@ -2487,7 +2487,7 @@
             <div class="stat stat-total"><span id="bs-total-grand" class="stat-num">₹0</span><span class="stat-label">Total</span></div>
             <div id="bs-my-contribution-card" class="stat stat-positive cursor-pointer" title="Tap to view all your submissions"><span id="bs-total-mycontribution" class="stat-num">₹0</span><span class="stat-label">My Contribution</span></div>
             <div id="bs-net-profit-card" class="stat stat-assigned cursor-pointer" title="Tap to view book-wise details"><span id="bs-total-net" class="stat-num">₹0</span><span class="stat-label">Srila Prabhupada's Contribution</span></div>
-            <div class="stat stat-positive"><span id="bs-total-remaining" class="stat-num">₹0</span><span class="stat-label">Remaining (after withdrawals)</span></div>
+            <div id="bs-remaining-card" class="stat stat-positive cursor-pointer" title="Tap to view / edit withdrawals"><span id="bs-total-remaining" class="stat-num">₹0</span><span class="stat-label">Remaining (after withdrawals)</span></div>
           </div>
 
           <div class="panel-row book-stock-add-row">
@@ -4730,11 +4730,26 @@
     <label class="field"><span>Distributor</span><select id="bs-withdraw-user" class="inline-edit"></select></label>
     <p class="muted-text">Remaining: <strong id="bs-withdraw-available">—</strong></p>
     <label class="field"><span>Amount</span><input id="bs-withdraw-amount" type="number" min="0" step="1" /></label>
+    <label class="field"><span>Reason for withdrawal</span><input id="bs-withdraw-reason" type="text" /></label>
     <label class="field"><span>Date</span><input id="bs-withdraw-date" type="date" /></label>
     <div class="modal-actions">
       <button id="bs-withdraw-cancel-btn" class="btn btn-secondary">Cancel</button>
       <button id="bs-withdraw-save-btn" class="btn btn-primary">Withdraw</button>
     </div>
+  </div>
+</div>
+
+<div id="bs-withdrawals-modal" class="modal">
+  <div class="modal-box modal-large">
+    <div class="modal-title-row"><h3 id="bs-withdrawals-title">Tīrtha Nidhi — Withdrawals</h3></div>
+    <p class="muted-text">Remaining: <strong id="bs-withdrawals-remaining">—</strong></p>
+    <div class="table-wrap">
+      <table class="data-table" id="bs-withdrawals-table">
+        <thead><tr><th>S.No</th><th>Date</th><th>User</th><th>Amount</th><th>Reason</th></tr></thead>
+        <tbody id="bs-withdrawals-body"><tr><td colspan="5" class="loading-row">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-actions"><button id="bs-withdrawals-close" class="btn btn-secondary">Close</button></div>
   </div>
 </div>
 

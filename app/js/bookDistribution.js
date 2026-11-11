@@ -4315,6 +4315,66 @@ function wireRedeemRequestsModal() {
   };
 }
 
+/* ---- Tirtha Nidhi: withdrawals list behind the Remaining card (editable for Admin) ---- */
+let withdrawalsCache = [];
+let withdrawalsModalWired = false;
+function wireWithdrawalsModal(currentUser, onChanged) {
+  if (withdrawalsModalWired) return;
+  withdrawalsModalWired = true;
+  const modal = document.getElementById("bs-withdrawals-modal");
+  const tbody = document.getElementById("bs-withdrawals-body");
+  const canEdit = currentUser.role === "Admin";
+  document.getElementById("bs-withdrawals-close").onclick = () => modal.classList.remove("active");
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+  const load = async () => {
+    const isAdminView = currentUser.role === "Admin" || currentUser.role === "Limited Admin";
+    const sel = isAdminView ? (document.getElementById("bs-stats-user-select")?.value || "__ALL__") : currentUser.user_name;
+    let q = supabase.from("tirtha_nidhi_redeem_requests")
+      .select("id, requested_at, user_name, approved_amount, reason")
+      .eq("status", "approved").order("requested_at", { ascending: false });
+    if (sel !== "__ALL__") q = q.eq("user_name", sel);
+    const { data, error } = await q;
+    document.getElementById("bs-withdrawals-title").textContent =
+      "Tīrtha Nidhi — Withdrawals" + (sel === "__ALL__" ? "" : ` (${sel})`);
+    document.getElementById("bs-withdrawals-remaining").textContent =
+      document.getElementById("bs-total-remaining")?.textContent || "—";
+    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Could not load withdrawals.</td></tr>`; return; }
+    withdrawalsCache = data || [];
+    if (!withdrawalsCache.length) { tbody.innerHTML = `<tr><td colspan="5" class="muted-text">No withdrawals yet.</td></tr>`; return; }
+    const dis = canEdit ? "" : " disabled";
+    tbody.innerHTML = withdrawalsCache.map((r, i) => `
+      <tr data-id="${r.id}">
+        <td data-label="S.No">${i + 1}</td>
+        <td data-label="Date"><input type="date" class="inline-edit wd-date" value="${escapeHtml((r.requested_at || "").slice(0, 10))}"${dis} /></td>
+        <td data-label="User">${escapeHtml(r.user_name || "")}</td>
+        <td data-label="Amount"><input type="number" min="0" step="1" class="inline-edit" data-field="approved_amount" value="${r.approved_amount ?? ""}"${dis} /></td>
+        <td data-label="Reason"><input class="inline-edit" data-field="reason" value="${escapeHtml(r.reason || "")}"${dis} /></td>
+      </tr>`).join("");
+    if (!canEdit) return;
+    tbody.querySelectorAll(".wd-date").forEach((input) => {
+      input.addEventListener("change", async (e) => {
+        const id = e.target.closest("tr").dataset.id;
+        const rec = withdrawalsCache.find((x) => x.id === id);
+        if (!e.target.value) { e.target.value = (rec?.requested_at || "").slice(0, 10); return; }
+        const { error: err } = await supabase.from("tirtha_nidhi_redeem_requests").update({ requested_at: e.target.value }).eq("id", id);
+        if (err) { showToast("Update failed: " + err.message, "error"); e.target.value = (rec?.requested_at || "").slice(0, 10); return; }
+        if (rec) rec.requested_at = e.target.value;
+      });
+    });
+    wireInlineEditCells(tbody, "tirtha_nidhi_redeem_requests", withdrawalsCache, {
+      numberFields: ["approved_amount"],
+      requiredFields: ["approved_amount"],
+    }, async () => { await onChanged(); document.getElementById("bs-withdrawals-remaining").textContent = document.getElementById("bs-total-remaining")?.textContent || "—"; });
+  };
+  document.getElementById("bs-remaining-card").onclick = async () => {
+    modal.classList.add("active");
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
+    await load();
+  };
+  withdrawalsModalWired = { reload: load };
+}
+
 /* ---- Tirtha Nidhi: admin withdrawal (recorded as an already-approved entry) ---- */
 let withdrawModalWired = false;
 function wireWithdrawModal(onSaved) {
@@ -4337,6 +4397,7 @@ function wireWithdrawModal(onSaved) {
 
   document.getElementById("bs-withdraw-btn").onclick = async () => {
     amountEl.value = "";
+    document.getElementById("bs-withdraw-reason").value = "";
     dateEl.value = new Date().toISOString().slice(0, 10);
     const { data: coordinators } = await supabase.from("users").select("user_name").eq("role", "Coordinator").order("user_name");
     userSel.innerHTML = (coordinators || []).map((u) => `<option value="${escapeHtml(u.user_name)}">${escapeHtml(u.user_name)}</option>`).join("");
@@ -4367,6 +4428,7 @@ function wireWithdrawModal(onSaved) {
       requested_at: dateEl.value || now,
       reviewed_by: currentSavingsUser?.user_name || null,
       reviewed_at: now,
+      reason: document.getElementById("bs-withdraw-reason").value.trim() || null,
     });
     inFlight = false;
     if (error) { showToast("Withdraw failed: " + error.message, "error"); return; }
@@ -4667,11 +4729,13 @@ export async function initSavingsPanel(currentUser) {
   if (isAdmin) wireBsGeneralDataModal();
   if (isAdmin) wireBsTapasyaModal();
   if (isAdmin) wireRedeemRequestsModal();
+  wireWithdrawalsModal(currentUser, renderSavingsPanel);
   const isFullAdmin = currentUser.role === "Admin";
   document.getElementById("bs-withdraw-btn")?.classList.toggle("hidden", !isFullAdmin);
   if (isFullAdmin) {
     wireWithdrawModal(async () => {
       await renderSavingsPanel();
+      if (document.getElementById("bs-withdrawals-modal")?.classList.contains("active")) await withdrawalsModalWired.reload();
       if (document.getElementById("bs-redeem-requests-modal")?.classList.contains("active")) await loadRedeemRequests();
     });
   }
