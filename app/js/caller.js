@@ -36,6 +36,42 @@ let eventNameByCode = {}; // assignments now span every event a caller was assig
 let messageText = "";
 let currentUser = null;
 
+// Unsubmitted call work (picked status, "called"/"sent" progress, review
+// note) used to live only in memory, so a page refresh — or a realtime
+// reload re-rendering the cards — silently wiped it. Mirror it into
+// localStorage per caller/card and restore it on render; cleared on submit.
+const DRAFT_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+function draftsKey() { return `callDrafts:${currentUser?.user_name || ""}`; }
+function readDrafts() {
+  try {
+    const all = JSON.parse(localStorage.getItem(draftsKey()) || "{}");
+    const now = Date.now();
+    Object.keys(all).forEach((k) => { if (now - (all[k].ts || 0) > DRAFT_MAX_AGE_MS) delete all[k]; });
+    return all;
+  } catch { return {}; }
+}
+function writeDrafts(all) {
+  try { localStorage.setItem(draftsKey(), JSON.stringify(all)); } catch { /* storage unavailable — draft just isn't kept */ }
+}
+// A draft only applies while the server status it was typed against is unchanged.
+function getDraft(id, baseStatus) {
+  const d = readDrafts()[id];
+  return d && (d.base || "") === (baseStatus || "") ? d : null;
+}
+function clearDraft(id) {
+  const all = readDrafts();
+  if (all[id]) { delete all[id]; writeDrafts(all); }
+}
+function persistDraft(card, id) {
+  const st = cardState.get(id);
+  if (!st) return;
+  const status = card.querySelector(".status-select").value;
+  const all = readDrafts();
+  if (!status && !st.review && !st.called && !st.sent) delete all[id];
+  else all[id] = { status, called: st.called, sent: st.sent, review: st.review || "", base: card.dataset.baseStatus || "", ts: Date.now() };
+  writeDrafts(all);
+}
+
 // contact_id|event_code for every row in this caller's own (unfiltered by
 // handoff) `assignments` result — lets the realtime handler below decide
 // whether a follow_up_assignments change is relevant to this caller without
@@ -168,7 +204,10 @@ function sortBySubmission(list) {
 
 function ensureCardState(item) {
   if (!cardState.has(item.id)) {
-    cardState.set(item.id, { called: false, sent: false, submitted: !!item.submitted_at, lastStatus: item.status, review: "" });
+    const d = getDraft(item.id, item.status);
+    cardState.set(item.id, {
+      called: !!d?.called, sent: !!d?.sent, submitted: !!item.submitted_at, lastStatus: item.status, review: d?.review || ""
+    });
   }
 }
 
@@ -246,9 +285,11 @@ function renderCard(a, weekCallCount) {
   const c = a.contacts;
   const st = cardState.get(a.id);
   const submittedLabel = st.submitted && st.lastStatus === a.status;
-  const category = statusCategory(a.status);
+  const draft = getDraft(a.id, a.status);
+  const shownStatus = draft ? draft.status : a.status;
+  const category = statusCategory(shownStatus);
   return `
-    <div class="call-card" data-assignment-id="${a.id}" data-contact-id="${c.id}" data-source="${a.__source || "assignments"}">
+    <div class="call-card" data-base-status="${escapeHtml(a.status || "")}" data-assignment-id="${a.id}" data-contact-id="${c.id}" data-source="${a.__source || "assignments"}">
       <div class="call-card-row1">
         <select class="ws-select" data-ws="${c.ws || "NA"}">
           ${WS_OPTIONS.map((o) => `<option value="${o}" ${o === (c.ws || "NA") ? "selected" : ""}>${o}</option>`).join("")}
@@ -274,7 +315,7 @@ function renderCard(a, weekCallCount) {
         </div>
       </div>
       <div class="call-card-row3">
-        ${statusSelectHtml(STATUS_OPTIONS, a.status || STATUS_DEFAULT, category)}
+        ${statusSelectHtml(STATUS_OPTIONS, shownStatus || STATUS_DEFAULT, category)}
         ${orgFieldHtml(c.company_name)}
       </div>
       <div class="call-card-review${st.review ? "" : " hidden"}">
@@ -346,6 +387,7 @@ function wireCard(container, assignments) {
 
     card.querySelector(".phone-pill").addEventListener("click", () => {
       cardState.get(assignmentId).called = true;
+      persistDraft(card, assignmentId);
       refreshSubmitButton(card, assignmentId);
     });
 
@@ -357,6 +399,7 @@ function wireCard(container, assignments) {
         const mandatory = e.target.value === "Others" || !!c.core_cultivation;
         openReviewModal(card, assignmentId, c, mandatory);
       }
+      persistDraft(card, assignmentId);
       refreshSubmitButton(card, assignmentId);
     });
 
@@ -383,6 +426,7 @@ function wireCard(container, assignments) {
     card.querySelector(".send-btn").addEventListener("click", () => {
       sendWhatsAppMessage(c.mob_no, c.name, messageText);
       cardState.get(assignmentId).sent = true;
+      persistDraft(card, assignmentId);
       refreshSubmitButton(card, assignmentId);
     });
 
@@ -454,6 +498,8 @@ async function submitCard(card, assignmentId, contactId, contact, eventCode, sou
   st.lastStatus = status;
   st.called = false;
   st.sent = false;
+  card.dataset.baseStatus = status;
+  clearDraft(assignmentId);
 
   card.classList.add("row-saved");
   setTimeout(() => card.classList.remove("row-saved"), 1200);
@@ -597,6 +643,7 @@ function wireReviewModal() {
     }
     // Skip just closes the box — any comment saved earlier is kept.
     renderCardReview(card, assignmentId);
+    persistDraft(card, assignmentId);
     refreshSubmitButton(card, assignmentId);
   };
   document.getElementById("review-confirm").onclick = () => {
@@ -611,6 +658,7 @@ function wireReviewModal() {
     pendingReview = null;
     cardState.get(assignmentId).review = input.value.trim();
     renderCardReview(card, assignmentId);
+    persistDraft(card, assignmentId);
     refreshSubmitButton(card, assignmentId);
   };
   input.addEventListener("keydown", (e) => {
