@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient.js";
+import { downloadSpec } from "./exportDoc.js";
 import { showToast, escapeHtml, debounce, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, downloadExcel, exportTableToExcel, initMobileFilterDrawer } from "./utils.js";
 
 // Wires a page's "⬇ Export Excel" button to dump its current (filtered/sorted) table as-is.
@@ -2400,6 +2401,19 @@ function wireDashboardExport() {
   document.getElementById("bd-export-btn").addEventListener("click", () => {
     const table = document.getElementById("book-dashboard-table");
     exportTableToExcel(table, `Book_Dashboard_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  });
+  // Stock pad: every book (ignores on-screen filters), alphabetical, with blank columns to
+  // fill in by hand while counting the physical stock.
+  document.getElementById("bd-stock-pad-btn").addEventListener("click", () => {
+    const books = [...dashboardStatsCache].sort((x, y) => (x.name || "").localeCompare(y.name || "") || (x.language || "").localeCompare(y.language || ""));
+    downloadSpec({
+      title: "Book Stock Pad",
+      subtitle: `${books.length} books`,
+      filename: `Book_Stock_Pad_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      headers: ["S.No", "Book Name", "Language", "Current Stock", "Physical Count", "Remarks"],
+      rows: books.map((b, i) => [i + 1, b.name, b.language || "", b.currentStock ?? 0, "", ""]),
+      pdfColumns: { "S.No": 40, "Book Name": "fill", "Language": 70, "Current Stock": 70, "Physical Count": 80, "Remarks": 110 },
+    });
   });
 }
 
