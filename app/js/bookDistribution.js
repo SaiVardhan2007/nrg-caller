@@ -1975,137 +1975,106 @@ function wireRequestModal(currentUser, onSaved) {
   };
 }
 
-const REQUESTS_COLUMNS_KEY = "nrg-book-requests-column-order";
-const DEFAULT_REQUESTS_COLUMNS = ["S.No", "Time", "Name", "Quantity", "Place", "Event", "Priority", "Requested By", "Fulfilled", ""];
-const REQUESTS_SELECT_FILTERS = [["br-filter-priority", "priority"], ["br-filter-place", "place"], ["br-filter-event", "event"], ["br-filter-by", "requested_by"]];
-const REQUESTS_NUMBER_FILTERS = [["br-th-filter-qty", "quantity"]];
-let requestsCache = [];
-let requestsFiltersWired = false;
+// Admin "Book Requests" tab = Book Requirement sheet: every book in the catalog with
+// an Order Quantity and Received Quantity we type in (saved in book_requirement).
+let requirementCache = [];
+let requirementWired = false;
 
-function renderRequestsRows(rows, emptyMessage) {
+// "Bhagavad Gita - 123" -> "Bhagavad Gita" (drops a trailing "-" and the numbers after it)
+function trimBookName(name) {
+  return String(name || "").replace(/\s*-[\s\d-]*$/, "").trim();
+}
+
+function visibleRequirementRows() {
+  const search = document.getElementById("br-search")?.value.trim().toLowerCase() || "";
+  const onlyOrdered = document.getElementById("br-filter-ordered")?.value === "ordered";
+  return requirementCache.filter((r) =>
+    (!search || r.shortName.toLowerCase().includes(search) || (r.language || "").toLowerCase().includes(search)) &&
+    (!onlyOrdered || (r.order_qty !== null && r.order_qty !== undefined))
+  );
+}
+
+function renderRequirementRows() {
   const tbody = document.getElementById("book-requests-body");
+  const rows = visibleRequirementRows();
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="muted-text">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="muted-text">No books to show.</td></tr>`;
     return;
   }
-  tbody.innerHTML = rows.map((r, idx) => `
-    <tr data-id="${r.id}" class="${r.priority === "Immediately" && !r.fulfilled ? "row-low-stock" : ""}">
-      <td data-label="S.No">${idx + 1}</td>
-      <td data-label="Time">${new Date(r.created_at).toLocaleString()}</td>
-      <td data-label="Name"><input class="inline-edit" data-field="name" value="${escapeHtml(r.name)}" /></td>
-      <td data-label="Quantity"><input class="inline-edit" type="number" min="1" step="1" data-field="quantity" value="${r.quantity ?? ""}" /></td>
-      <td data-label="Place">${editSelectHtml("place", distinctValues(requestsCache, "place"), r.place || "")}</td>
-      <td data-label="Event">${editSelectHtml("event", distinctValues(requestsCache, "event"), r.event || "")}</td>
-      <td data-label="Priority">
-        <select class="inline-edit" data-field="priority">
-          ${["Immediately", "Important", "Can Wait"].map((p) => `<option value="${p}" ${r.priority === p ? "selected" : ""}>${p}</option>`).join("")}
-        </select>
-      </td>
-      <td data-label="Requested By">${escapeHtml(r.requested_by || "—")}</td>
-      <td data-label="Fulfilled"><input type="checkbox" class="inline-edit request-fulfilled-input" data-field="fulfilled" ${r.fulfilled ? "checked" : ""} /></td>
-      <td data-label="">
-        <button type="button" class="cell-chip danger request-delete-btn" title="Delete">🗑 Delete</button>
-      </td>
+  tbody.innerHTML = rows.map((r, i) => `
+    <tr data-key="${escapeHtml(r.key)}">
+      <td data-label="S.No">${i + 1}</td>
+      <td data-label="Book Name">${escapeHtml(r.shortName)}</td>
+      <td data-label="Language">${escapeHtml(r.language || "—")}</td>
+      <td data-label="Order Quantity"><input class="inline-edit" type="number" min="0" step="1" data-field="order_qty" value="${r.order_qty ?? ""}" /></td>
+      <td data-label="Received Quantity"><input class="inline-edit" type="number" min="0" step="1" data-field="received_qty" value="${r.received_qty ?? ""}" /></td>
     </tr>
   `).join("");
+}
 
-  tbody.querySelectorAll(".request-delete-btn").forEach((btn) => {
-    btn.addEventListener("click", () => deleteRequest(btn.closest("tr").dataset.id));
+function wireRequirement() {
+  if (requirementWired) return;
+  requirementWired = true;
+  document.getElementById("br-search").addEventListener("input", debounce(renderRequirementRows, 200));
+  document.getElementById("br-filter-ordered").addEventListener("change", renderRequirementRows);
+  initHorizontalScroll("book-requests-table-wrap");
+
+  document.getElementById("book-requests-body").addEventListener("change", async (e) => {
+    const input = e.target.closest("input[data-field]");
+    if (!input) return;
+    const rec = requirementCache.find((x) => x.key === input.closest("tr").dataset.key);
+    if (!rec) return;
+    const field = input.dataset.field;
+    const value = input.value === "" ? null : Math.max(0, Math.round(Number(input.value)));
+    const { error } = await supabase.from("book_requirement").upsert(
+      { name: rec.name, language: rec.language || "", [field]: value },
+      { onConflict: "name,language" }
+    );
+    if (error) {
+      showToast("Save failed: " + error.message, "error");
+      input.value = rec[field] ?? "";
+      return;
+    }
+    rec[field] = value;
+    input.value = value ?? "";
+    if (field === "order_qty" && document.getElementById("br-filter-ordered").value === "ordered") renderRequirementRows();
   });
-  tbody.querySelectorAll(".request-fulfilled-input").forEach((input) => {
-    input.addEventListener("change", async (e) => {
-      const id = e.target.closest("tr").dataset.id;
-      const record = requestsCache.find((x) => x.id === id);
-      const checked = e.target.checked;
-      const { error } = await supabase.from("book_requests").update({ fulfilled: checked }).eq("id", id);
-      if (error) {
-        showToast("Update failed: " + error.message, "error");
-        e.target.checked = !checked;
-        return;
-      }
-      if (record) record.fulfilled = checked;
-      e.target.closest("tr").classList.toggle("row-low-stock", record.priority === "Immediately" && !checked);
-      showToast(checked ? "Marked as fulfilled" : "Marked as not fulfilled", "success");
+
+  document.getElementById("br-export-btn").addEventListener("click", () => {
+    const rows = visibleRequirementRows();
+    downloadSpec({
+      title: "Book Requirement for Folk Residency Nanakramguda - SNKD",
+      previewHeading: "Book Requirement for Folk Residency Nanakramguda - SNKD",
+      filename: `Book_Requirement_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      headers: ["S.No", "Book Name", "Language", "Order Quantity", "Received Quantity"],
+      rows: rows.map((r, i) => [i + 1, r.shortName, r.language || "", r.order_qty ?? "", r.received_qty ?? ""]),
+      pdfColumns: { "S.No": 40, "Book Name": "fill", "Language": 80, "Order Quantity": 80, "Received Quantity": 90 },
     });
   });
-  wireInlineEditCells(tbody, "book_requests", requestsCache, { numberFields: ["quantity"], requiredFields: ["name"] }, applyRequestsFilters);
-  reapplyColumnOrder("book-requests-table");
 }
 
-function applyRequestsFilters() {
-  const search = document.getElementById("br-search")?.value.trim().toLowerCase() || "";
-  const fulfilledFilter = document.getElementById("br-filter-fulfilled")?.value ?? "__ALL__";
-  let rows = requestsCache.filter((r) =>
-    matchesSearch(r, search, ["name", "place", "event", "requested_by"]) &&
-    matchesSelectFilters(r, REQUESTS_SELECT_FILTERS) &&
-    matchesNumberFilters(r, REQUESTS_NUMBER_FILTERS) &&
-    (fulfilledFilter === "__ALL__" || (fulfilledFilter === "yes" ? r.fulfilled : !r.fulfilled))
-  );
-  rows = sortRows(rows, document.getElementById("br-sort")?.value, "created_at-desc");
-  renderRequestsRows(rows, requestsCache.length ? "No requests match your filters." : "No book requests yet.");
-}
-
-function wireRequestsFilters() {
-  if (requestsFiltersWired) return;
-  requestsFiltersWired = true;
-  document.getElementById("br-search").addEventListener("input", debounce(applyRequestsFilters, 200));
-  document.getElementById("br-sort").addEventListener("change", applyRequestsFilters);
-  pairFilterControls("br-filter-priority", "br-th-filter-priority", applyRequestsFilters);
-  pairFilterControls("br-filter-place", "br-th-filter-place", applyRequestsFilters);
-  pairFilterControls("br-filter-event", "br-th-filter-event", applyRequestsFilters);
-  pairFilterControls("br-filter-by", "br-th-filter-by", applyRequestsFilters);
-  pairFilterControls("br-filter-fulfilled", "br-th-filter-fulfilled", applyRequestsFilters);
-  document.getElementById("br-th-filter-qty")?.addEventListener("input", debounce(applyRequestsFilters, 200));
-  wireExportBtn("br-export-btn", "book-requests-table", "Book_Requests");
-  initColumnDragReorder("book-requests-table", { storageKey: REQUESTS_COLUMNS_KEY, columns: DEFAULT_REQUESTS_COLUMNS, resetBtnId: "br-reset-columns-btn" });
-  initHorizontalScroll("book-requests-table-wrap");
-  initMobileFilterDrawer("book-requests-section");
-
-  // Mobile: tapping a row (not one of its inline-edit fields) expands it in
-  // place to reveal Time/Place/Event/Requested By/Fulfilled/Delete — see
-  // #book-requests-table's tap-to-expand rules in theme.css. Delegated on
-  // the tbody so it keeps working across every re-render.
-  document.getElementById("book-requests-body").addEventListener("click", (e) => {
-    if (window.innerWidth > 640) return;
-    if (e.target.closest("input, button, select, a")) return;
-    const row = e.target.closest("tr[data-id]");
-    if (row) row.classList.toggle("expanded");
-  });
-}
-
-async function deleteRequest(id) {
-  const r = requestsCache.find((x) => x.id === id);
-  if (!confirm(`Delete request for "${r?.name || ""}"?`)) return;
-  const { error } = await supabase.from("book_requests").delete().eq("id", id);
-  if (error) {
-    showToast("Delete failed: " + error.message, "error");
-    return;
-  }
-  showToast("Request deleted", "success");
-  await initBookRequests();
-}
-
-export async function initBookRequests(currentUser) {
-  wireRequestsFilters();
-  wireRequestModal(currentUser, () => initBookRequests(currentUser));
+export async function initBookRequests() {
+  wireRequirement();
   const tbody = document.getElementById("book-requests-body");
-  tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Loading…</td></tr>`;
 
-  const { data, error } = await supabase
-    .from("book_requests")
-    .select("id,name,quantity,place,event,priority,requested_by,fulfilled,created_at")
-    .order("created_at", { ascending: false });
-
+  const [catalog, { data: saved, error }] = await Promise.all([
+    fetchBookCatalog(),
+    supabase.from("book_requirement").select("name,language,order_qty,received_qty"),
+  ]);
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="10" class="loading-row">Could not load book requests.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Could not load. Has supabase/book-requirement.sql been run?</td></tr>`;
     return;
   }
-  requestsCache = (data || []).map((r) => ({ ...r, priorityRank: priorityRank(r.priority) }));
-  populatePairedSelect("br-filter-priority", "br-th-filter-priority", distinctValues(requestsCache, "priority"));
-  populatePairedSelect("br-filter-place", "br-th-filter-place", distinctValues(requestsCache, "place"));
-  populatePairedSelect("br-filter-event", "br-th-filter-event", distinctValues(requestsCache, "event"));
-  populatePairedSelect("br-filter-by", "br-th-filter-by", distinctValues(requestsCache, "requested_by"));
-  applyRequestsFilters();
+  const savedByKey = new Map((saved || []).map((r) => [bookKey(r.name, r.language), r]));
+  requirementCache = catalog
+    .map((b) => {
+      const key = bookKey(b.name, b.language);
+      const s = savedByKey.get(key);
+      return { key, name: b.name, language: b.language || "", shortName: trimBookName(b.name), order_qty: s?.order_qty ?? null, received_qty: s?.received_qty ?? null };
+    })
+    .sort((a, b) => a.shortName.localeCompare(b.shortName) || a.language.localeCompare(b.language));
+  renderRequirementRows();
 }
 
 async function renderMyRequests(userName) {

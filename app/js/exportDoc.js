@@ -174,6 +174,8 @@ export function downloadSpec(spec) {
   previewSpec = spec;
   closePdfPanel();
   renderPreview();
+  const heading = $("yatra-preview-heading");
+  if (heading) heading.textContent = spec.previewHeading || "Download Preview";
   $("yatra-preview-modal").classList.add("active");
 }
 

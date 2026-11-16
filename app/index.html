@@ -1241,61 +1241,20 @@
       </div>
     </section>
 
-    <!-- ===== BOOK DISTRIBUTION: Book Requests ===== -->
+    <!-- ===== BOOK DISTRIBUTION: Book Requests (Book Requirement) ===== -->
     <section id="book-requests-section" class="page hidden">
       <div class="users-page-layout">
         <div class="panel users-sidebar">
           <div class="users-toolbar">
-            <input id="br-search" type="search" placeholder="Search name / place / requested by…" class="search-input" />
+            <input id="br-search" type="search" placeholder="Search book / language…" class="search-input" />
             <label class="field inline">
-              <span>Sort By</span>
-              <select id="br-sort" class="inline-edit">
-                <option value="created_at-desc">Time (Newest)</option>
-                <option value="created_at-asc">Time (Oldest)</option>
-                <option value="priorityRank-asc">Priority (Most Urgent First)</option>
-                <option value="name-asc">Name (A-Z)</option>
-                <option value="name-desc">Name (Z-A)</option>
+              <span>Show</span>
+              <select id="br-filter-ordered">
+                <option value="all">All books</option>
+                <option value="ordered">Only with Order Quantity</option>
               </select>
             </label>
-            <label class="field inline">
-              <span>Priority</span>
-              <select id="br-filter-priority">
-                <option value="__ALL__">All</option>
-                <option value="">—</option>
-              </select>
-            </label>
-            <label class="field inline">
-              <span>Place</span>
-              <select id="br-filter-place">
-                <option value="__ALL__">All</option>
-                <option value="">—</option>
-              </select>
-            </label>
-            <label class="field inline">
-              <span>Event</span>
-              <select id="br-filter-event">
-                <option value="__ALL__">All</option>
-                <option value="">—</option>
-              </select>
-            </label>
-            <label class="field inline">
-              <span>Requested By</span>
-              <select id="br-filter-by">
-                <option value="__ALL__">All</option>
-                <option value="">—</option>
-              </select>
-            </label>
-            <label class="field inline">
-              <span>Status</span>
-              <select id="br-filter-fulfilled">
-                <option value="__ALL__">All</option>
-                <option value="no">Pending</option>
-                <option value="yes">Fulfilled</option>
-              </select>
-            </label>
-            <button id="add-book-request-admin-btn" class="btn btn-primary toolbar-btn open-book-request-btn">+ Add Request</button>
             <button id="br-export-btn" class="btn btn-secondary toolbar-btn">⬇ Download</button>
-            <button id="br-reset-columns-btn" class="btn btn-secondary toolbar-btn" title="Restore the default column order">↺ Reset Columns</button>
           </div>
         </div>
 
@@ -1304,54 +1263,15 @@
             <table class="data-table" id="book-requests-table">
               <thead>
                 <tr>
-                  <th draggable="true" data-label="S.No">S.No</th>
-                  <th draggable="true" data-label="Time">Time</th>
-                  <th draggable="true" data-label="Name">Name</th>
-                  <th draggable="true" data-label="Quantity">
-                    <div class="th-label">Quantity</div>
-                    <input type="number" min="0" id="br-th-filter-qty" class="th-filter" placeholder="All" />
-                  </th>
-                  <th draggable="true" data-label="Place">
-                    <div class="th-label">Place</div>
-                    <select id="br-th-filter-place" class="th-filter">
-                      <option value="__ALL__">All</option>
-                      <option value="">—</option>
-                    </select>
-                  </th>
-                  <th draggable="true" data-label="Event">
-                    <div class="th-label">Event</div>
-                    <select id="br-th-filter-event" class="th-filter">
-                      <option value="__ALL__">All</option>
-                      <option value="">—</option>
-                    </select>
-                  </th>
-                  <th draggable="true" data-label="Priority">
-                    <div class="th-label">Priority</div>
-                    <select id="br-th-filter-priority" class="th-filter">
-                      <option value="__ALL__">All</option>
-                      <option value="">—</option>
-                    </select>
-                  </th>
-                  <th draggable="true" data-label="Requested By">
-                    <div class="th-label">Requested By</div>
-                    <select id="br-th-filter-by" class="th-filter">
-                      <option value="__ALL__">All</option>
-                      <option value="">—</option>
-                    </select>
-                  </th>
-                  <th draggable="true" data-label="Fulfilled">
-                    <div class="th-label">Fulfilled</div>
-                    <select id="br-th-filter-fulfilled" class="th-filter">
-                      <option value="__ALL__">All</option>
-                      <option value="no">Pending</option>
-                      <option value="yes">Fulfilled</option>
-                    </select>
-                  </th>
-                  <th data-label=""></th>
+                  <th data-label="S.No">S.No</th>
+                  <th data-label="Book Name">Book Name</th>
+                  <th data-label="Language">Language</th>
+                  <th data-label="Order Quantity">Order Quantity</th>
+                  <th data-label="Received Quantity">Received Quantity</th>
                 </tr>
               </thead>
               <tbody id="book-requests-body">
-                <tr><td colspan="10" class="loading-row">Loading…</td></tr>
+                <tr><td colspan="5" class="loading-row">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -4103,7 +4023,7 @@
 <div id="yatra-preview-modal" class="modal">
   <div class="modal-box modal-large">
     <div class="modal-title-row">
-      <h3>Download Preview</h3>
+      <h3 id="yatra-preview-heading">Download Preview</h3>
     </div>
     <p class="muted-text">This is how the file will look. Choose a format to download it.</p>
     <div class="yatra-preview-stage"><div id="yatra-preview-sheet" class="yatra-paper"></div></div>
