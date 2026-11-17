@@ -167,7 +167,7 @@ function populatePairedSelect(idA, idB, values) {
 // theme.css) instead of a separate Edit button + modal — matches Master
 // Contact / New Contacts elsewhere in the app. Saves straight to Supabase
 // on change/blur.
-function wireInlineEditCells(tbody, tableName, cache, { numberFields = [], requiredFields = [] } = {}, afterSave) {
+function wireInlineEditCells(tbody, tableName, cache, { numberFields = [], requiredFields = [], renameCascade = null } = {}, afterSave) {
   tbody.querySelectorAll(".inline-edit").forEach((el) => {
     // Cells with their own bespoke save handler (e.g. a status change that
     // also needs to stamp reviewed_by/reviewed_at) reuse this class purely
@@ -187,6 +187,19 @@ function wireInlineEditCells(tbody, tableName, cache, { numberFields = [], requi
       }
 
       const value = numberFields.includes(field) ? (raw === "" ? null : Number(raw)) : (raw || null);
+
+      // Renaming a book's name/language must carry over to every table that
+      // keys on it (inward, outward, standard prices) or stock goes out of sync.
+      if (renameCascade && (field === "name" || field === "language") && value !== (record[field] ?? null)) {
+        const ok = await renameCascade(record, field, value);
+        if (!ok) {
+          e.target.value = record[field] ?? "";
+          return;
+        }
+        if (afterSave) await afterSave();
+        return;
+      }
+
       const { error } = await supabase.from(tableName).update({ [field]: value }).eq("id", id);
       if (error) {
         showToast("Update failed: " + error.message, "error");
@@ -981,7 +994,7 @@ function renderInwardRows(rows, emptyMessage) {
     priceInput.addEventListener("input", updateRowTotal);
     qtyInput.addEventListener("input", updateRowTotal);
   });
-  wireInlineEditCells(tbody, "book_inward_stock", inwardCache, { numberFields: ["purchase_price", "quantity"], requiredFields: ["name"] }, async () => {
+  wireInlineEditCells(tbody, "book_inward_stock", inwardCache, { numberFields: ["purchase_price", "quantity"], requiredFields: ["name"], renameCascade: cascadeBookRename }, async () => {
     populateDatalist(document.getElementById("book-purchased-from-list"), await fetchPurchasedFromValues());
     await renderDashboard();
     applyInwardFilters();
@@ -1116,7 +1129,7 @@ function renderOutwardRows(rows, emptyMessage) {
     priceInput.addEventListener("input", updateRowTotal);
     qtyInput.addEventListener("input", updateRowTotal);
   });
-  wireInlineEditCells(tbody, "book_outward_stock", outwardCache, { numberFields: ["sold_price", "quantity"], requiredFields: ["name"] }, renderDashboard);
+  wireInlineEditCells(tbody, "book_outward_stock", outwardCache, { numberFields: ["sold_price", "quantity"], requiredFields: ["name"], renameCascade: cascadeBookRename }, renderDashboard);
   reapplyColumnOrder("book-outward-table");
 }
 
@@ -1980,9 +1993,9 @@ function wireRequestModal(currentUser, onSaved) {
 let requirementCache = [];
 let requirementWired = false;
 
-// "Bhagavad Gita - 123" -> "Bhagavad Gita" (drops a trailing "-" and the numbers after it)
+// "Bhagavad Gita_123" / "Bhagavad Gita - 123" -> "Bhagavad Gita" (drops a trailing "_" or "-" and the number after it)
 function trimBookName(name) {
-  return String(name || "").replace(/\s*-[\s\d-]*$/, "").trim();
+  return String(name || "").replace(/\s*[_-]\s*\d[\s\d_-]*$/, "").trim();
 }
 
 function visibleRequirementRows() {
@@ -2735,6 +2748,24 @@ async function renameBookEverywhere(book, newName, newLanguage) {
     }
   }
 
+  return true;
+}
+
+// Inline Name/Language edit on an Inward/Outward row -> rename the whole book
+// everywhere (all entries with the old name+language), updating cached rows too.
+async function cascadeBookRename(record, field, value) {
+  const oldName = record.name;
+  const oldLang = record.language || null;
+  const newName = field === "name" ? value : record.name;
+  const newLang = field === "language" ? value : (record.language || null);
+  const ok = await renameBookEverywhere({ name: oldName, language: oldLang, key: bookKey(oldName, oldLang) }, newName, newLang);
+  if (!ok) return false;
+  for (const cache of [inwardCache, outwardCache]) {
+    cache.forEach((r) => {
+      if (r.name === oldName && (r.language || null) === oldLang) { r.name = newName; r.language = newLang; }
+    });
+  }
+  outwardModalDataCache = null;
   return true;
 }
 
