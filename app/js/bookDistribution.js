@@ -1993,9 +1993,9 @@ function wireRequestModal(currentUser, onSaved) {
 let requirementCache = [];
 let requirementWired = false;
 
-// "Bhagavad Gita_123" / "Bhagavad Gita - 123" -> "Bhagavad Gita" (drops a trailing "_" or "-" and the number after it)
+// "Bhagavad Gita_123" / "Bhagavad Gita - 123" -> "Bhagavad Gita" (drops the last "_"/"-" plus an optional language code and number, e.g. "-SB 180", "-E 350")
 function trimBookName(name) {
-  return String(name || "").replace(/\s*[_-]\s*\d[\s\d_-]*$/, "").trim();
+  return String(name || "").replace(/\s*[_-]\s*[A-Za-z]{0,3}\s*\d[\s\d_-]*$/, "").trim();
 }
 
 function visibleRequirementRows() {
