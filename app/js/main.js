@@ -63,7 +63,7 @@ addDownloadButtons([
   { body: "et-budget-history-body", title: "Trip Budget History" },
   { body: "ep-budget-history-body", title: "Preaching Budget History" },
   { body: "er-budget-history-body", title: "Residency Budget History" },
-]);
+], () => currentUser?.user_name);
 
 // Mouse-wheel scrolling over a focused number input silently changes its
 // value (e.g. a quantity) — blur it so the wheel just scrolls the page.

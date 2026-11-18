@@ -3,9 +3,10 @@ import { downloadSpec } from "./exportDoc.js";
 import { showToast, escapeHtml, debounce, initColumnDragReorder, reapplyColumnOrder, initHorizontalScroll, populateFilterSelect, downloadExcel, exportTableToExcel, initMobileFilterDrawer } from "./utils.js";
 
 // Wires a page's "⬇ Export Excel" button to dump its current (filtered/sorted) table as-is.
-function wireExportBtn(btnId, tableId, filenamePrefix) {
+// subtitleFn(): optional line under the title (e.g. whose data a user-filtered table shows).
+function wireExportBtn(btnId, tableId, filenamePrefix, subtitleFn) {
   document.getElementById(btnId)?.addEventListener("click", () => {
-    exportTableToExcel(document.getElementById(tableId), `${filenamePrefix}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    exportTableToExcel(document.getElementById(tableId), `${filenamePrefix}_${new Date().toISOString().slice(0, 10)}.xlsx`, undefined, subtitleFn?.());
   });
 }
 
@@ -2870,7 +2871,9 @@ function openSegmentDetail(rows) {
   const title = document.getElementById("book-dashboard-detail-title");
   const theadRow = document.querySelector("#book-dashboard-detail-table thead tr");
   const tbody = document.getElementById("book-dashboard-detail-body");
-  title.textContent = "Segment Entries";
+  // every row in a segment is one distributor's (segments are grouped per user)
+  const who = [...new Set(rows.map((r) => r.sold_by).filter(Boolean))];
+  title.textContent = who.length === 1 ? `Segment Entries — ${who[0]}` : "Segment Entries";
   theadRow.innerHTML = "<th>S.No</th><th>Time</th><th>Name</th><th>Language</th><th>Sold Price</th><th>Quantity</th><th>Event</th>";
   const sorted = [...rows].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
   tbody.innerHTML = sorted.map((r, idx) => `
@@ -3201,7 +3204,10 @@ async function wireAnalyticsFilters() {
   wireBookFilterDropdown();
 
   document.getElementById("ba-run-btn").addEventListener("click", runAnalytics);
-  wireExportBtn("ba-export-btn", "ba-segments-table", "Book_Analytics");
+  wireExportBtn("ba-export-btn", "ba-segments-table", "Book_Analytics", () => {
+    const u = document.getElementById("ba-filter-user-select").value;
+    return u && u !== "__ALL__" ? `User: ${u}` : "";
+  });
   initMobileFilterDrawer("book-analytics-section");
 
   // Mobile: tapping a row (not one of its detail buttons) expands it in
@@ -4335,7 +4341,7 @@ async function openMyContributionsPopup(userName, showAll = false) {
   const theadRow = document.querySelector("#book-dashboard-detail-table thead tr");
   const tbody = document.getElementById("book-dashboard-detail-body");
 
-  title.textContent = showAll ? "All Contributions" : "My Contributions";
+  title.textContent = showAll ? "All Contributions" : `My Contributions — ${userName}`;
   theadRow.innerHTML = showAll
     ? "<th>S.No</th><th>Date</th><th>Amount</th><th>Submitted By</th><th>Paid To</th><th>Realised</th>"
     : "<th>S.No</th><th>Date</th><th>Amount</th><th>Paid To</th><th>Realised</th>";

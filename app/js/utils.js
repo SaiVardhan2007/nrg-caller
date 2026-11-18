@@ -272,13 +272,13 @@ export function downloadExcel(filename, rows, sheetName = "Sheet1") {
 }
 
 // Opens the shared download preview (Excel / PDF) for a rendered table — see exportDoc.js.
-export function exportTableToExcel(table, filename, title) {
-  downloadTable(table, filename, title);
+export function exportTableToExcel(table, filename, title, subtitle) {
+  downloadTable(table, filename, title, subtitle);
 }
 
 // Same, for data already in array-of-arrays form (first row = headers).
-export function exportRows(filename, rows, title) {
-  downloadRows(filename, rows, title);
+export function exportRows(filename, rows, title, subtitle) {
+  downloadRows(filename, rows, title, subtitle);
 }
 
 // minimal RFC4180-ish CSV parser: handles quoted fields with embedded commas/newlines/escaped quotes.

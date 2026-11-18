@@ -304,15 +304,28 @@ export function titleFromFilename(filename) {
 const stamp = () => new Date().toISOString().slice(0, 10);
 
 // rows = array of arrays, first row = headers (the shape downloadExcel takes)
-export function downloadRows(filename, rows, title) {
+export function downloadRows(filename, rows, title, subtitle) {
   const [headers = [], ...body] = rows;
-  downloadSpec({ title: title || titleFromFilename(filename), filename: filename.replace(/\.\w+$/, "") + ".xlsx", headers: headers.map(String), rows: body, autoCenter: true });
+  downloadSpec({ title: title || titleFromFilename(filename), subtitle, filename: filename.replace(/\.\w+$/, "") + ".xlsx", headers: headers.map(String), rows: body, autoCenter: true });
+}
+
+// A table inside a pop-up belongs to whoever the pop-up is about: its heading plus the
+// small "who" line under it (e.g. "Calling History" + "Name · phone"), so the file says
+// whose data it is. Combined / all-user pop-ups say nothing.
+function modalSubject(table) {
+  const modal = table.closest(".modal");
+  if (!modal) return "";
+  const head = modal.querySelector("h3")?.textContent.trim() || "";
+  const sub = modal.querySelector('[id$="-sub"]')?.textContent.trim() || "";
+  if (/^all\b/i.test(sub) || /^all\b/i.test(head)) return "";
+  return [head, sub].filter(Boolean).join(" — ");
 }
 
 // a rendered <table>: header labels + current cell text (inputs/selects give their value).
 // Columns/cells marked .no-export, hidden rows and hidden columns are left out.
 export function downloadTable(table, filename, title, subtitle) {
   if (!table) return;
+  subtitle = subtitle || modalSubject(table);
   const ths = Array.from(table.querySelectorAll("thead th"));
   // an empty header is an action/checkbox column — never part of the data
   const keep = ths.map((th) => th.textContent.trim() !== "" && !th.classList.contains("no-export") && !th.classList.contains("followup-select-col") && th.style.display !== "none" && !th.classList.contains("hidden"));
@@ -332,7 +345,8 @@ export function downloadTable(table, filename, title, subtitle) {
 
 // Adds a "⬇ Download" button above each listed table that has no export button of its own.
 // items: [{ table: "table-id" | body: "tbody-id", title: "Page title" }]
-export function addDownloadButtons(items) {
+// ownerName(): the signed-in user's name, used for "My …" tables (their own data).
+export function addDownloadButtons(items, ownerName) {
   items.forEach(({ table: id, body, title }) => {
     const table = id ? $(id) : $(body)?.closest("table");
     if (!table || table.dataset.dlWired) return;
@@ -341,7 +355,7 @@ export function addDownloadButtons(items) {
     const bar = document.createElement("div");
     bar.className = "dl-bar";
     bar.innerHTML = `<button type="button" class="btn btn-secondary toolbar-btn">⬇ Download</button>`;
-    bar.firstChild.addEventListener("click", () => downloadTable(table, `${title.replace(/\s+/g, "_")}_${stamp()}.xlsx`, title));
+    bar.firstChild.addEventListener("click", () => downloadTable(table, `${title.replace(/\s+/g, "_")}_${stamp()}.xlsx`, title, /^My /.test(title) ? ownerName?.() || "" : undefined));
     wrap.parentNode.insertBefore(bar, wrap);
   });
 }

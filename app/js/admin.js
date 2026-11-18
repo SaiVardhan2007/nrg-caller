@@ -2479,7 +2479,7 @@ export async function initAnalytics() {
     });
 
     document.getElementById("analytics-export-btn").addEventListener("click", () => {
-      exportTableToExcel(document.getElementById("analytics-assigned-body").closest("table"), `nrg-analytics-assigned-${todayStamp()}.xlsx`, "Calling Analytics — Currently Assigned Contacts", `Calls Made: ${document.getElementById("analytics-total-calls").textContent}`);
+      exportTableToExcel(document.getElementById("analytics-assigned-body").closest("table"), `nrg-analytics-assigned-${todayStamp()}.xlsx`, "Calling Analytics — Currently Assigned Contacts", `${userSelect.value && userSelect.value !== "__ALL__" ? `User: ${userSelect.value} · ` : ""}Calls Made: ${document.getElementById("analytics-total-calls").textContent}`);
     });
     initHorizontalScroll("analytics-assigned-table-wrap");
     initHorizontalScroll("analytics-cultivation-table-wrap");
@@ -3053,7 +3053,7 @@ async function openAnalyticsStatModal(statType) {
     tbody.querySelectorAll("tr").forEach((tr) => {
       rows.push(Array.from(tr.children).map((td) => td.textContent.trim()));
     });
-    exportRows(`nrg-pending-contacts-${todayStamp()}.xlsx`, rows, "Pending Contacts");
+    exportRows(`nrg-pending-contacts-${todayStamp()}.xlsx`, rows, "Pending Contacts", isAll ? "" : `User: ${userName}`);
   };
 
   if (statType === "assigned") {
